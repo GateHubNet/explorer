@@ -259,6 +259,16 @@ describe("accountFlags", () => {
     expect(accountFlags(0x00010000, "xrpl")).toEqual([]);
     expect(accountFlags(0x4000ffff, "xrpl")).toEqual([]);
   });
+
+  it("Xahau's clawback flag 0x1000 is 'Clawback allowed', and 0x80000000 is not on Xahau", () => {
+    expect(accountFlags(0x00001000, "xahau")).toEqual([{ id: "allowClawback", label: "Clawback allowed" }]);
+    expect(accountFlags(0x80000000, "xahau")).toEqual([]);
+    // The XRP Ledger has no flag at 0x1000, and its clawback flag keeps the other bit.
+    expect(accountFlags(0x00001000, "xrpl")).toEqual([]);
+    expect(accountFlags(0x80000000, "xrpl")).toEqual([{ id: "allowClawback", label: "Clawback allowed" }]);
+    // In bit order: it is the lowest bit of the table, so it is the first flag of an account that has others.
+    expect(accountFlags(0x00001000 | 0x00100000 | 0x00800000, "xahau").map((f) => f.id)).toEqual(["allowClawback", "disableMaster", "defaultRipple"]);
+  });
 });
 
 describe("decodeDomain", () => {

@@ -102,10 +102,10 @@ export function isProperlyFormedDomain(text: string): boolean {
 }
 
 /**
- * A label's link, only when it is `https:` (anything else, or text that is no URL, is not linked). It is the URL as it parses, not the text as given: `https:host/x` reports `https:`
- * but in a page resolves as a relative link, and leading spaces survive in the text.
+ * A link that may be drawn (a label's, and a token's toml fields, token-view.ts), only when it is `https:` (anything else, or text that is no URL, is not linked). It is the URL as it
+ * parses, not the text as given: `https:host/x` reports `https:` but in a page resolves as a relative link, and leading spaces survive in the text.
  */
-function httpsLink(url: string | undefined): string | undefined {
+export function httpsLink(url: string | undefined): string | undefined {
   if (!url) return undefined;
   try {
     const parsed = new URL(url);

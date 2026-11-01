@@ -162,6 +162,8 @@ export interface AccountFlag {
 // The flags of an AccountRoot (`lsf...`). The same bit can mean different things on the two networks (0x02000000 is the AMM flag on
 // the XRP Ledger), so a flag that only one has is listed for that one, and a bit nobody here knows says nothing.
 const FLAGS: ReadonlyArray<{ mask: number; id: string; label: (native: Native) => string; only?: NetworkId }> = [
+  // Xahau's clawback flag (lsfAllowTrustLineClawback is 0x80000000 on the XRP Ledger, where 0x1000 is no flag); the token pages' issuer settings read it by this id.
+  { mask: 0x00001000, id: "allowClawback", label: () => "Clawback allowed", only: "xahau" },
   { mask: 0x00020000, id: "requireDestTag", label: () => "Requires destination tag" },
   { mask: 0x00040000, id: "requireAuth", label: () => "Requires trust line authorization" },
   // lsfDisallowXRP asks senders not to pay in the native currency; the ledger does not stop them (a wallet or a service may heed it).

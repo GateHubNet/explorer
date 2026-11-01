@@ -284,6 +284,23 @@ function slotOf(pool: AmmPool, now: number | null): AmmRowView["slot"] {
   return expires > now ? held : open;
 }
 
+/** The components of the live set by pool account, for `poolVolume`; `null` for no live set (the call failed: there is no volume to say). */
+export function componentsByPool(row: AmmVolumeRow | null): ReadonlyMap<string, AmmVolumeComponent> | null {
+  return row === null ? null : new Map(row.components.map((component) => [component.amm_account, component] as const));
+}
+
+/**
+ * A pool's volume of the last 24 hours, from the components of the live set (`componentsByPool`; `null` when it failed: `—`). A pool that holds the native currency always converts, so one
+ * with no component had no swaps ("0"); one that does not may have had swaps that could not be priced (`—`). The pools list's column (spec 2.1) and the token page's pools card (E11 spec 3.1) say it.
+ */
+export function poolVolume(components: ReadonlyMap<string, AmmVolumeComponent> | null, pool: AmmPool, native: NativeCode): string {
+  if (components === null) return DASH;
+  const component = components.get(pool.amm_account);
+  if (component) return compactNumber(component.converted_amount);
+  const stored = [assetOf(pool.base_currency, pool.base_issuer), assetOf(pool.counter_currency, pool.counter_issuer)];
+  return stored.some((asset) => isNative(asset, native)) ? "0" : DASH;
+}
+
 /**
  * A row of the pools table from a pool, the components of the live set by account (`null` when it failed: there is no volume to say) and the data's own time
  * (spec 2.1).
@@ -300,13 +317,6 @@ function rowOf(net: AmmListInput["net"], pool: AmmPool, components: ReadonlyMap<
     return reserve === undefined ? DASH : `${compactNumber(reserve)} ${formatCurrency(sides[at].currency)}`;
   };
 
-  let volume = DASH;
-  if (components !== null) {
-    const component = components.get(pool.amm_account);
-    // A pool that holds the native currency always converts, so a pool with no component had no swaps; one that does not may have had swaps that could not be priced.
-    volume = component ? compactNumber(component.converted_amount) : stored.some((asset) => isNative(asset, native)) ? "0" : DASH;
-  }
-
   return {
     key: pool.amm_account,
     pair: shown.text,
@@ -317,7 +327,7 @@ function rowOf(net: AmmListInput["net"], pool: AmmPool, components: ReadonlyMap<
     value: pool.deleted || pool.value_native === undefined ? DASH : compactNumber(pool.value_native),
     reserves: [reserveText(0), reserveText(1)],
     fee: pool.trading_fee === undefined ? DASH : feePercent(pool.trading_fee),
-    volume,
+    volume: poolVolume(components, pool, native),
     slot: slotOf(pool, now),
     created: pool.created_ledger === undefined ? { text: DASH, href: null } : ledgerLink(net.id, pool.created_ledger),
   };
@@ -421,7 +431,7 @@ export function ammListPage(input: AmmListInput): { page: Omit<AmmListPageData, 
   } else {
     try {
       const page = input.pools.value;
-      const components = liveRow ? new Map(liveRow.components.map((component) => [component.amm_account, component] as const)) : null;
+      const components = componentsByPool(liveRow);
       const rows = page.pools.map((pool) => rowOf(net, pool, components, now, names));
       const hrefOf = (to: { marker?: string; back: readonly string[] }): string =>
         ammListHref(net.id, { ...(filterAsset ? { asset: filterAsset.text } : {}), deleted: input.deleted, ...to });

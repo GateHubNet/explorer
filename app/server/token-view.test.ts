@@ -1,19 +1,30 @@
 import { describe, expect, it } from "vitest";
 
+import { ammLiveVolumeSample, ammPoolAccount, ammPoolSample, ammPoolsSample, AMM_POOL } from "../../test/support/amm-samples";
 import {
+  holdersSample,
+  tokenCoverageSample,
+  tokenDetailSample,
+  tokenHolderSample,
+  tokenMarketSample,
+  tokenRowSample,
+  tokenSample,
+  tokensSample,
+  tokenTransferSample,
   TOKEN_SAMPLE_CURRENCY,
   TOKEN_SAMPLE_ISSUER,
   TOKEN_SAMPLE_OTHER_ISSUER,
-  tokenCoverageSample,
-  tokenRowSample,
-  tokensSample,
   TOKENS_MARKER,
+  TRANSFERS_MARKER,
+  transfersSample,
 } from "../../test/support/token-samples";
-import { NAMES_OFF, NO_NAMES, type NamesPart } from "../domain/names";
+import { NAMES_OFF, NO_NAMES, type NamesPart, type NameView } from "../domain/names";
 import { parseTokensParams, type TokensParams } from "../domain/token-params";
 import { NO_FEATURES } from "../ui/features";
-import type { TokensResponse } from "./api-types";
-import { tokensPage, type TokensInput, type TokensNet } from "./token-view";
+import type { AmmPool, AmmVolumeRow, Page, TokenDetail, TokensResponse } from "./api-types";
+import type { Loaded } from "./account-view";
+import type { AccountInfo } from "./node-rpc";
+import { holderRows, linkOf, marketRows, poolRows, priceView, settingsRows, tokenFacts, tokenPage, tokensPage, tomlCard, transferRows, type TokenInput, type TokensInput, type TokensNet } from "./token-view";
 
 // The token list's view builder (E11 spec 2.1 and 2.2): the page data of `/{net}/tokens` from D6's answer of the list. Pure; every figure is D6's own text or made with BigNumber, every href
 // is written here, and a page draws what it is given.
@@ -367,5 +378,884 @@ describe("tokensPage: the names", () => {
     expect(listed("", tokensSample(), { names: NAMES_OFF }).names).toBe(NAMES_OFF);
     const failed: NamesPart = { state: "failed", map: {} };
     expect(listed("", tokensSample(), { names: failed }).names).toBe(failed);
+  });
+});
+
+// ---- One token (spec 3) ---------------------------------------------------------------------------------------------------------------------------
+
+// The token page's view builder (E11 spec 3.1 to 3.5): the page data of `/{net}/token/{token}` from D6's answers and the outcome of each call. Pure; every figure is D6's own text or made with
+// BigNumber, and what the issuer controls (the toml's fields and URLs, its domain) is text that is shown without its bidi controls, with only an `https:` URL ever a link.
+
+/** The switches the token page's links read: the markets and the AMM pages on (the base `FEATURES` has neither). */
+const LINKED = { ...FEATURES, markets: true, ammPages: true };
+const XRPL_LINKED: TokensNet = { ...XRPL, features: LINKED };
+const XAHAU_LINKED: TokensNet = { ...XAHAU, features: LINKED };
+const ASSET = { currency: TOKEN_SAMPLE_CURRENCY, issuer: TOKEN_SAMPLE_ISSUER };
+const CODE = "RLUSD";
+
+const ok = <T>(value: T): Loaded<T> => ({ state: "ok", value });
+const FAILED = { state: "failed" } as const;
+const MISSING = { state: "missing" } as const;
+
+/** The issuer's account as the node gives it, with the flags and rate given. */
+const infoOf = (Flags: number, TransferRate?: number): AccountInfo => ({
+  account_data: {
+    LedgerEntryType: "AccountRoot",
+    Account: TOKEN_SAMPLE_ISSUER,
+    Balance: "1000000",
+    Flags,
+    OwnerCount: 0,
+    Sequence: 1,
+    PreviousTxnID: "A".repeat(64),
+    PreviousTxnLgrSeq: 1,
+    ...(TransferRate === undefined ? {} : { TransferRate }),
+  },
+  ledger_index: 107900000,
+  validated: true,
+});
+
+/** A pool holding the token, against XRP, as the AMM list gives it. */
+const poolOf = (n: number, over: Partial<AmmPool> = {}): AmmPool =>
+  ammPoolSample({ amm_account: ammPoolAccount(n), base_currency: TOKEN_SAMPLE_CURRENCY, base_issuer: TOKEN_SAMPLE_ISSUER, counter_currency: "XRP", ...over });
+
+/** The live day's volume with a component for each pool given (the token against XRP, 100 XRP of swaps each). */
+const volumeOf = (pools: readonly string[]): Page<"rows", AmmVolumeRow> => {
+  const sample = ammLiveVolumeSample();
+  const row = sample.rows[0]!;
+  const component = row.components[0]!;
+  return {
+    ...sample,
+    rows: [{ ...row, components: pools.map((amm_account) => ({ ...component, amm_account, base: { currency: TOKEN_SAMPLE_CURRENCY, issuer: TOKEN_SAMPLE_ISSUER }, converted_amount: "100" })) }],
+  };
+};
+
+/** The page of a token on XRPL with every call answered, unless the input says otherwise. */
+function tokenInput(over: Partial<TokenInput> = {}): TokenInput {
+  return {
+    net: XRPL_LINKED,
+    asset: ASSET,
+    answer: tokenSample(),
+    mode: "first",
+    params: { back: [] },
+    holders: ok(holdersSample()),
+    transfers: ok(transfersSample()),
+    pools: ok(ammPoolsSample({ pools: [poolOf(1, { amm_account: AMM_POOL })], count: 1, marker: undefined })),
+    ammVolume: ok(volumeOf([AMM_POOL])),
+    accountInfo: null,
+    names: NO_NAMES,
+    ...over,
+  };
+}
+
+/** The same with the token replaced by `over`'s. */
+const withToken = (over: Partial<TokenDetail>, rest: Partial<TokenInput> = {}): TokenInput => tokenInput({ answer: tokenSample({ token: tokenDetailSample(over) }), ...rest });
+const pageOfToken = (input: TokenInput = tokenInput()) => tokenPage(input).page;
+
+describe("priceView", () => {
+  const detail = (over: Partial<TokenDetail>) => tokenDetailSample({ price_change: undefined, price_time: undefined, ...over });
+
+  it("is the price and the change of the day with its arrow's direction: a rise, and a fall with U+2212", () => {
+    expect(priceView(detail({ price: "0.40990000", price_change: "0.123" }), "XRP")).toEqual({ value: "0.4099 XRP", sub: { kind: "change", sign: 1, text: "+0.12% in 24 h" } });
+    expect(priceView(detail({ price: "0.4", price_change: "-0.40" }), "XRP")).toEqual({ value: "0.4 XRP", sub: { kind: "change", sign: -1, text: "−0.40% in 24 h" } });
+  });
+
+  it("has a change of nothing for a change that rounds to zero: no arrow either way", () => {
+    expect(priceView(detail({ price: "1", price_change: "0.00" }), "XRP").sub).toEqual({ kind: "change", sign: 0, text: "0.00% in 24 h" });
+    expect(priceView(detail({ price: "1", price_change: "-0.004" }), "XRP").sub).toEqual({ kind: "change", sign: 0, text: "0.00% in 24 h" });
+  });
+
+  it("is by the change being there (spec 3.4), not by how old the price is: a price_time of 2020 with a change says the change", () => {
+    expect(priceView(detail({ price: "2", price_change: "5.00", price_time: "2020-01-02T03:04:05Z" }), "XRP").sub).toEqual({ kind: "change", sign: 1, text: "+5.00% in 24 h" });
+  });
+
+  it("is the day of the last trade where there is no change", () => {
+    expect(priceView(detail({ price: "0.4", price_time: "2026-10-03T23:59:59Z" }), "XRP")).toEqual({ value: "0.4 XRP", sub: { kind: "last", text: "last trade Oct 3" } });
+  });
+
+  it("is a dash and the words of no trade for a token with no price, in the network's own currency", () => {
+    expect(priceView(detail({ price: undefined }), "XRP")).toEqual({ value: "—", sub: { kind: "none", text: "No trade against XRP in 30 days" } });
+    expect(priceView(detail({ price: undefined }), "XAH").sub.text).toBe("No trade against XAH in 30 days");
+  });
+
+  it("does not read the change or the time that remain after a dropped price (checkToken deletes an unreadable price and keeps them)", () => {
+    expect(priceView(detail({ price: undefined, price_change: "12.00", price_time: "2026-10-03T00:00:00Z" }), "XRP")).toEqual({
+      value: "—",
+      sub: { kind: "none", text: "No trade against XRP in 30 days" },
+    });
+  });
+
+  it("has no words for a price with neither a change nor a time, and writes a price in exponent form in plain digits", () => {
+    expect(priceView(detail({ price: "1.2000000e-7" }), "XRP")).toEqual({ value: "0.00000012 XRP", sub: { kind: "none", text: "" } });
+  });
+});
+
+describe("tokenPage: the header", () => {
+  it("is the token: its display code, the toml's name as the heading, its issuer and the source line", () => {
+    const { head } = pageOfToken();
+    expect(head).toEqual({
+      code: CODE,
+      codeTitle: TOKEN_SAMPLE_CURRENCY,
+      codeHidden: `currency code ${TOKEN_SAMPLE_CURRENCY}`,
+      hex: TOKEN_SAMPLE_CURRENCY,
+      title: "Ripple USD",
+      issuer: TOKEN_SAMPLE_ISSUER,
+      issuerHref: `/xrpl/account/${TOKEN_SAMPLE_ISSUER}`,
+      toml: { label: "xrp-ledger.toml", href: "https://ripple.com/.well-known/xrp-ledger.toml" },
+      source: `/v2/tokens/${TOKEN_SAMPLE_CURRENCY}.${TOKEN_SAMPLE_ISSUER}`,
+    });
+  });
+
+  it("is headed by the code when the toml gives no name (or a name of bidi controls only), and a 3-character code has no hex", () => {
+    const usd = { currency: "USD", code: "USD", toml: undefined, listed: false, toml_url: undefined };
+    const { head } = pageOfToken(withToken(usd, { asset: { currency: "USD", issuer: TOKEN_SAMPLE_ISSUER } }));
+    expect(head).toMatchObject({ code: "USD", title: "USD", toml: null });
+    expect(head).not.toHaveProperty("hex");
+    expect(head).not.toHaveProperty("codeTitle");
+    expect(pageOfToken(withToken({ toml: { name: "‮⁦" } })).head.title).toBe(CODE);
+  });
+
+  it("takes the bidi controls out of the heading", () => {
+    expect(pageOfToken(withToken({ toml: { name: "Ripple‮ USD" } })).head.title).toBe("Ripple USD");
+  });
+
+  it("names Xahau's toml file, and leaves out the button for a toml_url that is not an https: link", () => {
+    const xahau = pageOfToken(withToken({}, { net: XAHAU_LINKED, pools: null, ammVolume: null }));
+    expect(xahau.head.toml).toEqual({ label: "xahau.toml", href: "https://ripple.com/.well-known/xrp-ledger.toml" });
+    for (const url of ["javascript:alert(1)", "http://ripple.com/.well-known/xrp-ledger.toml", "//ripple.com/x", "/relative", "data:text/html,x", "https://user:pw@ripple.com/x", ""]) {
+      expect(pageOfToken(withToken({ toml_url: url })).head.toml, url).toBeNull();
+    }
+    expect(pageOfToken(withToken({ toml_url: undefined })).head.toml).toBeNull();
+  });
+
+  it("is on the network it is shown on", () => {
+    expect(pageOfToken().network).toMatchObject({ id: "xrpl", name: "XRPL", native: "XRP" });
+    expect(pageOfToken(tokenInput({ net: { ...XRPL_LINKED, ...TESTNET } })).network.name).toBe("XRPL Testnet");
+  });
+});
+
+describe("tokenPage: the figures", () => {
+  it("are the five tiles with D6's exact text: the supply, the holders, the trust lines with their zero balances, the price, the volume", () => {
+    expect(pageOfToken().figures).toEqual([
+      { label: "Supply", value: "7,320", sub: "RLUSD, the sum of all holders' balances" },
+      { label: "Holders", value: "120", sub: "accounts with a positive balance" },
+      { label: "Trust lines", value: "150", sub: "30 of them with a zero balance" },
+      { label: "Price", value: "0.4 XRP", sub: "", delta: { text: "−20.00% in 24 h", sign: -1 } },
+      { label: "Volume, 24 h", value: "150 XRP", sub: "35 trades on the DEX and AMM" },
+    ]);
+  });
+
+  it("keep a huge supply exact, to the last decimal, and subtract the lines with BigNumber", () => {
+    const [supply, holders, lines] = pageOfToken(withToken({ supply: "18240211855000000000000.000001", holders: 1, trust_lines: 9007199254740991 })).figures!;
+    expect(supply!.value).toBe("18,240,211,855,000,000,000,000.000001");
+    expect(holders!.value).toBe("1");
+    expect(lines!.value).toBe("9,007,199,254,740,991");
+    expect(lines!.sub).toBe("9,007,199,254,740,990 of them with a zero balance");
+  });
+
+  it("write the supply in plain digits when D6 sends it in exponent form", () => {
+    expect(pageOfToken(withToken({ supply: "1.5e+21" })).figures![0]!.value).toBe("1,500,000,000,000,000,000,000");
+  });
+
+  it("show the price's last-trade day, or no price, under the price and not as a change", () => {
+    const last = pageOfToken(withToken({ price_change: undefined, price_time: "2026-10-03T12:00:00Z" })).figures![3]!;
+    expect(last).toEqual({ label: "Price", value: "0.4 XRP", sub: "last trade Oct 3" });
+    const none = pageOfToken(withToken({ price: undefined })).figures![3]!;
+    expect(none).toEqual({ label: "Price", value: "—", sub: "No trade against XRP in 30 days" });
+  });
+
+  it("say a single trade as one, a dash for a volume D6 does not have, and DEX trades only where there is no AMM (Xahau)", () => {
+    expect(pageOfToken(withToken({ trades: 1 })).figures![4]!.sub).toBe("1 trade on the DEX and AMM");
+    expect(pageOfToken(withToken({ native_volume: undefined, trades: undefined })).figures![4]).toEqual({ label: "Volume, 24 h", value: "—", sub: "" });
+    const xahau = pageOfToken(withToken({ price: "1.5", price_change: undefined, price_time: undefined }, { net: XAHAU_LINKED, pools: null, ammVolume: null }));
+    expect(xahau.figures![3]!.value).toBe("1.5 XAH");
+    expect(xahau.figures![4]).toEqual({ label: "Volume, 24 h", value: "150 XAH", sub: "35 trades on the DEX" });
+  });
+
+  it("have the coverage note of the trust lines under them, and none when it is complete", () => {
+    expect(pageOfToken().coverage).toBeNull();
+    expect(pageOfToken(tokenInput({ answer: tokenSample({ coverage: tokenCoverageSample({ complete: false, from_ledger_index: 1234 }) }) })).coverage).toEqual({
+      before: "Covers ledger ",
+      ledger: 1234,
+      after: " onwards: earlier trust lines are not in the index yet.",
+    });
+  });
+});
+
+describe("linkOf", () => {
+  it.each([
+    ["https://ripple.com/a.pdf", "https://ripple.com/a.pdf"],
+    ["HTTPS://Ripple.com/a", "https://ripple.com/a"],
+    // The parser's reading, not the text's: `https:host/x` is an absolute link to host, not a relative one.
+    ["https:ripple.com/x", "https://ripple.com/x"],
+    ["  https://ripple.com/x ", "https://ripple.com/x"],
+  ])("makes %j the link %j", (text, href) => expect(linkOf(text)).toBe(href));
+
+  it.each([
+    "http://ripple.com/x",
+    "javascript:alert(1)",
+    "JaVaScRiPt:alert(1)",
+    "data:text/html;base64,PHNjcmlwdD4=",
+    "vbscript:x",
+    "file:///etc/passwd",
+    "ftp://ripple.com/x",
+    "mailto:a@b.c",
+    "//ripple.com/x",
+    "/relative/path",
+    "ripple.com/x",
+    "https://user@ripple.com/x",
+    "https://user:password@ripple.com/x",
+    "https://:password@ripple.com/x",
+    "java\nscript:alert(1)",
+    "",
+    "not a url",
+  ])("makes %j no link", (text) => expect(linkOf(text)).toBeNull());
+
+  it("makes undefined no link", () => expect(linkOf(undefined)).toBeNull());
+});
+
+describe("tomlCard", () => {
+  const verified: NameView = { name: { text: "Ripple", kind: "verified" }, domain: "ripple.com", labels: [] };
+  const listed = (over: Partial<TokenDetail> = {}, name: NameView | undefined = undefined) => tomlCard(tokenDetailSample(over), XRPL, name);
+
+  it("is the entry of a listed token: its title, where the entry is, and the rows in D6's order", () => {
+    const card = listed({
+      toml: { name: "Ripple USD", desc: "A US dollar stablecoin", icon: "https://ripple.com/icon.png", symbol: "RLUSD", display_decimals: 2, asset_class: "Fiat-backed stablecoin", asset_subclass: "Stablecoin", attestation: "https://ripple.com/attest/2026-09.pdf" },
+    });
+    expect(card).toEqual({
+      state: "listed",
+      title: "From ripple.com's toml",
+      entry: { code: "RLUSD", where: { text: "ripple.com/.well-known/xrp-ledger.toml", href: "https://ripple.com/.well-known/xrp-ledger.toml" } },
+      verified: false,
+      rows: [
+        { label: "code", value: { kind: "text", text: "RLUSD" } },
+        { label: "issuer", value: { kind: "account", address: TOKEN_SAMPLE_ISSUER } },
+        { label: "name", value: { kind: "text", text: "Ripple USD" } },
+        { label: "desc", value: { kind: "text", text: "A US dollar stablecoin" } },
+        { label: "icon", value: { kind: "link", text: "ripple.com/icon.png", href: "https://ripple.com/icon.png" } },
+        { label: "symbol", value: { kind: "text", text: "RLUSD" } },
+        { label: "display_decimals", value: { kind: "text", text: "2" } },
+        { label: "asset_class", value: { kind: "text", text: "Fiat-backed stablecoin" } },
+        { label: "asset_subclass", value: { kind: "text", text: "Stablecoin" } },
+        { label: "attestation", value: { kind: "link", text: "ripple.com/attest/2026-09.pdf", href: "https://ripple.com/attest/2026-09.pdf" } },
+        { label: "Currency code in hex", value: { kind: "hex", hex: TOKEN_SAMPLE_CURRENCY, note: "Codes other than three letters are stored on the ledger as 40 hex characters." } },
+      ],
+    });
+  });
+
+  it("keeps the order of D6 whatever the order of the keys it was sent in, and writes display_decimals 0", () => {
+    const card = listed({ toml: { attestation: "a", display_decimals: 0, name: "N" } });
+    expect(card.state === "listed" && card.rows.map((row) => row.label)).toEqual(["code", "issuer", "name", "display_decimals", "attestation", "Currency code in hex"]);
+    expect(card.state === "listed" && card.rows[3]).toEqual({ label: "display_decimals", value: { kind: "text", text: "0" } });
+  });
+
+  it("is the code and the issuer alone for a listed token whose entry has no served field", () => {
+    const card = listed({ toml: undefined, currency: "USD" });
+    expect(card.state === "listed" && card.rows.map((row) => row.label)).toEqual(["code", "issuer"]);
+  });
+
+  it("says the toml also lists the issuer when E9 gives it a verified name of the token's domain", () => {
+    expect(listed({}, verified)).toMatchObject({ state: "listed", verified: true });
+    // The domain compares in lower case; the name must be a verified one, and of this domain.
+    expect(listed({ domain: "Ripple.com" }, verified)).toMatchObject({ verified: true });
+    expect(listed({}, { ...verified, domain: "other.example" })).toMatchObject({ verified: false });
+    expect(listed({}, { name: { text: "Ripple", kind: "domain" }, domain: "ripple.com", labels: [] })).toMatchObject({ verified: false });
+    expect(listed({}, { name: { text: "Ripple", kind: "account" }, domain: "ripple.com", labels: [] })).toMatchObject({ verified: false });
+    expect(listed({}, { labels: ["spam"] })).toMatchObject({ verified: false });
+    expect(listed({}, undefined)).toMatchObject({ verified: false });
+  });
+
+  it("says a domain's toml has no entry for a token it does not list, and that no toml describes a token whose issuer has no domain", () => {
+    expect(listed({ listed: false, toml: undefined })).toEqual({
+      state: "unlisted",
+      title: "From ripple.com's toml",
+      text: "ripple.com's toml has no [[CURRENCIES]] entry for RLUSD by this issuer.",
+    });
+    expect(listed({ domain: undefined, toml_url: undefined, listed: false, toml: undefined })).toEqual({
+      state: "no-domain",
+      title: "The issuer's toml",
+      text: "The issuer's account names no domain, so no toml describes RLUSD.",
+    });
+  });
+
+  it("names Xahau's toml file", () => {
+    const card = tomlCard(tokenDetailSample({ toml_url: "https://ripple.com/.well-known/xahau.toml" }), { software: "xahaud" }, undefined);
+    expect(card).toMatchObject({ entry: { where: { text: "ripple.com/.well-known/xahau.toml", href: "https://ripple.com/.well-known/xahau.toml" } } });
+  });
+
+  it("makes a link only of an https: URL, and shows anything else as the text it is: the icon is never an image, an attestation is not a link when it is not a URL", () => {
+    const rows = (toml: TokenDetail["toml"]) => {
+      const card = listed({ toml });
+      return card.state === "listed" ? card.rows.filter((row) => row.label === "icon" || row.label === "attestation") : [];
+    };
+    expect(rows({ icon: "http://ripple.com/icon.png", attestation: "javascript:alert(1)" })).toEqual([
+      { label: "icon", value: { kind: "text", text: "http://ripple.com/icon.png" } },
+      { label: "attestation", value: { kind: "text", text: "javascript:alert(1)" } },
+    ]);
+    expect(rows({ icon: "data:image/svg+xml;base64,PHN2Zz4=", attestation: "Audited by Example LLP, 2026" })).toEqual([
+      { label: "icon", value: { kind: "text", text: "data:image/svg+xml;base64,PHN2Zz4=" } },
+      { label: "attestation", value: { kind: "text", text: "Audited by Example LLP, 2026" } },
+    ]);
+    expect(rows({ icon: "https://user:pw@evil.example/i.png" })).toEqual([{ label: "icon", value: { kind: "text", text: "https://user:pw@evil.example/i.png" } }]);
+    // No value of any row carries an href but a link, and a link's is the parsed https URL.
+    for (const row of rows({ icon: "https://ripple.com/i.png", attestation: "https://ripple.com/a" })) expect(row.value).toMatchObject({ kind: "link", href: expect.stringMatching(/^https:\/\//) });
+  });
+
+  it("cuts the words of a very long link and keeps the whole link in the href", () => {
+    const long = `https://ripple.com/${"a".repeat(200)}`;
+    const card = listed({ toml: { attestation: long } });
+    const row = card.state === "listed" ? card.rows.find((r) => r.label === "attestation") : undefined;
+    expect(row?.value).toMatchObject({ kind: "link", href: long });
+    expect(row?.value.kind === "link" && [...row.value.text]).toHaveLength(90);
+    expect(row?.value.kind === "link" && row.value.text.endsWith("…")).toBe(true);
+  });
+
+  it("does not make a link of a field that is not a URL field, even when its text is an https: URL", () => {
+    const card = listed({ toml: { name: "https://evil.example/x", desc: "https://evil.example/y", symbol: "https://evil.example/z" } });
+    expect(card.state === "listed" && card.rows.every((row) => row.value.kind !== "link")).toBe(true);
+  });
+
+  it("links the file only when toml_url is an https: URL, and shows the domain's file as text otherwise", () => {
+    expect(listed({ toml_url: "http://ripple.com/.well-known/xrp-ledger.toml" })).toMatchObject({ entry: { where: { text: "ripple.com/.well-known/xrp-ledger.toml", href: null } } });
+    expect(listed({ toml_url: undefined })).toMatchObject({ entry: { where: { href: null } } });
+    expect(listed({ toml_url: "javascript:alert(1)" })).toMatchObject({ entry: { where: { href: null } } });
+  });
+
+  it("takes the bidi controls out of every text the issuer wrote, the domain's included, and drops an empty field", () => {
+    const card = listed({ domain: "ripple.com‮", toml: { name: "R‮L", desc: "", symbol: "⁦", asset_class: "Stable‭coin" } });
+    expect(card).toMatchObject({ title: "From ripple.com's toml", entry: { where: { text: "ripple.com/.well-known/xrp-ledger.toml" } } });
+    expect(card.state === "listed" && card.rows.map((row) => [row.label, row.value.kind === "text" ? row.value.text : null])).toEqual([
+      ["code", "RLUSD"],
+      ["issuer", null],
+      ["name", "RL"],
+      ["asset_class", "Stablecoin"],
+      ["Currency code in hex", null],
+    ]);
+  });
+
+  it("has no hex row for a 3-character code", () => {
+    const card = listed({ currency: "USD" });
+    expect(card.state === "listed" && card.rows.some((row) => row.value.kind === "hex")).toBe(false);
+  });
+});
+
+describe("settingsRows", () => {
+  const D6 = { transfer_fee: "0.2", global_freeze: false, no_freeze: true, allow_trust_line_clawback: true, require_auth: false, default_ripple: true };
+  const summary = (read: ReturnType<typeof settingsRows>) => read?.rows.map((row) => `${row.name}: ${row.value}${row.on ? " (on)" : ""}`);
+
+  it("is six rows from D6's issuer_settings: the fee as a percent, then five flags, each with its pill word and a sentence of the token", () => {
+    const read = settingsRows({ settings: D6 }, CODE);
+    expect(read?.fromNode).toBe(false);
+    expect(summary(read)).toEqual(["Transfer fee: 0.2% (on)", "Global freeze: Off", "No freeze: Set (on)", "Clawback: Allowed (on)", "Require auth: Off", "Default ripple: On (on)"]);
+    expect(read?.rows.map((row) => row.id)).toEqual(["transfer-fee", "global-freeze", "no-freeze", "clawback", "require-auth", "default-ripple"]);
+    expect(read?.rows.map((row) => row.sentence)).toEqual([
+      "Sending RLUSD from one holder to another costs 0.2% on top of the amount.",
+      "RLUSD moves freely. The issuer has not frozen it for everyone.",
+      "The issuer has given up the right to freeze: it can never freeze a holder's trust line, or all of RLUSD.",
+      "The issuer can take RLUSD back from a holder's trust line.",
+      "Anyone can open a trust line and hold RLUSD, without the issuer's approval.",
+      "Holders can pay each other in RLUSD through the issuer's account.",
+    ]);
+  });
+
+  it("says the other word of each flag, and None for no fee (D6 writes it \"0\", and exactly)", () => {
+    const read = settingsRows({ settings: { transfer_fee: "0", global_freeze: true, no_freeze: false, allow_trust_line_clawback: false, require_auth: true, default_ripple: false } }, CODE);
+    expect(summary(read)).toEqual(["Transfer fee: None", "Global freeze: On (on)", "No freeze: Not set", "Clawback: Not allowed", "Require auth: On (on)", "Default ripple: Off"]);
+    expect(read?.rows[0]!.sentence).toBe("Holders send RLUSD to each other at no extra cost.");
+    expect(read?.rows[3]!.sentence).toBe("The issuer cannot take RLUSD back from a holder.");
+    expect(settingsRows({ settings: { ...D6, transfer_fee: "0.000" } }, CODE)?.rows[0]).toMatchObject({ value: "None", on: false });
+    expect(settingsRows({ settings: { ...D6, transfer_fee: "1.000" } }, CODE)?.rows[0]).toMatchObject({ value: "1%", on: true });
+    expect(settingsRows({ settings: { ...D6, transfer_fee: "0.0000001" } }, CODE)?.rows[0]).toMatchObject({ value: "0.0000001%" });
+  });
+
+  it("is read from the node's account on the XRP Ledger: 0x80000000 is the clawback, and TransferRate by D6's formula", () => {
+    // DefaultRipple 0x00800000, NoFreeze 0x00200000, RequireAuth 0x00040000, GlobalFreeze 0x00400000, AllowTrustLineClawback 0x80000000.
+    const read = settingsRows({ flags: 0x80000000 + 0x00800000 + 0x00200000, transferRate: 1_002_000_000, net: "xrpl" }, CODE);
+    expect(read?.fromNode).toBe(true);
+    expect(summary(read)).toEqual(["Transfer fee: 0.2% (on)", "Global freeze: Off", "No freeze: Set (on)", "Clawback: Allowed (on)", "Require auth: Off", "Default ripple: On (on)"]);
+    expect(summary(settingsRows({ flags: 0x00400000 + 0x00040000, net: "xrpl" }, CODE))).toEqual(["Transfer fee: None", "Global freeze: On (on)", "No freeze: Not set", "Clawback: Not allowed", "Require auth: On (on)", "Default ripple: Off"]);
+    // The flags of the account come as the node writes them: a signed number is read as its bits.
+    expect(settingsRows({ flags: -0x80000000, net: "xrpl" }, CODE)?.rows[3]).toMatchObject({ value: "Allowed" });
+  });
+
+  it("is read on Xahau by Xahau's table: 0x1000 is the clawback, and 0x80000000 is not", () => {
+    expect(settingsRows({ flags: 0x00001000, net: "xahau" }, CODE)?.rows[3]).toMatchObject({ name: "Clawback", value: "Allowed", on: true });
+    expect(settingsRows({ flags: 0x80000000, net: "xahau" }, CODE)?.rows[3]).toMatchObject({ value: "Not allowed", on: false });
+    expect(settingsRows({ flags: 0x00001000, net: "xrpl" }, CODE)?.rows[3]).toMatchObject({ value: "Not allowed" });
+  });
+
+  it("writes TransferRate exactly: 1e9 and below is none, one unit above is 0.0000001%, the ledger's largest is 100%", () => {
+    const fee = (transferRate?: number) => settingsRows({ flags: 0, ...(transferRate === undefined ? {} : { transferRate }), net: "xrpl" }, CODE)?.rows[0]!.value;
+    expect(fee()).toBe("None");
+    expect(fee(0)).toBe("None");
+    expect(fee(1_000_000_000)).toBe("None");
+    expect(fee(999_999_999)).toBe("None");
+    expect(fee(1_000_000_001)).toBe("0.0000001%");
+    expect(fee(1_005_000_000)).toBe("0.5%");
+    expect(fee(2_000_000_000)).toBe("100%");
+  });
+
+  it("is nothing when there is neither", () => {
+    expect(settingsRows(null, CODE)).toBeNull();
+  });
+});
+
+describe("tokenPage: the settings card", () => {
+  it("reads D6's issuer_settings, with the sentence of the token and no caption of the network", () => {
+    const { settings } = pageOfToken();
+    expect(settings).toMatchObject({ state: "ok", fromNode: false, source: `/v2/tokens/${TOKEN_SAMPLE_CURRENCY}.${TOKEN_SAMPLE_ISSUER}`, intro: "Set on the issuer's account. They apply to every holder of RLUSD." });
+    expect(settings?.state === "ok" && settings.rows).toHaveLength(6);
+  });
+
+  it("asks nothing of the node's answer when D6 has the settings", () => {
+    const { page, problems } = tokenPage(tokenInput({ accountInfo: FAILED }));
+    expect(page.settings).toMatchObject({ state: "ok", fromNode: false });
+    expect(problems).toEqual([]);
+  });
+
+  it("is read from the node's account_info when D6 has none, and says where from", () => {
+    const { settings } = pageOfToken(withToken({ issuer_settings: undefined }, { accountInfo: ok(infoOf(0x00800000, 1_002_000_000)) }));
+    expect(settings).toMatchObject({ state: "ok", fromNode: true, source: "the network" });
+    expect(settings?.state === "ok" && settings.rows.map((row) => row.value)).toEqual(["0.2%", "Off", "Not set", "Not allowed", "Off", "On"]);
+  });
+
+  it("reads Xahau's account by Xahau's flags", () => {
+    const { settings } = pageOfToken(withToken({ issuer_settings: undefined }, { net: XAHAU_LINKED, pools: null, ammVolume: null, accountInfo: ok(infoOf(0x00001000 | 0x00200000)) }));
+    expect(settings?.state === "ok" && settings.rows.map((row) => row.value)).toEqual(["None", "Off", "Set", "Allowed", "Off", "Off"]);
+  });
+
+  it("says the settings couldn't be read, with a Retry when the node failed and without one when it has no such account", () => {
+    const failed = tokenPage(withToken({ issuer_settings: undefined }, { accountInfo: FAILED }));
+    expect(failed.page.settings).toMatchObject({ state: "unread", message: "The issuer's settings couldn't be read.", retry: true });
+    expect(failed.problems).toEqual([{ part: "accountInfo" }]);
+    const missing = tokenPage(withToken({ issuer_settings: undefined }, { accountInfo: MISSING }));
+    expect(missing.page.settings).toMatchObject({ state: "unread", retry: false });
+    expect(missing.problems).toEqual([]);
+    expect(pageOfToken(withToken({ issuer_settings: undefined }, { accountInfo: null })).settings).toMatchObject({ state: "unread", retry: false });
+  });
+});
+
+describe("marketRows", () => {
+  const detail = tokenDetailSample();
+
+  it("is D6's order, each pair \"{CODE} / {COUNTER}\" with the last price in the counter, the volume in the native currency and the trades", () => {
+    expect(marketRows(detail, XRPL_LINKED)).toEqual([
+      { key: "XRP.", pair: "RLUSD / XRP", href: `/xrpl/markets/XRP/RLUSD.${TOKEN_SAMPLE_ISSUER}`, last: "0.4 XRP", volume: "65", trades: "13" },
+      {
+        key: `USD.${TOKEN_SAMPLE_OTHER_ISSUER}`,
+        pair: "RLUSD / USD",
+        issuer: TOKEN_SAMPLE_OTHER_ISSUER,
+        href: `/xrpl/markets/RLUSD.${TOKEN_SAMPLE_ISSUER}/USD.${TOKEN_SAMPLE_OTHER_ISSUER}`,
+        last: "2 USD",
+        volume: "60",
+        trades: "12",
+      },
+    ]);
+  });
+
+  it("links the pair in E3's natural orientation while the markets are on, and the row stays \"{CODE} / {COUNTER}\" whichever way the link goes", () => {
+    const [native, issued, other] = marketRows(tokenDetailSample({ markets: [tokenMarketSample(), tokenMarketSample({ counter_currency: "USD", counter_issuer: TOKEN_SAMPLE_OTHER_ISSUER }), tokenMarketSample({ counter_currency: "ZZZ", counter_issuer: TOKEN_SAMPLE_OTHER_ISSUER })] }), XRPL_LINKED);
+    // The native currency is the base against the better-ranked RLUSD: the link runs XRP/RLUSD, the row RLUSD / XRP. USD ranks better than RLUSD, so RLUSD is the base there.
+    expect(native).toMatchObject({ pair: "RLUSD / XRP", href: `/xrpl/markets/XRP/RLUSD.${TOKEN_SAMPLE_ISSUER}` });
+    expect(issued).toMatchObject({ pair: "RLUSD / USD", href: `/xrpl/markets/RLUSD.${TOKEN_SAMPLE_ISSUER}/USD.${TOKEN_SAMPLE_OTHER_ISSUER}` });
+    // An unranked counter against a ranked token: the better-ranked RLUSD is the counter.
+    expect(other).toMatchObject({ pair: "RLUSD / ZZZ", href: `/xrpl/markets/ZZZ.${TOKEN_SAMPLE_OTHER_ISSUER}/RLUSD.${TOKEN_SAMPLE_ISSUER}` });
+  });
+
+  it("has no link with the markets pages off, and none for a pair the data API cannot be asked for", () => {
+    expect(marketRows(detail, XRPL).map((row) => row.href)).toEqual([null, null]);
+    const odd = tokenDetailSample({ markets: [tokenMarketSample({ counter_currency: "U|D", counter_issuer: TOKEN_SAMPLE_OTHER_ISSUER })] });
+    expect(marketRows(odd, XRPL_LINKED)[0]!.href).toBeNull();
+  });
+
+  it("writes a last price D6 does not have as a dash, and the volume of a pair with no native volume as one too", () => {
+    const rows = marketRows(tokenDetailSample({ markets: [tokenMarketSample({ last: undefined, native_volume: undefined })] }), XRPL_LINKED);
+    expect(rows[0]).toMatchObject({ last: "—", volume: "—" });
+  });
+
+  it("writes the last price to 8 significant digits, never in exponent form, and the volume compact", () => {
+    const rows = marketRows(tokenDetailSample({ markets: [tokenMarketSample({ last: "1.2000000e-7", native_volume: "98765.4321", count: 12345 })] }), XRPL_LINKED);
+    expect(rows[0]).toMatchObject({ last: "0.00000012 XRP", volume: "98.8K", trades: "12,345" });
+  });
+
+  it("is empty for a token with no pair, and keeps Xahau's native currency", () => {
+    expect(marketRows(tokenDetailSample({ markets: [] }), XRPL_LINKED)).toEqual([]);
+    expect(marketRows(tokenDetailSample({ markets: [tokenMarketSample({ counter_currency: "XAH" })] }), XAHAU_LINKED)[0]).toMatchObject({ pair: "RLUSD / XAH", href: `/xahau/markets/XAH/RLUSD.${TOKEN_SAMPLE_ISSUER}`, last: "0.4 XAH" });
+  });
+});
+
+describe("poolRows", () => {
+  const live = ok(volumeOf([AMM_POOL]));
+
+  it("is the pool: its pair in the natural orientation, its page, its value, its fee and its volume of the day joined from the live components", () => {
+    const pools = ammPoolsSample({ pools: [poolOf(1, { amm_account: AMM_POOL })], count: 1, marker: undefined });
+    const { rows, more, volumeFailed } = poolRows(pools, live, ASSET, XRPL_LINKED);
+    expect(rows).toEqual([
+      { key: AMM_POOL, pair: "XRP / RLUSD", coins: ["XRP", "RLUSD"], href: `/xrpl/amm/${AMM_POOL}`, value: "5,000", fee: "0.500%", volume: "100" },
+    ]);
+    expect(more).toBeNull();
+    expect(volumeFailed).toBe(false);
+  });
+
+  it("writes the volume of a native pool with no component as 0, of one without the native currency as a dash (E5's rule), and a dash for all when the live call failed", () => {
+    const issued = poolOf(2, { counter_currency: "USD", counter_issuer: TOKEN_SAMPLE_OTHER_ISSUER });
+    const pools = ammPoolsSample({ pools: [poolOf(1), issued], count: 2, marker: undefined });
+    expect(poolRows(pools, live, ASSET, XRPL_LINKED).rows.map((row) => row.volume)).toEqual(["0", "—"]);
+    const failed = poolRows(pools, FAILED, ASSET, XRPL_LINKED);
+    expect(failed.rows.map((row) => row.volume)).toEqual(["—", "—"]);
+    expect(failed.volumeFailed).toBe(true);
+    expect(poolRows(pools, MISSING, ASSET, XRPL_LINKED).volumeFailed).toBe(true);
+    // An answer with no row is no live set.
+    expect(poolRows(pools, ok({ ...volumeOf([]), rows: [], count: 0 }), ASSET, XRPL_LINKED).volumeFailed).toBe(true);
+  });
+
+  it("shows the first five and leads to all the pools with the token while the AMM pages are on and there are more", () => {
+    const six = ammPoolsSample({ pools: [1, 2, 3, 4, 5, 6].map((n) => poolOf(n)), count: 6, marker: undefined });
+    const shown = poolRows(six, live, ASSET, XRPL_LINKED);
+    expect(shown.rows.map((row) => row.key)).toEqual([1, 2, 3, 4, 5].map(ammPoolAccount));
+    expect(shown.more).toBe(`/xrpl/amm?asset=RLUSD.${TOKEN_SAMPLE_ISSUER}`);
+    expect(poolRows(six, live, ASSET, XRPL).more).toBeNull();
+    // Five, and a marker: there are more than the answer holds.
+    const marked = ammPoolsSample({ pools: [1, 2, 3, 4, 5].map((n) => poolOf(n)), count: 5 });
+    expect(poolRows(marked, live, ASSET, XRPL_LINKED).more).not.toBeNull();
+    const five = ammPoolsSample({ pools: [1, 2, 3, 4, 5].map((n) => poolOf(n)), count: 5, marker: undefined });
+    expect(poolRows(five, live, ASSET, XRPL_LINKED).more).toBeNull();
+  });
+
+  it("leads each pool to its account page while the AMM pages are off", () => {
+    const pools = ammPoolsSample({ pools: [poolOf(1, { amm_account: AMM_POOL })], count: 1, marker: undefined });
+    expect(poolRows(pools, live, ASSET, XRPL).rows[0]!.href).toBe(`/xrpl/account/${AMM_POOL}`);
+  });
+
+  it("writes a value or a fee the pool lacks as a dash, and a pair the other way round in the natural orientation", () => {
+    const pools = ammPoolsSample({
+      pools: [poolOf(1, { value_native: undefined, trading_fee: undefined, base_currency: "XRP", base_issuer: undefined, counter_currency: TOKEN_SAMPLE_CURRENCY, counter_issuer: TOKEN_SAMPLE_ISSUER })],
+      count: 1,
+      marker: undefined,
+    });
+    expect(poolRows(pools, live, ASSET, XRPL_LINKED).rows[0]).toMatchObject({ pair: "XRP / RLUSD", value: "—", fee: "—" });
+  });
+});
+
+describe("holderRows", () => {
+  it("is the holders as D6 gives them: the share as a percent to 2 decimals, the meter against the first share, the balance and the limit exact", () => {
+    const { rows } = holderRows(holdersSample(), CODE, { requireAuth: null });
+    expect(rows.map((row) => [row.rank, row.holder, row.balance, row.share, row.limit, row.frozen])).toEqual([
+      ["1", "rrrrrrrrrrrrrrrrrrcJYjXAZjD", "40.5", "0.55%", "1,000,000", true],
+      ["2", "rrrrrrrrrrrrrrrrrrcJYdToyGA", "39.5", "0.54%", "1,000,000", false],
+      ["3", "rrrrrrrrrrrrrrrrrrcJY2vaNnX", "38.5", "0.53%", "1,000,000", false],
+    ]);
+    expect(rows[0]!.meter).toMatchObject({ value: "0.005533", max: "0.005533" });
+    expect(rows[2]!.meter).toMatchObject({ value: "0.005260", max: "0.005533" });
+  });
+
+  it("rounds half up at the 2nd decimal and keeps a share exactly", () => {
+    const share = (value: string) => holderRows(holdersSample({ holders: [tokenHolderSample({ share: value })] }), CODE, { requireAuth: null }).rows[0]!.share;
+    expect(share("0.117300")).toBe("11.73%");
+    expect(share("0.117350")).toBe("11.74%");
+    expect(share("0.117349")).toBe("11.73%");
+    expect(share("1.000000")).toBe("100.00%");
+    expect(share("0.000000")).toBe("0.00%");
+  });
+
+  it("sums the first ten shares exactly for the sentence of the top holders, with fewer rows its own count", () => {
+    const rows = Array.from({ length: 12 }, (_, at) => tokenHolderSample({ rank: at + 1, holder: `r${at}`, share: "0.040000" }));
+    expect(holderRows(holdersSample({ holders: rows }), CODE, { requireAuth: null }).top10).toBe("The top 10 hold 40.00% of the supply.");
+    expect(holderRows(holdersSample(), CODE, { requireAuth: null }).top10).toBe("The top 3 hold 1.62% of the supply.");
+    expect(holderRows(holdersSample({ holders: [tokenHolderSample({ share: "0.333333" })] }), CODE, { requireAuth: null }).top10).toBe("The top holder holds 33.33% of the supply.");
+    // A float sum of 0.017400 and 0.001050 is 0.018449999999999998: the exact 1.845% rounds half up to 1.85%, and the float's would round down.
+    const apart = [tokenHolderSample({ share: "0.017400" }), tokenHolderSample({ rank: 2, share: "0.001050" })];
+    expect(holderRows(holdersSample({ holders: apart }), CODE, { requireAuth: null }).top10).toBe("The top 2 hold 1.85% of the supply.");
+    expect(holderRows(holdersSample({ holders: [] }), CODE, { requireAuth: null })).toEqual({ rows: [], top10: "" });
+  });
+
+  it("shows Authorized only where the issuer requires authorisation: true shows it, false and not known (null) never", () => {
+    const authorized = (requireAuth: boolean | null) => holderRows(holdersSample(), CODE, { requireAuth }).rows.map((row) => row.authorized);
+    expect(authorized(true)).toEqual([false, false, true]);
+    expect(authorized(false)).toEqual([false, false, false]);
+    expect(authorized(null)).toEqual([false, false, false]);
+  });
+
+  it("groups the rank of a page that starts late, and gives a meter of nothing when the first share is zero", () => {
+    const { rows } = holderRows(holdersSample({ holders: [tokenHolderSample({ rank: 1001, share: "0.000000" })] }), CODE, { requireAuth: null });
+    expect(rows[0]).toMatchObject({ rank: "1,001", meter: { value: "0.000000", max: "0.000000" } });
+  });
+});
+
+describe("tokenPage: the holders card", () => {
+  it("is the top holders with the sentence, a way to all of them with the count from the token, and the require-auth setting read from D6", () => {
+    const { holders } = pageOfToken();
+    expect(holders).toMatchObject({
+      state: "ok",
+      source: `/v2/tokens/${TOKEN_SAMPLE_CURRENCY}.${TOKEN_SAMPLE_ISSUER}/holders`,
+      empty: null,
+      top10: "The top 3 hold 1.62% of the supply.",
+      all: { href: `/xrpl/token/RLUSD.${TOKEN_SAMPLE_ISSUER}/holders`, label: "All 120 holders →" },
+    });
+    expect(holders?.state === "ok" && holders.rows).toHaveLength(3);
+  });
+
+  it("says no account holds the token, with no way to the holders", () => {
+    const { holders } = pageOfToken(tokenInput({ holders: ok(holdersSample({ holders: [], count: 0, marker: undefined })) }));
+    expect(holders).toMatchObject({ state: "ok", rows: [], empty: "No account holds RLUSD.", all: null });
+  });
+
+  it("fails on its own: the card's words and the problem", () => {
+    const { page, problems } = tokenPage(tokenInput({ holders: FAILED }));
+    expect(page.holders).toEqual({ source: `/v2/tokens/${TOKEN_SAMPLE_CURRENCY}.${TOKEN_SAMPLE_ISSUER}/holders`, state: "failed", what: "the top holders" });
+    expect(problems).toEqual([{ part: "holders" }]);
+    expect(page.transfers.state).toBe("ok");
+  });
+
+  it("is not Authorized-marked when the issuer's settings are unknown (the node's answer is not asked for the holders)", () => {
+    const { holders } = pageOfToken(withToken({ issuer_settings: undefined }));
+    expect(holders?.state === "ok" && holders.rows.map((row) => row.authorized)).toEqual([false, false, false]);
+    const required = pageOfToken(withToken({ issuer_settings: { ...tokenDetailSample().issuer_settings!, require_auth: true } }));
+    expect(required.holders?.state === "ok" && required.holders.rows.map((row) => row.authorized)).toEqual([false, false, true]);
+  });
+});
+
+describe("transferRows", () => {
+  const issuer = TOKEN_SAMPLE_ISSUER;
+
+  it("is the payments as D6 gives them: the time in unix seconds, the parties, the amount exact and the transaction", () => {
+    expect(transferRows(transfersSample(), issuer)).toEqual([
+      {
+        key: "3EBBB8672ADA7B5EADBE3878740346DD60B667D4919E1084D2E140238F0D2044",
+        time: Date.UTC(2026, 9, 24, 14, 21, 42) / 1000,
+        from: "rfaF3eu2m192LkHKdxRfzd68oEC1paa57",
+        to: "rMPwy3Ntx56Nyc2fKGNm7VRWdmpHSB92Z7",
+        amount: "0.002",
+        tag: null,
+        hash: "3EBBB8672ADA7B5EADBE3878740346DD60B667D4919E1084D2E140238F0D2044",
+      },
+      expect.objectContaining({ amount: "0.2121364558499999", tag: null }),
+    ]);
+  });
+
+  it("tags a payment from the issuer Issued and one to it Redeemed", () => {
+    const answer = transfersSample({
+      transfers: [tokenTransferSample({ source: issuer }), tokenTransferSample({ destination: issuer, hash: "B".repeat(64) }), tokenTransferSample({ hash: "C".repeat(64) })],
+    });
+    expect(transferRows(answer, issuer).map((row) => row.tag)).toEqual(["Issued", "Redeemed", null]);
+  });
+
+  it("writes an amount in exponent form in plain digits", () => {
+    expect(transferRows(transfersSample({ transfers: [tokenTransferSample({ amount: "1.5e-7" })] }), issuer)[0]!.amount).toBe("0.00000015");
+  });
+});
+
+describe("tokenPage: the transfers card", () => {
+  it("is the recent transfers with the footnote about the issuer, the pager and the transfers' own coverage note", () => {
+    const { transfers } = pageOfToken();
+    expect(transfers).toMatchObject({
+      state: "ok",
+      title: "Recent transfers",
+      source: `/v2/tokens/${TOKEN_SAMPLE_CURRENCY}.${TOKEN_SAMPLE_ISSUER}/transfers`,
+      empty: null,
+      footnote: "Newest first. A transfer from rMxCKb…m5De issues new RLUSD; one to it redeems RLUSD.",
+      coverage: { before: "Covers ledger ", ledger: 11999941, after: " onwards: earlier transfers are not in the index yet." },
+      pager: { newerHref: null, olderHref: `/xrpl/token/RLUSD.${TOKEN_SAMPLE_ISSUER}?marker=${TRANSFERS_MARKER}` },
+    });
+  });
+
+  it("writes the issuer by its plain name where E9 gives it one", () => {
+    const names: NamesPart = { state: "ok", map: { [TOKEN_SAMPLE_ISSUER]: { name: { text: "Ripple", kind: "verified" }, domain: "ripple.com", labels: [] } } };
+    expect(pageOfToken(tokenInput({ names })).transfers).toMatchObject({ footnote: "Newest first. A transfer from Ripple issues new RLUSD; one to it redeems RLUSD." });
+  });
+
+  it("has no coverage note when it is complete, and says nothing has been delivered when there are no rows", () => {
+    const { transfers } = pageOfToken(tokenInput({ transfers: ok(transfersSample({ coverage: tokenCoverageSample(), transfers: [], count: 0, marker: undefined })) }));
+    expect(transfers).toMatchObject({ state: "ok", rows: [], empty: "No payment has delivered RLUSD yet.", coverage: null, pager: { newerHref: null, olderHref: null } });
+  });
+
+  it("leads Newer along the trail and Older to the next marker", () => {
+    const params = { marker: "M2", back: ["M1", "M0"] };
+    const { transfers } = pageOfToken(tokenInput({ params, transfers: ok(transfersSample({ marker: "M3" })) }));
+    expect(transfers.state === "ok" && transfers.pager).toEqual({
+      newerHref: `/xrpl/token/RLUSD.${TOKEN_SAMPLE_ISSUER}?marker=M1&back=M0`,
+      olderHref: `/xrpl/token/RLUSD.${TOKEN_SAMPLE_ISSUER}?marker=M3&back=M2.M1.M0`,
+    });
+  });
+
+  it("fails on its own: the card's words and the problem", () => {
+    const { page, problems } = tokenPage(tokenInput({ transfers: FAILED }));
+    expect(page.transfers).toEqual({ title: "Recent transfers", source: `/v2/tokens/${TOKEN_SAMPLE_CURRENCY}.${TOKEN_SAMPLE_ISSUER}/transfers`, state: "failed", what: "the transfers" });
+    expect(problems).toEqual([{ part: "transfers" }]);
+  });
+});
+
+describe("tokenPage: the markets card", () => {
+  it("is the rows, the source of the day and the footnote of the network's words", () => {
+    const { markets } = pageOfToken();
+    expect(markets).toMatchObject({
+      source: `/v2/tokens/${TOKEN_SAMPLE_CURRENCY}.${TOKEN_SAMPLE_ISSUER} · last 24 h`,
+      empty: null,
+      footnote: "Prices are the counter currency per RLUSD. DEX and AMM trades of the last 24 hours.",
+    });
+    expect(markets?.rows).toHaveLength(2);
+  });
+
+  it("says DEX trades on Xahau, and that the token had no trades when it has no pair", () => {
+    const xahau = pageOfToken(withToken({ markets: [] }, { net: XAHAU_LINKED, pools: null, ammVolume: null }));
+    expect(xahau.markets).toMatchObject({ rows: [], empty: "RLUSD had no trades in the last 24 hours.", footnote: "Prices are the counter currency per RLUSD. DEX trades of the last 24 hours." });
+  });
+});
+
+describe("tokenPage: the pools card", () => {
+  it("is the rows, the source of the asset and the footnote in the native currency", () => {
+    const { pools } = pageOfToken();
+    expect(pools).toMatchObject({
+      state: "ok",
+      source: `/v2/amm/pools?asset=${TOKEN_SAMPLE_CURRENCY}+${TOKEN_SAMPLE_ISSUER}`,
+      empty: null,
+      more: null,
+      note: null,
+      footnote: "Value and volume in XRP.",
+    });
+  });
+
+  it("leads to all the pools with the token, in the code's words, when there are more than five", () => {
+    const six = ammPoolsSample({ pools: [1, 2, 3, 4, 5, 6].map((n) => poolOf(n)), count: 6, marker: undefined });
+    const { pools } = pageOfToken(tokenInput({ pools: ok(six) }));
+    expect(pools).toMatchObject({ more: { href: `/xrpl/amm?asset=RLUSD.${TOKEN_SAMPLE_ISSUER}`, label: "All pools with RLUSD →" } });
+    expect(pools?.state === "ok" && pools.rows).toHaveLength(5);
+  });
+
+  it("says no pool holds the token", () => {
+    const { pools } = pageOfToken(tokenInput({ pools: ok(ammPoolsSample({ pools: [], count: 0, marker: undefined })) }));
+    expect(pools).toMatchObject({ state: "ok", rows: [], empty: "No AMM pool holds RLUSD." });
+  });
+
+  it("keeps the rows when only the live volume failed, and says so, with a dash for each volume", () => {
+    const { page, problems } = tokenPage(tokenInput({ ammVolume: FAILED }));
+    expect(page.pools).toMatchObject({ state: "ok", note: "Couldn't load the 24-hour volume" });
+    expect(page.pools?.state === "ok" && page.pools.rows.map((row) => row.volume)).toEqual(["—"]);
+    expect(problems).toEqual([{ part: "ammVolume" }]);
+  });
+
+  it("fails on its own: the card's words and the problem (and the volume's, when it failed too)", () => {
+    const { page, problems } = tokenPage(tokenInput({ pools: FAILED }));
+    expect(page.pools).toEqual({ source: `/v2/amm/pools?asset=${TOKEN_SAMPLE_CURRENCY}+${TOKEN_SAMPLE_ISSUER}`, state: "failed", what: "the AMM pools" });
+    expect(problems).toEqual([{ part: "pools" }]);
+    expect(tokenPage(tokenInput({ pools: FAILED, ammVolume: FAILED })).problems).toEqual([{ part: "pools" }, { part: "ammVolume" }]);
+  });
+});
+
+describe("tokenPage: Xahau", () => {
+  const xahau = (over: Partial<TokenInput> = {}) => pageOfToken(withToken({ toml_url: "https://example.org/.well-known/xahau.toml" }, { net: XAHAU_LINKED, pools: null, ammVolume: null, ...over }));
+
+  it("has no pools card, and says the token trades on the order book only", () => {
+    const page = xahau();
+    expect(page.pools).toBeNull();
+    expect(page.ammNote).toBe("Xahau has no AMM, so RLUSD trades only on the order book here.");
+    expect(page.network).toMatchObject({ id: "xahau", native: "XAH", software: "xahaud" });
+  });
+
+  it("names the network of the sandbox in the note and Xahau's toml in the card and the button", () => {
+    expect(xahau({ net: { ...XAHAU_LINKED, name: "Xahau Testnet" } }).ammNote).toBe("Xahau Testnet has no AMM, so RLUSD trades only on the order book here.");
+    expect(xahau().head.toml).toEqual({ label: "xahau.toml", href: "https://example.org/.well-known/xahau.toml" });
+    expect(xahau().toml).toMatchObject({ entry: { where: { text: "ripple.com/.well-known/xahau.toml" } } });
+  });
+
+  it("has the AMM note on XRPL nowhere", () => {
+    expect(pageOfToken().ammNote).toBeNull();
+  });
+});
+
+describe("tokenPage: a page of older transfers", () => {
+  const older = (over: Partial<TokenInput> = {}) => tokenPage(tokenInput({ mode: "older", params: { marker: "M1", back: [] }, holders: null, pools: null, ammVolume: null, ...over }));
+
+  it("is the header and the transfers only, with a way back to the first page", () => {
+    const { page, problems } = older();
+    expect(page.older).toBe(true);
+    expect(page.head.code).toBe(CODE);
+    expect(page.figures).toBeNull();
+    expect(page.coverage).toBeNull();
+    expect([page.toml, page.settings, page.markets, page.pools, page.holders, page.ammNote]).toEqual([null, null, null, null, null, null]);
+    expect(page.back).toEqual({ href: `/xrpl/token/RLUSD.${TOKEN_SAMPLE_ISSUER}`, label: "Back to RLUSD" });
+    expect(page.transfers).toMatchObject({ state: "ok", title: "Older transfers" });
+    expect(problems).toEqual([]);
+  });
+
+  it("goes back to the first page along Newer, and has its facts say it is behind a marker", () => {
+    const { page } = older();
+    expect(page.transfers.state === "ok" && page.transfers.pager.newerHref).toBe(`/xrpl/token/RLUSD.${TOKEN_SAMPLE_ISSUER}`);
+    expect(page.meta.more).toBe(true);
+  });
+
+  it("asks nothing of the cards it does not draw: Xahau's note is not there either, and a failed transfers card is a problem", () => {
+    expect(older({ net: XAHAU_LINKED }).page.ammNote).toBeNull();
+    const failed = older({ transfers: FAILED });
+    expect(failed.page.transfers).toMatchObject({ state: "failed", title: "Older transfers" });
+    expect(failed.page.back).not.toBeNull();
+    expect(failed.problems).toEqual([{ part: "transfers" }]);
+  });
+
+  it("is not the first page's on the other mode: the first page has no way back", () => {
+    expect(pageOfToken().older).toBe(false);
+    expect(pageOfToken().back).toBeNull();
+  });
+});
+
+describe("tokenPage: the problems", () => {
+  it("lists each failed part, in the page's order (settings, pools, volume, holders, transfers)", () => {
+    const { problems } = tokenPage(withToken({ issuer_settings: undefined }, { accountInfo: FAILED, pools: FAILED, ammVolume: FAILED, holders: FAILED, transfers: FAILED }));
+    expect(problems).toEqual([{ part: "accountInfo" }, { part: "pools" }, { part: "ammVolume" }, { part: "holders" }, { part: "transfers" }]);
+  });
+
+  it("lists none when every call answered, and none for a part that was not asked", () => {
+    expect(tokenPage(tokenInput()).problems).toEqual([]);
+    expect(tokenPage(tokenInput({ pools: null, ammVolume: null })).problems).toEqual([]);
+  });
+
+  it("counts a missing holders, pools or transfers answer as a failure too (a token that vanished between the calls)", () => {
+    expect(tokenPage(tokenInput({ holders: MISSING, pools: MISSING, transfers: MISSING })).problems).toEqual([{ part: "pools" }, { part: "holders" }, { part: "transfers" }]);
+  });
+});
+
+describe("tokenPage: the names", () => {
+  it("are the loader's part, as it is, and the issuer's name reaches the toml card", () => {
+    const part: NamesPart = { state: "ok", map: { [TOKEN_SAMPLE_ISSUER]: { name: { text: "Ripple", kind: "verified" }, domain: "ripple.com", labels: [] } } };
+    const page = pageOfToken(tokenInput({ names: part }));
+    expect(page.names).toBe(part);
+    expect(page.toml).toMatchObject({ verified: true });
+    expect(pageOfToken(tokenInput({ names: NAMES_OFF })).names).toBe(NAMES_OFF);
+  });
+});
+
+describe("tokenFacts", () => {
+  const detail = tokenDetailSample();
+
+  it("are what the tags and the image read: the code, the name, the issuer, the holders, the supply, the domain that lists it and where the page is", () => {
+    expect(tokenFacts(XRPL, detail, false)).toEqual({
+      code: "RLUSD",
+      name: "Ripple USD",
+      issuer: TOKEN_SAMPLE_ISSUER,
+      holders: "120",
+      supply: "7,320",
+      listedBy: "ripple.com",
+      href: `/xrpl/token/RLUSD.${TOKEN_SAMPLE_ISSUER}`,
+      segment: `RLUSD.${TOKEN_SAMPLE_ISSUER}`,
+      more: false,
+    });
+    expect(tokenPage(tokenInput()).page.meta).toEqual(tokenFacts(XRPL, detail, false));
+    expect(tokenPage(tokenInput({ mode: "older", params: { marker: "M", back: [] } })).page.meta.more).toBe(true);
+  });
+
+  it("have no name for a token the toml does not name, and no domain for one it does not list", () => {
+    const facts = tokenFacts(XRPL, tokenDetailSample({ toml: undefined, listed: false }), false);
+    expect(facts).not.toHaveProperty("name");
+    expect(facts).not.toHaveProperty("listedBy");
+    // A domain without a listing is not "listed by": the image says only what the toml lists.
+    expect(tokenFacts(XRPL, tokenDetailSample({ listed: false }), false)).not.toHaveProperty("listedBy");
+  });
+
+  it("write the segment as the canonical path does: escaped for a path, whatever the code holds", () => {
+    const facts = tokenFacts(XRPL, tokenDetailSample({ currency: "5A2F23405E2A2F2F000000000000000000000000" }), false);
+    expect(facts.href).toBe(`/xrpl/token/${facts.segment}`);
+  });
+
+  it("take the bidi controls out of the name", () => {
+    expect(tokenFacts(XRPL, tokenDetailSample({ toml: { name: "Ripple‮ USD" } }), false).name).toBe("Ripple USD");
   });
 });
