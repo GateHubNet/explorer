@@ -23,9 +23,10 @@ import {
   XRPL_LEDGER,
   XRPL_PAYMENT,
 } from "./fixtures";
-import { drawnBy, type NamedPage, namedPagesOn, objectNamedPages } from "./names-pages";
+import { drawnBy, type NamedPage, namedPagesOn, objectNamedPages, tokenNamedPages } from "./names-pages";
 import { type ObjectCase, objectCase, recordedDelegateSet, removedBy } from "./object-pages";
 import { expect, hashWords, hydrated, seriousViolations, test, WCAG_TAGS } from "./support";
+import { holdersMarker, listOf, tokenCase, transfersMarker } from "./token-pages";
 import { listedAmendment, listedValidator, needs, SKIP_OFF, VALIDATORS_OFF, withHistory } from "./validators-pages";
 
 // Spec 12: axe (WCAG 2.2 AA: wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa) reports no serious or critical violation on the home,
@@ -479,6 +480,8 @@ test.describe("display names", () => {
     { name: "an XRPL account's page", net: "xrpl", path: `/xrpl/account/${XRPL_ACCOUNT}`, ready: visible("Transactions"), own: XRPL_ACCOUNT, kinds: [], labelled: true },
     // The ledger object pages and the account's Delegation tab (E10), those the Worker under test has: the three kinds of names are among them (names-pages.ts says which).
     ...namedPagesOn(objectNamedPages(), FEATURES_OFF),
+    // The token pages (E11), those the Worker under test has: the list, a token's page, its holders and a Xahau token's page (names-pages.ts says which kinds of names each has).
+    ...namedPagesOn(tokenNamedPages(), FEATURES_OFF),
   ];
 
   for (const under of NAMED_PAGES) {
@@ -1165,11 +1168,14 @@ const TRANSACTION_PAGES: PageUnderTest[] = [
   { name: "DelegateSet", path: `/xrpl/tx/${recordedDelegateSet().id}`, ready: rawReady },
 ];
 
-/** Axe at both widths in the two system themes (a phone's page not scrolling sideways), the landmarks of one role and name, and the names nothing is given that it cannot have, for `pages`. */
-function matrixOf(pages: PageUnderTest[]): void {
+/**
+ * Axe at both widths in the two system themes (a phone's page not scrolling sideways), the landmarks of one role and name, and the names nothing is given that it cannot have, for `pages`.
+ * With `toggles` the two themes chosen with the toggle are run too (the pages the spec names in the four settings).
+ */
+function matrixOf(pages: PageUnderTest[], { toggles = false }: { toggles?: boolean } = {}): void {
   for (const viewport of VIEWPORTS) {
     test.describe(`axe at ${viewport.name}`, () => {
-      for (const setting of SETTINGS.filter((candidate) => candidate.toggle === undefined)) {
+      for (const setting of SETTINGS.filter((candidate) => toggles || candidate.toggle === undefined)) {
         test.describe(`${setting.name}`, () => {
           test.use({ viewport: viewport.size, colorScheme: setting.system });
           for (const under of pages) {
@@ -1226,4 +1232,66 @@ test.describe("the account's Delegation tab", () => {
   test.skip(!DELEGATION_ON, "DELEGATION is off in the Worker under test: the tab is the 'soon' label (delegation.spec.ts checks that)");
   test.skip(LIVE, "the tab is drawn from the hand-written delegation files of the fixtures, which a real stack does not hold");
   matrixOf(DELEGATION_TAB);
+});
+
+// ---- The token pages -----------------------------------------------------------------------------------------------------------------------------------------
+// The token list and a token's page (E11 spec "Accessibility"): the list and RLUSD's page at both widths in the four settings of the theme, no sideways scroll at 375 px; then, in the two system
+// themes at both widths, the list searched, with all its tokens, behind a marker, with a search too long to ask, and Xahau's; a token's page in each of its states (the toml that does not list
+// the token, no domain with the settings read from the network, few holders and empty cards, the transfers behind a marker, Xahau's EVR); the holders page (a first page with a frozen line, a
+// page behind a marker, a Xahau token's with the Authorized lines); and the not-found page. The tokens are the fixtures' cases (test/e2e/token-pages.ts). Where E2E_FEATURES_OFF lists TOKENS
+// the pages are not found, and against a real stack, which has none of the generated tokens, the block skips itself.
+
+const TOKENS_ON = !FEATURES_OFF.has("TOKENS");
+const TOKEN_ISSUED = visible("Issued tokens");
+/** A token's page is whole when its `<h1>` and its transfers are drawn (every card is the server's: nothing streams in). */
+const tokenReady = async (page: Page) => {
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await visible("Recent transfers")(page);
+};
+const tokenPath = (net: "xrpl" | "xahau", which: Parameters<typeof tokenCase>[1]) => `/${net}/token/${tokenCase(net, which).path}`;
+
+const TOKEN_MAIN: PageUnderTest[] = [
+  { name: "token list", path: "/xrpl/tokens", ready: TOKEN_ISSUED },
+  { name: "token (RLUSD)", path: tokenPath("xrpl", "rlusd"), ready: tokenReady },
+];
+
+const TOKEN_MORE: PageUnderTest[] = [
+  { name: "token list, a search", path: "/xrpl/tokens?q=USD", ready: TOKEN_ISSUED },
+  { name: "token list, all the tokens", path: "/xrpl/tokens?all=1", ready: TOKEN_ISSUED },
+  { name: "token list, behind a marker", path: `/xrpl/tokens?marker=${listOf("xrpl").marker!}`, ready: TOKEN_ISSUED },
+  {
+    // A search of more than 64 characters is not asked: the field and its message are the page.
+    name: "token list, a search too long to ask",
+    path: `/xrpl/tokens?q=${"x".repeat(65)}`,
+    ready: async (page) => void (await expect(page.getByRole("alert").filter({ hasText: "Search for at most 64 characters" })).toBeVisible()),
+  },
+  { name: "Xahau token list", path: "/xahau/tokens", ready: TOKEN_ISSUED },
+  { name: "token whose domain's toml does not list it (USD)", path: tokenPath("xrpl", "usd"), ready: tokenReady },
+  { name: "token with no domain, its settings read from the network (LIONS)", path: tokenPath("xrpl", "lions"), ready: tokenReady },
+  { name: "token with few holders and empty cards (TIN)", path: tokenPath("xrpl", "few-holders"), ready: tokenReady },
+  {
+    // The transfers behind a marker: the header, the way back and the transfers.
+    name: "token, older transfers",
+    path: `/xrpl/token/${transfersMarker("xrpl").token}?marker=${transfersMarker("xrpl").marker}`,
+    ready: async (page) => {
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await visible("Older transfers")(page);
+    },
+  },
+  { name: "Xahau token (EVR)", path: tokenPath("xahau", "evr"), ready: tokenReady },
+  { name: "holders of a token, with a frozen line", path: `${tokenPath("xrpl", "rlusd")}/holders`, ready: visible("Holders") },
+  { name: "holders of a token, behind a marker", path: `/xrpl/token/${holdersMarker("xrpl").token}/holders?marker=${holdersMarker("xrpl").marker}`, ready: visible("Holders") },
+  { name: "holders of a Xahau token, with Authorized lines", path: `${tokenPath("xahau", "xahau-unlisted")}/holders`, ready: visible("Holders") },
+  {
+    name: "token the index does not know",
+    path: `/xrpl/token/QQQ.${tokenCase("xrpl", "usd").issuer}`,
+    ready: async (page) => void (await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible()),
+  },
+];
+
+test.describe("the token pages", () => {
+  test.skip(!TOKENS_ON, "TOKENS is off in the Worker under test: its pages are not found (tokens.spec.ts checks that)");
+  test.skip(LIVE, "the pages are drawn from the generated token fixtures, which a real stack does not hold");
+  matrixOf(TOKEN_MAIN, { toggles: true });
+  matrixOf(TOKEN_MORE);
 });

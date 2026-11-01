@@ -9,6 +9,7 @@ import type { FeatureVar } from "../../app/ui/features";
 import { fixtureEntryOf, type FixtureName, XRPL_ACCOUNT } from "./fixtures";
 import { objectCase, type ObjectCase } from "./object-pages";
 import { expect } from "./support";
+import { tokenCase } from "./token-pages";
 
 export type Net = "xrpl" | "xahau";
 
@@ -55,9 +56,10 @@ export function drawnBy(net: Net, address: string, { full = false }: { full?: bo
 /**
  * Says that every link to an account of `net` in `scope` is drawn as the fixtures say (`drawnBy`): the name with its marks and the title that says how it is known, and the address with the
  * title that is the whole address for an account they give no name. `full` says how the scope draws its links: whole addresses, short ones, or `"either"` (a page that has both). Returns what it
- * saw (the kinds of the names, how many links were plain), so that a test can say that it looked at both.
+ * saw (the kinds of the names, how many links were plain), so that a test can say that it looked at both. `except` is an account whose links the scope has under words of their own (a token
+ * page's "Issuer account" button), which are left out.
  */
-export async function expectAccountsDrawn(scope: Locator, net: Net, { full = false }: { full?: boolean | "either" } = {}) {
+export async function expectAccountsDrawn(scope: Locator, net: Net, { full = false, except }: { full?: boolean | "either"; except?: string } = {}) {
   const links = await scope.locator(`a[href^="/${net}/account/"]`).evaluateAll((anchors) =>
     anchors.map((anchor) => ({ href: anchor.getAttribute("href") ?? "", text: anchor.textContent ?? "", title: anchor.getAttribute("title") })),
   );
@@ -66,6 +68,7 @@ export async function expectAccountsDrawn(scope: Locator, net: Net, { full = fal
   let plain = 0;
   for (const link of links) {
     const address = link.href.slice(`/${net}/account/`.length).split(/[?#]/)[0]!;
+    if (address === except) continue;
     const whole = full === "either" ? flat(link.text).includes(address) : full;
     const expected = drawnBy(net, address, { full: whole });
     expect(flat(link.text), `the link to ${address}`).toBe(expected.text);
@@ -134,5 +137,29 @@ export function objectNamedPages(): NamedPage[] {
       labelled: true,
       needs: "DELEGATION",
     },
+  ];
+}
+
+/**
+ * The token pages (E11): every address on them is an `AccountLink`, drawn by what the names fixtures say. The tokens are the cases of the fixtures (test/e2e/token-pages.ts, never written
+ * here), chosen so that the three kinds of names are among them: the list's issuers are verified names, GateHub's own and domains that are not verified; RLUSD's page has the same among its
+ * markets' issuers, its holders and its transfers; the first page of its holders has two accounts with a label and no name (a scam and a spam label); Xahau's EVR has all three. The token
+ * page's "Issuer account" button is a link to the issuer by its own words, so the page is `own` to the issuer, whose other link (the "Issued by" line) the specs of the page check apart. The
+ * names are the fixtures' (a real stack has names of its own).
+ */
+export function tokenNamedPages(): NamedPage[] {
+  const rlusd = tokenCase("xrpl", "rlusd");
+  const evr = tokenCase("xahau", "evr");
+  const all = ["verified", "account", "domain"];
+  const tableVisible = (name: string) => async (page: Page) => void (await expect(page.getByRole("table", { name, exact: true })).toBeVisible());
+  const tokenReady = async (page: Page) => {
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await tableVisible("Recent transfers")(page);
+  };
+  return [
+    { name: "the token list", net: "xrpl", path: "/xrpl/tokens", ready: tableVisible("Issued tokens"), kinds: all, needs: "TOKENS" },
+    { name: "a token's page", net: "xrpl", path: `/xrpl/token/${rlusd.path}`, ready: tokenReady, own: rlusd.issuer, kinds: all, needs: "TOKENS" },
+    { name: "a token's holders", net: "xrpl", path: `/xrpl/token/${rlusd.path}/holders`, ready: tableVisible("Holders"), kinds: ["account", "domain"], labelled: true, needs: "TOKENS" },
+    { name: "a Xahau token's page", net: "xahau", path: `/xahau/token/${evr.path}`, ready: tokenReady, own: evr.issuer, kinds: all, needs: "TOKENS" },
   ];
 }
