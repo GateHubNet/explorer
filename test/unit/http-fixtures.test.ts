@@ -12,6 +12,7 @@ import {
   isMarketGenerated,
   isNftGenerated,
   isObjectGenerated,
+  isSupplyGenerated,
   isSynthetic,
   isTokenGenerated,
   isValidatorsGenerated,
@@ -124,15 +125,18 @@ describe("every fixture file", () => {
             !isNftGenerated(file) &&
             !isNamesGenerated(file) &&
             !isObjectGenerated(file) &&
-            !isTokenGenerated(file),
+            !isTokenGenerated(file) &&
+            !isSupplyGenerated(file),
         ),
       ),
     ).toBeLessThan(3.5 * 1024 * 1024);
     // The synthetic aggregates of the network page (about 2.3 MiB, a row to a line: four periods, two display currencies, three volumes) are
     // generated and reviewed as the generator, so they have a budget of their own; a later generator that adds files raises it with its data.
-    // The accounts' analytics answers (scripts/analytics-fixtures.ts: 144 files, about 0.31 MiB, a row to a line) are synthetic too, and fit in it.
-    const synthetic = (file: string) => isSynthetic(file) || isAnalyticsGenerated(file);
+    // The accounts' analytics answers (scripts/analytics-fixtures.ts: 144 files, about 0.31 MiB, a row to a line) are synthetic too, and fit in it, and so do the supply page's three files
+    // (scripts/supply-fixtures.ts: D7's two snapshots and Xahau's 90 minted days, a row to a line; 13,391 bytes).
+    const synthetic = (file: string) => isSynthetic(file) || isAnalyticsGenerated(file) || isSupplyGenerated(file);
     expect(bytes(files.filter(isAnalyticsGenerated))).toBeGreaterThan(0);
+    expect(files.filter(isSupplyGenerated)).toHaveLength(3);
     expect(bytes(files.filter(synthetic))).toBeLessThan(2.7 * 1024 * 1024);
     // The markets pages' files (scripts/market-fixtures.ts: the pairs' trades, candles, 24-hour rows and active accounts, and the nine XRPL and three
     // Xahau markets tables, a row to a line; 81 files, 896,704 bytes, about 0.86 MiB) are reviewed as their generator too, and have a budget of their own.

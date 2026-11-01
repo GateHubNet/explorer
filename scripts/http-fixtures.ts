@@ -35,6 +35,9 @@
 // The token pages' answers (D6's four routes: `data-api/tokens@…`, `data-api/tokens/…`) are token-fixtures.ts's: synthetic around real issuers, with holders and transfers from the recordings
 // where they have them; `generate` joins them per network, with their keys as D6 orders them (`builtFixtureText`; PROVENANCE.md, "Token answers"). That module too reads nothing of this one while it loads.
 //
+// The supply page's answers (D7's two routes: `data-api/network/supply.json`, `data-api/network/supply/minted@…`) are supply-fixtures.ts's: synthetic, with D7's examples' figures and the key orders of its
+// reference (`builtFixtureText`; PROVENANCE.md, "Synthetic supply"); `generate` joins them per network, after the validators'. That module imports nothing but types of this one.
+//
 // The display names' files (`data-api/account_names.json` and `data-api/toml/<domain>.json`) are names-fixtures.ts's: synthetic, over the addresses of every other file of
 // the network, generated or written by hand, so `generate` joins them last (PROVENANCE.md, "Synthetic names and tomls"). That module reads nothing of this one either.
 //
@@ -57,6 +60,7 @@ import { namesFixtures } from "./names-fixtures";
 import { networkFixtures } from "./network-fixtures";
 import { nftFixtures, nftLedgerEntryIds } from "./nft-fixtures";
 import { objectFixtures, objectPaths } from "./object-fixtures";
+import { SUPPLY_ROW_LISTS, supplyFixtures } from "./supply-fixtures";
 import { TOKEN_ROW_LISTS, tokenFixtures } from "./token-fixtures";
 import { VALIDATORS_ROW_LISTS, validatorsFixtures } from "./validators-fixtures";
 
@@ -92,6 +96,12 @@ export const EXPANDED: Record<NetworkName, number[]> = {
   xrpl: [107720688, 107721455],
   xahau: [26540187, 26540188, 26596843],
 };
+
+/**
+ * The recorded ledger the supply snapshot of each network is of: XRPL's, the older of the two ledgers it serves in full, closed about 50 minutes before the newest (so the page does not
+ * call the snapshot stale), and Xahau's, the newest (D7's cycle is an hour: the newest recorded ledger of a network is the one a snapshot would be of there).
+ */
+const SUPPLY_LEDGER: Record<NetworkName, number> = { xrpl: 107_720_688, xahau: 26_596_843 };
 
 /** How many of the newest ledgers and transactions the list endpoints (`limit=8`) give. */
 const LATEST = 8;
@@ -492,6 +502,15 @@ export function isValidatorsGenerated(path: string): boolean {
   return /^(xrpl|xahau)\/data-api\/network\/(validators|amendments)(\/|@|\.json$)/.test(path);
 }
 
+/**
+ * Paths (below test/fixtures/http/) of the supply page's files that supply-fixtures.ts writes (E12): D7's snapshot (`data-api/network/supply.json`) and Xahau's minted days
+ * (`data-api/network/supply/minted@…`). Synthetic and reviewed in the generator, they count against the synthetic aggregates' size budget (test/unit/http-fixtures.test.ts), and
+ * test/unit/supply-fixtures.test.ts keeps this in step with the generator.
+ */
+export function isSupplyGenerated(path: string): boolean {
+  return /^(xrpl|xahau)\/data-api\/network\/supply(\.json$|\/)/.test(path);
+}
+
 /** The newest transactions of a network, newest first, as `/v2/transactions?descending=true&limit=8` gives them. */
 function newestTransactions(ledgers: readonly RawLedger[]): Array<{ raw: RawLedger; tx: RawTx }> {
   const newest: Array<{ raw: RawLedger; tx: RawTx }> = [];
@@ -664,6 +683,18 @@ export function generate(): Map<string, string> {
       .filter(({ path }) => /^\/v2\/ledgers\/[0-9A-F]{64}\/validations$/.test(path))
       .map(({ value }) => value as LedgerValidations);
     for (const { path, query, value } of validatorsFixtures(net, dataApiLastValidated(head), ledgerValidations)) put(dataApiFile(net, path, query), value, VALIDATORS_ROW_LISTS);
+
+    // The supply page's answers (D7's two routes, supply-fixtures.ts): synthetic, with D7's examples' keys in the reference's order (`builtFixtureText`, which sorts nothing). The snapshot is of
+    // a recorded ledger, the newest on Xahau and an earlier one on XRPL (`SUPPLY_LEDGER`).
+    const snapshotOf = ledgers.find((raw) => raw.ledger_index === SUPPLY_LEDGER[net]);
+    if (snapshotOf === undefined) throw new Error(`${net}: the supply snapshot's ledger ${SUPPLY_LEDGER[net]} is not among the recordings`);
+    const snapshot = dataApiLastValidated(snapshotOf);
+    for (const { path, query, value } of supplyFixtures(net, dataApiLastValidated(head), { ledger_index: Number(snapshot.ledger_index), close_time: snapshot.close_time })) {
+      const file = dataApiFile(net, path, query);
+      if (file === undefined) throw new Error(`no file for ${path}?${query}`);
+      if (files.has(file)) throw new Error(`${file} is generated twice`);
+      files.set(file, builtFixtureText(value, SUPPLY_ROW_LISTS));
+    }
 
     // Single transactions: one per type the recordings looked for, the newest ones, and those the account lists show.
     for (const hash of servedHashes(net, ledgers)) {

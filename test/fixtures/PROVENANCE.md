@@ -917,6 +917,45 @@ ranks, markers against D6's three examples, and pages that concatenate; the tie;
 addresses; a token's page against its list row and its markets; transfers against the recordings; every case; the same output whatever the order. `isTokenGenerated` names the files, which have a budget
 of their own in `test/unit/http-fixtures.test.ts` (0.3 MiB). `test/unit/amm-fixtures.test.ts` checks the pools files. `test/unit/upstream-core.test.ts` checks the mock's answers for a token without a file.
 
+## Synthetic supply: `http/<net>/data-api/network/supply.json` and `http/xahau/data-api/network/supply/minted@…`
+
+Nothing in these files is recorded or copied. The supply page (E12) reads two routes of D7, which the data API computes hourly from the whole history (the open escrows, the AMM pools, the
+account states, the fees and the mints): no recording of a few ledgers can give them, so `scripts/supply-fixtures.ts` makes them up and `pnpm fixtures:sync` writes them (`generate()` in
+`scripts/http-fixtures.ts` calls `supplyFixtures(net, last, snapshot)` for each network, after `validatorsFixtures`, and writes them with their keys in D7's order: `builtFixtureText`, not
+`fixtureText`, which sorts them; the minted days a row to a line). They follow D7 at data-api `feat/explorer-data-2` commit **31e97efaa1a6e098435b666e8893c79a0c4bee66**, read with
+`git -C ../data-api-worktrees/explorer-data-2 show 31e97ef…:<path>`, never checked out:
+
+| | Repository, ref | Commit | For |
+|---|---|---|---|
+| `docs/api-reference.md`, `GET /v2/network/supply` and `GET /v2/network/supply/minted` | `data-api`, `feat/explorer-data-2` | `31e97efaa1a6e098435b666e8893c79a0c4bee66` | the answers' keys and their order ("Keys of …"), formats, the rules that tie one figure to another, the coverages of its two built examples |
+| `docs/openapi.yaml` | the same commit | `31e97efaa1a6e098435b666e8893c79a0c4bee66` | `api/openapi.yaml` and `app/server/openapi.d.ts`, synced from this commit and not from the branch tip (plan Ruling C1) |
+
+The client's types (`app/server/api-types.ts`, "Supply") and checks (`app/server/supply-shape.ts`) follow the same commit, and every file passes them.
+
+| Files below `http/<net>/data-api/network/` | Holds |
+|---|---|
+| `supply.json` | **XRPL**: the snapshot at the recorded ledger **107,720,688** (closed 2026-10-17T16:11:02Z, about 50 minutes before `last_validated` 107,721,455 at 17:01:12Z, so the page does not call it stale), `computed_at` 107 s after the close; every figure and count of D7's XRP Ledger example (`total` `99985312374.716318`, `burned` `14687625.283682`, `escrowed` `35212847105.402318` in 12,879 escrows, `circulating` `64772465269.314`, `amm` `46218377.402915` in 14,594 pools, `reserves` `9810004` = 6,410,280 × 1 + 16,998,620 × 0.2). **Xahau**: the snapshot at the newest recorded ledger 26,596,843 (2026-10-17T17:47:11Z), `computed_at` 29 s after, D7's Xahau example's figures (`minted` `49425551.616207` = `rewards` `41203318.512207` + `import` `8102233.104` + `genesis_mint` `120000`; `burned` `2318.640227`; `escrowed` `18406227.318004` in 2,140 escrows; `circulating` `594995554.799302`; `reserves` `268973.2`; no `amm`) |
+| `supply/minted@end=2026-10-17&interval=day&limit=1000&start=2026-07-20.json` (Xahau only) | the 90 days of the network page's window (`windowOf("2026-10-17", "90d")`), oldest first, one row each: rewards every day (25,000 to 35,000 XAH, six decimals), an import on about four days in five (500 to 8,000 XAH), `genesis_mint` `"40000"` on 2026-09-14 only, and the running day (2026-10-17) at about a third of a day's mint; `amount` the exact sum of the three; `count` 90, no `marker`, `coverage` `{ from_ledger_index: 1, complete: true }` |
+
+The XRP Ledger mints nothing and its page does not ask for the days (spec 3.2: only when the snapshot has `minted`), so it has no minted file: a request for it gets the mock's answer for a route no fixture has, `Cannot GET`, a missing route.
+
+**Coverages.** The built reference's, not those of D7's design spec §5.1 (plan Ruling C11): the spec's own note retracts them as ones that "cannot occur together" (the reserves starting above the
+escrows). XRPL: `{ from_ledger_index: 28685313, complete: true }` for `escrowed`, `circulating` and `amm`, and `{ 28685313, false }` for `reserves`; its `burned` has none, as D7 leaves it out where
+the network cannot mint. Xahau: `{ 1, true }` on every part and on the minted page. The page's note therefore reads "Since ledger #1" there.
+
+**Seeds.** The minted days draw three numbers a day from `mulberry32(seedOf("xahau", "supply/minted"))` (`scripts/synthetic.ts`), whether the day uses them or not (the reward, whether the day has an
+import, the import), so a day's amounts depend on its place in the window and on nothing else. Only integer arithmetic and the four IEEE operations are used on the numbers, BigNumber for the
+text, so every Node writes the same bytes.
+
+**Invented, and not checked against anything real:** every figure above (D7's examples are made-up figures "of a plausible day" themselves), the snapshots' ledgers' relation to them (the recorded
+ledger 107,720,688 is real, its supply is not), `computed_at`, and the minted days. The 90 days add up to far less than the snapshot's `minted` (about 3.0 million XAH against 49 million): that total
+is since ledger 1, the days are the last 90. The running day's third is a round figure: Xahau's newest ledger closed at 17:47, three quarters of the way through the day.
+
+**What keeps them true.** `test/unit/supply-fixtures.test.ts`, over `generate()`'s files: D7's rules worked out again with BigNumber (`circulating` = `total` less `escrowed`, the reserves, XRPL's `burned`
+= 100 billion less `total`, `minted` the sum of its sources, each day's `amount`), the figures and coverages of the examples, D7's key orders in the files, the snapshot's distance from `last_validated`, the
+90 days of the window and the fees' (the same days), the one `GenesisMint` day, the client's shape checks on every file, and the same output twice. `isSupplyGenerated` names the files, which count against
+the synthetic aggregates' size budget in `test/unit/http-fixtures.test.ts`.
+
 ## Synthetic names and tomls: `http/<net>/data-api/account_names.json` and `http/<net>/data-api/toml/`
 
 Nothing in these files is recorded or copied. The display names (E9) read D4's two routes, which the data API builds from the operator's names and labels (ADR-0014), the
