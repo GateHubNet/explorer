@@ -90,6 +90,10 @@ sent `{currency}.{issuer}` with the currency as the ledger holds it (D6 §5.2). 
 the query does), dropping unknown parameters, empty values, repeats, `back` without `marker`, and `kind=mpt` while E14 has not made it
 a view.
 
+Note (2026-11-01, E11 final review M6): one empty value is not dropped. `?marker=` is a 404 of class `short`, as `/{net}/amm?marker=` and
+`/{net}/nfts?marker=` are (the house rule: a marker is checked with `isMarker` before the redirect, and an empty one is none). Only a
+hand-edited URL meets it, and the code and its test (`token-params.test.ts`, "returns the marker as it was given") say so on purpose.
+
 ### 1.3 Validation, not found, redirects
 
 Everything a URL carries is checked before any call: the asset (`parseTokenPath`), a marker (`isMarker`), a trail (`parseTrail`),
