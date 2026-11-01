@@ -1993,3 +1993,10 @@ a.tabs__item:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* A token's code that is a link in running words ("USD issued by r…" on a pair's and a pool's page, the toml's currencies under "How we know"): its colour alone does not tell it from the
+   words round it (WCAG 1.4.1; axe sees the pair's line and not the pool's, whose facts are inline-flex boxes), so it is underlined, as `.objectlink` is. */
+.tokenlink {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

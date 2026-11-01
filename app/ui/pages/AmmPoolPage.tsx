@@ -54,6 +54,22 @@ type Retry = { onRetry: () => void; retrying: boolean };
 const issuedBy = (line: AmmPoolHead["issuers"][number]): string => line.text.slice(0, line.text.lastIndexOf(line.issuer.address)).trimEnd();
 
 /**
+ * The words of an issuer line up to the issuer, with the code a link to its token page when the data has one (`tokenHref`, E11 spec 5.2): "RLUSD" underlined as a link in running words is,
+ * then " issued by". Text, as it was, when it has none.
+ */
+function IssuedBy({ line }: { line: AmmPoolHead["issuers"][number] }) {
+  if (line.tokenHref === null) return <>{issuedBy(line)}</>;
+  return (
+    <>
+      <Link to={line.tokenHref} className="tokenlink">
+        {line.code}
+      </Link>
+      {issuedBy(line).slice(line.code.length)}
+    </>
+  );
+}
+
+/**
  * The pool card (spec 3.1): the coins, the `<h1>`, "Market →" (E3's market page, or the header's "soon" style while the markets pages are off), the pool
  * account in full with a copy button, each issuer in full (both `AccountLink full`, so a name leads the address), and on the first page the Created and LP token lines.
  */
@@ -83,7 +99,7 @@ function PoolCard({ net, head }: { net: Net; head: AmmPoolHead | AmmPoolHeader }
         </span>
         {head.issuers.map((line, at) => (
           <span key={at} className="amm-pool__fact">
-            {issuedBy(line)} <AccountLink net={net} address={line.issuer.address} full />
+            <IssuedBy line={line} /> <AccountLink net={net} address={line.issuer.address} full />
           </span>
         ))}
         {created !== null && (

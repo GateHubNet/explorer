@@ -31,6 +31,7 @@ import {
   type ListContext,
   type Loaded,
   type NeverActivatedData,
+  type ObjectRowsContext,
   type TabList,
 } from "../server/account-view";
 import { loadAnalytics } from "../server/analytics-load";
@@ -404,16 +405,17 @@ async function firstPage(
   // `nodeToml` is left running on purpose: it never rejects, logs or marks nothing itself, and the 404 or 503 never reads it.
   if (existence === "never-activated" || existence === "outage") return notAnAccount(context, existence, network, address);
 
-  const unnamed = accountHeader({ native: network.native, created, info, objects, state, balances, lastLedgerTime, history });
+  // What the header's tokens and the Objects tab's rows are linked in: the page's network and account and the switches (a token's code leads to its page, an escrow, a check or a channel to its own).
+  const objectsCtx: ObjectRowsContext = { net: network.id, native: network.native, address, features: network.features };
+  const unnamed = accountHeader({ native: network.native, created, info, objects, state, balances, lastLedgerTime, link: objectsCtx, history });
   reportProblems(context, request, unnamed.problems);
 
   // The Objects tab's rows come with the header. Where a row leads follows the switches (`objectRows`): an NFT page to the account's NFTs, an escrow, a check or a channel to its page, a
   // delegation to the Delegation tab.
   let objectsTab: TabList | null = null;
   if (settled === null) {
-    const ctx = { net: network.id, native: network.native, address, features: network.features };
-    if (objects.state === "ok") objectsTab = objectsList(objects.value, ctx);
-    else if (objects.state === "missing") objectsTab = objectsList(null, ctx);
+    if (objects.state === "ok") objectsTab = objectsList(objects.value, objectsCtx);
+    else if (objects.state === "missing") objectsTab = objectsList(null, objectsCtx);
     else objectsTab = failedList("objects");
   }
 

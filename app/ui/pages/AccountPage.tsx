@@ -312,19 +312,29 @@ function BalancePanel({ network, data }: { network: NetworkInfo; data: AccountPa
 // The margin
 
 /**
- * A trust line of the Tokens card: its code, its issuer and its balance. An LP token's issuer is its AMM pool: "AMM pool r…", one link to the pool
- * page while `AMM_PAGES` is on, and "AMM pool" before the pool's account link while it is off.
+ * A trust line of the Tokens card: its code, its issuer and its balance. The code is a link to the token's page when the line has one (`token.href`, made by `tokenLink` while `TOKENS`
+ * is on), else text. An LP token's issuer is its AMM pool: "AMM pool r…", one link to the pool page while `AMM_PAGES` is on, and "AMM pool" before the pool's account link while it is off.
  */
 function TokenRow({ net, token, features }: { net: NetworkInfo["id"]; token: Token; features: Features }) {
   const name = formatCurrency(token.currency);
   const badge = token.lp ? "LP" : name.slice(0, 3);
+  // The whole code, where the text is not it (a hex code shown as its text).
+  const title = name === token.currency ? undefined : token.currency;
   return (
     <div className="token">
       <span className="token__badge mono" aria-hidden="true">
         {badge}
       </span>
       <div className="token__name">
-        <span title={name === token.currency ? undefined : token.currency}>{name}</span>
+        {token.href === null ? (
+          <span title={title}>{name}</span>
+        ) : (
+          <span>
+            <Link to={token.href} title={title}>
+              {name}
+            </Link>
+          </span>
+        )}
         <span className="token__issuer">
           {token.lp && features.ammPages ? (
             <Link to={poolLink(net, token.issuer, features)} title={token.issuer}>

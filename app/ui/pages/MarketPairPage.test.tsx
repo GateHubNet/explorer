@@ -48,7 +48,7 @@ function head(over: Partial<PairHead> = {}): PairHead {
     heading: "XRP / USD",
     base: "XRP",
     counter: "USD",
-    issuers: [{ code: "USD", address: ISSUER, href: `/xrpl/account/${ISSUER}` }],
+    issuers: [{ code: "USD", address: ISSUER, href: `/xrpl/account/${ISSUER}`, tokenHref: null }],
     natives: ["XRP"],
     issued: ["USD rhub8V…F3wq"],
     issuedBy: "USD issued by rhub8V…F3wq",
@@ -202,7 +202,7 @@ const XAHAU_PAGE = (over: Partial<LivePairData> = {}) =>
       heading: "EVR / XAH",
       base: "EVR",
       counter: "XAH",
-      issuers: [{ code: "EVR", address: EVR_ISSUER, href: `/xahau/account/${EVR_ISSUER}` }],
+      issuers: [{ code: "EVR", address: EVR_ISSUER, href: `/xahau/account/${EVR_ISSUER}`, tokenHref: null }],
       natives: ["XAH"],
       issued: ["EVR rEvern…XXr8"],
       issuedBy: "EVR issued by rEvern…XXr8",
@@ -357,6 +357,52 @@ describe("MarketPairPage, the pair summary", () => {
     expect(address.classList.contains("mono")).toBe(true);
   });
 
+  describe("with the token pages on (E11 spec 5.2)", () => {
+    const linked = (issuers: PairHead["issuers"], natives: string[] = ["XRP"]) => head({ issuers, natives });
+
+    it("draws the code of an issued side as a link to its token page, underlined as a link in words is, with the words and the issuer's account after it", () => {
+      mount(page({ head: linked([{ code: "USD", address: ISSUER, href: `/xrpl/account/${ISSUER}`, tokenHref: `/xrpl/token/USD.${ISSUER}` }]) }));
+      const line = summary().querySelector(".pair__issuers")! as HTMLElement;
+      expect(line.textContent).toBe(`USD issued by ${ISSUER} · XRP is native`);
+      const code = within(line).getByRole("link", { name: "USD" });
+      expect(code.getAttribute("href")).toBe(`/xrpl/token/USD.${ISSUER}`);
+      // Told from the words round it by more than its colour: the class pinned in pages-css.test.ts.
+      expect(code.classList.contains("tokenlink")).toBe(true);
+      expect(within(line).getByRole("link", { name: ISSUER }).getAttribute("href")).toBe(`/xrpl/account/${ISSUER}`);
+      expect(within(line).getAllByRole("link")).toHaveLength(2);
+    });
+
+    it("links each side that has a page and leaves the other as text: two issuers, the second's code one the path does not read", () => {
+      const hex = "0123456789ABCDEF0123456789ABCDEF01234567";
+      mount(
+        page({
+          head: linked(
+            [
+              { code: "EUR", address: EUR_ISSUER, href: `/xrpl/account/${EUR_ISSUER}`, tokenHref: `/xrpl/token/EUR.${EUR_ISSUER}` },
+              { code: hex, address: ISSUER, href: `/xrpl/account/${ISSUER}`, tokenHref: null },
+            ],
+            [],
+          ),
+        }),
+      );
+      const line = summary().querySelector(".pair__issuers")! as HTMLElement;
+      expect(line.textContent).toBe(`EUR issued by ${EUR_ISSUER} · ${hex} issued by ${ISSUER}`);
+      expect(within(line).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([`/xrpl/token/EUR.${EUR_ISSUER}`, `/xrpl/account/${EUR_ISSUER}`, `/xrpl/account/${ISSUER}`]);
+    });
+
+    it("draws the code as text when the data has no link for it (TOKENS off): the line is what it was", () => {
+      mount(page());
+      const line = summary().querySelector(".pair__issuers")! as HTMLElement;
+      expect(within(line).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([`/xrpl/account/${ISSUER}`]);
+      expect(line.querySelector(".tokenlink")).toBeNull();
+    });
+
+    it("does so on the page behind a marker too", () => {
+      mount(older({ head: linked([{ code: "USD", address: ISSUER, href: `/xrpl/account/${ISSUER}`, tokenHref: `/xrpl/token/USD.${ISSUER}` }]) }));
+      expect(within(document.querySelector(".pair__issuers") as HTMLElement).getByRole("link", { name: "USD" }).getAttribute("href")).toBe(`/xrpl/token/USD.${ISSUER}`);
+    });
+  });
+
   describe("with the page's names", () => {
     const NORTHPEAK: NameMap = { [ISSUER]: { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] } };
     const named = (data: PairPageData) =>
@@ -394,8 +440,8 @@ describe("MarketPairPage, the pair summary", () => {
       page({
         head: head({
           issuers: [
-            { code: "EUR", address: EUR_ISSUER, href: `/xrpl/account/${EUR_ISSUER}` },
-            { code: hex, address: ISSUER, href: `/xrpl/account/${ISSUER}` },
+            { code: "EUR", address: EUR_ISSUER, href: `/xrpl/account/${EUR_ISSUER}`, tokenHref: null },
+            { code: hex, address: ISSUER, href: `/xrpl/account/${ISSUER}`, tokenHref: null },
           ],
           natives: [],
         }),

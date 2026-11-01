@@ -86,7 +86,7 @@ export interface NamingContext {
   context: unknown;
   request: Request;
   api: Pick<DataApi, "accountNames" | "toml">;
-  network: Pick<Network, "features" | "software" | "id">;
+  network: Pick<Network, "features" | "software" | "id" | "native">;
 }
 
 /**

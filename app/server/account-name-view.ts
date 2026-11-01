@@ -17,6 +17,7 @@
 import { formatCurrency } from "../domain/format";
 import { type NameKind, type NameView, nameViewOf, withoutBidiControls } from "../domain/names";
 import { formatDate, formatDateTime, joinAnd } from "../domain/time-words";
+import { parseTokenPath, tokenLink } from "../domain/token-params";
 import type { Loaded } from "./account-view";
 import type { AccountNameEntry, LabelData, TomlAnswer, TomlData } from "./api-types";
 import type { Network } from "./networks";
@@ -59,11 +60,12 @@ export interface HowWeKnow {
 
 /**
  * What else the toml says (decision 10), each only when present: the principals as a sentence, the currencies, and the date in `[METADATA]`. A currency has the toml's code as the
- * data API gives it (`currency`, which a token link is made of) and the text the explorer writes for it (`code`).
+ * data API gives it (`currency`, which a token link is made of), the text the explorer writes for it (`code`), and where it leads (`href`, E11 spec 5.2): its token's page when the
+ * entry has an issuer, `TOKENS` is on and the token page's path reads the code, else `null` and the code stays text.
  */
 export interface TomlFacts {
   principals?: string;
-  currencies?: { currency: string; code: string; issuer?: string }[];
+  currencies?: { currency: string; code: string; issuer?: string; href: string | null }[];
   modified?: string;
 }
 
@@ -88,7 +90,7 @@ export interface NameHeaderInput {
   liveDomain: string | null;
   /** The toml of the domain: `null` when none was asked for. */
   toml: Loaded<TomlAnswer> | null;
-  network: Pick<Network, "software" | "id">;
+  network: Pick<Network, "software" | "id" | "native" | "features">;
   /** The page behind a marker shows the title and the labels only (Ruling 8). */
   brief?: boolean;
 }
@@ -135,9 +137,20 @@ function checkedOf(toml: Loaded<TomlAnswer> | null): string | undefined {
 }
 
 /**
+ * Where a currency of the toml leads: the token's page (`tokenLink`) for an entry with an issuer, as `parseTokenPath` reads the toml's code (`NPUSD` is a text code, which the ledger holds
+ * as 40 hex digits), `null` for an entry without one, for a code the token page's path does not read (a code with a control in it, a native code, one with a separator) and while
+ * `TOKENS` is off.
+ */
+function tokenHrefOf(network: Pick<Network, "id" | "native" | "features">, code: string, issuer: string | undefined): string | null {
+  if (issuer === undefined) return null;
+  const path = parseTokenPath(network, `${code}.${issuer}`);
+  return path.kind === "token" ? tokenLink(network.id, path.asset, network.features) : null;
+}
+
+/**
  * What else the toml says, for a verified name whose content is in effect (`fetched` is there: also after a failed re-read within the grace); `null` when it says none of it.
  */
-function factsOf(toml: Loaded<TomlAnswer> | null): TomlFacts | null {
+function factsOf(toml: Loaded<TomlAnswer> | null, network: Pick<Network, "id" | "native" | "features">): TomlFacts | null {
   if (toml?.state !== "ok") return null;
   const data: TomlData = toml.value.toml;
   if (data.fetched === undefined) return null;
@@ -145,7 +158,12 @@ function factsOf(toml: Loaded<TomlAnswer> | null): TomlFacts | null {
   const principals = data.principals && data.principals.length > 0 ? joinAnd(data.principals.map(withoutBidiControls)) : undefined;
   const currencies =
     data.currencies && data.currencies.length > 0
-      ? data.currencies.map(({ code, issuer }) => ({ currency: code, code: withoutBidiControls(formatCurrency(code)), ...(issuer ? { issuer } : {}) }))
+      ? data.currencies.map(({ code, issuer }) => ({
+          currency: code,
+          code: withoutBidiControls(formatCurrency(code)),
+          ...(issuer ? { issuer } : {}),
+          href: tokenHrefOf(network, code, issuer || undefined),
+        }))
       : undefined;
   const modified = data.modified ? formatDate(data.modified) : undefined;
   if (!principals && !currencies && !modified) return null;
@@ -205,7 +223,7 @@ export function accountNameHeader(input: NameHeaderInput): NameHeader {
     labelMarks,
     domainLine,
     howWeKnow: verified ? howWeKnowOf(domainLine.text, name, toml, file) : null,
-    facts: verified ? factsOf(toml) : null,
+    facts: verified ? factsOf(toml, network) : null,
     help: title?.kind === "account" ? "named" : null,
   };
 }

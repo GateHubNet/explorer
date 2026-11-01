@@ -785,7 +785,7 @@ describe("pairHead", () => {
       heading: "XRP / USD",
       base: "XRP",
       counter: "USD",
-      issuers: [{ code: "USD", address: GH, href: `/xrpl/account/${GH}` }],
+      issuers: [{ code: "USD", address: GH, href: `/xrpl/account/${GH}`, tokenHref: null }],
       natives: ["XRP"],
       issued: ["USD rhub8V…F3wq"],
       issuedBy: "USD issued by rhub8V…F3wq",
@@ -835,11 +835,42 @@ describe("pairHead", () => {
     expect(head.issuedBy).toBe("EUR issued by rvYAfW…s59B, USD issued by rhub8V…F3wq");
   });
 
+  describe("the token links of the issuer lines (E11 spec 5.2)", () => {
+    const TOKENS_ON: PairInput["network"] = { ...XRPL, features: { ...FEATURES, tokens: true } };
+    const linksOf = (head: ReturnType<typeof pairHead>) => head.issuers.map((issuer) => issuer.tokenHref);
+
+    it("leads each issued side's code to its token page while TOKENS is on, base first, and leaves it null while it is off", () => {
+      expect(linksOf(pairHead(TOKENS_ON, EUR_ASSET, USD_ASSET, DEFAULT_PARAMS))).toEqual([`/xrpl/token/EUR.${BS}`, `/xrpl/token/USD.${GH}`]);
+      expect(linksOf(pairHead(XRPL, EUR_ASSET, USD_ASSET, DEFAULT_PARAMS))).toEqual([null, null]);
+      expect(pairHead(TOKENS_ON, XRP_ASSET, USD_ASSET, DEFAULT_PARAMS).issuers).toEqual([{ code: "USD", address: GH, href: `/xrpl/account/${GH}`, tokenHref: `/xrpl/token/USD.${GH}` }]);
+    });
+
+    it("has no link for the native side (it has no issuer and no line), and is the same in the inverted pair", () => {
+      expect(linksOf(pairHead(TOKENS_ON, USD_ASSET, XRP_ASSET, DEFAULT_PARAMS))).toEqual([`/xrpl/token/USD.${GH}`]);
+      expect(pairHead(TOKENS_ON, USD_ASSET, XRP_ASSET, DEFAULT_PARAMS).natives).toEqual(["XRP"]);
+    });
+
+    it("is Xahau's on Xahau", () => {
+      expect(linksOf(pairHead({ ...XAHAU, features: TOKENS_ON.features }, { currency: "XAH" }, USD_ASSET, DEFAULT_PARAMS))).toEqual([`/xahau/token/USD.${GH}`]);
+    });
+
+    it("writes the link of a code held in hex as the token page's path writes it, and leads an LP token to its pool", () => {
+      const rlusd = pairHead(TOKENS_ON, { currency: RLUSD_HEX, issuer: RL }, XRP_ASSET, DEFAULT_PARAMS);
+      expect(linksOf(rlusd)).toEqual([`/xrpl/token/RLUSD.${RL}`]);
+      const lp = pairHead({ ...TOKENS_ON, features: { ...TOKENS_ON.features, ammPages: true } }, { currency: LP_TOKEN, issuer: POOL }, XRP_ASSET, DEFAULT_PARAMS);
+      expect(linksOf(lp)).toEqual([`/xrpl/amm/${POOL}`]);
+    });
+
+    it("leaves a code the token page's path would not read back as itself as text", () => {
+      expect(linksOf(pairHead(TOKENS_ON, { currency: "usd", issuer: GH }, XRP_ASSET, DEFAULT_PARAMS))).toEqual([null]);
+    });
+  });
+
   it("writes an undecodable hex code in full in the issuers, and as the display code (its first 8 digits) elsewhere", () => {
     const head = pairHead(XRPL, { currency: UNDECODABLE, issuer: BS }, XRP_ASSET, DEFAULT_PARAMS);
     expect(head.base).toBe("01234567…");
     expect(head.heading).toBe("01234567… / XRP");
-    expect(head.issuers).toEqual([{ code: UNDECODABLE, address: BS, href: `/xrpl/account/${BS}` }]);
+    expect(head.issuers).toEqual([{ code: UNDECODABLE, address: BS, href: `/xrpl/account/${BS}`, tokenHref: null }]);
     expect(head.issued).toEqual(["01234567… rvYAfW…s59B"]);
     // A code the ledger holds in lower case is written as it is held: upper case.
     expect(pairHead(XRPL, { currency: UNDECODABLE.toLowerCase(), issuer: BS }, XRP_ASSET, DEFAULT_PARAMS).issuers[0]!.code).toBe(UNDECODABLE);

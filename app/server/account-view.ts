@@ -19,6 +19,7 @@ import { balanceChanges } from "../domain/parse";
 import type { Native } from "../domain/parse/types";
 import { permissionCount } from "../domain/permission-chip";
 import { formatDate } from "../domain/time-words";
+import { tokenLink } from "../domain/token-params";
 import { nftGlyph } from "../ui/components/NftGlyph";
 import type { Features } from "../ui/features";
 import type { NameHeader } from "./account-name-view";
@@ -249,21 +250,32 @@ export interface Token {
   value: string;
   /** An LP token: a 40-hex code that starts with `03`. */
   lp: boolean;
+  /** Where the code leads: the token's page (`tokenLink`); `null` for an LP token, whose pool line stays, and while `TOKENS` is off, when the code is text. */
+  href: string | null;
 }
 
 /** The API's default and largest page of balances: a list that fills it may go on. */
 const BALANCES_DEFAULT_LIMIT = 200;
 
-/** The trust lines of an account's balances, the native balance left out. */
-export function tokensOf(balances: BalancesResponse): { items: Token[]; truncated: boolean } {
+/**
+ * The trust lines of an account's balances, the native balance left out. A line's code leads to its token's page (`tokenLink`, spec 5.2): the token of the line's counterparty when the balance
+ * is zero or above, and the token of this account when it is below zero (the account is then that line's issuer). An LP token keeps its pool line (`href` is `null`), and `link` carries the
+ * network, the account and the switches that decide the rest.
+ */
+export function tokensOf(balances: BalancesResponse, link: Pick<ObjectRowsContext, "net" | "address" | "features">): { items: Token[]; truncated: boolean } {
   const items = balances.balances
     .filter((balance) => balance.counterparty !== undefined)
-    .map((balance) => ({
-      currency: balance.currency,
-      issuer: balance.counterparty!,
-      value: balance.value,
-      lp: /^03[0-9A-Fa-f]{38}$/.test(balance.currency),
-    }));
+    .map((balance): Token => {
+      const lp = /^03[0-9A-Fa-f]{38}$/.test(balance.currency);
+      const issuer = new BigNumber(balance.value).lt(0) ? link.address : balance.counterparty!;
+      return {
+        currency: balance.currency,
+        issuer: balance.counterparty!,
+        value: balance.value,
+        lp,
+        href: lp ? null : tokenLink(link.net, { currency: balance.currency, issuer }, link.features),
+      };
+    });
   return { items, truncated: balances.balances.length >= (balances.limit ?? BALANCES_DEFAULT_LIMIT) };
 }
 
@@ -337,12 +349,14 @@ export interface HeaderInput {
   balances?: Loaded<BalancesResponse>;
   /** The close time (unix seconds) of the ledger that last changed the account, if it could be read. */
   lastLedgerTime: number | null;
+  /** The page's network, the account and the switches, for the links of the tokens' codes: a header with its holdings needs them, one without (the analytics view) has no tokens to link. */
+  link?: Pick<ObjectRowsContext, "net" | "address" | "features">;
   /** Whether the index has a transaction of the address: asked only when neither the index nor the node has the account. */
   history?: Loaded<boolean>;
 }
 
-/** A call a header with its holdings reads: leaving it out is the caller's mistake, not a call that failed. */
-function needed<T>(value: Loaded<T> | undefined, name: string): Loaded<T> {
+/** A call, or the link, a header with its holdings reads: leaving it out is the caller's mistake, not a call that failed. */
+function needed<T>(value: T | undefined, name: string): T {
   if (value === undefined) throw new Error(`accountHeader with its holdings needs the ${name}`);
   return value;
 }
@@ -368,6 +382,7 @@ export function accountHeader(input: HeaderInput, { holdings }: { holdings: bool
   const { native, created, info, state, lastLedgerTime, history } = input;
   const objects = holdings ? needed(input.objects, "objects") : undefined;
   const balances = holdings ? needed(input.balances, "balances") : undefined;
+  const link = holdings ? needed(input.link, "link") : undefined;
   const existence = existenceOf(created, info, history);
   if (existence === "never-activated" || existence === "outage" || existence === "undetermined") {
     throw new Error(`accountHeader is for an account that exists, not one that is ${existence}`);
@@ -430,7 +445,7 @@ export function accountHeader(input: HeaderInput, { holdings }: { holdings: bool
   if (!deleted && state.state === "failed") problems.push("node server_state failed");
 
   let tokens: TokensView = { state: "none" };
-  if (!deleted && balances?.state === "ok") tokens = { state: "ok", ...tokensOf(balances.value) };
+  if (!deleted && balances?.state === "ok" && link) tokens = { state: "ok", ...tokensOf(balances.value, link) };
   else if (!deleted && balances?.state === "failed") {
     tokens = { state: "failed" };
     problems.push("balances failed");

@@ -4,6 +4,7 @@
 // true of a name.
 
 import { Fragment } from "react";
+import { Link } from "react-router";
 
 import type { DomainLine, DomainState, HowWeKnow as HowWeKnowFacts, LabelBanner, NameHeader, NameTitle, TomlFacts } from "../../server/account-name-view";
 import type { QrPicture } from "../../server/account-view";
@@ -42,8 +43,8 @@ export function DomainText({ line }: { line: DomainLine }) {
 /**
  * The header's top: the picture, "Account", the title, and the address with its copy and QR buttons. With a name the name is the `<h1>` (its link text, then the marks, each after
  * a space so that the heading reads "Northpeak Treasury verified name") and the address is the line under it; without, the address is the `<h1>` as it has always been, with the
- * label's mark when it has labels. The lines of what is known follow (`NameLines`). `net` is the network of the page: the currencies of the toml's facts are plain text now,
- * and become links to their token pages (`/{net}/token/…`) when E11 turns `TOKENS` on.
+ * label's mark when it has labels. The lines of what is known follow (`NameLines`). `net` is the network of the page. The currencies of the toml's facts are links to their token pages
+ * where the builder gave them one (`href`: `TOKENS` on, an issuer, a code the token page reads), else text.
  */
 export function AccountNameBlock({ address, qr, name }: { net: NetworkId; address: string; qr: QrPicture; name: NameHeader | null }) {
   const title = name?.title ?? null;
@@ -205,7 +206,13 @@ function HowWeKnow({ how, facts }: { how: HowWeKnowFacts; facts: TomlFacts | nul
                   {facts.currencies.map((currency, at) => (
                     <Fragment key={at}>
                       {at > 0 && " "}
-                      <span className="mono">{currency.code}</span>
+                      {currency.href === null ? (
+                        <span className="mono">{currency.code}</span>
+                      ) : (
+                        <Link to={currency.href} className="mono tokenlink">
+                          {currency.code}
+                        </Link>
+                      )}
                     </Fragment>
                   ))}
                 </dd>

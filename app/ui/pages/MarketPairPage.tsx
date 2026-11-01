@@ -45,7 +45,7 @@ function Crumbs({ network, head }: { network: NetworkInfo; head: PairHead }) {
 
 /**
  * "USD issued by rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq · XRP is native": each issuer in full, a link to its account (`AccountLink full`: with a name in the page's names,
- * the name, its mark and then the whole address).
+ * the name, its mark and then the whole address). The code is a link to its token's page where the data has one (`tokenHref`, E11 spec 5.2), underlined as a link in running words is.
  */
 function Issuers({ net, head }: { net: NetworkInfo["id"]; head: PairHead }) {
   const parts: { key: string; node: ReactNode }[] = [
@@ -53,7 +53,14 @@ function Issuers({ net, head }: { net: NetworkInfo["id"]; head: PairHead }) {
       key: `issuer:${at}`,
       node: (
         <>
-          {issuer.code} issued by <AccountLink net={net} address={issuer.address} full />
+          {issuer.tokenHref === null ? (
+            issuer.code
+          ) : (
+            <Link to={issuer.tokenHref} className="tokenlink">
+              {issuer.code}
+            </Link>
+          )}{" "}
+          issued by <AccountLink net={net} address={issuer.address} full />
         </>
       ),
     })),

@@ -836,7 +836,7 @@ const PAIR_HEAD: LivePairData["head"] = {
   heading: "XRP / USD",
   base: "XRP",
   counter: "USD",
-  issuers: [{ code: "USD", address: USD_ISSUER, href: `/xrpl/account/${USD_ISSUER}` }],
+  issuers: [{ code: "USD", address: USD_ISSUER, href: `/xrpl/account/${USD_ISSUER}`, tokenHref: null }],
   natives: ["XRP"],
   issued: ["USD rhub8V…F3wq"],
   issuedBy: "USD issued by rhub8V…F3wq",

@@ -515,8 +515,9 @@ describe("the active XRPL account", () => {
     expect(text).toContain("Reserve 1.8 XRP = 1 base + 4 objects × 0.2");
     expect(text).toContain("Read live from the network at ledger #107,721,455.");
 
-    // Tokens: the LIONS line, its code as text, its issuer, its balance.
+    // Tokens: the LIONS line, its code a link to its token page (TOKENS is on), its issuer, its balance.
     expect(text).toContain("Tokens 1 trust line");
+    expect(hrefs(html)).toContain("/xrpl/token/LIONS.rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS");
     // The issuer is an account GateHub names in the fixtures.
     expect(text).toContain(`LIONS ${await shownName("xrpl", "rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS")}`);
     expect(text).toContain("48,329.908117603");
@@ -734,6 +735,26 @@ describe("what the recordings do not hold", () => {
     const poolLink = anchors(html).find((a) => a.text === `AMM pool ${shortAddress(pool)}`);
     expect(poolLink?.attrs).toContain(`href="/xrpl/amm/${pool}"`);
     expect(hrefs(html)).not.toContain(`/xrpl/account/${pool}`);
+  });
+
+  it("leads the code of a trust line to its token page: the counterparty's for a balance of zero or more, this account's for a negative one, and none for an LP token", async () => {
+    const a = account(90);
+    const pool = account(91);
+    const lp = `03${"AB".repeat(19)}`;
+    mock = mockUpstream("xrpl", {
+      ...(await withHistory(a, {
+        tokens: [
+          { currency: "USD", counterparty: account(92), value: "3120.50" },
+          { currency: "EUR", counterparty: account(93), value: "0" },
+          { currency: "GBP", counterparty: account(94), value: "-40" },
+          { currency: lp, counterparty: pool, value: "1042.77" },
+        ],
+      })),
+    });
+    const { html } = await page(`/xrpl/account/${a}`);
+    const links = hrefs(html).filter((href) => href.includes("/token/"));
+    expect(links).toEqual([`/xrpl/token/USD.${account(92)}`, `/xrpl/token/EUR.${account(93)}`, `/xrpl/token/GBP.${a}`]);
+    expect(hrefs(html)).toContain(`/xrpl/amm/${pool}`);
   });
 
   it("says on a pool account's page that it is one, with a link to the pool page, while AMM_PAGES is on", async () => {

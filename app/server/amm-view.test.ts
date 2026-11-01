@@ -2788,7 +2788,30 @@ describe("ammPoolPage: the crumbs and the pool card", () => {
     expect(header.title).toBe("XRP / RLUSD pool");
     expect(header.coins).toEqual(["XRP", "RLUSD"]);
     expect(header.account).toEqual({ address: AMM_POOL, href: `/xrpl/account/${AMM_POOL}` });
-    expect(header.issuers).toEqual([{ code: "RLUSD", text: `RLUSD issued by ${RL}`, issuer: { address: RL, href: `/xrpl/account/${RL}` } }]);
+    expect(header.issuers).toEqual([{ code: "RLUSD", text: `RLUSD issued by ${RL}`, issuer: { address: RL, href: `/xrpl/account/${RL}` }, tokenHref: null }]);
+  });
+
+  describe("the token links of the issuer lines (E11 spec 5.2)", () => {
+    const TOKENS_NET: AmmPoolInput["net"] = { ...POOL_NET, features: { ...POOL_NET.features, tokens: true } };
+
+    it("leads the code of each issued side to its token page while TOKENS is on, and leaves it null while it is off", () => {
+      expect(poolPage({ net: TOKENS_NET }).header.issuers.map((issuer) => issuer.tokenHref)).toEqual([`/xrpl/token/RLUSD.${RL}`]);
+      expect(poolPage().header.issuers.map((issuer) => issuer.tokenHref)).toEqual([null]);
+    });
+
+    it("links both issued sides of a pool of two tokens, in display order", () => {
+      const header = poolPage({ net: TOKENS_NET, index: usdcPool(), node: fulfilled(usdcInfo()) }).header;
+      expect(header.issuers.map((issuer) => [issuer.code, issuer.tokenHref])).toEqual([
+        ["USDC", `/xrpl/token/USDC.${USDC_ISSUER}`],
+        ["RLUSD", `/xrpl/token/RLUSD.${RL}`],
+      ]);
+    });
+
+    it("has no line, so no link, for the native side, and the pool card of a page behind a marker has the same links", () => {
+      expect(poolPage({ net: TOKENS_NET }).header.issuers).toHaveLength(1);
+      const behind = ammHistoryPage({ net: TOKENS_NET, pool: AMM_POOL, query: { period: "90d", tab: "liquidity", marker: AMM_MARKER, back: [] }, index: indexPool(), activity: { result: "success", count: 1, liquidity: [ammLiquiditySample()] } });
+      expect(behind.page.header.issuers.map((issuer) => issuer.tokenHref)).toEqual([`/xrpl/token/RLUSD.${RL}`]);
+    });
   });
 
   it("names each issuer of a pool of two tokens, in display order", () => {
@@ -3407,7 +3430,7 @@ describe("ammHistoryPage: a page behind a marker", () => {
       title: "XRP / RLUSD pool",
       market: `/xrpl/markets/XRP/RLUSD.${RL}`,
       account: { address: AMM_POOL, href: `/xrpl/account/${AMM_POOL}` },
-      issuers: [{ code: "RLUSD", text: `RLUSD issued by ${RL}`, issuer: { address: RL, href: `/xrpl/account/${RL}` } }],
+      issuers: [{ code: "RLUSD", text: `RLUSD issued by ${RL}`, issuer: { address: RL, href: `/xrpl/account/${RL}` }, tokenHref: null }],
     });
   });
 

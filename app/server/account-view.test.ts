@@ -346,24 +346,59 @@ describe("ownedCounts", () => {
 });
 
 describe("tokensOf", () => {
-  it("lists the trust lines of the balances, without the native balance, as currency, issuer and value", () => {
-    const { items, truncated } = tokensOf(balancesOf("xrpl", XRPL));
-    expect(items).toEqual([{ currency: "4C494F4E53000000000000000000000000000000", issuer: "rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS", value: "48329.908117603", lp: false }]);
+  /** Where a line's code leads is `tokenLink`'s: the token page with TOKENS on, nothing with every switch off. */
+  const ON = objectsCtx({ features: { ...NO_FEATURES, tokens: true } });
+  const OFF = objectsCtx();
+  const LIONS = { currency: "4C494F4E53000000000000000000000000000000", issuer: "rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS" };
+  const line = (value: string, counterparty = LIONS.issuer, currency = "USD") => ({ currency, counterparty, value });
+  const hrefsOf = (balances: Array<ReturnType<typeof line>>, link = ON) => tokensOf({ result: "success", balances: [{ currency: "XRP", value: "5" }, ...balances] }, link).items.map((item) => item.href);
+
+  it("lists the trust lines of the balances, without the native balance, as currency, issuer, value and the code's link", () => {
+    const { items, truncated } = tokensOf(balancesOf("xrpl", XRPL), ON);
+    expect(items).toEqual([{ ...LIONS, value: "48329.908117603", lp: false, href: `/xrpl/token/LIONS.${LIONS.issuer}` }]);
     expect(truncated).toBe(false);
   });
 
-  it("marks an LP token (a 40-hex code that starts with 03), whose issuer is the AMM pool", () => {
+  it("marks an LP token (a 40-hex code that starts with 03), whose issuer is the AMM pool, and leaves its code to its pool line: no href", () => {
     const lp = "03" + "AB".repeat(19);
-    const { items } = tokensOf({ result: "success", balances: [{ currency: "XRP", value: "5" }, { currency: lp, counterparty: "rAMM", value: "12.5" }] });
-    expect(items).toEqual([{ currency: lp, issuer: "rAMM", value: "12.5", lp: true }]);
+    // A pool whose account is a real address, with the AMM pages on: `tokenLink` would lead its code to the pool, and the row has its own pool line.
+    const pool = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
+    const { items } = tokensOf({ result: "success", balances: [{ currency: "XRP", value: "5" }, { currency: lp, counterparty: pool, value: "12.5" }] }, objectsCtx({ features: { ...ON.features, ammPages: true } }));
+    expect(items).toEqual([{ currency: lp, issuer: pool, value: "12.5", lp: true, href: null }]);
+  });
+
+  it("links a line with a positive balance to the token of its counterparty, a zero one the same, and a negative one to the token of this account (the account is that line's issuer)", () => {
+    const counterparty = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
+    expect(hrefsOf([line("3120.5", counterparty), line("0", counterparty), line("-40", counterparty)])).toEqual([
+      `/xrpl/token/USD.${counterparty}`,
+      `/xrpl/token/USD.${counterparty}`,
+      `/xrpl/token/USD.${XRPL}`,
+    ]);
+    // The account of the link is the page's: another account reads its own.
+    const other = "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B";
+    expect(hrefsOf([line("-0.000001", counterparty)], objectsCtx({ address: other, features: ON.features }))).toEqual([`/xrpl/token/USD.${other}`]);
+  });
+
+  it("is Xahau's on Xahau", () => {
+    expect(hrefsOf([line("1", LIONS.issuer)], objectsCtx({ net: "xahau", native: "XAH", features: ON.features }))).toEqual([`/xahau/token/USD.${LIONS.issuer}`]);
+  });
+
+  it("gives null for every line while TOKENS is off: the code stays text", () => {
+    expect(hrefsOf([line("1"), line("0"), line("-1")], OFF)).toEqual([null, null, null]);
+    expect(tokensOf(balancesOf("xrpl", XRPL), OFF).items.map((item) => item.href)).toEqual([null]);
+  });
+
+  it("gives null for a code the token page's own path would not read back as itself: a code with a pipe in the ledger's standard form", () => {
+    const pipe = `${"0".repeat(24)}557C44${"0".repeat(10)}`;
+    expect(hrefsOf([line("1", LIONS.issuer, pipe), line("1", LIONS.issuer, "USD")])).toEqual([null, `/xrpl/token/USD.${LIONS.issuer}`]);
   });
 
   it("says the list may be longer when the API filled the limit it was asked for", () => {
     const rows = Array.from({ length: 200 }, (_, i) => ({ currency: "USD", counterparty: `rIssuer${i}`, value: "1" }));
-    const full = tokensOf({ result: "success", limit: 200, balances: [{ currency: "XRP", value: "5" }, ...rows.slice(0, 199)] });
+    const full = tokensOf({ result: "success", limit: 200, balances: [{ currency: "XRP", value: "5" }, ...rows.slice(0, 199)] }, OFF);
     expect(full.items).toHaveLength(199);
     expect(full.truncated).toBe(true);
-    const part = tokensOf({ result: "success", limit: 200, balances: [{ currency: "XRP", value: "5" }, ...rows.slice(0, 50)] });
+    const part = tokensOf({ result: "success", limit: 200, balances: [{ currency: "XRP", value: "5" }, ...rows.slice(0, 50)] }, OFF);
     expect(part.truncated).toBe(false);
   });
 });
@@ -377,6 +412,7 @@ describe("accountHeader", () => {
     state: ok(stateOf("xrpl")),
     balances: ok(balancesOf("xrpl", XRPL)),
     lastLedgerTime: 1792253462,
+    link: objectsCtx(),
     ...over,
   });
 
@@ -511,17 +547,26 @@ describe("accountHeader", () => {
     for (const word of ["LedgerEntryType", "PreviousTxnID", "HighLimit", "AccountRoot"]) expect(json).not.toContain(word);
   });
 
-  it("needs the objects and the balances for a header with its holdings, as it has by default", () => {
+  it("needs the objects, the balances and the link for a header with its holdings, as it has by default", () => {
     const { objects: _objects, ...withoutObjects } = input();
     const { balances: _balances, ...withoutBalances } = input();
+    const { link: _link, ...withoutLink } = input();
     expect(() => accountHeader(withoutObjects)).toThrow(/objects/);
     expect(() => accountHeader(withoutBalances, { holdings: true })).toThrow(/balances/);
+    expect(() => accountHeader(withoutLink)).toThrow(/link/);
+  });
+
+  it("gives the tokens the links of the link it is given: the page's network, account and switches", () => {
+    const linked = accountHeader(input({ link: objectsCtx({ features: { ...NO_FEATURES, tokens: true } }) })).header.tokens;
+    expect(linked.state === "ok" && linked.items.map((item) => item.href)).toEqual([`/xrpl/token/LIONS.rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS`]);
+    const off = accountHeader(input()).header.tokens;
+    expect(off.state === "ok" && off.items.map((item) => item.href)).toEqual([null]);
   });
 
   describe("without its holdings (the analytics view, spec 2.1)", () => {
     /** The header's input with neither the node's objects nor the index's balances: the view asks for neither. */
     const bare = (over: Partial<Parameters<typeof accountHeader>[0]> = {}) => {
-      const { objects: _objects, balances: _balances, ...rest } = input(over);
+      const { objects: _objects, balances: _balances, link: _link, ...rest } = input(over);
       return rest;
     };
 
@@ -1303,7 +1348,7 @@ describe("the accounts the page draws", () => {
     const tokens = (...items: Array<{ issuer: string; lp: boolean }>): AccountHeader["tokens"] => ({
       state: "ok",
       truncated: false,
-      items: items.map(({ issuer, lp }) => ({ currency: lp ? `03${"AB".repeat(19)}` : "USD", issuer, value: "1", lp })),
+      items: items.map(({ issuer, lp }) => ({ currency: lp ? `03${"AB".repeat(19)}` : "USD", issuer, value: "1", lp, href: null })),
     });
     const activation = { time: 0, parent: "rParent", initialBalance: "25", txHash: "AB".repeat(32) };
 

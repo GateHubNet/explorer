@@ -608,7 +608,7 @@ describe("pairMeta", () => {
     heading: "XRP / RLUSD",
     base: "XRP",
     counter: "RLUSD",
-    issuers: [{ code: "RLUSD", address: RLUSD, href: `/xrpl/account/${RLUSD}` }],
+    issuers: [{ code: "RLUSD", address: RLUSD, href: `/xrpl/account/${RLUSD}`, tokenHref: null }],
     natives: ["XRP"],
     issued: ["RLUSD rMxCKb…m5De"],
     issuedBy: "RLUSD issued by rMxCKb…m5De",
@@ -747,7 +747,7 @@ describe("pairMeta", () => {
       expect(content(list, "og:description")).toBe(DESCRIPTION);
       expect(JSON.stringify(list)).not.toContain("Northpeak");
       // The page itself draws the issuer in full, through the names (`AccountLink full`); its head holds the whole address, which the tags do not.
-      expect(page.head.issuers).toEqual([{ code: "RLUSD", address: RLUSD, href: `/xrpl/account/${RLUSD}` }]);
+      expect(page.head.issuers).toEqual([{ code: "RLUSD", address: RLUSD, href: `/xrpl/account/${RLUSD}`, tokenHref: null }]);
       // The tags are the same as those of the page built without names.
       const plain = pairPage(input).page;
       expect(pairMeta({ head: plain.head, view: plain.view, mode: plain.mode, indexable: plain.indexable }, XRPL)).toEqual(list);

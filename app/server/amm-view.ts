@@ -24,6 +24,7 @@ import { shownIssuer, type IssuerPart, type NameMap, type NamesPart } from "../d
 import { trailPaging, type Paging } from "../domain/paging";
 import { sharePercent } from "../domain/percent";
 import { formatDateTime } from "../domain/time-words";
+import { tokenLink } from "../domain/token-params";
 import { addDays, bucketStarts, pendingNote, utcDayOf, windowOf, type PeriodWindow } from "../domain/window";
 import type { BarListData, MeterData, SmallMultiplesData, TimeSeriesData } from "../ui/charts/types";
 import type { NoticeTone } from "../ui/components/Notice";
@@ -1299,11 +1300,15 @@ export interface AmmCrumb {
   href?: string;
 }
 
-/** "RLUSD issued by rMxCK…": an issued side of the pair, its code (the whole 40 hex digits where it has no text, as E3's pair header) and its issuer. */
+/**
+ * "RLUSD issued by rMxCK…": an issued side of the pair, its code (the whole 40 hex digits where it has no text, as E3's pair header), its issuer, and where the code leads (`tokenHref`,
+ * `tokenLink`: the token's page while `TOKENS` is on; `null` and the code stays text otherwise, E11 spec 5.2).
+ */
 export interface AmmIssuerLine {
   code: string;
   text: string;
   issuer: AccountRef;
+  tokenHref: string | null;
 }
 
 /** The pool card of both pages (spec 3.1). */
@@ -1498,7 +1503,7 @@ function headOf(net: AmmPoolNet, pool: string, pair: DisplayPair): AmmPoolHead {
     issuers: sides.flatMap((side) => {
       if (side.issuer === undefined) return [];
       const code = decodesCurrency(side.currency) ? formatCurrency(side.currency) : side.currency;
-      return [{ code, text: `${code} issued by ${side.issuer}`, issuer: accountRef(net.id, side.issuer) }];
+      return [{ code, text: `${code} issued by ${side.issuer}`, issuer: accountRef(net.id, side.issuer), tokenHref: tokenLink(net.id, side, net.features) }];
     }),
   };
 }

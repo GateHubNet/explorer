@@ -308,6 +308,32 @@ describe("AmmPoolPage: the breadcrumb and the pool card", () => {
     }
   });
 
+  describe("with the token pages on (E11 spec 5.2)", () => {
+    const TOKENS_NET = (): AmmPoolInput["net"] => ({ ...NET(), features: { ...NET().features, tokens: true } });
+
+    it("draws the code of an issued side as a link to its token page, underlined as a link in words is, then the words and the issuer's account", () => {
+      for (const data of [build({ net: TOKENS_NET() }), history({ net: TOKENS_NET() })]) {
+        mount(data);
+        const fact = region("Pool").querySelector(".amm-pool__fact:nth-child(2)")! as HTMLElement;
+        expect(fact.textContent).toBe(`RLUSD issued by ${RL}`);
+        const code = within(fact).getByRole("link", { name: "RLUSD" });
+        expect(code.getAttribute("href")).toBe(`/xrpl/token/RLUSD.${RL}`);
+        expect(code.classList.contains("tokenlink")).toBe(true);
+        expect(within(fact).getByRole("link", { name: RL }).getAttribute("href")).toBe(`/xrpl/account/${RL}`);
+        expect(within(fact).getAllByRole("link")).toHaveLength(2);
+        cleanup();
+      }
+    });
+
+    it("draws the code as text while the data has no link for it (TOKENS off)", () => {
+      mount(build());
+      const fact = region("Pool").querySelector(".amm-pool__fact:nth-child(2)")! as HTMLElement;
+      expect(within(fact).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([`/xrpl/account/${RL}`]);
+      expect(fact.querySelector(".tokenlink")).toBeNull();
+      expect(fact.textContent).toBe(`RLUSD issued by ${RL}`);
+    });
+  });
+
   it("says who issues each issued side, the issuer in full as a link, and when and by whom the pool was created", () => {
     mount(build());
     const card = region("Pool");

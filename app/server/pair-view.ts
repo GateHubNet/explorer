@@ -30,6 +30,7 @@ import type { NameMap, NamesPart } from "../domain/names";
 import { trailPaging, type Paging } from "../domain/paging";
 import { wholePercent } from "../domain/percent";
 import { poolLink } from "../domain/pool-link";
+import { tokenLink } from "../domain/token-params";
 import type { BarListData, CandleData } from "../ui/charts/types";
 import type { SegmentLink } from "../ui/components/SegmentedLinks";
 import type { Features } from "../ui/features";
@@ -220,8 +221,11 @@ export interface PairHead {
   heading: string;
   base: string;
   counter: string;
-  /** The issued sides, base first. `code` is the display code, and the whole 40 hex digits where the code does not decode. */
-  issuers: { code: string; address: string; href: string }[];
+  /**
+   * The issued sides, base first. `code` is the display code, and the whole 40 hex digits where the code does not decode. `tokenHref` is where the code leads (`tokenLink`): the token's
+   * page while `TOKENS` is on, an LP token's pool; `null` and the code stays text otherwise (E11 spec 5.2).
+   */
+  issuers: { code: string; address: string; href: string; tokenHref: string | null }[];
   /** The sides without an issuer: ["XRP"], the page's "XRP is native". */
   natives: string[];
   /** "USD rhub8V…F3wq" for each issued side. */
@@ -444,6 +448,7 @@ export function pairHead(network: PairInput["network"], base: Asset, counter: As
       code: issuerCode(side.currency, code),
       address: side.issuer!,
       href: accountHref(network.id, side.issuer!, {}),
+      tokenHref: tokenLink(network.id, side, network.features),
     })),
     natives: sides.filter(({ side }) => !side.issuer).map(({ code }) => code),
     issued: issued.map(({ side, code }) => `${code} ${shortAddress(side.issuer!)}`),

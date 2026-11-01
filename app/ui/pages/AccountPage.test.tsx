@@ -115,8 +115,8 @@ const header = (over: Partial<AccountHeader> = {}): AccountHeader => ({
     state: "ok",
     truncated: false,
     items: [
-      { currency: "USD", issuer: ISSUER, value: "3120.50", lp: false },
-      { currency: `03${"AB".repeat(19)}`, issuer: POOL, value: "1042.77", lp: true },
+      { currency: "USD", issuer: ISSUER, value: "3120.50", lp: false, href: null },
+      { currency: `03${"AB".repeat(19)}`, issuer: POOL, value: "1042.77", lp: true, href: null },
     ],
   },
   owned: {
@@ -358,6 +358,8 @@ describe("the header", () => {
 // The name header (display names spec 6.1 to 6.4). The headers are what `accountNameHeader` makes of the fixtures' entries (test/fixtures/http/xrpl/data-api): the page draws what it is given.
 
 const NAME_ENTRIES = xrplNames as unknown as Record<string, AccountNameEntry>;
+/** The network a name header is built for: XRPL's, with every switch off (TOKENS included: the toml's currencies are text) unless a test says otherwise. */
+const NAME_NET: NameHeaderInput["network"] = { software: "rippled", id: "xrpl", native: "XRP", features: NO_FEATURES };
 /** XRPL's verified "Northpeak Treasury" (northpeak.example, whose toml lists it). */
 const NORTHPEAK = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
 /** A deleted account GateHub names "Harborline Exchange · hot wallet", with an advisory label (source GateHub, an https link). */
@@ -371,7 +373,7 @@ const LOWTIDE_TOML: Loaded<TomlAnswer> = { state: "ok", value: lowtideToml as To
 
 /** The header of `address` as the loader builds it from the fixtures' entry for it. */
 const headerOf = (address: string, over: Partial<NameHeaderInput> = {}): NameHeader =>
-  accountNameHeader({ address, entry: NAME_ENTRIES[address], liveDomain: null, toml: null, network: { software: "rippled", id: "xrpl" }, ...over });
+  accountNameHeader({ address, entry: NAME_ENTRIES[address], liveDomain: null, toml: null, network: NAME_NET, ...over });
 
 /** The page of `address`, whose header (an active account on the node unless `over` says otherwise) holds `name`; the node's domain is `domain`. */
 function namedPage(address: string, name: NameHeader | null, domain: string | null, over: Partial<AccountHeader> = {}): AccountListPageData {
@@ -456,8 +458,34 @@ describe("the name header: a verified name", () => {
     ]);
     const currencies = [...facts.querySelectorAll("dd")[1]!.children];
     expect(currencies.map((currency) => currency.className)).toEqual(["mono", "mono"]);
-    // Plain text for now: E11 makes them links when `TOKENS` is on.
+    // Text while `TOKENS` is off (the header here is built with every switch off).
     expect(facts.querySelectorAll("a")).toHaveLength(0);
+  });
+
+  it("makes each currency that has an issuer a link to its token page while TOKENS is on, in mono and underlined as a link in words is, and leaves the rest as text", async () => {
+    const features = { ...NO_FEATURES, tokens: true };
+    // The fixture's toml gives NPUSD an issuer and NPEUR an issuer; a third entry has none and a fourth a code no token path reads.
+    const toml: Loaded<TomlAnswer> = {
+      state: "ok",
+      value: {
+        result: "success",
+        toml: { ...NORTHPEAK_TOML.value.toml, currencies: [...NORTHPEAK_TOML.value.toml.currencies!, { code: "NOISSUER" }, { code: "NP\u200FUSD", issuer: NORTHPEAK }] },
+      },
+    };
+    const name = headerOf(NORTHPEAK, { liveDomain: "northpeak.example", toml, network: { ...NAME_NET, features } });
+    renderInRouter(<AccountPage network={XRPL} data={namedPage(NORTHPEAK, name, "northpeak.example")} />);
+    await screen.findByRole("heading", { level: 1 });
+    const facts = how().querySelector("dl.toml-facts")!;
+    const currencies = [...facts.querySelectorAll("dd")[1]!.children];
+    const issuers = NORTHPEAK_TOML.value.toml.currencies!.map((currency) => currency.issuer);
+    expect(currencies.map((currency) => [currency.tagName, currency.textContent, currency.getAttribute("href")])).toEqual([
+      ["A", "NPUSD", `/xrpl/token/NPUSD.${issuers[0]}`],
+      ["A", "NPEUR", `/xrpl/token/NPEUR.${issuers[1]}`],
+      ["SPAN", "NOISSUER", null],
+      ["SPAN", "NPUSD", null],
+    ]);
+    // Mono as the text was, and told from the words around them by more than a colour (WCAG 1.4.1: the class pinned in pages-css.test.ts).
+    expect(currencies.map((currency) => currency.className)).toEqual(["mono tokenlink", "mono tokenlink", "mono", "mono"]);
   });
 
   it("has no row for what the toml does not give: a date, the principals, the currencies, and no box at all when it gives none of them", async () => {
@@ -478,7 +506,7 @@ describe("the name header: a verified name", () => {
 
   it("says the name is the domain when the toml gives no desc, and leaves out the facts and the time when it gave nothing", async () => {
     const entry: AccountNameEntry = { address: NORTHPEAK, display_name: { text: "northpeak.example", kind: "verified" }, domain: "northpeak.example" };
-    const name = accountNameHeader({ address: NORTHPEAK, entry, liveDomain: "northpeak.example", toml: { state: "missing" }, network: { software: "rippled", id: "xrpl" } });
+    const name = accountNameHeader({ address: NORTHPEAK, entry, liveDomain: "northpeak.example", toml: { state: "missing" }, network: NAME_NET });
     renderInRouter(<AccountPage network={XRPL} data={namedPage(NORTHPEAK, name, "northpeak.example")} />);
     await screen.findByRole("heading", { level: 1 });
     expect(h1().textContent).toBe("northpeak.example verified name");
@@ -614,7 +642,7 @@ describe("the name header: a domain that is not verified", () => {
 describe("the name header: no name", () => {
   it("is today's h1, the address, and a domain on the activation line that was not checked yet, saying so in words", async () => {
     // The names batch has nothing for this account, and the node says its domain is example.com.
-    const name = accountNameHeader({ address: ADDRESS, entry: undefined, liveDomain: "example.com", toml: null, network: { software: "rippled", id: "xrpl" } });
+    const name = accountNameHeader({ address: ADDRESS, entry: undefined, liveDomain: "example.com", toml: null, network: NAME_NET });
     renderInRouter(<AccountPage network={XRPL} data={data({ header: header({ name }) })} />);
     expect(await screen.findByRole("heading", { level: 1, name: ADDRESS })).toBeTruthy();
     expect(h1().className).toBe("mono");
@@ -628,7 +656,7 @@ describe("the name header: no name", () => {
   });
 
   it("writes a Domain that is no domain as text, with no mark", async () => {
-    const name = accountNameHeader({ address: ADDRESS, entry: undefined, liveDomain: "https://example.com", toml: null, network: { software: "rippled", id: "xrpl" } });
+    const name = accountNameHeader({ address: ADDRESS, entry: undefined, liveDomain: "https://example.com", toml: null, network: NAME_NET });
     renderInRouter(<AccountPage network={XRPL} data={namedPage(ADDRESS, name, "https://example.com")} />);
     const meta = (await screen.findByText(/Activated on/)).closest("p")!;
     expect(meta.textContent).toMatch(/ · domain https:\/\/example\.com$/);
@@ -751,7 +779,7 @@ describe("the name header: the breadcrumb and the activation line", () => {
       entry: NAME_ENTRIES[NORTHPEAK],
       liveDomain: "northpeak.example",
       toml: NORTHPEAK_TOML,
-      network: { software: "xahaud", id: "xahau" },
+      network: { ...NAME_NET, software: "xahaud", id: "xahau", native: "XAH" },
     });
     renderInRouter(<AccountPage network={XAHAU} data={namedPage(NORTHPEAK, name, "northpeak.example")} />);
     await screen.findByRole("heading", { level: 1 });
@@ -762,7 +790,7 @@ describe("the name header: the breadcrumb and the activation line", () => {
 describe("the name header: a page of old history", () => {
   it("is the name and the labels only: the h1, its marks, the banners, and no line, no disclosure", async () => {
     // A page behind a marker is stored for good: its header is the entry's name and labels (`brief`), never a domain.
-    const name = accountNameHeader({ address: HARBORLINE, entry: NAME_ENTRIES[HARBORLINE], liveDomain: null, toml: null, network: { software: "rippled", id: "xrpl" }, brief: true });
+    const name = accountNameHeader({ address: HARBORLINE, entry: NAME_ENTRIES[HARBORLINE], liveDomain: null, toml: null, network: NAME_NET, brief: true });
     renderInRouter(<AccountPage network={XRPL} data={data({ address: HARBORLINE, mode: "history", header: { status: "history", name }, qr: { ...QR, content: HARBORLINE } })} />);
     await screen.findByRole("heading", { level: 1 });
     expect(h1().textContent).toBe("Harborline Exchange · hot wallet named by GateHub labelled advisory by GateHub");
@@ -846,8 +874,43 @@ describe("the margin", () => {
     expect(within(card).getByRole("link", { name: shortAddress(POOL) }).getAttribute("href")).toBe(`/xrpl/account/${POOL}`);
   });
 
+  it("draws a code as the link its line has (the token's page), keeps an LP token's pool line, and leaves the issuer a link: the code is the first line of the row", async () => {
+    const lions = "4C494F4E53000000000000000000000000000000";
+    const items = [
+      { currency: "USD", issuer: ISSUER, value: "3120.50", lp: false, href: `/xrpl/token/USD.${ISSUER}` },
+      { currency: `03${"AB".repeat(19)}`, issuer: POOL, value: "1042.77", lp: true, href: null },
+      // A negative balance: this account is the line's issuer, and the line's href says so.
+      { currency: lions, issuer: ISSUER, value: "-5", lp: false, href: `/xrpl/token/LIONS.${ADDRESS}` },
+    ];
+    renderUnderLayout(<AccountPage network={XRPL} data={data({ header: header({ tokens: { state: "ok", items, truncated: false } }) })} />, { ...NO_FEATURES, tokens: true, ammPages: true });
+    const rows = [...(await screen.findByRole("heading", { name: "Tokens" })).closest("section")!.querySelectorAll(".token")];
+    const [usd, lp, hex] = rows as HTMLElement[];
+
+    const code = within(usd!).getByRole("link", { name: "USD" });
+    expect(code.getAttribute("href")).toBe(`/xrpl/token/USD.${ISSUER}`);
+    expect(code.parentElement!.matches(".token__name > span:first-child")).toBe(true);
+    expect(within(usd!).getByRole("link", { name: shortAddress(ISSUER) }).getAttribute("href")).toBe(`/xrpl/account/${ISSUER}`);
+
+    // The LP token keeps its pool link and has no code link: the row's only link is the pool's.
+    expect(within(lp!).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([`/xrpl/amm/${POOL}`]);
+
+    // A code that is hex is written as its text, the hex in the link's title as it was in the text's.
+    const named = within(hex!).getByRole("link", { name: "LIONS" });
+    expect(named.getAttribute("href")).toBe(`/xrpl/token/LIONS.${ADDRESS}`);
+    expect(named.getAttribute("title")).toBe(lions);
+  });
+
+  it("draws every code as text when no line has a link (TOKENS off): the same rows as before", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={data()} />);
+    const card = (await screen.findByRole("heading", { name: "Tokens" })).closest("section")!;
+    const [usd] = card.querySelectorAll(".token");
+    expect(within(usd as HTMLElement).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([`/xrpl/account/${ISSUER}`]);
+    expect(card.innerHTML).not.toContain("/token/");
+    expect((usd as HTMLElement).querySelector(".token__name > span:first-child")!.textContent).toBe("USD");
+  });
+
   it("puts the tokens after the tenth under 'Show N more'", async () => {
-    const items = Array.from({ length: 13 }, (_, i) => ({ currency: "USD", issuer: `rIssuer${i}`, value: String(i), lp: false }));
+    const items = Array.from({ length: 13 }, (_, i) => ({ currency: "USD", issuer: `rIssuer${i}`, value: String(i), lp: false, href: null }));
     renderInRouter(<AccountPage network={XRPL} data={data({ header: header({ tokens: { state: "ok", items, truncated: false } }) })} />);
     const more = (await screen.findByText("Show 3 more")).closest("details")!;
     expect(more.open).toBe(false);
@@ -855,7 +918,7 @@ describe("the margin", () => {
   });
 
   it("says when the list of tokens may be longer, and when there are none", async () => {
-    const { unmount } = renderInRouter(<AccountPage network={XRPL} data={data({ header: header({ tokens: { state: "ok", items: [{ currency: "USD", issuer: ISSUER, value: "1", lp: false }], truncated: true } }) })} />);
+    const { unmount } = renderInRouter(<AccountPage network={XRPL} data={data({ header: header({ tokens: { state: "ok", items: [{ currency: "USD", issuer: ISSUER, value: "1", lp: false, href: null }], truncated: true } }) })} />);
     expect(await screen.findByText("first 1 trust line")).toBeTruthy();
     unmount();
     renderInRouter(<AccountPage network={XRPL} data={data({ header: header({ tokens: { state: "ok", items: [], truncated: false } }) })} />);

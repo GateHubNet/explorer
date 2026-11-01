@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { accountNameHeader, isProperlyFormedDomain, type NameHeaderInput } from "./account-name-view";
 import type { Loaded } from "./account-view";
+import { NO_FEATURES } from "../ui/features";
 import type { AccountNameEntry, TomlAnswer, TomlData } from "./api-types";
 
 // The header of the account page, built from one address's entry of the names batch, the domain the node shows, and the toml of that domain (E9, spec 6.1 to 6.6). One test for
@@ -9,8 +10,10 @@ import type { AccountNameEntry, TomlAnswer, TomlData } from "./api-types";
 
 const ADDRESS = "rrrrrrrrrrrrrrrrrrrpnkLzyT5b";
 const ISSUER = "rrrrrrrrrrrrrrrrrrrpaEDEVjEj";
-const XRPL: NameHeaderInput["network"] = { software: "rippled", id: "xrpl" };
-const XAHAU: NameHeaderInput["network"] = { software: "xahaud", id: "xahau" };
+const TOKENS_ON = { ...NO_FEATURES, tokens: true };
+/** The networks of the headers: every switch off, as the page was before E11 (the currencies are text), unless a test says `TOKENS_ON`. */
+const XRPL: NameHeaderInput["network"] = { software: "rippled", id: "xrpl", native: "XRP", features: NO_FEATURES };
+const XAHAU: NameHeaderInput["network"] = { software: "xahaud", id: "xahau", native: "XAH", features: NO_FEATURES };
 
 const WITHOUT_VOUCHING = "The explorer shows the domain, without vouching for it.";
 
@@ -36,8 +39,14 @@ function tomlOf(toml: Partial<TomlData> = {}): Loaded<TomlAnswer> {
   };
 }
 
-/** What the facts say of the currencies of `tomlOf`: the toml's code as D4 gives it (`currency`), the text the explorer writes for it (`code`), and the issuer where the toml names one. */
-const NORTHPEAK_CURRENCIES = [{ currency: "NPUSD", code: "NPUSD", issuer: ISSUER }, { currency: "NPEUR", code: "NPEUR" }];
+/**
+ * What the facts say of the currencies of `tomlOf`: the toml's code as D4 gives it (`currency`), the text the explorer writes for it (`code`), the issuer where the toml names one, and where
+ * the code leads (`href`: none while `TOKENS` is off, as in these headers).
+ */
+const NORTHPEAK_CURRENCIES = [
+  { currency: "NPUSD", code: "NPUSD", issuer: ISSUER, href: null },
+  { currency: "NPEUR", code: "NPEUR", href: null },
+];
 
 /** The entry of an account whose name northpeak.example's toml vouches for. */
 const verified = (entry: Partial<AccountNameEntry> = {}): AccountNameEntry => ({
@@ -123,8 +132,8 @@ describe("accountNameHeader: a verified name", () => {
   it("writes the currencies as the explorer writes them everywhere (a hex code is its text)", () => {
     const hex = "4E50474246000000000000000000000000000000"; // "NPGBF"
     const header = accountNameHeader(inputOf({ toml: tomlOf({ currencies: [{ code: hex, issuer: ISSUER }] }) }));
-    // The raw code is kept beside its text, for the token link (E11).
-    expect(header.facts?.currencies).toEqual([{ currency: hex, code: "NPGBF", issuer: ISSUER }]);
+    // The raw code is kept beside its text.
+    expect(header.facts?.currencies).toEqual([{ currency: hex, code: "NPGBF", issuer: ISSUER, href: null }]);
   });
 
   // The toml is the domain owner's text: a bidi control in a principal's name or a currency's code would turn the words around it in the facts' sentence. The words the header
@@ -132,7 +141,53 @@ describe("accountNameHeader: a verified name", () => {
   it("takes the bidi and format controls out of the principals and the currencies' text, and keeps the raw code", () => {
     const header = accountNameHeader(inputOf({ toml: tomlOf({ principals: ["\u202EMara\u202C Lindqvist", "Tomas\u2066 Okafor\u2069"], currencies: [{ code: "NP\u200FUSD", issuer: ISSUER }] }) }));
     expect(header.facts?.principals).toBe("Mara Lindqvist and Tomas Okafor");
-    expect(header.facts?.currencies).toEqual([{ currency: "NP\u200FUSD", code: "NPUSD", issuer: ISSUER }]);
+    expect(header.facts?.currencies).toEqual([{ currency: "NP\u200FUSD", code: "NPUSD", issuer: ISSUER, href: null }]);
+  });
+
+  describe("the token links of the currencies (E11 spec 5.2)", () => {
+    const withTokens = (over: Partial<NameHeaderInput> = {}) => accountNameHeader(inputOf({ network: { ...XRPL, features: TOKENS_ON }, ...over }));
+    const hrefsOf = (header: ReturnType<typeof accountNameHeader>) => header.facts?.currencies?.map((currency) => currency.href);
+
+    it("links a currency that has an issuer to its token page, as the token page's path reads its code (a text code is its hex), and leaves one without an issuer as text", () => {
+      expect(hrefsOf(withTokens())).toEqual([`/xrpl/token/NPUSD.${ISSUER}`, null]);
+    });
+
+    it("links a code the toml writes as hex and as the 3 characters, in any case, to the one canonical page", () => {
+      const toml = tomlOf({
+        currencies: [
+          { code: "4E50474246000000000000000000000000000000", issuer: ISSUER },
+          { code: "USD", issuer: ISSUER },
+          { code: "usd", issuer: ISSUER },
+        ],
+      });
+      expect(hrefsOf(withTokens({ toml }))).toEqual([`/xrpl/token/NPGBF.${ISSUER}`, `/xrpl/token/USD.${ISSUER}`, `/xrpl/token/USD.${ISSUER}`]);
+    });
+
+    it("is Xahau's on Xahau", () => {
+      expect(hrefsOf(withTokens({ network: { ...XAHAU, features: TOKENS_ON } }))).toEqual([`/xahau/token/NPUSD.${ISSUER}`, null]);
+    });
+
+    it("leaves every code as text while TOKENS is off", () => {
+      expect(hrefsOf(accountNameHeader(inputOf()))).toEqual([null, null]);
+    });
+
+    it("leaves a code the token page's path does not read as text: a native code, a control in it, a separator, a code too long, an issuer that is no address", () => {
+      const toml = tomlOf({
+        currencies: [
+          { code: "XRP", issuer: ISSUER },
+          { code: "NP\u200FUSD", issuer: ISSUER },
+          { code: "NP.USD", issuer: ISSUER },
+          { code: "A".repeat(41), issuer: ISSUER },
+          { code: "NPUSD", issuer: "not-an-address" },
+        ],
+      });
+      expect(hrefsOf(withTokens({ toml }))).toEqual([null, null, null, null, null]);
+    });
+
+    it("links an LP token's code to nothing: it is no token of the toml's", () => {
+      const toml = tomlOf({ currencies: [{ code: `03${"AB".repeat(19)}`, issuer: ISSUER }] });
+      expect(hrefsOf(withTokens({ toml }))).toEqual([null]);
+    });
   });
 
   it("has only the facts that are there, and none when none is", () => {

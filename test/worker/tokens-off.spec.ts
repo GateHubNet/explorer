@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { anchors, pageClient, textOf } from "../support/pages";
+import { anchors, hrefs, pageClient, textOf } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
 
 // The token pages with every switch "off" (the `worker-off` project, README "Switches"), as production has them until the owner turns `TOKENS` on (token pages spec 1.4 and 13). `TOKENS` is
@@ -130,6 +130,25 @@ describe("the holders of a token with TOKENS off", () => {
     await response.text();
     expect(response.status).toBe(404);
     expect(mock.requests).toEqual([]);
+  });
+});
+
+describe("the places that link a token with TOKENS off (E11 spec 5.2)", () => {
+  // The recorded active accounts (test/fixtures/http): XRPL's holds LIONS, Xahau's EVR. Every switch is off here, NAMES included: no name header, no currencies of a toml; the Tokens card is
+  // there, with its codes as text, as it was before E11.
+  it.each([
+    ["xrpl", "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh", "LIONS"],
+    ["xahau", "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto", "EVR"],
+  ] as const)("draws the code of the %s account's trust line as text, with no link to a token page anywhere on the page", async (net, address, code) => {
+    mock = mockUpstream(net);
+    const { response, html } = await page(`/${net}/account/${address}`);
+
+    expect(response.status).toBe(200);
+    expect(textOf(html)).toContain(`${code} `);
+    const name = /<div class="token__name"><span[^>]*>([^<]*)<\/span>/.exec(html);
+    expect(name?.[1]).toBe(code);
+    expect(hrefs(html).filter((href) => href.includes("/token/"))).toEqual([]);
+    expect(html).not.toContain("tokenlink");
   });
 });
 

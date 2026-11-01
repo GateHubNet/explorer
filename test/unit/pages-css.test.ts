@@ -598,6 +598,7 @@ describe("the classes of the ledger object pages' components (Task 5)", () => {
     ".permchip--granular",
     ".mptamount",
     ".objectlink",
+    ".tokenlink",
   ];
   /** Whether a stylesheet's rules mention `name` as a class: not a longer class that starts with it (`.states` is not `.states__item`, `.timeline__dot` is not `.timeline__dot--tx`). */
   const mentions = (css: string, name: string) => new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-])`).test(css);
@@ -652,6 +653,11 @@ describe("the classes of the ledger object pages' components (Task 5)", () => {
     expect(rule(componentsCss, ".mptamount a")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px" });
     // `Sentence`'s link to an object, the one a transaction's sentence, a ledger's row and an account's row draw. Axe does not see it (its heuristic wants more words than link), so this is its pin.
     expect(rule(componentsCss, ".objectlink")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px" });
+  });
+
+  // E11: a token's code is a link in the words of a pair's and a pool's "USD issued by r…" and of the toml's currencies under "How we know", where a colour alone would not tell it (WCAG 1.4.1).
+  it("underlines a token's code that is a link in running words, with an offset of 3 px, as an object link is", () => {
+    expect(rule(componentsCss, ".tokenlink")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px" });
   });
 
   it("keeps the permission chip's hidden words inside it, so that they do not widen a scrolling table or the page (`.sr` is absolute)", () => {
