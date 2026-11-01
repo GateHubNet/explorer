@@ -9,6 +9,7 @@ import type {
   AmendmentsList,
   AmmGovernanceRow,
   AmmLiquidityEvent,
+  AmmPart,
   AmmPool,
   AmmPoolDay,
   AmmSwap,
@@ -19,6 +20,7 @@ import type {
   AnalyticsExchanges,
   Candle,
   CheckAnswer,
+  Coverage,
   Delegation,
   DelegationsPage,
   EscrowAnswer,
@@ -31,6 +33,9 @@ import type {
   LedgerValidations,
   MarketRow,
   MarketsResponse,
+  MintedPage,
+  MintedPart,
+  NetworkSupply,
   NftAnswer,
   NftCollectionAnswer,
   NftCollectionDays,
@@ -48,6 +53,7 @@ import type {
   PaymentChannelAnswer,
   PaymentVolumeComponent,
   ReducedRow,
+  ReservesPart,
   StatsRow,
   TokenAnswer,
   TokenHoldersResponse,
@@ -90,6 +96,7 @@ import {
   ammSwapsSample,
 } from "../support/amm-samples";
 import { amendmentDetailSample, amendmentsSample, SAMPLE_KEYS, summarySample, validationsSample, validatorDetailSample, validatorRowSample } from "../support/d1-samples";
+import { mintedPageSample, supplySample } from "../support/d7-samples";
 import {
   collectionSample,
   nftAnswerSample,
@@ -4783,6 +4790,206 @@ describe("D6's token calls", () => {
     expectTypeOf<TokensResponse["coverage"]["complete"]>().toEqualTypeOf<boolean>();
     expectTypeOf<TokensResponse["kind"]>().toEqualTypeOf<"issued">();
     expectTypeOf<TokenHoldersResponse["marker"]>().toEqualTypeOf<string | undefined>();
+  });
+});
+
+describe("D7's supply calls", () => {
+  /** The query of the minted days, as the network page's fees call writes its own window: `interval`, `start`, `end`, `limit`. */
+  const WINDOW = { interval: "day", start: "2026-07-20", end: "2026-10-17", limit: 1000 } as const;
+  const SUPPLY_URL = "/v2/network/supply";
+  const MINTED_URL = "/v2/network/supply/minted?interval=day&start=2026-07-20&end=2026-10-17&limit=1000";
+  const KEPT = { ttl: PERIOD_CALL_TTL_SECONDS, holdFailure: false };
+
+  interface SupplyCall {
+    name: "networkSupply" | "networkMinted";
+    call: (api: DataApi, opts?: FreshOptions) => Promise<unknown>;
+    /** Path and query of the request, in the order the client writes it, after the host. */
+    url: string;
+    /** What D7 answers. */
+    good: () => unknown;
+    /** What makes `good` an answer the check refuses, and the field the message names. */
+    bad: () => unknown;
+    field: string;
+  }
+
+  const TWO: SupplyCall[] = [
+    {
+      name: "networkSupply",
+      call: (api, opts) => api.networkSupply(opts),
+      url: SUPPLY_URL,
+      good: () => supplySample("xrpl"),
+      bad: () => supplySample("xrpl", { total: 99985312374.716318 as never }),
+      field: "total",
+    },
+    {
+      name: "networkMinted",
+      call: (api, opts) => api.networkMinted(WINDOW, opts),
+      url: MINTED_URL,
+      good: () => mintedPageSample(),
+      bad: () => mintedPageSample({ rows: {} as never }),
+      field: "rows",
+    },
+  ];
+
+  /** What D7 answers for the path asked, in the body of the sample of that route. */
+  const answer = async (input: RequestInfo | URL) => {
+    const { pathname } = new URL(input instanceof Request ? input.url : String(input));
+    const found = TWO.find((c) => c.url.split("?")[0] === pathname);
+    if (found === undefined) throw new Error(`unexpected request for ${pathname}`);
+    return json(found.good());
+  };
+
+  const notFound = (message: string) => json({ result: "error", message }, { status: 404 });
+
+  // Failure tests first, each on a host of its own: the Cache API and the hold of this file outlive a test.
+  describe("a failure", () => {
+    it.each(TWO.map((c) => [c.name, c] as const))("%s: a malformed 200 is a server error naming the field, and is not stored", async (name, c) => {
+      const { api, storedBy } = storing(`d7-malformed-${name}`);
+      fetchSpy.mockResolvedValueOnce(json(c.bad()));
+
+      const error = await failureOf(c.call(api, KEPT));
+      expect(error.kind).toBe("server");
+      expect(error.status).toBe(200);
+      expect(error.message).toContain(`data API GET ${c.url}`);
+      // The field is looked for in the reason alone: the request every message holds says "supply" for both calls.
+      expect(error.message.split("answered something unexpected: ")[1]).toContain(c.field);
+
+      // Nothing was stored: the next call, and the one after it, make new upstream requests; only the good answer is stored, and then no request is made.
+      fetchSpy.mockResolvedValueOnce(json(c.bad()));
+      expect(await storedBy(() => c.call(api, KEPT).catch(() => undefined))).toEqual([]);
+      fetchSpy.mockResolvedValueOnce(json(c.good()));
+      expect((await storedBy(() => c.call(api, KEPT))).length).toBeGreaterThan(0);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      await c.call(api, KEPT);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    });
+
+    it("reads 404 supply not computed yet as not_found and Cannot GET (a data API without D7) as a server error that is not stored", async () => {
+      const { api, storedBy } = storing("d7-failures");
+
+      // Before the first snapshot exists: the route's own 404, which the page tells as an outage (spec 3.2) and no page takes for a thing that does not exist.
+      fetchSpy.mockResolvedValueOnce(notFound("supply not computed yet"));
+      const early = await failureOf(api.networkSupply(KEPT));
+      expect([early.kind, early.status]).toEqual(["not_found", 404]);
+      expect(early.message).toBe(`data API GET ${SUPPLY_URL} answered 404: supply not computed yet`);
+      expect(isNotFound(early)).toBe(true);
+      expect(isMissingRoute(early)).toBe(false);
+
+      // An API without D7 answers the framework's words: an outage, which is never a 404 page.
+      fetchSpy.mockImplementation(async (input) => notFound(`Cannot GET ${new URL(input instanceof Request ? input.url : String(input)).pathname}`));
+      for (const c of TWO) {
+        const noRoute = await failureOf(c.call(api, KEPT));
+        expect([noRoute.kind, noRoute.status], c.name).toEqual(["server", 404]);
+        expect(noRoute.message, c.name).toBe(`data API GET ${c.url} answered 404: Cannot GET ${c.url.split("?")[0]} (the data API has no such route)`);
+        expect(isMissingRoute(noRoute), c.name).toBe(true);
+        expect(isNotFound(noRoute), c.name).toBe(false);
+      }
+      // Neither failure was stored.
+      expect(await storedBy(() => api.networkSupply(KEPT).catch(() => undefined))).toEqual([]);
+      expect(await storedBy(() => api.networkMinted(WINDOW, KEPT).catch(() => undefined))).toEqual([]);
+    });
+
+    it("refuses the answer of the other network: a supply in XAH is no answer on the XRP Ledger, and the check is told each network's own currency", async () => {
+      const cache = recordingCache();
+      fetchSpy.mockResolvedValueOnce(json(supplySample("xahau")));
+      const error = await failureOf(createDataApi(xrpl, env, cache).networkSupply());
+      expect(error).toMatchObject({ kind: "server", status: 200 });
+      expect(error.message.split("answered something unexpected: ")[1]).toContain("currency");
+
+      // Xahau's own is the answer there, and XRPL's is not.
+      fetchSpy.mockResolvedValueOnce(json(supplySample("xahau")));
+      expect(await createDataApi(xahau, env, cache).networkSupply()).toEqual(supplySample("xahau"));
+      fetchSpy.mockResolvedValueOnce(json(supplySample("xrpl")));
+      expect((await failureOf(createDataApi(xahau, env, cache).networkSupply())).message).toContain("currency");
+    });
+  });
+
+  it("asks D7's two paths with their queries, class and TTL", async () => {
+    const cache = recordingCache();
+    const api = createDataApi(xrpl, env, cache);
+    fetchSpy.mockImplementation(answer);
+
+    await api.networkSupply({ ttl: PERIOD_CALL_TTL_SECONDS });
+    await api.networkMinted(WINDOW, { ttl: PERIOD_CALL_TTL_SECONDS });
+
+    // Both are `slow` and kept 300 s, under an entry of their own; the minted query is `interval`, `start`, `end`, `limit` and the supply's none.
+    expect(cache.calls.map((call) => [call.key, call.cls, call.ttlOverride])).toEqual([
+      [`GET ${BASE}/v2/network/supply [kept 300 s]`, "slow", 300],
+      [`GET ${BASE}/v2/network/supply/minted?interval=day&start=2026-07-20&end=2026-10-17&limit=1000 [kept 300 s]`, "slow", 300],
+    ]);
+    // What went out is the same path and query, with the key and nothing else of the visitor's.
+    expect(fetchSpy.mock.calls.map((_call, index) => sentRequest(index).url)).toEqual([`${BASE}${SUPPLY_URL}`, `${BASE}${MINTED_URL}`]);
+    expect(sentRequest(0).headers.get("X-API-Key")).toBe("test-key");
+    expect(PERIOD_CALL_TTL_SECONDS).toBe(300);
+    expect(CACHE_CLASSES.slow.edgeTtl).toBe(3600);
+  });
+
+  it("returns what each call asked for: the whole answer", async () => {
+    fetchSpy.mockImplementation(answer);
+    const api = createDataApi(xrpl, env, recordingCache());
+
+    expect(await api.networkSupply()).toEqual(supplySample("xrpl"));
+    expect(await api.networkMinted(WINDOW)).toEqual(mintedPageSample());
+  });
+
+  it("keeps the class of the call whatever TTL it is asked for, passes the failure hold on, and makes an entry for each TTL", async () => {
+    const cache = recordingCache();
+    const api = createDataApi(xrpl, env, cache);
+    fetchSpy.mockImplementation(answer);
+
+    for (const c of TWO) {
+      await c.call(api);
+      await c.call(api, { holdFailure: true });
+      await c.call(api, { ttl: PERIOD_CALL_TTL_SECONDS, holdFailure: true });
+    }
+
+    // Without options: the class's TTL, no hold. With the hold alone: the same entry. With a TTL: an entry of its own.
+    expect(cache.calls.map((c) => [c.cls, c.ttlOverride, c.holdFailure, c.key.endsWith(" [kept 300 s]")])).toEqual([
+      ["slow", undefined, undefined, false],
+      ["slow", undefined, true, false],
+      ["slow", 300, true, true],
+      ["slow", undefined, undefined, false],
+      ["slow", undefined, true, false],
+      ["slow", 300, true, true],
+    ]);
+    expect(new Set(cache.calls.slice(0, 2).map((c) => c.key)).size).toBe(1);
+  });
+
+  it("is really stored for 300 s when the page asks for the period's TTL", async () => {
+    const { storedBy } = storing("d7-stored");
+    fetchSpy.mockImplementation(answer);
+
+    expect(await storedBy((a) => a.networkSupply({ ttl: PERIOD_CALL_TTL_SECONDS }))).toEqual(["public, max-age=300"]);
+    expect(await storedBy((a) => a.networkMinted(WINDOW, { ttl: PERIOD_CALL_TTL_SECONDS }))).toEqual(["public, max-age=300"]);
+  });
+
+  it("has an entry for each window of the minted days, and for each network", async () => {
+    const cache = recordingCache();
+    fetchSpy.mockImplementation(async () => json(mintedPageSample()));
+
+    await createDataApi(xrpl, env, cache).networkMinted(WINDOW);
+    await createDataApi(xrpl, env, cache).networkMinted({ ...WINDOW, start: "2026-07-21", end: "2026-10-18" });
+    await createDataApi(xahau, env, cache).networkMinted(WINDOW);
+
+    expect(new Set(cache.calls.map((c) => c.key)).size).toBe(3);
+  });
+
+  it("types each answer by what the reference gives it", () => {
+    // A cache that answers nothing: only the types of the calls are looked at, and the promises are left alone.
+    const api = createDataApi(xrpl, env, { json: () => new Promise<never>(() => {}) });
+
+    expectTypeOf(api.networkSupply()).toEqualTypeOf<Promise<NetworkSupply>>();
+    expectTypeOf(api.networkMinted(WINDOW, { ttl: PERIOD_CALL_TTL_SECONDS })).toEqualTypeOf<Promise<MintedPage>>();
+    // The keys the reference lets an answer go without: a network that does not mint has no `minted`, one without AMM no `amm`, and a snapshot with no reserve value no `reserves`; the
+    // XRP Ledger's `burned` has no coverage; the last page has no marker.
+    expectTypeOf<NetworkSupply["minted"]>().toEqualTypeOf<MintedPart | undefined>();
+    expectTypeOf<NetworkSupply["amm"]>().toEqualTypeOf<AmmPart | undefined>();
+    expectTypeOf<NetworkSupply["reserves"]>().toEqualTypeOf<ReservesPart | undefined>();
+    expectTypeOf<NetworkSupply["burned"]["coverage"]>().toEqualTypeOf<Coverage | undefined>();
+    expectTypeOf<MintedPage["marker"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<NetworkSupply["currency"]>().toEqualTypeOf<"XRP" | "XAH">();
+    // The window is written in the order the client sends it, and the only interval is the day.
+    expectTypeOf<Parameters<DataApi["networkMinted"]>[0]["interval"]>().toEqualTypeOf<"day">();
   });
 });
 

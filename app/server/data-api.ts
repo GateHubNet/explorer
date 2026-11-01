@@ -65,6 +65,8 @@ import type {
   LedgerValidations,
   LedgerWithHashes,
   MarketsResponse,
+  MintedPage,
+  NetworkSupply,
   NftAnswer,
   NftCollectionAnswer,
   NftCollectionDays,
@@ -128,6 +130,7 @@ import {
 import { checkDelegations, checkLedgerObject, checkObjectAnswer, checkObjectHistory } from "./object-shape";
 import type { paths } from "./openapi";
 import { PENDING_PATHS } from "./pending-paths";
+import { checkMintedPage, checkSupply } from "./supply-shape";
 import { checkToken, checkTokenHolders, checkTokens, checkTokenTransfers } from "./token-shape";
 import { checkBinaryAnswer, checkIndexTransaction, checkLedgerHashes } from "./tx-shape";
 import { ANALYTICS_SLOW_TIMEOUT_MS, clip, DATA_API_TIMEOUT_MS, retryAfterOf, UpstreamError, withDeadline } from "./upstream";
@@ -238,6 +241,12 @@ const PATHS = {
   token: "/v2/tokens/{token}",
   tokenHolders: "/v2/tokens/{token}/holders",
   tokenTransfers: "/v2/tokens/{token}/transfers",
+  // D7's two routes (data-api `feat/explorer-data-2`, pinned at `31e97efaa1a6e098435b666e8893c79a0c4bee66`), which the supply page (E12) asks for only while `SUPPLY` is on. Neither takes a path
+  // parameter. A data API deployed without D7 answers `Cannot GET`, an outage.
+  /** The native supply at one ledger, an hourly snapshot. Takes no parameter. */
+  networkSupply: "/v2/network/supply",
+  /** Xahau's minting per UTC day. */
+  networkMinted: "/v2/network/supply/minted",
 } as const satisfies Record<string, keyof paths>;
 
 /** The two forms of each route of a collection: of an issuer alone (Xahau) and of an issuer and a taxon (XRPL). */
@@ -260,6 +269,8 @@ export type ObjectHistoryQuery = { descending: true; limit: number; marker?: str
 
 /** `fees` by the day: a row for each day that starts within `start` and `end` (`YYYY-MM-DD`). Sent in this order. */
 export type FeeBucketQuery = { interval: "day"; start: string; end: string; limit: number };
+/** The days of `networkMinted`: the same window as the fees by day, written in this order. */
+export type MintedQuery = { interval: "day"; start: string; end: string; limit: number };
 
 /** `stats`: a row for each `interval` that starts within `start` and `end` (`YYYY-MM-DD`), of the `metrics` named (all of the family without). Sent in this order. */
 export type StatsQuery = { interval: "day" | "week"; start: string; end: string; limit: number; metrics?: readonly string[] };
@@ -604,6 +615,21 @@ export interface DataApi {
    * a first page only. D6 does not look the token up: a token nobody was paid in has no transfers, which is an answer, and there is no 404.
    */
   tokenTransfers(asset: { currency: string; issuer: string }, q: { limit: number; marker?: string }, opts?: FreshOptions): Promise<TokenTransfersResponse>;
+
+  // E12's supply calls (data-api D7, `feat/explorer-data-2`, pinned at `31e97efaa1a6e098435b666e8893c79a0c4bee66`). Only a data API that has D7 has the routes: without it each call fails with the
+  // missing-route outage (kind `server`, never stored). The supply page asks only while `SUPPLY` is on. Each answer is checked inside the load (supply-shape.ts), and one that is not what the
+  // reference promises is kind `server` too.
+  /**
+   * The native supply of the network at one ledger: the newest hourly snapshot, every figure as of `ledger_index`, with the `coverage` of each part read from the history. Takes no parameter. Class
+   * `slow`; the supply page asks for `{ ttl: PERIOD_CALL_TTL_SECONDS }`. Before the first snapshot exists D7 answers 404 `supply not computed yet` (`not_found`; the page tells it as an outage), and a
+   * snapshot of another currency than the network's native one is kind `server`.
+   */
+  networkSupply(opts?: FreshOptions): Promise<NetworkSupply>;
+  /**
+   * What was minted on each UTC day, by source: `limit` days from `start` to `end` (`YYYY-MM-DD`), with the coverage of the mints. Xahau mints; the XRP Ledger answers an empty list. Class `slow`;
+   * the supply page asks for `{ ttl: PERIOD_CALL_TTL_SECONDS }`.
+   */
+  networkMinted(q: MintedQuery, opts?: FreshOptions): Promise<MintedPage>;
 }
 
 /** Query parameters; `undefined` and `false` are left out (every flag of the API is off unless it says `true`). */
@@ -1105,5 +1131,10 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
         finish: checkTokenTransfers,
       });
     },
+    // E12's supply calls: both `slow`, whatever TTL the page keeps them for. The snapshot is told the native currency of the network, so that a data API answering the other network's is a failure.
+    networkSupply: (opts) =>
+      get<NetworkSupply>(PATHS.networkSupply, {}, {}, "slow", { ...fresh(opts), finish: (body, path) => checkSupply(body, path, net.native) }),
+    networkMinted: (q, opts) =>
+      get<MintedPage>(PATHS.networkMinted, {}, { interval: q.interval, start: q.start, end: q.end, limit: q.limit }, "slow", { ...fresh(opts), finish: checkMintedPage }),
   };
 }

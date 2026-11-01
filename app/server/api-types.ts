@@ -1983,6 +1983,87 @@ export interface TokenTransfersResponse {
   transfers: TokenTransfer[];
 }
 
+// ---- Supply: GET /v2/network/supply, GET /v2/network/supply/minted -----------------------------------------------------------------------------------------------------
+//
+// D7 (data-api `feat/explorer-data-2`, pinned at `31e97efaa1a6e098435b666e8893c79a0c4bee66`; the section "Network" of its docs/api-reference.md, `GET /v2/network/supply` and
+// `GET /v2/network/supply/minted`). Keys are in the reference's order (its "Keys of …" lines); a key it marks `?` is left out of an answer, `null` is never served, so those keys are
+// optional here and every other key is there. `supply-shape.ts` makes that true. The facts the reference states:
+//   - the supply is a snapshot, one row an hour: every figure is as of `ledger_index` and its `close_time`, written at `computed_at`. Before the first snapshot the answer is a 404,
+//     `supply not computed yet`. It takes no parameter;
+//   - an amount is exact decimal text in whole units of the native currency (`"64772465269.314"`, trailing zeros dropped), a count is a number. `minted` is there only on a network that
+//     mints (Xahau), `amm` only where AMM exists (the XRP Ledger), `reserves` only when a reserve value is known at the snapshot ledger;
+//   - a part read from the indexed history ends with its own `coverage`; `total` has none, and neither has the `burned` of the XRP Ledger (exactly 100 billion XRP less `total`, from the
+//     ledger header), which is why `coverage` is optional on `SupplyPart`. The answer has no `coverage` of its own;
+//   - `circulating` is `total` less `escrowed` and states the coverage of `escrowed`; `minted.amount` is `rewards` + `import` + `genesis_mint`; `reserves.amount` is
+//     `accounts` × `base` + `owner_count` × `increment`;
+//   - the minted route is one row a UTC day on Xahau, with no gap (a day with no mint is a row of zeros) and the running day last, and `coverage` right after `result`. On a network that
+//     cannot mint it answers `count: 0` and `rows: []`.
+
+/** One figure of the supply: its amount, and the coverage of the history it is read from (left out where none is needed). */
+export interface SupplyPart {
+  amount: string;
+  coverage?: Coverage;
+}
+
+/** The native currency in open native escrows, and how many there are. */
+export interface EscrowedPart extends SupplyPart {
+  escrows: number;
+}
+
+/** The native currency in the pools of automated market makers (the XRP Ledger), and the number of live pools with a native reserve above 0. */
+export interface AmmPart extends SupplyPart {
+  pools: number;
+}
+
+/** What the accounts must keep: `accounts` × `base` + `owner_count` × `increment`, the reserve values in force at the snapshot ledger. */
+export interface ReservesPart extends SupplyPart {
+  accounts: number;
+  owner_count: number;
+  base: string;
+  increment: string;
+}
+
+/** What the indexed ledgers created (Xahau): `amount` is `rewards` + `import` + `genesis_mint`. */
+export interface MintedPart extends SupplyPart {
+  rewards: string;
+  import: string;
+  genesis_mint: string;
+}
+
+/** `GET /v2/network/supply`: the native supply at one ledger. */
+export interface NetworkSupply {
+  result: "success";
+  ledger_index: number;
+  close_time: string;
+  computed_at: string;
+  currency: "XRP" | "XAH";
+  total: string;
+  burned: SupplyPart;
+  minted?: MintedPart;
+  escrowed: EscrowedPart;
+  circulating: SupplyPart;
+  amm?: AmmPart;
+  reserves?: ReservesPart;
+}
+
+/** A UTC day of the minted route: `date` is its start, `amount` the sum of the three sources. Every key is there. */
+export interface MintedRow {
+  date: string;
+  amount: string;
+  rewards: string;
+  import: string;
+  genesis_mint: string;
+}
+
+/** `GET /v2/network/supply/minted`: the native currency created on each UTC day. `coverage` is the feature `mints`'s; `marker` is there only when there is a next page. */
+export interface MintedPage {
+  result: "success";
+  coverage: Coverage;
+  marker?: string;
+  count: number;
+  rows: MintedRow[];
+}
+
 // ---- What the node answers for an NFT --------------------------------------------------------------------------------------------------------------------------
 
 // The node's answers as `node-rpc.ts` returns them (read on 2026-10-24 from `https://s1.ripple.com:51234/`, a Clio server, and `https://xahau.network/`): times in unix seconds

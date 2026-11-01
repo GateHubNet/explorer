@@ -1537,6 +1537,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/network/supply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the supply of the native currency
+         * @description The newest hourly snapshot of the native supply: every figure is as of one ledger (`ledger_index`, `close_time`), computed at `computed_at`, and an exact decimal text in whole units. `total` is the currency in existence. `burned` is what was destroyed: on the XRP Ledger 100 billion XRP less the total, exact from the ledger header, and on Xahau the fees of the indexed ledgers (no cap). `minted` (Xahau) is what was created by the indexed ledgers, `amount` being the sum of `rewards` (the rewards claimed), `import` (what an Import credited) and `genesis_mint` (every other GenesisMint). `escrowed` is the native currency in open escrows, `circulating` the total less the escrowed, which counts what is in payment channels, in AMM pools and held as reserves. `amm` (the XRP Ledger) is the native currency in the pools of automated market makers, and `reserves` the least the accounts must keep: the accounts times the base reserve plus their owned objects times the owner reserve (`base`, `increment`), at the snapshot ledger. `minted`, `amm` and `reserves` are left out where the network or the snapshot has none. A part read from the indexed history ends with its `coverage`: the first ledger the history is whole from, and whether it is whole back to where the feature starts. Before the first snapshot the answer is 404 `supply not computed yet`.
+         */
+        get: operations["SupplyController_snapshot"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/network/supply/minted": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the native currency minted per day
+         * @description The native currency created on each UTC day, by source, on a network that mints (Xahau): `amount` is the sum of `rewards` (the rewards claimed), `import` (what an Import credited) and `genesis_mint` (every other GenesisMint), in whole units. Every day from the first one the indexed history covers whole to the day of the newest ledger is a row, the days with no mint with zeros, and the newest day is the running one, summed so far. The answer states the `coverage` of the mints: the first ledger the history is whole from, and whether it is whole back to the network's first ledger. On a network that cannot mint (the XRP Ledger) the list is empty. `format=csv` gives the rows as a CSV file.
+         */
+        get: operations["SupplyController_minted"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/ledgers/{ledger_hash}/validations": {
         parameters: {
             query?: never;
@@ -4368,6 +4408,55 @@ export interface operations {
                 min_trades?: number;
                 /** @description The rolling period: the last 24 hours, 7 days or 30 days. Default: day. */
                 period?: "day" | "7day" | "30day";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SupplyController_snapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SupplyController_minted: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Newest first. */
+                descending?: boolean;
+                /** @description End time. Default: the newest ledger. */
+                end?: unknown;
+                /** @description Start time. Default: the first day the mints are covered for. */
+                start?: unknown;
+                /** @description Default: day (the only one). */
+                interval?: "day";
             };
             header?: never;
             path?: never;
