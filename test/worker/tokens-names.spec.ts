@@ -4,6 +4,7 @@ import { collectAddresses } from "../../app/server/names-collect";
 import xahauList from "../fixtures/http/xahau/data-api/tokens@kind=issued&limit=20&min_holders=10.json";
 import xrplList from "../fixtures/http/xrpl/data-api/tokens@kind=issued&limit=20&min_holders=10.json";
 import rlusdHolders from "../fixtures/http/xrpl/data-api/tokens/524C555344000000000000000000000000000000.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De/holders@limit=10.json";
+import rlusdHolders50 from "../fixtures/http/xrpl/data-api/tokens/524C555344000000000000000000000000000000.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De/holders@limit=50.json";
 import rlusdTransfers from "../fixtures/http/xrpl/data-api/tokens/524C555344000000000000000000000000000000.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De/transfers@descending=true&limit=20.json";
 import rlusd from "../fixtures/http/xrpl/data-api/tokens/524C555344000000000000000000000000000000.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De.json";
 import {
@@ -24,7 +25,7 @@ import {
 } from "../support/names";
 import { expectDegraded, forgetStored } from "../support/nft-pages";
 import { pageClient } from "../support/pages";
-import { tokenCase, tokensMarker, transfersMarker } from "../support/token-cases";
+import { holdersMarker, tokenCase, tokensMarker, transfersMarker } from "../support/token-cases";
 
 // The names of the issuers on the token list, `/{net}/tokens` (display names spec 1 and 5; token pages spec 2.4), and of the addresses of a token's page, `/{net}/token/{token}` (spec 3.2 #6), on
 // the real Worker: one names call after the list call, for the issuers of the rows, sorted; one after the calls of the token page, for the issuer, the holders, the transfers' parties and the markets'
@@ -263,6 +264,128 @@ describe("when the names call of the token page fails or is late", () => {
     expect(namesCalls(mock)).toEqual(inCalls(linkedAccounts(html, "xrpl")));
     expect(html).not.toContain("acct__name");
     expect(expectAddressesOnly(withoutButton(html), "xrpl")).toBeGreaterThan(1);
+    expect(logged()).toBe(1);
+  });
+});
+
+// ---- The holders page ----------------------------------------------------------------------------------------------------------------------------------------------------
+
+describe("the names call of the holders page", () => {
+  /** What the loader asks the names of: the issuer and the 50 holders of the page. */
+  const expectedFor = collectAddresses(
+    rlusd.token.issuer,
+    rlusdHolders50.holders.map((holder) => holder.holder),
+  );
+
+  it("is one, after the token call and the holders call, for the issuer and the 50 holders sorted, and the page draws each by what the fixtures say", async () => {
+    const rlusdCase = await tokenCase("xrpl", "rlusd");
+    const mock = upstream("xrpl");
+    const { html } = await page(`/xrpl/token/${rlusdCase.path}/holders`);
+
+    expect(expectedFor).toHaveLength(51);
+    expect(namesCalls(mock)).toEqual(inCalls(expectedFor));
+    expect(namesStatuses(mock)).toEqual([200]);
+    expect(mock.requests.at(-1)!.url).toContain("/v2/account_names");
+    // The two calls of the page's data and the names call: nothing else.
+    expect(withoutNames(mock.requests)).toHaveLength(2);
+
+    // Every account the page links is asked for, and every account asked for is linked: the page draws what it names, and names what it draws.
+    expect([...namesCalls(mock).flat()].sort()).toEqual(sorted(linkedAccounts(html, "xrpl")));
+    const { named } = await expectAccountsDrawn(html, "xrpl");
+    expect(named.length).toBeGreaterThan(0);
+  });
+
+  it("carries the names the call gave in the page's data, for the browser", async () => {
+    const rlusdCase = await tokenCase("xrpl", "rlusd");
+    const mock = upstream("xrpl");
+    const route = "routes/net.token.$token.holders";
+    const body = await (await get(dataUrlOf(`/xrpl/token/${rlusdCase.path}/holders.data`, route))).text();
+    const part = namesPartOf(body, route);
+
+    expect(part.state).toBe("ok");
+    const asked = namesCalls(mock).flat();
+    expect(Object.keys(part.map).sort()).toEqual(sorted(await viewedAmong("xrpl", asked)));
+    expect(Object.keys(part.map).length).toBeGreaterThan(0);
+  });
+
+  it("is the same on Xahau", async () => {
+    const evr = await tokenCase("xahau", "evr");
+    const mock = upstream("xahau");
+    const { html } = await page(`/xahau/token/${evr.path}/holders`);
+
+    expect(namesStatuses(mock)).toEqual([200]);
+    expect(withoutNames(mock.requests)).toHaveLength(2);
+    expect([...namesCalls(mock).flat()].sort()).toEqual(sorted(linkedAccounts(html, "xahau")));
+    const { named } = await expectAccountsDrawn(html, "xahau");
+    expect(named.length).toBeGreaterThan(0);
+  });
+
+  it("names a page behind a marker like the first page, from its own holders", async () => {
+    const more = await holdersMarker("xrpl");
+    const mock = upstream("xrpl");
+    const { html } = await page(`/xrpl/token/${more.token}/holders?marker=${more.marker}`);
+
+    expect(namesStatuses(mock)).toEqual([200]);
+    expect(withoutNames(mock.requests)).toHaveLength(2);
+    expect([...namesCalls(mock).flat()].sort()).toEqual(sorted(linkedAccounts(html, "xrpl")));
+    const { named } = await expectAccountsDrawn(html, "xrpl");
+    expect(named.length).toBeGreaterThan(0);
+  });
+
+  it("asks the names of the issuer alone when the holders call failed: it is all the page draws", async () => {
+    const few = await tokenCase("xrpl", "few-holders");
+    const mock = upstream("xrpl", { [`GET /v2/tokens/${few.currency}.${few.issuer}/holders?limit=50`]: () => new Response("down", { status: 503 }) });
+    const path = `/xrpl/token/${few.path}/holders`;
+    await forgetStored(path);
+    const response = await get(path);
+    const html = await response.text();
+
+    await expectDegraded(path, response);
+    expect(namesCalls(mock)).toEqual(inCalls([few.issuer]));
+    expect([...namesCalls(mock).flat()].sort()).toEqual(sorted(linkedAccounts(html, "xrpl")));
+  });
+});
+
+describe("when the names call of the holders page fails or is late", () => {
+  it("shows the short addresses, serves the page and does not store it, and logs it once, when it fails", async () => {
+    const usd = await tokenCase("xrpl", "usd");
+    const logged = watchNamesLog();
+    const mock = upstream("xrpl", failingNames());
+    const path = `/xrpl/token/${usd.path}/holders`;
+    await forgetStored(path);
+    const response = await get(path);
+    const html = await response.text();
+
+    await expectDegraded(path, response);
+    expect(namesStatuses(mock)).toEqual([503]);
+    expect(expectAddressesOnly(html, "xrpl")).toBeGreaterThan(5);
+    expect(html).not.toContain("acct__name");
+    expect(logged()).toBe(1);
+  });
+
+  it("marks the data of that page failed, with no names", async () => {
+    const usd = await tokenCase("xrpl", "usd");
+    watchNamesLog();
+    upstream("xrpl", failingNames());
+    const route = "routes/net.token.$token.holders";
+    const body = await (await get(dataUrlOf(`/xrpl/token/${usd.path}/holders.data`, route))).text();
+    expect(namesPartOf(body, route)).toEqual({ state: "failed", map: {} });
+  });
+
+  it("shows the short addresses, serves the page and does not store it, and logs it once, when it is late", async () => {
+    const few = await tokenCase("xrpl", "few-holders");
+    const logged = watchNamesLog();
+    const mock = upstream("xrpl", { "GET /v2/account_names": () => new Promise<Response>(() => {}) });
+    const path = `/xrpl/token/${few.path}/holders`;
+    await forgetStored(path);
+    const response = await get(path);
+    const html = await response.text();
+
+    await expectDegraded(path, response);
+    // One call, for the accounts of the page, which never answered.
+    expect(namesCalls(mock)).toEqual(inCalls(linkedAccounts(html, "xrpl")));
+    expect(html).not.toContain("acct__name");
+    expect(expectAddressesOnly(html, "xrpl")).toBeGreaterThan(1);
     expect(logged()).toBe(1);
   });
 });

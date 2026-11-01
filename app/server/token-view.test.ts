@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { ammLiveVolumeSample, ammPoolAccount, ammPoolSample, ammPoolsSample, AMM_POOL } from "../../test/support/amm-samples";
 import {
+  HOLDERS_MARKER,
   holdersSample,
   tokenCoverageSample,
   tokenDetailSample,
@@ -24,7 +25,24 @@ import { NO_FEATURES } from "../ui/features";
 import type { AmmPool, AmmVolumeRow, Page, TokenDetail, TokensResponse } from "./api-types";
 import type { Loaded } from "./account-view";
 import type { AccountInfo } from "./node-rpc";
-import { holderRows, linkOf, marketRows, poolRows, priceView, settingsRows, tokenFacts, tokenPage, tokensPage, tomlCard, transferRows, type TokenInput, type TokensInput, type TokensNet } from "./token-view";
+import {
+  holderRows,
+  linkOf,
+  marketRows,
+  poolRows,
+  priceView,
+  settingsRows,
+  tokenFacts,
+  tokenHoldersPage,
+  tokenPage,
+  tokensPage,
+  tomlCard,
+  transferRows,
+  type TokenHoldersInput,
+  type TokenInput,
+  type TokensInput,
+  type TokensNet,
+} from "./token-view";
 
 // The token list's view builder (E11 spec 2.1 and 2.2): the page data of `/{net}/tokens` from D6's answer of the list. Pure; every figure is D6's own text or made with BigNumber, every href
 // is written here, and a page draws what it is given.
@@ -1259,4 +1277,137 @@ describe("tokenFacts", () => {
   it("take the bidi controls out of the name", () => {
     expect(tokenFacts(XRPL, tokenDetailSample({ toml: { name: "Ripple‮ USD" } }), false).name).toBe("Ripple USD");
   });
+});
+
+// ---- The holders page (spec 4) --------------------------------------------------------------------------------------------------------------------------------------
+
+describe("tokenHoldersPage", () => {
+  const HOLDERS_PATH = `/xrpl/token/RLUSD.${TOKEN_SAMPLE_ISSUER}/holders`;
+  const holdersInput = (over: Partial<TokenHoldersInput> = {}): TokenHoldersInput => ({
+    net: XRPL_LINKED,
+    asset: ASSET,
+    answer: tokenSample(),
+    holders: ok(holdersSample()),
+    params: { back: [] },
+    names: NO_NAMES,
+    ...over,
+  });
+  const holdersPage = (over: Partial<TokenHoldersInput> = {}) => tokenHoldersPage(holdersInput(over)).page;
+  /** The list of a page whose holders were answered. */
+  const okList = (over: Partial<TokenHoldersInput> = {}) => {
+    const { holders } = holdersPage(over);
+    if (holders.state !== "ok") throw new Error("the holders list failed");
+    return holders;
+  };
+
+  it("is the head: the title, the line of how many hold how much, the issuer, and the way back to the token", () => {
+    const page = holdersPage();
+    expect(page.kind).toBe("token-holders");
+    expect(page.network).toMatchObject({ id: "xrpl", name: "XRPL", native: "XRP" });
+    expect(page.head).toEqual({
+      code: "RLUSD",
+      title: "Holders of RLUSD",
+      summary: "120 accounts hold 7,320 RLUSD",
+      issuer: TOKEN_SAMPLE_ISSUER,
+      token: { href: `/xrpl/token/RLUSD.${TOKEN_SAMPLE_ISSUER}`, label: "Back to RLUSD" },
+    });
+  });
+
+  it("writes the line from the token's own figures with BigNumber: the supply exact with its thousands grouped, one account in the singular", () => {
+    expect(holdersPage(withHolders({ holders: 1_284, supply: "21898528.59363" })).head.summary).toBe("1,284 accounts hold 21,898,528.59363 RLUSD");
+    expect(holdersPage(withHolders({ holders: 1, supply: "5" })).head.summary).toBe("1 account holds 5 RLUSD");
+    expect(holdersPage(withHolders({ holders: 0, supply: "0" })).head.summary).toBe("0 accounts hold 0 RLUSD");
+  });
+
+  it("is the display code of a code that is hex: the title and the line say it as text, the hex stays out of the head", () => {
+    const page = holdersPage(withHolders({ currency: "5A2F23405E2A2F2F000000000000000000000000" }));
+    expect(page.head.code).toBe("Z/#@^*//");
+    expect(page.head.title).toBe("Holders of Z/#@^*//");
+  });
+
+  it("has the rows of the holders: the rank D6 gives, the holder, the balance, the share, the meter, the limit, and the status", () => {
+    const list = okList();
+    expect(list.rows.map((row) => [row.rank, row.holder, row.balance, row.share, row.limit, row.frozen, row.authorized])).toEqual([
+      ["1", "rrrrrrrrrrrrrrrrrrcJYjXAZjD", "40.5", "0.55%", "1,000,000", true, false],
+      ["2", "rrrrrrrrrrrrrrrrrrcJYdToyGA", "39.5", "0.54%", "1,000,000", false, false],
+      ["3", "rrrrrrrrrrrrrrrrrrcJY2vaNnX", "38.5", "0.53%", "1,000,000", false, false],
+    ]);
+    expect(list.rows[2]!.meter).toMatchObject({ value: "0.005260", max: "0.005533" });
+    expect(list.source).toBe(`/v2/tokens/${TOKEN_SAMPLE_CURRENCY}.${TOKEN_SAMPLE_ISSUER}/holders`);
+    expect(list.empty).toBeNull();
+  });
+
+  it("shows Authorized only where the issuer requires authorisation: from the token's issuer_settings, never when they are not known", () => {
+    const authorized = (over: Partial<TokenDetail>) => okList(withHolders(over)).rows.map((row) => row.authorized);
+    const settings = tokenDetailSample().issuer_settings!;
+    expect(authorized({ issuer_settings: { ...settings, require_auth: true } })).toEqual([false, false, true]);
+    expect(authorized({ issuer_settings: { ...settings, require_auth: false } })).toEqual([false, false, false]);
+    expect(authorized({ issuer_settings: undefined })).toEqual([false, false, false]);
+  });
+
+  it("continues the ranks on page 2: the rank is the place in the whole ranking, whatever the page", () => {
+    const second = holdersSample({ holders: [tokenHolderSample({ rank: 51, holder: "rA" }), tokenHolderSample({ rank: 52, holder: "rB" }), tokenHolderSample({ rank: 1_051, holder: "rC" })] });
+    expect(okList({ holders: ok(second), params: { marker: "M2", back: ["M1"] } }).rows.map((row) => row.rank)).toEqual(["51", "52", "1,051"]);
+  });
+
+  it("pages by the trail: More holders carries the marker and this page's own marker behind it, Previous goes back along the trail, and the first page has no Previous", () => {
+    const first = okList();
+    expect(first.pager).toEqual({ newerHref: null, olderHref: `${HOLDERS_PATH}?marker=${HOLDERS_MARKER}`, labels: { newer: "Previous", older: "More holders" } });
+
+    const second = okList({ params: { marker: HOLDERS_MARKER, back: [] } });
+    expect(second.pager.newerHref).toBe(HOLDERS_PATH);
+    expect(second.pager.olderHref).toBe(`${HOLDERS_PATH}?marker=${HOLDERS_MARKER}&back=${HOLDERS_MARKER}`);
+
+    const third = okList({ holders: ok(holdersSample({ marker: "M3" })), params: { marker: "M2", back: ["M1"] } });
+    expect(third.pager.newerHref).toBe(`${HOLDERS_PATH}?marker=M1`);
+    expect(third.pager.olderHref).toBe(`${HOLDERS_PATH}?marker=M3&back=M2.M1`);
+
+    expect(okList({ holders: ok(holdersSample({ marker: undefined })), params: { marker: "M2", back: [] } }).pager.olderHref).toBeNull();
+  });
+
+  it("carries the holders answer's coverage as the note of the trust lines, and none when it is complete", () => {
+    expect(okList({ holders: ok(holdersSample({ coverage: tokenCoverageSample({ complete: false, from_ledger_index: 93663334 }) })) }).coverage).toMatchObject({ ledger: 93663334 });
+    expect(okList().coverage).toBeNull();
+  });
+
+  it("says no account holds the token on an empty first page, with no pager", () => {
+    const list = okList({ holders: ok(holdersSample({ holders: [], count: 0, marker: undefined })) });
+    expect(list).toMatchObject({ rows: [], empty: "No account holds RLUSD.", pager: { newerHref: null, olderHref: null } });
+  });
+
+  it("explains the columns in a footnote", () => {
+    expect(okList().footnote).toBe("Largest balance first. Limit is the most a holder's trust line can hold. Authorized is shown only where the issuer must approve each trust line.");
+  });
+
+  it("fails on its own: the card's words, the source, and the problem; the head stands", () => {
+    for (const holders of [FAILED, MISSING]) {
+      const { page, problems } = tokenHoldersPage(holdersInput({ holders }));
+      expect(page.holders).toEqual({ source: `/v2/tokens/${TOKEN_SAMPLE_CURRENCY}.${TOKEN_SAMPLE_ISSUER}/holders`, state: "failed", what: "the holders" });
+      expect(page.head.title).toBe("Holders of RLUSD");
+      expect(problems).toEqual([{ part: "holders" }]);
+    }
+    expect(tokenHoldersPage(holdersInput()).problems).toEqual([]);
+  });
+
+  it("is Xahau's and the sandbox's on their networks: the native currency and the name come from the network", () => {
+    expect(holdersPage({ net: XAHAU_LINKED, asset: { currency: TOKEN_SAMPLE_CURRENCY, issuer: TOKEN_SAMPLE_ISSUER } }).network).toMatchObject({ id: "xahau", native: "XAH" });
+    expect(holdersPage({ net: XAHAU_LINKED }).head.token.href).toBe(`/xahau/token/RLUSD.${TOKEN_SAMPLE_ISSUER}`);
+    expect(holdersPage({ net: { ...XRPL_LINKED, ...TESTNET } }).network.name).toBe("XRPL Testnet");
+  });
+
+  it("hands on the names as the loader has them", () => {
+    const part: NamesPart = { state: "ok", map: { rrrrrrrrrrrrrrrrrrcJYjXAZjD: { name: { text: "Ripple", kind: "verified" }, domain: "ripple.com", labels: [] } } };
+    expect(holdersPage({ names: part }).names).toBe(part);
+    expect(holdersPage({ names: NAMES_OFF }).names).toBe(NAMES_OFF);
+  });
+
+  it("writes the facts of its tags: the display code, the issuer, where the first page is, and whether it is behind a marker", () => {
+    expect(holdersPage().meta).toEqual({ code: "RLUSD", issuer: TOKEN_SAMPLE_ISSUER, href: HOLDERS_PATH, more: false });
+    expect(holdersPage({ params: { marker: "M2", back: ["M1"] } }).meta).toEqual({ code: "RLUSD", issuer: TOKEN_SAMPLE_ISSUER, href: HOLDERS_PATH, more: true });
+  });
+
+  /** The same input with the token replaced by `over`'s fields. */
+  function withHolders(over: Partial<TokenDetail>): Partial<TokenHoldersInput> {
+    return { answer: tokenSample({ token: tokenDetailSample(over) }) };
+  }
 });

@@ -1,13 +1,13 @@
-// What the token pages show, worked out in the Worker from D6's answers (E11 spec 2 to 4): the list at `/{net}/tokens` (`tokensPage`) and one token's page at `/{net}/token/{token}`
-// (`tokenPage` and its parts). No I/O, no clock, no `Intl`: each figure is D6's own text or made with BigNumber, so no float and no exponent reaches a label. The page draws what it is given and
-// never fetches: every label and every href is text in the data.
+// What the token pages show, worked out in the Worker from D6's answers (E11 spec 2 to 4): the list at `/{net}/tokens` (`tokensPage`), one token's page at `/{net}/token/{token}`
+// (`tokenPage` and its parts) and its holders' at `/{net}/token/{token}/holders` (`tokenHoldersPage`). No I/O, no clock, no `Intl`: each figure is D6's own text or made with
+// BigNumber, so no float and no exponent reaches a label. The page draws what it is given and never fetches: every label and every href is text in the data.
 //
 // The list is one call (spec 2.3). A search of more than `TOKEN_SEARCH_MAX` characters is no call: `answer` is `null`, and the page is the form with its message, no list and no pager. An answer
 // from before D6's first generation has no `totals`, no `total` and no ledger (`TokensResponse`): the tiles read dashes, and there is no note, no pager and no "Show all".
 //
 // The token page is #1 with up to six cards that stand or fail on their own (spec 3.5): the holders, the transfers, the pools and the issuer's settings, the last of which is read from the node
 // when D6 has none. What the issuer controls (the toml's fields, its URLs, its domain) is text: it is shown without its bidi controls, and only an `https:` URL becomes a link (`linkOf`),
-// never an image or an `src`.
+// never an image or an `src`. The holders' page is #1 and one page of the holders: its list stands or fails as a card of the token page does.
 //
 // It value-imports `app/domain/token-params.ts` (the hrefs, `tokenLink`), which checks an issuer's checksum with `ripple-address-codec`: only the Worker, the scripts and the tests import this
 // file; the page gets the data it returns, and its types.
@@ -906,4 +906,104 @@ export function tokenPage(input: TokenInput): { page: TokenPageData; problems: A
     meta: tokenFacts(net, t, older),
   };
   return { page, problems };
+}
+
+// ---- The holders page (spec 4) ------------------------------------------------------------------------------------------------------------------------
+
+/** The words of the holders' pager: the holders are ordered by balance, not by time. */
+const HOLDERS_PAGER_LABELS = { newer: "Previous", older: "More holders" } as const;
+
+export interface TokenHoldersInput {
+  net: TokensNet;
+  asset: { currency: string; issuer: string };
+  /** #1, which the loader has settled: the page is its token's. */
+  answer: TokenAnswer;
+  /** The holders of the page (spec 4: 50 to a page). */
+  holders: Loaded<TokenHoldersResponse>;
+  params: TokenPageParams;
+  names: NamesPart;
+}
+
+/** What the tags of the holders' page read of it: the display code, the issuer, where the first page is, and whether this one is behind a marker. */
+export interface TokenHoldersMetaFacts {
+  code: string;
+  issuer: string;
+  /** The canonical path of the first page (`tokenHoldersHref`), written here because the tags' module is a browser file and may not import `token-params.ts`. */
+  href: string;
+  more: boolean;
+}
+
+/** The holders' table (spec 4): the top holders' columns, a footnote that explains the two more, the holders answer's coverage and the pager; or its `SectionError`. */
+export type HoldersListView = CardView<{
+  rows: HolderRowView[];
+  empty: string | null;
+  footnote: string;
+  coverage: CoverageNoteText | null;
+  pager: Paging & { labels: typeof HOLDERS_PAGER_LABELS };
+}> & { source: string };
+
+export interface TokenHoldersPageData {
+  kind: "token-holders";
+  network: NetworkInfo;
+  head: {
+    /** The display code. */
+    code: string;
+    /** The `<h1>`: "Holders of RLUSD". */
+    title: string;
+    /** "120 accounts hold 7,320 RLUSD", from the token's own figures. */
+    summary: string;
+    issuer: string;
+    /** The way back to the token's page. */
+    token: { href: string; label: string };
+  };
+  holders: HoldersListView;
+  names: NamesPart;
+  meta: TokenHoldersMetaFacts;
+}
+
+/**
+ * The page data of `/{net}/token/{token}/holders` (spec 4) from #1 and the holders of a page, and the part that failed (`problems`, for the loader to log and to mark the request degraded
+ * with). The head is #1's: the line says how many accounts hold how much from the token's own figures (exact, with BigNumber), and the way back leads to the token's page. The list stands or fails
+ * on its own: a holders answer that is not `ok` is its `SectionError`. The ranks are D6's, the place in the whole ranking, so a second page starts where the first stopped. "Authorized" is
+ * shown only where the token's `issuer_settings` say the issuer requires authorisation.
+ */
+export function tokenHoldersPage({ net, asset, answer, holders, params, names }: TokenHoldersInput): { page: TokenHoldersPageData; problems: Array<{ part: "holders" }> } {
+  const t = answer.token;
+  const code = formatCurrency(t.currency);
+  const source = `${tokenSource(t)}/holders`;
+
+  let list: HoldersListView;
+  if (holders.state !== "ok") {
+    list = { source, ...failed("the holders") };
+  } else {
+    const { rows } = holderRows(holders.value, code, { requireAuth: t.issuer_settings?.require_auth ?? null });
+    list = {
+      source,
+      state: "ok",
+      rows,
+      empty: rows.length === 0 ? `No account holds ${code}.` : null,
+      footnote: "Largest balance first. Limit is the most a holder's trust line can hold. Authorized is shown only where the issuer must approve each trust line.",
+      coverage: coverageNote(holders.value.coverage, "trust lines"),
+      pager: {
+        ...trailPaging({ marker: params.marker, back: params.back, next: holders.value.marker }, (to) => tokenHoldersHref(net.id, asset, to)),
+        labels: HOLDERS_PAGER_LABELS,
+      },
+    };
+  }
+
+  const page: TokenHoldersPageData = {
+    kind: "token-holders",
+    network: networkInfoOf(net),
+    head: {
+      code,
+      title: `Holders of ${code}`,
+      summary: `${counted(t.holders)} ${t.holders === 1 ? "account holds" : "accounts hold"} ${formatAmount(t.supply)} ${code}`,
+      issuer: t.issuer,
+      token: { href: tokenHref(net.id, asset), label: `Back to ${code}` },
+    },
+    holders: list,
+    names,
+    meta: { code, issuer: t.issuer, href: tokenHoldersHref(net.id, asset), more: params.marker !== undefined },
+  };
+  return { page, problems: holders.state === "ok" ? [] : [{ part: "holders" }] };
 }

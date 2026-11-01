@@ -19,11 +19,18 @@ const read = (path: string) => readFileSync(new URL(path, appDir), "utf8");
 const SERVER_ONLY = [/\/server\//, /\/describe(\/|$)/, /\/parse(\/|$)/, /\/asset$/, /\/token-params$/, /\/market-pair$/, /ripple-/];
 const serverOnly = (from: string) => SERVER_ONLY.some((pattern) => pattern.test(from));
 
-/** The files of the pages the token pages are made of: the list's page and its table, the token's page, and the parts they share. */
-const PAGE_FILES = ["ui/pages/TokensPage.tsx", "ui/pages/IssuedTable.tsx", "ui/pages/TokenPage.tsx", "ui/pages/token-parts.tsx"];
+/** The files of the pages the token pages are made of: the list's page and its table, the token's page, the holders' page, and the parts they share. */
+const PAGE_FILES = [
+  "ui/pages/TokensPage.tsx",
+  "ui/pages/IssuedTable.tsx",
+  "ui/pages/TokenPage.tsx",
+  "ui/pages/token-parts.tsx",
+  "ui/pages/holder-columns.tsx",
+  "ui/pages/TokenHoldersPage.tsx",
+];
 
 /** The tags' builders, which the browser runs as the routes' `meta`. They are files of app/server that import nothing of it but `./meta`. */
-const META_FILES = ["server/meta-tokens.ts", "server/meta-token.ts"];
+const META_FILES = ["server/meta-tokens.ts", "server/meta-token.ts", "server/meta-token-holders.ts"];
 
 /** What a file the browser loads may reach of the Worker's own files: the marker alphabet (`server/marker.ts`, an import-free leaf, which `parseTrail` reads markers with). */
 const LEAVES = ["server/marker.ts"];
@@ -111,6 +118,29 @@ describe("the files of the token pages that run in the browser", () => {
     );
     // The tags of the token page and the list read the facts of the view builder as types only: the closure of each is `./meta` and what it imports.
     expect(staticClosure(appDir, "server/meta-token.ts")).toEqual(expect.not.arrayContaining(["server/token-view.ts"]));
+  });
+
+  it("walks the files the holders' page draws with: the kit's table, pager, coverage note, account link and meter, and the table's columns it shares with the token page", () => {
+    const closure = staticClosure(appDir, "ui/pages/TokenHoldersPage.tsx");
+    expect(closure).toEqual(
+      expect.arrayContaining([
+        "ui/pages/holder-columns.tsx",
+        "ui/charts/Meter.tsx",
+        "ui/components/DataTable.tsx",
+        "ui/components/Pager.tsx",
+        "ui/components/CoverageNote.tsx",
+        "ui/components/AccountLink.tsx",
+        "ui/components/SectionError.tsx",
+      ]),
+    );
+    // It draws no card of the token page: not its markets, its toml or its settings, and not the list's table or the small parts only those draw.
+    expect(closure).not.toContain("ui/pages/TokenPage.tsx");
+    expect(closure).not.toContain("ui/pages/token-parts.tsx");
+    expect(closure).not.toContain("ui/pages/IssuedTable.tsx");
+    expect(staticClosure(appDir, "ui/pages/TokenPage.tsx")).toContain("ui/pages/holder-columns.tsx");
+    // The list draws neither the meter nor a holder: it does not carry the columns.
+    expect(staticClosure(appDir, "ui/pages/TokensPage.tsx")).not.toContain("ui/pages/holder-columns.tsx");
+    expect(staticClosure(appDir, "server/meta-token-holders.ts")).toEqual(expect.not.arrayContaining(["server/token-view.ts"]));
   });
 
   it("is checked by filters that see each of those, and not a file named like one", () => {

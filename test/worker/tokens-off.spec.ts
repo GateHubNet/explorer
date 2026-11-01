@@ -98,6 +98,41 @@ describe("a token's page with TOKENS off", () => {
   });
 });
 
+describe("the holders of a token with TOKENS off", () => {
+  const RLUSD = "RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De";
+  const USD = "usd.rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B";
+
+  it.each([
+    [`/xrpl/token/${RLUSD}/holders`, "XRPL"],
+    // Another spelling, a made-up query, a marker, a marker that is none, an LP token, the native currency and what names no token: none is read, so none redirects or answers more than the not-found page.
+    [`/xrpl/token/${USD}/holders`, "XRPL"],
+    [`/xrpl/token/${RLUSD}/holders?x=1&back=M`, "XRPL"],
+    [`/xrpl/token/${RLUSD}/holders?marker=WzIyMDE5LjI1NTE1NywicndISDRNaVZ2ZkNoZHp5VXNBZUViblk3N3FjUzhGWHB5USJd`, "XRPL"],
+    [`/xrpl/token/${RLUSD}/holders?marker=%25`, "XRPL"],
+    ["/xrpl/token/03ABABABABABABABABABABABABABABABABABABAB.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De/holders", "XRPL"],
+    ["/xrpl/token/XRP/holders", "XRPL"],
+    ["/xahau/token/EVR.rEvernodee8dJLaFsujS6q1EiXvZYmHXr8/holders", "Xahau"],
+  ])("answers %s with the not-found page, a 404 of class short, and asks nothing upstream", async (path, name) => {
+    mock = mockUpstream(path.startsWith("/xahau") ? "xahau" : "xrpl");
+    const response = await get(path);
+    const html = await response.text();
+
+    expect(response.status, html.slice(0, 400)).toBe(404);
+    expect(textOf(html)).toContain(`We couldn’t find the token pages on ${name}.`);
+    expect(html).toMatch(/<meta name="robots" content="noindex"\/?>/);
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs(path)).toEqual(SHORT);
+  });
+
+  it("answers the .data URL of the holders (a client-side navigation) with a 404 too, and no call", async () => {
+    mock = mockUpstream("xrpl");
+    const response = await get(`/xrpl/token/${RLUSD}/holders.data?_routes=routes%2Fnet.token.%24token.holders`);
+    await response.text();
+    expect(response.status).toBe(404);
+    expect(mock.requests).toEqual([]);
+  });
+});
+
 describe("the header with TOKENS off", () => {
   const SOON = '<span class="nav-item is-soon" aria-disabled="true"><span>Tokens</span><span class="soon">soon</span></span>';
 

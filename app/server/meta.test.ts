@@ -28,7 +28,7 @@ import type { CollectionKey, CollectionQuery, NftsQuery } from "../domain/nft-pa
 import type { FlowStep } from "../domain/describe";
 import { shortAddress, shortHash } from "../domain/format";
 import { NAMES_OFF, NO_NAMES, type NameMap, type NamesPart, type NameView } from "../domain/names";
-import { tokenHref, tokensHref } from "../domain/token-params";
+import { tokenHoldersHref, tokenHref, tokensHref } from "../domain/token-params";
 import type { ValidatorsParams } from "../domain/validators-params";
 import { NO_FEATURES } from "../ui/features";
 import type { NetworkInfo } from "../ui/networks";
@@ -51,6 +51,7 @@ import { nftCollectionMeta } from "./meta-nft-collection";
 import { nftSalesMeta } from "./meta-nft-sales";
 import { nftsMeta } from "./meta-nfts";
 import { tokenMeta } from "./meta-token";
+import { tokenHoldersMeta } from "./meta-token-holders";
 import { tokensMeta } from "./meta-tokens";
 import { homeMeta } from "./meta-home";
 import { ledgerMeta } from "./meta-ledger";
@@ -65,7 +66,7 @@ import { collectionMarkerPage, nftCollectionPage, type CollectionNet, type NftCo
 import { nftMarkerPage, nftPage, type NftNet, type NftPageData } from "./nft-view";
 import { nftSalesPage, nftsListPage, nftsMarkerPage, type NftSalesPageData, type NftsNet, type NftsPageData } from "./nfts-view";
 import { pairPage } from "./pair-view";
-import { tokenFacts, tokenPage, type TokenMetaFacts, type TokensMetaFacts } from "./token-view";
+import { tokenFacts, tokenHoldersPage, tokenPage, type TokenHoldersMetaFacts, type TokenMetaFacts, type TokensMetaFacts } from "./token-view";
 import type { PaymentChannelMeta } from "./payment-channel-view";
 import { validatorHistoryPage, validatorPage, type ValidatorLiveData } from "./validator-view";
 import { validatorsPage } from "./validators-view";
@@ -1422,6 +1423,76 @@ describe("tokenMeta", () => {
       names: NO_NAMES,
     }).page;
     expect(title(tokenMeta(page.meta, XRPL))).toBe("Ripple USD (RLUSD) · XRPL · explorer");
+  });
+});
+
+describe("tokenHoldersMeta", () => {
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  const ISSUER = TOKEN_SAMPLE_ISSUER;
+  const ASSET = { currency: TOKEN_SAMPLE_CURRENCY, issuer: ISSUER };
+  /** The facts of the holders page as the view builder writes them (`TokenHoldersPageData.meta`): the first page of RLUSD's holders. */
+  const facts = (over: Partial<TokenHoldersMetaFacts> = {}): TokenHoldersMetaFacts => ({ code: "RLUSD", issuer: ISSUER, href: tokenHoldersHref("xrpl", ASSET), more: false, ...over });
+  const DESCRIPTION = `Every account that holds RLUSD, issued by ${shortAddress(ISSUER)} on XRPL, the largest balance first, with each holder's limit and status.`;
+
+  it("has the tags of an indexable first page: Holders of the code in the title, the canonical URL on the origin, Open Graph, a summary card and no image", () => {
+    const list = tokenHoldersMeta(facts(), XRPL);
+    expect(title(list)).toBe("Holders of RLUSD · XRPL · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(link(list, "canonical")).toBe(`https://explorer.test/xrpl/token/RLUSD.${ISSUER}/holders`);
+    expect(content(list, "og:title")).toBe("Holders of RLUSD · XRPL · explorer");
+    expect(content(list, "og:description")).toBe(DESCRIPTION);
+    expect(content(list, "og:url")).toBe(`https://explorer.test/xrpl/token/RLUSD.${ISSUER}/holders`);
+    expect(content(list, "og:type")).toBe("website");
+    expect(content(list, "og:site_name")).toBe("explorer");
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("puts no figure of the data in the description: the page is stored for a minute", () => {
+    expect(content(tokenHoldersMeta(facts(), XRPL), "description")?.replace(shortAddress(ISSUER), "")).not.toMatch(/\d/);
+  });
+
+  it("is on the path the page's own links write, whatever the code holds", () => {
+    expect(new URL(link(tokenHoldersMeta(facts(), XRPL), "canonical")!).pathname).toBe(tokenHoldersHref("xrpl", ASSET));
+    const odd = { currency: "5A2F23405E2A2F2F000000000000000000000000", issuer: ISSUER };
+    const list = tokenHoldersMeta(facts({ href: tokenHoldersHref("xrpl", odd) }), XRPL);
+    expect(new URL(link(list, "canonical")!).pathname).toBe(tokenHoldersHref("xrpl", odd));
+  });
+
+  it("is Xahau's on Xahau, and the sandbox's names, in the title and in the description", () => {
+    const xahau = tokenHoldersMeta(facts({ href: tokenHoldersHref("xahau", ASSET) }), XAHAU);
+    expect(title(xahau)).toBe("Holders of RLUSD · Xahau · explorer");
+    expect(content(xahau, "description")).toBe(`Every account that holds RLUSD, issued by ${shortAddress(ISSUER)} on Xahau, the largest balance first, with each holder's limit and status.`);
+    expect(link(xahau, "canonical")).toBe(`https://explorer.test/xahau/token/RLUSD.${ISSUER}/holders`);
+    const testnet = tokenHoldersMeta(facts(), XRPL_TESTNET);
+    expect(title(testnet)).toBe("Holders of RLUSD · XRPL Testnet · explorer");
+    expect(content(testnet, "description")).toContain("on XRPL Testnet,");
+  });
+
+  it("is on the request's origin", () => {
+    const list = tokenHoldersMeta(facts(), { ...XRPL, origin: "https://explorer.example" });
+    expect(link(list, "canonical")).toBe(`https://explorer.example/xrpl/token/RLUSD.${ISSUER}/holders`);
+    expect(content(list, "og:url")).toBe(`https://explorer.example/xrpl/token/RLUSD.${ISSUER}/holders`);
+  });
+
+  it("is noindex, follow behind a marker, with the same title, no canonical URL and no Open Graph or card tags", () => {
+    const list = tokenHoldersMeta(facts({ more: true }), XRPL);
+    expect(title(list)).toBe("Holders of RLUSD · XRPL · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(list).sort()).toEqual(["description", "robots"]);
+  });
+
+  it("is written from the page the builder made", () => {
+    const net = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled", hasAmm: true, features: NO_FEATURES } as const;
+    const first = tokenHoldersPage({ net, asset: ASSET, answer: tokenSample(), holders: { state: "ok", value: holdersSample() }, params: { back: [] }, names: NO_NAMES }).page;
+    expect(title(tokenHoldersMeta(first.meta, XRPL))).toBe("Holders of RLUSD · XRPL · explorer");
+    expect(link(tokenHoldersMeta(first.meta, XRPL), "canonical")).toBe(`https://explorer.test/xrpl/token/RLUSD.${ISSUER}/holders`);
+    const second = tokenHoldersPage({ net, asset: ASSET, answer: tokenSample(), holders: { state: "ok", value: holdersSample() }, params: { marker: "M2", back: [] }, names: NO_NAMES }).page;
+    expect(content(tokenHoldersMeta(second.meta, XRPL), "robots")).toBe("noindex, follow");
   });
 });
 

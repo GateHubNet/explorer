@@ -5272,6 +5272,15 @@ a.markets__pair:hover .markets__name {
   min-width: 0;
 }
 
+/* The statuses of a holder's line on the holders' page (Frozen, Authorized): side by side while they fit. */
+.token-page__statuses {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  min-width: 0;
+}
+
 .token-page__share {
   display: flex;
   align-items: center;

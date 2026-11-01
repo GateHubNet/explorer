@@ -1,7 +1,6 @@
 import { Link } from "react-router";
 
-import type { HolderRowView, MarketRowView, PoolRowView, TokenPageData, TomlCardView, TomlValueView, TransferRowView } from "../../server/token-view";
-import { Meter } from "../charts/Meter";
+import type { MarketRowView, PoolRowView, TokenPageData, TomlCardView, TomlValueView, TransferRowView } from "../../server/token-view";
 import { AccountLink } from "../components/AccountLink";
 import { Breadcrumbs } from "../components/Breadcrumbs";
 import { Card } from "../components/Card";
@@ -15,10 +14,11 @@ import { Pager } from "../components/Pager";
 import { PairCoins } from "../components/PairCoins";
 import { SectionError } from "../components/SectionError";
 import { StatGrid, StatTile } from "../components/StatTile";
-import { AlertCircleIcon, ArrowDownIcon, ArrowUpIcon } from "../components/status-icons";
+import { ArrowDownIcon, ArrowUpIcon } from "../components/status-icons";
 import { WhenText } from "../components/WhenCell";
 import type { NetworkInfo } from "../networks";
 import { useRetry } from "../use-retry";
+import { holderColumns, HOLDERS_WIDTH } from "./holder-columns";
 import { SettingRow } from "./token-parts";
 
 type Net = NetworkInfo["id"];
@@ -266,46 +266,6 @@ function PoolsCard({ data, onRetry, retrying }: Retry & { data: TokenPageData })
 // ---------------------------------------------------------------------------------------------------------------------------
 // The holders and the transfers
 
-/** Frozen: an icon and the word (a status is never a colour alone). */
-const Frozen = () => (
-  <span className="st st--quiet">
-    <AlertCircleIcon />
-    Frozen
-  </span>
-);
-
-function holderColumns(net: Net, code: string): Column<HolderRowView>[] {
-  return [
-    { id: "rank", header: "#", width: "36px", align: "end", cell: (row) => <span className="mono num faint tokens__rank">{row.rank}</span> },
-    {
-      id: "holder",
-      header: "Holder",
-      width: "minmax(260px, 2fr)",
-      cell: (row) => (
-        <span className="token-page__holder">
-          <AccountLink net={net} address={row.holder} />
-          {row.frozen && <Frozen />}
-        </span>
-      ),
-    },
-    { id: "balance", header: `Balance (${code})`, width: "minmax(170px, 1fr)", align: "end", cell: (row) => <span className="mono num">{row.balance}</span> },
-    {
-      id: "share",
-      header: "Share of supply",
-      width: "minmax(220px, 1.3fr)",
-      cell: (row) => (
-        <span className="token-page__share">
-          <span className="token-page__meter">
-            <Meter data={row.meter} small decorative />
-          </span>
-          <span className="num">{row.share}</span>
-        </span>
-      ),
-    },
-  ];
-}
-const HOLDERS_WIDTH = 36 + 260 + 170 + 220 + 3 * 16 + 2 * 16;
-
 function HoldersCard({ data, onRetry, retrying }: Retry & { data: TokenPageData }) {
   const { holders, network, head } = data;
   if (holders === null) return null;
@@ -315,7 +275,7 @@ function HoldersCard({ data, onRetry, retrying }: Retry & { data: TokenPageData 
         <Failed what={holders.what} onRetry={onRetry} retrying={retrying} />
       ) : (
         <>
-          <DataTable label="Top holders" columns={holderColumns(network.id, head.code)} rows={holders.rows} rowKey={(row) => row.key} minWidth={HOLDERS_WIDTH} empty={holders.empty ?? undefined} className="tokens__table" />
+          <DataTable label="Top holders" columns={holderColumns(network.id, head.code, { all: false })} rows={holders.rows} rowKey={(row) => row.key} minWidth={HOLDERS_WIDTH} empty={holders.empty ?? undefined} className="tokens__table" />
           <div className="card__foot tokens__foot">
             <div className="tokens__notes">{holders.top10 !== "" && <p>{holders.top10}</p>}</div>
             {holders.all !== null && (

@@ -29,6 +29,7 @@ export default [
     // The issued tokens, ranked by holders (E11).
     route("tokens", "routes/net.tokens.tsx"),
     route("token/:token", "routes/net.token.$token.tsx"),
+    route("token/:token/holders", "routes/net.token.$token.holders.tsx"),
     route("ledger/:id", "routes/net.ledger.$id.tsx"),
     route("tx/:id", "routes/net.tx.$id.tsx"),
     route("account/:address", "routes/net.account.$address.tsx"),
