@@ -4,10 +4,11 @@ import type { LoaderFunctionArgs } from "react-router";
 
 import { amendmentSegment, parseAmendmentRef } from "../domain/amendment-ref";
 import { dropsToNative } from "../domain/format";
+import { parseTokenPath } from "../domain/token-params";
 import { parseValidatorKey } from "../domain/validator-key";
 import { renderCard } from "../og/render";
 import type { CardData } from "../og/types";
-import { accountCard, amendmentCard, ledgerCard, nftCard, nftCardFacts, poolCard, transactionCard, transactionFacts, validatorCard } from "../server/card-data";
+import { accountCard, amendmentCard, ledgerCard, nftCard, nftCardFacts, poolCard, tokenCard, transactionCard, transactionFacts, validatorCard } from "../server/card-data";
 import { VALIDATORS_CALL_TTL_SECONDS, type CacheClass } from "../server/cache-class";
 import { activationOf } from "../server/account-view";
 import { ammPoolFacts, createdOf } from "../server/amm-view";
@@ -21,11 +22,12 @@ import { loadNames } from "../server/names-load";
 import { isNetworkId, networkOf, type Network } from "../server/networks";
 import { settleNft } from "../server/nft-read";
 import { nftFacts } from "../server/nft-view";
+import { tokenFacts } from "../server/token-view";
 import { txFromIndex, txFromNode, type TransactionSource } from "../server/transaction-view";
 import { isMissingRoute, isNotFound, UpstreamError } from "../server/upstream";
 
-// `/og/{net}/{tx|ledger|account|validator|amendment|amm|nft}/{id}.png` (spec 2, 4, 9; validators spec 8; AMM spec 5.2; NFT spec 10): the link-preview image of a transaction, a
-// ledger, an account, a validator, an amendment, an AMM pool or an NFT, 1200 × 630, drawn on the first request and kept by the edge. A resource route at the top
+// `/og/{net}/{tx|ledger|account|validator|amendment|amm|nft|token}/{id}.png` (spec 2, 4, 9; validators spec 8; AMM spec 5.2; NFT spec 10; token pages spec 7.2): the link-preview image of a
+// transaction, a ledger, an account, a validator, an amendment, an AMM pool, an NFT or an issued token, 1200 × 630, drawn on the first request and kept by the edge. A resource route at the top
 // level: no layout, no HTML.
 //
 // - A URL with a query string is a 302 to the bare path (class `immutable`), before anything else: no call, nothing drawn, and no
@@ -58,6 +60,11 @@ import { isMissingRoute, isNotFound, UpstreamError } from "../server/upstream";
 //   whose owner the node could not tell is drawn without it and is `short`, to be tried again soon. The index and the node both saying there is none is the 404 (a node that is not Clio
 //   says so with `unknownCmd`); every other failure of the index, a 400 and a `Cannot GET` (an API without D3) included, or of the node while the index has none, is a 503 and never a
 //   stored 404. It is a 404 of class `short`, before any call, while `NFTS` is off and for an id that is not 64 hex digits; an id in another case is a 302.
+// - An issued token (token pages spec 7.2) is drawn from the page's own call #1 alone (`api.token`, the same key, so the page and its image share the answer): never the node, the holders, the
+//   transfers or the pools. The id is read as the token page reads its `{token}` (`parseTokenPath`): another spelling is a 302 (`immutable`, no call) to the canonical image, and the native
+//   currency, an LP token (its page is its pool's) and anything that names no token are 404s of class `short`, as is the whole kind while `TOKENS` is off, all before any call. Its card holds
+//   its holders and its supply, so it is class `slow`. The index's own `token not found` is the 404 (class `short`); every other failure, a 400 and a `Cannot GET` (an API without D6) included, is a
+//   503 that is never stored.
 // - A "not found" (the API's and the node's) is a 404 of class `short`. A failure of an upstream that leaves the question open, and a
 //   card the renderer cannot draw, is a 503 with `Retry-After` that is never stored; the Worker's entry answers it with a stored copy
 //   of the image if there is one, however old. A 400 of the data API for an id the route has checked is such a failure too (the API's
@@ -164,6 +171,8 @@ export async function loader({ params, request, context }: LoaderFunctionArgs) {
       return ammImage(context, network, id, request);
     case "nft":
       return nftImage(context, network, id, request);
+    case "token":
+      return tokenImage(context, network, id, request);
     default:
       return notFound();
   }
@@ -369,4 +378,26 @@ async function nftImage(context: LoaderFunctionArgs["context"], network: Network
   const ownerFailed = mode === "indexed-owner-unknown" && fromNode?.status === "rejected" && !isNotFound(fromNode.reason);
   if (ownerFailed) logProblem("an NFT's link-preview image left out its owner", fromNode.reason, request);
   return image(card, request, ownerFailed ? "short" : "slow");
+}
+
+// ---- An issued token -----------------------------------------------------------------------------------------------------------------
+
+async function tokenImage(context: LoaderFunctionArgs["context"], network: Network, id: string, request: Request) {
+  // Off is a 404 before the id is read, as the pages' are.
+  if (!network.features.tokens) return notFound();
+  const path = parseTokenPath(network, id);
+  // The native currency, an LP token (its page is its pool's: there is no image of it) and what names no token are one 404, before any call.
+  if (path.kind !== "token") return notFound();
+  if (path.canonical !== id) return permanent(`/og/${network.id}/token/${encodeURIComponent(path.canonical)}.png`);
+
+  const { api } = clientsFor(context, network);
+  let answer;
+  try {
+    answer = await api.token(path.asset);
+  } catch (err) {
+    // The token page's #1, under its key, and the only call: its own `token not found` is the 404, everything else (a 400, a `Cannot GET`) leaves the question open and is a 503, never stored.
+    if (!isNotFound(err)) logProblem("a token's link-preview image could not read the token", err, request);
+    return indexOnlyFailure(err);
+  }
+  return image(tokenCard(tokenFacts(network, answer.token, false), network), request, "slow");
 }

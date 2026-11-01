@@ -1,5 +1,5 @@
-// The words and numbers of a link-preview image (spec 9, the LinkPreview board; validators spec 8; AMM spec 5.2; NFT spec 10): a transaction, a ledger, an account, a
-// validator, an amendment, an AMM pool or an NFT, from the same facts the page's tags are made of, so a link's text and its picture never disagree. Pure;
+// The words and numbers of a link-preview image (spec 9, the LinkPreview board; validators spec 8; AMM spec 5.2; NFT spec 10; token pages spec 7.2): a transaction, a ledger, an account, a
+// validator, an amendment, an AMM pool, an NFT or an issued token, from the same facts the page's tags are made of, so a link's text and its picture never disagree. Pure;
 // app/og/card.tsx draws what this returns.
 
 import { describe, headlineAmount, type FlowAmount } from "../domain/describe";
@@ -15,6 +15,7 @@ import type { LedgerFacts } from "./meta-ledger";
 import { movement, type TxFacts } from "./meta-transaction";
 import type { Network } from "./networks";
 import type { NftFacts } from "./nft-view";
+import type { TokenMetaFacts } from "./token-view";
 import { plainText, type TransactionPageData, type TransactionSource } from "./transaction-view";
 import { amendmentStatusView, count, versionText } from "./validator-facts";
 
@@ -312,5 +313,26 @@ export function nftCard(facts: NftCardFacts, network: NetworkBrief): CardData {
     note: facts.note,
     footer: [{ text: facts.footer ?? `${kind} on ${network.name}` }],
     footerEnd: facts.collection,
+  };
+}
+
+/** The most characters of a domain the footer of a token's card says: the issuer writes it, and a longer one would run off the card. */
+const DOMAIN_MAX = 50;
+
+/**
+ * The card of an issued token (token pages spec 7.2), made of the facts the page's tags are (`tokenFacts`), so a link's text and its picture agree: the kind "Issued token"; the toml's name
+ * for the headline in the text font, else the code in mono; the issuer's whole account under it; the note "{holders} holders · supply {supply} {CODE}" ("1 holder" for one); and the footer,
+ * "Listed in {domain}'s toml" for a token its issuer's toml lists, else "Issued token on {network}". Every figure is the facts' own text: none is worked out here.
+ */
+export function tokenCard(facts: TokenMetaFacts, network: NetworkBrief): CardData {
+  const holders = facts.holders === "1" ? "1 holder" : `${facts.holders} holders`;
+  return {
+    network: network.id,
+    networkLabel: labelOf(network),
+    kind: "Issued token",
+    headline: facts.name === undefined ? { text: facts.code, mono: true } : { text: facts.name, mono: false },
+    parties: [facts.issuer],
+    note: `${holders} · supply ${facts.supply} ${facts.code}`,
+    footer: [{ text: facts.listedBy === undefined ? `Issued token on ${network.name}` : `Listed in ${clip(facts.listedBy, DOMAIN_MAX)}'s toml` }],
   };
 }

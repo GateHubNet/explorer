@@ -152,6 +152,40 @@ describe("the places that link a token with TOKENS off (E11 spec 5.2)", () => {
   });
 });
 
+describe("the link-preview image of a token with TOKENS off (E11 spec 7.2)", () => {
+  const RLUSD = "RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De";
+
+  // Every id is the same 404 of class short, made before the id is read and before any call: another spelling, an LP token, the native currency and what names no token do not redirect or differ.
+  it.each([
+    [`/og/xrpl/token/${RLUSD}.png`],
+    ["/og/xrpl/token/usd.rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B.png"],
+    ["/og/xrpl/token/03ABABABABABABABABABABABABABABABABABABAB.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De.png"],
+    ["/og/xrpl/token/XRP.png"],
+    ["/og/xrpl/token/hello.png"],
+    ["/og/xahau/token/EVR.rEvernodee8dJLaFsujS6q1EiXvZYmHXr8.png"],
+  ])("answers %s with a 404 of class short, no image and no call", async (path) => {
+    mock = mockUpstream(path.startsWith("/og/xahau") ? "xahau" : "xrpl");
+    const response = await get(path);
+    const body = await response.arrayBuffer();
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Content-Type")).not.toBe("image/png");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
+    expect(new TextDecoder().decode(body)).toContain("There is no such image.");
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs(path)).toEqual(SHORT);
+  });
+
+  it("is the 404 whatever the query: a query string is still a redirect to the bare path (class immutable), and the bare path is the 404", async () => {
+    mock = mockUpstream("xrpl");
+    const response = await get(`/og/xrpl/token/${RLUSD}.png?x=1`);
+    await response.arrayBuffer();
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`/og/xrpl/token/${RLUSD}.png`);
+    expect(mock.requests).toEqual([]);
+  });
+});
+
 describe("search with TOKENS off (E11 spec 5.3)", () => {
   const BITSTAMP = "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B";
   const POOL = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";

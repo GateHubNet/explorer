@@ -17,11 +17,13 @@ import { expectDegraded } from "../support/nft-pages";
 import { nftAnswerSample, nftSample } from "../support/nft-samples";
 import { decodePng, hex, pngSize } from "../support/png";
 import { pageClient } from "../support/pages";
+import { tokenCase } from "../support/token-cases";
+import { tokenDetailSample, tokenSample } from "../support/token-samples";
 import { dataApiError, mockUpstream, nodeError, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
 import { amendmentCall, validatorCall } from "../support/validators-calls";
 import { amendmentCase, fixtureValidator, validatorCase } from "../support/validators-cases";
 
-// The link-preview images, `/og/{net}/{tx|ledger|account|validator|amendment|amm}/{id}.png` (spec 2, 9; validators spec 8; AMM spec 5.2), on the real Worker against the
+// The link-preview images, `/og/{net}/{tx|ledger|account|validator|amendment|amm|nft|token}/{id}.png` (spec 2, 9; validators spec 8; AMM spec 5.2; NFT spec 10; token pages spec 7.2), on the real Worker against the
 // recorded answers of the data API and the nodes (test/fixtures/http/), and the generated D1 and AMM answers for validators, amendments and pools. The image is drawn by workers-og (Satori and resvg-wasm) with the bundled Geist fonts;
 // its layout is tested in app/og/card.test.ts, here it is the answers: what is a PNG of 1200 × 630, in which cache class, from which
 // upstream, and what is a 404 or a 503.
@@ -97,6 +99,22 @@ const nftOf = (n: number) => `00081388${"0".repeat(48)}${n.toString(16).toUpperC
 /** The index's answer for an NFT made up for a test: the sample held by its owner, with the keys `over` replaces. */
 const nftAnswer = (id: string, over: Partial<Nft> = {}) => nftAnswerSample({ nft: nftSample({ nft_id: id, ...over }) });
 const UNOWNED_NFT: Partial<Nft> = { owner: undefined, owner_since: undefined, sale_count: 0, last_sale: undefined };
+
+// The tokens of the fixtures (test/fixtures/http/*/data-api/tokens/): what the image reads of one is call #1 of its page, `GET /v2/tokens/{currency}.{issuer}`, alone. A test of a failure, or of a
+// card whose facts the fixtures do not have, takes a token made up for it (`madeUp`) with the index's answer given as an override. What the data API's client keeps stays for the rest of the file, so each test has a token of its own.
+const TOKEN_RLUSD = await tokenCase("xrpl", "rlusd");
+const TOKEN_USD = await tokenCase("xrpl", "usd");
+const TOKEN_LIONS = await tokenCase("xrpl", "lions");
+const TOKEN_LP = await tokenCase("xrpl", "lp");
+const TOKEN_EVR = await tokenCase("xahau", "evr");
+type TokenAsset = { currency: string; issuer: string };
+const tokenCall = (token: TokenAsset) => `GET /v2/tokens/${token.currency}.${token.issuer}`;
+/** A token of a 3-character code and an issuer that no recording has, one to a test (`T1A`, `T2A`, ...): its canonical segment is `T1A.{issuer}`. */
+const madeUp = (n: number): TokenAsset & { path: string } => {
+  const currency = `T${n}A`;
+  const issuer = encodeAccountID(new Uint8Array(20).fill(0x70 + n));
+  return { currency, issuer, path: `${currency}.${issuer}` };
+};
 
 /** A valid address that no recording has: 20 bytes of `n`. */
 const account = (n: number) => encodeAccountID(new Uint8Array(20).fill(n));
@@ -576,6 +594,71 @@ describe("when an upstream fails for an NFT", () => {
   });
 });
 
+// A token's image (token pages spec 7.2) asks #1, the token, and nothing else: the page's own key, never the node. A failure of the data API leaves the question open, so it is a 503 that is never
+// stored: a 400 for an id the route has checked, a "Cannot GET" of an API without D6 and an answer for another token included. Only its own `token not found` is a 404. Each test takes a token of its own.
+describe("when an upstream fails for a token", () => {
+  let drawing: MockInstance<typeof render.renderCard>;
+  let errors: MockInstance<typeof console.error>;
+  beforeEach(() => {
+    drawing = vi.spyOn(render, "renderCard");
+    errors = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    drawing.mockRestore();
+    vi.restoreAllMocks();
+  });
+
+  it("answers 503 with Retry-After when the index fails for the token, draws nothing, asks no node, stores nothing, and tells what happened", async () => {
+    const token = madeUp(1);
+    const path = `/og/xrpl/token/${token.path}.png`;
+    mock = mockUpstream("xrpl", { [tokenCall(token)]: () => dataApiError(503, "unavailable") });
+    const { response } = await image(path);
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBeTruthy();
+    expect(response.headers.get("Content-Type")).not.toBe("image/png");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
+    expect(statusesOf(mock, tokenCall(token))).toEqual([503]);
+    expect(keys(mock)).toEqual([`xrpl ${tokenCall(token)}`]);
+    expect(drawing).not.toHaveBeenCalled();
+    expect(await isStored(path)).toBe(false);
+    const logged = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes("a token's link-preview image could not read the token"));
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toContain(path);
+  });
+
+  it.each([
+    [2, "the data API is limiting us", () => dataApiError(429, "slow down", { "Retry-After": "7" })],
+    [3, "the data API refuses an id the route has checked (a 400 is its fault, not a missing image)", () => dataApiError(400, "invalid token")],
+    [4, "the data API is one without D6 (Cannot GET)", null],
+    [5, "the data API answers something that is no token", () => new Response("<html></html>", { status: 200, headers: { "Content-Type": "text/html" } })],
+    // A 200 for another token than the one asked for: the client refuses it (`checkToken` compares the currency and the issuer strictly), so the card is never of the wrong token.
+    [6, "the data API answers for another token", (token: TokenAsset) => tokenSample({ token: tokenDetailSample({ currency: "ZZZ", code: "ZZZ", issuer: token.issuer }) })],
+  ])("answers 503 when %s, never a 404, asks no node and stores nothing", async (n, _what, answer) => {
+    const token = madeUp(n);
+    const path = `/og/xrpl/token/${token.path}.png`;
+    const failing = answer === null ? dataApiError(404, `Cannot GET /v2/tokens/${token.path}`) : typeof answer === "function" ? answer(token) : answer;
+    mock = mockUpstream("xrpl", { [tokenCall(token)]: failing });
+    const { response } = await image(path);
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBeTruthy();
+    expect(response.headers.get("Content-Type")).not.toBe("image/png");
+    expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+    expect(drawing).not.toHaveBeenCalled();
+    expect(await isStored(path)).toBe(false);
+  });
+
+  it("asks again the next time: a failure is not remembered", async () => {
+    const token = madeUp(7);
+    const path = `/og/xrpl/token/${token.path}.png`;
+    mock = mockUpstream("xrpl", { [tokenCall(token)]: () => dataApiError(500, "boom") });
+    expect((await image(path)).response.status).toBe(503);
+    expect((await image(path)).response.status).toBe(503);
+    expect(statusesOf(mock, tokenCall(token))).toEqual([500, 500]);
+  });
+});
+
 // A card the renderer cannot draw is an outage of this answer, not a missing image: the same 503 as a failing upstream.
 describe("when the card cannot be drawn", () => {
   it("answers 503 with Retry-After, stores nothing, and logs what happened", async () => {
@@ -769,7 +852,7 @@ describe("an id that is not one", () => {
   it.each([
     ["a network that does not exist", "/og/bitcoin/tx/" + PAYMENT + ".png"],
     ["a network in upper case", "/og/XRPL/tx/" + PAYMENT + ".png"],
-    ["a kind that does not exist", "/og/xrpl/token/" + PAYMENT + ".png"],
+    ["a kind that does not exist", "/og/xrpl/payment/" + PAYMENT + ".png"],
     ["a transaction id that is not 64 hex digits", "/og/xrpl/tx/ABC123.png"],
     ["a transaction id of 63 digits", `/og/xrpl/tx/${PAYMENT.slice(1)}.png`],
     ["a CTID in place of a hash", "/og/xrpl/tx/C0000001000A0000.png"],
@@ -799,6 +882,16 @@ describe("an id that is not one", () => {
     ["an NFT id with a non-hex letter", `/og/xrpl/nft/${"G".repeat(64)}.png`],
     ["a CTID in place of an NFT id", "/og/xrpl/nft/C0000001000A0000.png"],
     ["a transaction hash with a sign in place of an NFT id", `/og/xrpl/nft/-${PAYMENT.slice(1)}.png`],
+    ["a token that is a hash", `/og/xrpl/token/${PAYMENT}.png`],
+    ["a token that is an address with no code", `/og/xrpl/token/${TOKEN_RLUSD.issuer}.png`],
+    ["a token that is a code with no issuer", "/og/xrpl/token/RLUSD.png"],
+    ["a token whose issuer has a wrong checksum", `/og/xrpl/token/RLUSD.${TOKEN_RLUSD.issuer.slice(0, -1)}x.png`],
+    ["a token whose issuer is an X-address", "/og/xrpl/token/RLUSD.XVMgJSRJAMekfCw3mHHsRUbqYqWuZ26KqXMt3GKX2eENgJ9.png"],
+    ["a token with three parts", `/og/xrpl/token/RLUSD.USD.${TOKEN_RLUSD.issuer}.png`],
+    ["the native currency alone, which is no token", "/og/xrpl/token/XRP.png"],
+    ["the native currency with an issuer, which is no token's code", `/og/xrpl/token/XRP.${TOKEN_RLUSD.issuer}.png`],
+    ["an AMM pool's LP token, whose page is the pool's", `/og/xrpl/token/${TOKEN_LP.path}.png`],
+    ["the native currency with an issuer, spelled with a plus", `/og/xrpl/token/xrp+${TOKEN_RLUSD.issuer}.png`],
   ])("is a 404 of class short without asking anyone: %s", async (_what, path) => {
     mock = mockUpstream("xrpl");
     const { response } = await image(path);
@@ -1827,6 +1920,210 @@ describe("an NFT", () => {
     const response = (await ogLoader({
       request: new Request(`https://explorer.test/og/xrpl/nft/${NFT_FEATURED.id}.png`),
       params: { net: "xrpl", kind: "nft", id: NFT_FEATURED.id },
+      context: off,
+    } as never)) as Response;
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("X-Cache-Class")).toBe("short");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
+    expect(mock.requests).toEqual([]);
+    expect(drawing).not.toHaveBeenCalled();
+  });
+});
+
+// A token's image (token pages spec 7.2): the page's own call #1, alone, and the card made of the facts of the page's tags (`tokenFacts`). Class `slow`: its figures change. It is a 404 of class
+// `short`, before any call, while `TOKENS` is off (tokens-off.spec.ts) and for an id the token page would not read; another spelling of a token is a 302 to the canonical image.
+describe("a token", () => {
+  let drawing: MockInstance<typeof render.renderCard>;
+  beforeEach(() => {
+    drawing = vi.spyOn(render, "renderCard");
+  });
+  afterEach(() => {
+    drawing.mockRestore();
+  });
+
+  it("is a PNG of 1200 × 630, class slow, from the index alone: the token's own call, never the node; the card is the page's own facts", async () => {
+    const path = `/og/xrpl/token/${TOKEN_RLUSD.path}.png`;
+    mock = mockUpstream("xrpl");
+    const first = await image(path);
+
+    expectPng(first);
+    expect(first.response.headers.get("Cache-Control")).toBe("max-age=300");
+    expect(first.response.headers.get("X-Robots-Tag")).toBe("noindex");
+    expect(first.response.headers.get("X-Cache")).toBe("MISS");
+    expect(await storedAs(path)).toEqual(SLOW);
+    // One call, the page's #1 under its key: the holders, the transfers, the pools and the issuer's settings are not an image's business.
+    expect(keys(mock)).toEqual([`xrpl ${tokenCall(TOKEN_RLUSD)}`]);
+
+    // The toml's name for the headline, the issuer in full, the holders and the supply as the page's tags have them, the domain that lists it.
+    expect(drawing).toHaveBeenCalledTimes(1);
+    expect(drawing.mock.calls[0]![0]).toEqual({
+      network: "xrpl",
+      networkLabel: "XRPL mainnet",
+      kind: "Issued token",
+      headline: { text: "Ripple USD", mono: false },
+      parties: [TOKEN_RLUSD.issuer],
+      note: "96 holders · supply 21.9M RLUSD",
+      footer: [{ text: "Listed in ripple.com's toml" }],
+    });
+
+    // The same card again from the edge cache: nothing drawn, nothing asked.
+    const again = await image(path);
+    expect(again.response.headers.get("X-Cache")).toBe("HIT");
+    expect(again.bytes).toEqual(first.bytes);
+    expect(drawing).toHaveBeenCalledTimes(1);
+    expect(mock.requests.length).toBe(1);
+  });
+
+  it("is drawn in XRPL's accent, with text on it", async () => {
+    mock = mockUpstream("xrpl");
+    const png = await decodePng((await image(`/og/xrpl/token/${TOKEN_RLUSD.path}.png`)).bytes);
+    expect(hex(png.pixel(600, 4))).toBe("#0A6CF1");
+    expect(hex(png.pixel(10, 300))).toBe("#FFFFFF");
+    let dark = 0;
+    for (let y = 200; y < 420; y += 2) for (let x = 60; x < 1140; x += 2) if (png.pixel(x, y)[0]! < 80) dark += 1;
+    expect(dark).toBeGreaterThan(300);
+  });
+
+  it("is the code in mono and the network in the footer for a token its issuer's toml does not list", async () => {
+    mock = mockUpstream("xrpl");
+    const path = `/og/xrpl/token/${TOKEN_USD.path}.png`;
+    const answer = await image(path);
+
+    expectPng(answer);
+    expect(await storedAs(path)).toEqual(SLOW);
+    expect(keys(mock)).toEqual([`xrpl ${tokenCall(TOKEN_USD)}`]);
+    expect(drawing.mock.calls[0]![0]).toEqual({
+      network: "xrpl",
+      networkLabel: "XRPL mainnet",
+      kind: "Issued token",
+      headline: { text: "USD", mono: true },
+      parties: [TOKEN_USD.issuer],
+      note: "72 holders · supply 8.06M USD",
+      footer: [{ text: "Issued token on XRPL" }],
+    });
+  });
+
+  it("is Xahau's card on Xahau, in Xahau's accent, asked of Xahau's data API", async () => {
+    mock = mockUpstream("xahau");
+    const path = `/og/xahau/token/${TOKEN_EVR.path}.png`;
+    const answer = await image(path);
+
+    expectPng(answer);
+    expect(await storedAs(path)).toEqual(SLOW);
+    expect(keys(mock)).toEqual([`xahau ${tokenCall(TOKEN_EVR)}`]);
+    expect(drawing.mock.calls[0]![0]).toMatchObject({
+      network: "xahau",
+      networkLabel: "Xahau mainnet",
+      kind: "Issued token",
+      headline: { text: "Evernode", mono: false },
+      parties: [TOKEN_EVR.issuer],
+      note: "88 holders · supply 16.3M EVR",
+      footer: [{ text: "Listed in evernode.org's toml" }],
+    });
+    expect(hex((await decodePng(answer.bytes)).pixel(600, 4))).toBe("#B45309");
+  });
+
+  it("is a different card for a different token", async () => {
+    mock = mockUpstream("xrpl");
+    const rlusd = await image(`/og/xrpl/token/${TOKEN_RLUSD.path}.png`);
+    const usd = await image(`/og/xrpl/token/${TOKEN_USD.path}.png`);
+    expect(usd.bytes).not.toEqual(rlusd.bytes);
+  });
+
+  it("is drawn for a name that holds emoji, a script Geist lacks and more than a card has room for: never a 503 that a visitor would meet on every try", async () => {
+    const token = madeUp(8);
+    const path = `/og/xrpl/token/${token.path}.png`;
+    const name = `🔥 火 ${"Long name ".repeat(30)}`;
+    const detail = tokenDetailSample({ currency: token.currency, code: token.currency, issuer: token.issuer, domain: `${"d".repeat(120)}.example`, toml: { name } });
+    mock = mockUpstream("xrpl", { [tokenCall(token)]: tokenSample({ token: detail }) });
+    const answer = await image(path);
+
+    expectPng(answer);
+    expect(await storedAs(path)).toEqual(SLOW);
+    const [card] = drawing.mock.calls[0]!;
+    expect(card.headline.text).toBe(name);
+    expect(card.footer[0]!.text).toMatch(/^Listed in d{49}…'s toml$/);
+  });
+
+  it("says holder of a token with one holder, and is drawn", async () => {
+    const token = madeUp(9);
+    mock = mockUpstream("xrpl", { [tokenCall(token)]: tokenSample({ token: tokenDetailSample({ currency: token.currency, code: token.currency, issuer: token.issuer, holders: 1, toml: undefined, listed: false }) }) });
+    const answer = await image(`/og/xrpl/token/${token.path}.png`);
+
+    expectPng(answer);
+    expect(drawing.mock.calls[0]![0].note).toBe("1 holder · supply 7,320 T9A");
+  });
+
+  it.each([
+    ["a code in lower case", "usd.rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B", `/og/xrpl/token/${TOKEN_USD.path}.png`],
+    ["a plus for the dot", "usd+rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B", `/og/xrpl/token/${TOKEN_USD.path}.png`],
+    ["the 40 hex digits of a text code", `${TOKEN_RLUSD.currency}.${TOKEN_RLUSD.issuer}`, `/og/xrpl/token/${TOKEN_RLUSD.path}.png`],
+    ["the 40 hex digits of a text code in lower case", `${TOKEN_RLUSD.currency.toLowerCase()}.${TOKEN_RLUSD.issuer}`, `/og/xrpl/token/${TOKEN_RLUSD.path}.png`],
+    ["the ledger's own hex of a standard code", `${"0".repeat(24)}555344${"0".repeat(10)}.${TOKEN_USD.issuer}`, `/og/xrpl/token/${TOKEN_USD.path}.png`],
+  ])("redirects %s to the canonical image, for good, without asking anyone or drawing", async (_what, id, location) => {
+    mock = mockUpstream("xrpl");
+    const path = `/og/xrpl/token/${id}.png`;
+    const response = await get(path);
+    await response.arrayBuffer();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(location);
+    expect(mock.requests).toEqual([]);
+    expect(drawing).not.toHaveBeenCalled();
+    expect(await storedAs(path)).toEqual(IMMUTABLE);
+  });
+
+  it("is followed from another spelling to the image", async () => {
+    mock = mockUpstream("xrpl");
+    // LIONS's 40 hex digits in lower case: the token no earlier test has asked for, so that the image is drawn here and the call is seen.
+    const redirect = await get(`/og/xrpl/token/${TOKEN_LIONS.currency.toLowerCase()}.${TOKEN_LIONS.issuer}.png`);
+    await redirect.arrayBuffer();
+    expect(redirect.headers.get("Location")).toBe(`/og/xrpl/token/${TOKEN_LIONS.path}.png`);
+    const followed = await image(redirect.headers.get("Location")!);
+    expectPng(followed);
+    expect(keys(mock)).toEqual([`xrpl ${tokenCall(TOKEN_LIONS)}`]);
+  });
+
+  it("takes a text code for its bytes: rlusd is another token than RLUSD, and the index says it has none", async () => {
+    const issuer = TOKEN_RLUSD.issuer;
+    const path = `/og/xrpl/token/rlusd.${issuer}.png`;
+    mock = mockUpstream("xrpl");
+    const { response } = await image(path);
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Content-Type")).not.toBe("image/png");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
+    // Asked once, under the currency of the text `rlusd` (its bytes, in hex), and not redirected to RLUSD.
+    const bytes = `GET /v2/tokens/726C757364${"0".repeat(30)}.${issuer}`;
+    expect(keys(mock)).toEqual([`xrpl ${bytes}`]);
+    expect(statusesOf(mock, bytes)).toEqual([404]);
+    expect(drawing).not.toHaveBeenCalled();
+    expect(await storedAs(path)).toEqual(SHORT);
+  });
+
+  it("is a 404 of class short when the index says token not found, drawn nothing, the node not asked", async () => {
+    const token = madeUp(3);
+    const path = `/og/xrpl/token/${token.path}.png`;
+    mock = mockUpstream("xrpl", { [tokenCall(token)]: dataApiError(404, "token not found") });
+    const { response } = await image(path);
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Content-Type")).not.toBe("image/png");
+    expect(response.headers.get("Cache-Control")).toBe("max-age=0");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
+    expect(keys(mock)).toEqual([`xrpl ${tokenCall(token)}`]);
+    expect(drawing).not.toHaveBeenCalled();
+    expect(await storedAs(path)).toEqual(SHORT);
+  });
+
+  it("is a 404 of class short, with no call, whenever TOKENS is off: the route reads the switch of its environment", async () => {
+    mock = mockUpstream("xrpl");
+    const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
+    const off = createLoadContext({ ...(env as unknown as Env), TOKENS: "off" }, ctx);
+    const response = (await ogLoader({
+      request: new Request(`https://explorer.test/og/xrpl/token/${TOKEN_RLUSD.path}.png`),
+      params: { net: "xrpl", kind: "token", id: TOKEN_RLUSD.path },
       context: off,
     } as never)) as Response;
 

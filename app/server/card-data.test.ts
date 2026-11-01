@@ -5,10 +5,12 @@ import { shortHash } from "../domain/format";
 import type { NameView } from "../domain/names";
 import { AMM_POOL, ammLiquiditySample, ammPoolSample } from "../../test/support/amm-samples";
 import { AMM_ID, amendmentDetailSample, SAMPLE_KEYS, UNKNOWN_ID, validatorDetailSample, XCB_ID } from "../../test/support/d1-samples";
+import { TOKEN_SAMPLE_ISSUER, tokenDetailSample } from "../../test/support/token-samples";
 import { ammPoolFacts, type AmmPoolFacts } from "./amm-view";
 import { type NftFacts } from "./nft-view";
+import { tokenFacts, type TokenMetaFacts } from "./token-view";
 import type { AmendmentDetail, ValidatorDetail } from "./api-types";
-import { accountCard, amendmentCard, formatCardTime, ledgerCard, nftCard, nftCardFacts, poolCard, transactionCard, transactionFacts, validatorCard, type NftCardFacts } from "./card-data";
+import { accountCard, amendmentCard, formatCardTime, ledgerCard, nftCard, nftCardFacts, poolCard, tokenCard, transactionCard, transactionFacts, validatorCard, type NftCardFacts } from "./card-data";
 
 // What the link-preview image says (spec 9, the LinkPreview board): the words and numbers of the card for a transaction, a ledger and an
 // account, from the same facts the page's tags are built from. The layout is app/og/card.test.ts; the PNG is test/worker/og.spec.ts.
@@ -606,6 +608,80 @@ describe("nftCardFacts", () => {
   });
 });
 
+// ---- A token ---------------------------------------------------------------------------------------------------------------------------
+
+describe("tokenCard", () => {
+  /** What the page's tags are made of (`tokenFacts`): RLUSD with its toml's name, listed by ripple.com, 120 holders and a supply of 7,320. */
+  const facts = (over: Partial<TokenMetaFacts> = {}): TokenMetaFacts => ({ ...tokenFacts({ id: "xrpl" }, tokenDetailSample(), false), ...over });
+  /** The same token as an index that has no toml for it says it: no name, and no domain that lists it. */
+  const unlisted = (): TokenMetaFacts => tokenFacts({ id: "xrpl" }, tokenDetailSample({ toml: undefined, listed: false }), false);
+
+  it("is the board of a listed token: the kind, the toml's name in the text font, the issuer's whole account, the holders and the supply, the domain that lists it", () => {
+    expect(tokenCard(facts(), XRPL)).toEqual({
+      network: "xrpl",
+      networkLabel: "XRPL mainnet",
+      kind: "Issued token",
+      headline: { text: "Ripple USD", mono: false },
+      parties: [TOKEN_SAMPLE_ISSUER],
+      note: "120 holders · supply 7,320 RLUSD",
+      footer: [{ text: "Listed in ripple.com's toml" }],
+    });
+  });
+
+  it("is headed by the code in mono when there is no name, and names the network where no toml lists the token", () => {
+    const card = tokenCard(unlisted(), XRPL);
+    expect(card.headline).toEqual({ text: "RLUSD", mono: true });
+    expect(card.footer).toEqual([{ text: "Issued token on XRPL" }]);
+    expect(card.parties).toEqual([TOKEN_SAMPLE_ISSUER]);
+    expect(card.note).toBe("120 holders · supply 7,320 RLUSD");
+  });
+
+  it("names the network, not the domain, for a token with a domain that its toml does not list", () => {
+    // The facts say `listedBy` only for a token the issuer's toml lists; an issuer's domain alone is not that.
+    const withDomain = tokenFacts({ id: "xrpl" }, tokenDetailSample({ listed: false }), false);
+    expect(withDomain.listedBy).toBeUndefined();
+    expect(tokenCard(withDomain, XRPL).footer).toEqual([{ text: "Issued token on XRPL" }]);
+    // And a name without a listing (a toml that names the token but is not listed) still heads the card.
+    expect(tokenCard(withDomain, XRPL).headline).toEqual({ text: "Ripple USD", mono: false });
+  });
+
+  it("says holder, not holders, of a token with one, groups the thousands as the page does, and reads the supply as a compact figure", () => {
+    expect(tokenCard(facts({ holders: "1" }), XRPL).note).toBe("1 holder · supply 7,320 RLUSD");
+    expect(tokenCard(facts({ holders: "0" }), XRPL).note).toBe("0 holders · supply 7,320 RLUSD");
+    expect(tokenCard(facts({ holders: "12,345", supply: "21.9M", code: "EUR" }), XRPL).note).toBe("12,345 holders · supply 21.9M EUR");
+  });
+
+  it("is the card of a code that decodes to no text: the first eight digits and an ellipsis, as the page says it", () => {
+    const odd = tokenFacts({ id: "xrpl" }, tokenDetailSample({ currency: "ABCDEF0123456789ABCDEF0123456789ABCDEF01", code: "ABCDEF01…", toml: undefined, listed: false }), false);
+    expect(tokenCard(odd, XRPL).headline).toEqual({ text: "ABCDEF01…", mono: true });
+    expect(tokenCard(odd, XRPL).note).toContain("supply 7,320 ABCDEF01…");
+  });
+
+  it("is Xahau's: its accent, its label and its name where the footer names the network", () => {
+    const card = tokenCard(tokenFacts({ id: "xahau" }, tokenDetailSample({ toml: undefined, listed: false }), false), XAHAU);
+    expect(card.network).toBe("xahau");
+    expect(card.networkLabel).toBe("Xahau mainnet");
+    expect(card.footer).toEqual([{ text: "Issued token on Xahau" }]);
+    expect(tokenCard(unlisted(), XAHAU_TESTNET).footer).toEqual([{ text: "Issued token on Xahau Testnet" }]);
+  });
+
+  it("cuts a domain that runs on (the issuer writes it) so that the footer stays on the card, and leaves a reasonable one whole", () => {
+    const long = `${"a".repeat(80)}.example`;
+    const card = tokenCard(facts({ listedBy: long }), XRPL);
+    expect(card.footer).toHaveLength(1);
+    const text = card.footer[0]!.text;
+    expect(text).toBe(`Listed in ${"a".repeat(49)}…'s toml`);
+    expect(Array.from(text).length).toBeLessThanOrEqual(70);
+    expect(tokenCard(facts({ listedBy: "a".repeat(50) }), XRPL).footer[0]!.text).toBe(`Listed in ${"a".repeat(50)}'s toml`);
+  });
+
+  it("has a card with no status, no note of its own beyond the figures and no end to the footer", () => {
+    const card = tokenCard(facts(), XRPL);
+    expect("status" in card).toBe(false);
+    expect("footerEnd" in card).toBe(false);
+  });
+});
+
 // ---- The pill: the network's label, whatever its kind ----------------------------------------------------------------------------------------
 
 describe("the pill of every card", () => {
@@ -618,15 +694,17 @@ describe("the pill of every card", () => {
       amendmentCard(enabledAmm(), { ...network, software: "rippled" }).networkLabel,
       poolCard(poolFacts(), network).networkLabel,
       nftCard({ kind: "nftoken", headline: "#1", collection: "r…", note: "Never sold" }, network).networkLabel,
+      tokenCard(tokenFacts({ id: network.id }, tokenDetailSample(), false), network).networkLabel,
     ];
-    expect(labels(XRPL)).toEqual(Array(7).fill("XRPL mainnet"));
-    expect(labels(XAHAU)).toEqual(Array(7).fill("Xahau mainnet"));
-    expect(labels(XRPL_TESTNET)).toEqual(Array(7).fill("XRPL Testnet"));
-    expect(labels(XAHAU_TESTNET)).toEqual(Array(7).fill("Xahau Testnet"));
+    expect(labels(XRPL)).toEqual(Array(8).fill("XRPL mainnet"));
+    expect(labels(XAHAU)).toEqual(Array(8).fill("Xahau mainnet"));
+    expect(labels(XRPL_TESTNET)).toEqual(Array(8).fill("XRPL Testnet"));
+    expect(labels(XAHAU_TESTNET)).toEqual(Array(8).fill("Xahau Testnet"));
   });
 
   it("says the testnet's name where the footer names the network", () => {
     expect(accountCard(account({ balance: null }), XAHAU_TESTNET).footer).toEqual([{ text: "Account on Xahau Testnet" }]);
     expect(poolCard(poolFacts({ created: undefined }), XRPL_TESTNET).footer).toEqual([{ text: "AMM pool on XRPL Testnet" }]);
+    expect(tokenCard(tokenFacts({ id: "xrpl" }, tokenDetailSample({ toml: undefined, listed: false }), false), XRPL_TESTNET).footer).toEqual([{ text: "Issued token on XRPL Testnet" }]);
   });
 });
