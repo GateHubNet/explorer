@@ -195,6 +195,8 @@ const MORE: PageUnderTest[] = [
       ]),
   { name: "transaction not found", path: `/xrpl/tx/${NO_SUCH_TRANSACTION}`, ready: async (page) => void (await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible()) },
   { name: "search help", path: "/xrpl/search?q=", ready: async (page) => void (await expect(page.getByRole("main")).toBeVisible()) },
+  // A text that is no token: with TOKENS on the help page ends in the link "Look for “RLUSD” among tokens →" (E11 spec 5.3), the one suggestion link of a not-found page; with it off, the help it was.
+  { name: "search help offering the tokens", path: "/xrpl/search?q=RLUSD", ready: async (page) => void (await expect(page.getByRole("main")).toBeVisible()) },
   // The network page in its other forms: a year in USD (weeks, another currency), the other network, every chart as a table, and a slider with
   // its tooltip. (The one with a card that could not be loaded needs the fixture server to fail a call: it is below.)
   { name: "network, a year in USD", path: "/xrpl/network?period=1y&in=usd", ready: networkReady },
