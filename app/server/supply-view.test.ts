@@ -6,7 +6,21 @@ import { describe, expect, it } from "vitest";
 import { bucketStarts } from "../domain/window";
 import type { FeeBucketRow, LastValidated, MintedPage, NetworkSupply, Page } from "./api-types";
 import { TooLate } from "./deadline";
-import { burnedCardOf, mintedCardOf, type BurnedCard, type Failure, type MintedCard } from "./supply-view";
+import {
+  burnedCardOf,
+  captionPercent,
+  compactFigure,
+  mintedCardOf,
+  SUPPLY_STALE_SECONDS,
+  supplyPage,
+  type BurnedCard,
+  type Failure,
+  type MintedCard,
+  type SupplyCards,
+  type SupplyPageData,
+  type SupplyTile,
+  type TileId,
+} from "./supply-view";
 
 // ---- The world of the tests: T is 2026-10-17, the close time of the newest ledger 17:01:12 UTC; the fixtures are the files of Task 2 and E2's fee days ---------------------------------
 
@@ -272,5 +286,389 @@ describe("mintedCardOf", () => {
     expect(mintedCardOf(XAHAU, xahauSupply().minted!, fulfilled({ ...LAST, close_time: "yesterday" }), fulfilled(mintedDays()), bad)).toEqual({ state: "failed", reason: "could not be loaded" });
     expect(bad).toHaveLength(1);
     expect(bad[0]!.part).toBe("minted");
+  });
+});
+
+// ---- Task 5: the snapshot, the bar and the tiles --------------------------------------------------------------------------------------
+
+const xrplSupply = () => read<NetworkSupply>("xrpl", "network/supply.json");
+
+const NET_XRPL = { id: "xrpl", name: "XRPL", native: "XRP", hasAmm: true } as const;
+const NET_XAHAU = { id: "xahau", name: "Xahau", native: "XAH", hasAmm: false } as const;
+const NET_XRPL_TESTNET = { ...NET_XRPL, name: "XRPL Testnet" } as const;
+const NET_XAHAU_TESTNET = { ...NET_XAHAU, name: "Xahau Testnet" } as const;
+
+/** The page of a network over its fixtures, the anchor 17:01:12 UTC of T (`LAST`), the snapshot's own ledger the recorded one. */
+function pageOf(net: "xrpl" | "xahau", over: Partial<NetworkSupply> = {}, cards: Partial<SupplyCards> = {}) {
+  const supply = { ...(net === "xrpl" ? xrplSupply() : xahauSupply()), ...over };
+  return supplyPage(net === "xrpl" ? NET_XRPL : NET_XAHAU, supply, {
+    anchor: fulfilled(LAST),
+    fees: fulfilled(feeDays(net)),
+    ...(net === "xahau" ? { minted: fulfilled(mintedDays()) } : {}),
+    ...cards,
+  });
+}
+const tileOf = (page: SupplyPageData, id: TileId): SupplyTile => page.tiles.find((tile) => tile.id === id)!;
+
+describe("compactFigure and captionPercent", () => {
+  it("formats compact figures and caption percents", () => {
+    expect(
+      ["99985312374.716318", "594995554.799302", "268973.2", "2318.640227", "14687625.283682", "35212847105.402318", "64772465269.314"].map(compactFigure),
+    ).toEqual(["99.99B", "595.00M", "268.97K", "2.32K", "14.69M", "35.21B", "64.77B"]);
+    // Below 1,000: two decimals, zeros kept.
+    expect(["0", "0.5", "14.6", "999.99", "9810004.2"].map(compactFigure)).toEqual(["0.00", "0.50", "14.60", "999.99", "9.81M"]);
+    // A rounding that reaches 1,000 rolls to the next letter, as compactNumber's does, and 1,000 trillion has no letter after T.
+    expect(["999.995", "999995", "999995000", "999995000000", "1000", "999999999999999", "1234567890123456"].map(compactFigure)).toEqual([
+      "1.00K",
+      "1.00M",
+      "1.00B",
+      "1.00T",
+      "1.00K",
+      "1000.00T",
+      "1234.57T",
+    ]);
+    expect(compactFigure("-1500")).toBe("−1.50K");
+    expect(compactFigure("soon")).toBe("soon");
+    expect(
+      [
+        captionPercent("35212847105.402318", "100000000000"),
+        captionPercent("594995554.799302", "613401782.117306"),
+        captionPercent("14687625.283682", "100000000000"),
+        captionPercent("0", "5"),
+        captionPercent("5", "5"),
+        captionPercent("0.05", "100"),
+        captionPercent("0.049", "100"),
+        captionPercent("1", "0"),
+        captionPercent("-1", "5"),
+        captionPercent("x", "5"),
+      ],
+    ).toEqual(["35.2%", "97.0%", "0.0%", "0.0%", "100.0%", "0.1%", "0.0%", "—", "—", "—"]);
+  });
+});
+
+describe("supplyPage: the bar", () => {
+  it.each(["xrpl", "xahau"] as const)("%s: the bar's parts add up to its row total exactly", (net) => {
+    const { page } = pageOf(net);
+    const [row] = page.bar.data.rows;
+    const sum = row!.segments.reduce((total, segment) => total.plus(segment.value), new BigNumber(0));
+    expect(sum.toFixed()).toBe(row!.total);
+    expect(row!.total).toBe(net === "xrpl" ? "100000000000" : "613401782.117306");
+  });
+
+  it("XRPL: segments, captions, shares, the burned sliver line and the bracket's words", () => {
+    const { page, failures } = pageOf("xrpl");
+    expect(failures).toEqual([]);
+    expect(page.bar.title).toBe("Where the 100 billion XRP are");
+    expect(page.bar.text).toBe(
+      "100,000,000,000 XRP were created in the first ledger and no more can be made. Every transaction burns a little as its fee, so the total supply only shrinks.",
+    );
+    expect(page.bar.data.unit).toBe("XRP");
+    expect(page.bar.data.token).toMatch(/^[0-9a-z]+$/);
+    expect(page.bar.data.rows).toEqual([
+      {
+        id: "supply",
+        label: "Supply",
+        total: "100000000000",
+        segments: [
+          { id: "burned", label: "Burned", slot: 2, value: "14687625.283682", caption: "14.69M XRP · 0.0%", share: "0.015% of the 100 billion XRP" },
+          { id: "escrowed", label: "Escrowed", slot: 3, value: "35212847105.402318", caption: "35.21B XRP · 35.2%", share: "35.21% of the 100 billion XRP" },
+          { id: "circulating", label: "Circulating supply", slot: 1, value: "64772465269.314", caption: "64.77B XRP · 64.8%", share: "64.77% of the 100 billion XRP" },
+        ],
+      },
+    ]);
+    expect(page.bar.burned).toEqual([{ b: "Burned 14.69M XRP" }, " · 0.015% of the 100 billion, a sliver at this scale"]);
+    expect(page.bar.part!.start).toBeCloseTo(0.35227534730686, 12);
+    expect(page.bar.part!.text).toEqual([
+      "Part of circulating: ",
+      { b: "46.22M XRP" },
+      " in AMM pools (0.071% of circulating) · ",
+      { b: "9.81M XRP" },
+      " held as account reserves (0.015% of circulating)",
+    ]);
+    expect(page.bar.coverage).toBeNull();
+  });
+
+  it("Xahau has no AMM tile and says \"no AMM on Xahau\"", () => {
+    const { page } = pageOf("xahau");
+    expect(page.bar.title).toBe("Where the XAH are");
+    expect(page.bar.text).toBe(
+      "Xahau has no 100 billion cap: its supply grows by minting, through rewards, Import and GenesisMint, and shrinks a little as fees are burned. The bar is the total supply.",
+    );
+    expect(page.bar.burned).toBeNull();
+    expect(page.bar.data.rows[0]!.segments).toEqual([
+      { id: "escrowed", label: "Escrowed", slot: 3, value: "18406227.318004", caption: "18.41M XAH · 3.0%", share: "3.00% of the total supply" },
+      { id: "circulating", label: "Circulating supply", slot: 1, value: "594995554.799302", caption: "595.00M XAH · 97.0%", share: "97.00% of the total supply" },
+    ]);
+    expect(page.bar.part!.start).toBeCloseTo(18406227.318004 / 613401782.117306, 12);
+    expect(page.bar.part!.text).toEqual(["Part of circulating: ", { b: "268.97K XAH" }, " held as account reserves (0.045% of circulating) · no AMM on Xahau"]);
+    expect(page.tiles.map((tile) => tile.id)).not.toContain("amm");
+  });
+
+  it("leaves a part the answer lacks out of the bracket, and the bracket out when nothing is left", () => {
+    const noReserves = { ...xrplSupply() };
+    delete noReserves.reserves;
+    const only = supplyPage(NET_XRPL, noReserves, { anchor: fulfilled(LAST), fees: fulfilled(feeDays("xrpl")) }).page;
+    expect(only.bar.part!.text).toEqual(["Part of circulating: ", { b: "46.22M XRP" }, " in AMM pools (0.071% of circulating)"]);
+    delete noReserves.amm;
+    const none = supplyPage(NET_XRPL, noReserves, { anchor: fulfilled(LAST), fees: fulfilled(feeDays("xrpl")) }).page;
+    expect(none.bar.part).toBeNull();
+    // Xahau without reserves still says it has no AMM.
+    const xahau = { ...xahauSupply() };
+    delete xahau.reserves;
+    expect(supplyPage(NET_XAHAU, xahau, { anchor: fulfilled(LAST), fees: fulfilled(feeDays("xahau")), minted: fulfilled(mintedDays()) }).page.bar.part!.text).toEqual(["Part of circulating: no AMM on Xahau"]);
+  });
+
+  it("says each coverage that is not complete under the bar", () => {
+    const supply = xrplSupply();
+    const incomplete = { from_ledger_index: 99_413_505, complete: false };
+    const { page } = pageOf("xrpl", { escrowed: { ...supply.escrowed, coverage: incomplete } });
+    expect(page.bar.coverage).toEqual({ before: "Covers ledger ", ledger: 99_413_505, after: " onwards: earlier escrows are not in the index yet." });
+    expect(pageOf("xrpl", { escrowed: { amount: supply.escrowed.amount, escrows: 1 } }).page.bar.coverage).toBeNull();
+  });
+});
+
+describe("supplyPage: the tiles", () => {
+  it("tiles in board order with exact figures and the reserves formula from the answer", () => {
+    const xrpl = pageOf("xrpl").page;
+    expect(xrpl.tiles.map((tile) => tile.id)).toEqual(["total", "burned", "escrowed", "circulating", "amm", "reserves"]);
+    expect(xrpl.tiles.map((tile) => tile.label)).toEqual(["Total supply", "Burned", "Escrowed", "Circulating supply", "In AMM pools", "Account reserves"]);
+    expect(xrpl.tiles.every((tile) => tile.currency === "XRP")).toBe(true);
+    expect(tileOf(xrpl, "total")).toEqual({
+      id: "total",
+      label: "Total supply",
+      whole: "99,985,312,374",
+      fraction: ".716318",
+      currency: "XRP",
+      aside: "≈ 99.99B",
+      formula: "= 100,000,000,000 − burned",
+      definition: "All the XRP that exists: 100 billion XRP less what has been burned.",
+      sub: null,
+      coverage: null,
+    });
+    expect(tileOf(xrpl, "burned")).toMatchObject({ whole: "14,687,625", fraction: ".283682", aside: "≈ 14.69M", formula: null, definition: "XRP destroyed as transaction fees, since the first ledger.", coverage: null });
+    expect(tileOf(xrpl, "escrowed")).toMatchObject({ whole: "35,212,847,105", fraction: ".402318", aside: "≈ 35.21B", sub: "in 12,879 escrows", definition: "XRP held in escrows." });
+    expect(tileOf(xrpl, "circulating")).toMatchObject({ whole: "64,772,465,269", fraction: ".314000", aside: "≈ 64.77B", formula: "= total supply − escrowed", definition: "The total supply less what is escrowed." });
+    expect(tileOf(xrpl, "amm")).toMatchObject({ whole: "46,218,377", fraction: ".402915", aside: "≈ 46.22M", definition: "XRP held by 14,594 AMM pools. Part of the circulating supply." });
+    expect(tileOf(xrpl, "reserves")).toEqual({
+      id: "reserves",
+      label: "Account reserves",
+      whole: "9,810,004",
+      fraction: ".000000",
+      currency: "XRP",
+      aside: "≈ 9.81M",
+      formula: "= 6,410,280 × 1 + 16,998,620 × 0.2",
+      definition: "XRP accounts must keep: 1 XRP each, and 0.2 XRP for every object they own. Part of the circulating supply.",
+      sub: null,
+      coverage: { before: "Covers ledger ", ledger: 28_685_313, after: " onwards: earlier account changes are not in the index yet." },
+    });
+
+    const xahau = pageOf("xahau").page;
+    expect(xahau.tiles.map((tile) => tile.id)).toEqual(["total", "minted", "burned", "escrowed", "circulating", "reserves"]);
+    expect(tileOf(xahau, "total")).toMatchObject({
+      whole: "613,401,782",
+      fraction: ".117306",
+      currency: "XAH",
+      aside: "≈ 613.40M",
+      formula: null,
+      definition: "All the XAH that exists. No 100 billion cap: Xahau's supply grows by minting.",
+    });
+    expect(tileOf(xahau, "minted")).toMatchObject({ label: "Minted, last 90 days", whole: "2,981,418", fraction: ".527222", aside: "≈ 2.98M", definition: "New XAH from rewards, Import and GenesisMint.", sub: null, coverage: null });
+    expect(tileOf(xahau, "burned")).toMatchObject({ whole: "2,318", fraction: ".640227", aside: "≈ 2.32K", definition: "XAH destroyed as transaction fees, since the first ledger." });
+    expect(tileOf(xahau, "escrowed").sub).toBe("in 2,140 escrows");
+    expect(tileOf(xahau, "reserves")).toMatchObject({ whole: "268,973", fraction: ".200000", formula: "= 186,412 × 1 + 412,806 × 0.2", coverage: null });
+  });
+
+  it("takes the base and the increment of the reserves from the answer, never a constant", () => {
+    const reserves = xrplSupply().reserves!;
+    const { page } = pageOf("xrpl", { reserves: { ...reserves, base: "10", increment: "2.5", accounts: 1_234_567, owner_count: 8 } });
+    expect(tileOf(page, "reserves")).toMatchObject({
+      formula: "= 1,234,567 × 10 + 8 × 2.5",
+      definition: "XRP accounts must keep: 10 XRP each, and 2.5 XRP for every object they own. Part of the circulating supply.",
+    });
+  });
+
+  it("says one escrow and one pool in the singular", () => {
+    const supply = xrplSupply();
+    const { page } = pageOf("xrpl", { escrowed: { ...supply.escrowed, escrows: 1 }, amm: { ...supply.amm!, pools: 1 } });
+    expect(tileOf(page, "escrowed").sub).toBe("in 1 escrow");
+    expect(tileOf(page, "amm").definition).toBe("XRP held by 1 AMM pool. Part of the circulating supply.");
+  });
+
+  it("a missing part", () => {
+    const noReserves = xrplSupply();
+    delete noReserves.reserves;
+    delete noReserves.amm;
+    const { page, failures } = supplyPage(NET_XRPL, noReserves, { anchor: fulfilled(LAST), fees: fulfilled(feeDays("xrpl")) });
+    expect(failures).toEqual([]);
+    // No pools, no AMM tile; no reserves, a tile that says so, and nothing of it in the bracket.
+    expect(page.tiles.map((tile) => tile.id)).toEqual(["total", "burned", "escrowed", "circulating", "reserves"]);
+    expect(tileOf(page, "reserves")).toEqual({
+      id: "reserves",
+      label: "Account reserves",
+      whole: null,
+      fraction: null,
+      currency: "XRP",
+      aside: null,
+      formula: null,
+      definition: "XRP that accounts must keep as reserves. Part of the circulating supply.",
+      sub: "Not known at this ledger.",
+      coverage: null,
+    });
+    expect(page.bar.part).toBeNull();
+  });
+
+  it("every coverage note", () => {
+    const xrpl = xrplSupply();
+    const gap = (from: number) => ({ from_ledger_index: from, complete: false });
+    // The escrowed part is incomplete, and the circulating supply states its coverage: the bar, the Escrowed tile and the Circulating tile say it.
+    const escrows = pageOf("xrpl", { escrowed: { ...xrpl.escrowed, coverage: gap(99_413_505) }, circulating: { ...xrpl.circulating, coverage: gap(99_413_505) } }).page;
+    const words = { before: "Covers ledger ", ledger: 99_413_505, after: " onwards: earlier escrows are not in the index yet." };
+    expect(escrows.bar.coverage).toEqual(words);
+    expect(tileOf(escrows, "escrowed").coverage).toEqual(words);
+    expect(tileOf(escrows, "circulating").coverage).toEqual(words);
+    expect(tileOf(escrows, "total").coverage).toBeNull();
+    expect(tileOf(escrows, "burned").coverage).toBeNull();
+    // The AMM pools' and the reserves' (which the fixture has incomplete already).
+    const pools = pageOf("xrpl", { amm: { ...xrpl.amm!, coverage: gap(1234) } }).page;
+    expect(tileOf(pools, "amm").coverage).toEqual({ before: "Covers ledger ", ledger: 1234, after: " onwards: earlier pool changes are not in the index yet." });
+    expect(tileOf(pools, "reserves").coverage!.after).toBe(" onwards: earlier account changes are not in the index yet.");
+    // Xahau's burned (fees) and minted (mints).
+    const xahau = xahauSupply();
+    const mints = pageOf("xahau", { burned: { ...xahau.burned, coverage: gap(500) }, minted: { ...xahau.minted!, coverage: gap(700) } }).page;
+    expect(tileOf(mints, "burned").coverage).toEqual({ before: "Covers ledger ", ledger: 500, after: " onwards: earlier fees are not in the index yet." });
+    expect(tileOf(mints, "minted").coverage).toEqual({ before: "Covers ledger ", ledger: 700, after: " onwards: earlier mints are not in the index yet." });
+    // The XRP Ledger's burned has no coverage, and then no note.
+    expect(xrpl.burned.coverage).toBeUndefined();
+  });
+
+  it("a testnet answer shows every note and the page is whole", () => {
+    const gap = { from_ledger_index: 3, complete: false };
+    for (const [net, testnet, name] of [
+      ["xrpl", NET_XRPL_TESTNET, "XRPL Testnet"],
+      ["xahau", NET_XAHAU_TESTNET, "Xahau Testnet"],
+    ] as const) {
+      const base = net === "xrpl" ? xrplSupply() : xahauSupply();
+      const supply: NetworkSupply = {
+        ...base,
+        burned: { ...base.burned, coverage: gap },
+        escrowed: { ...base.escrowed, coverage: gap },
+        circulating: { ...base.circulating, coverage: gap },
+        ...(base.minted ? { minted: { ...base.minted, coverage: gap } } : {}),
+        ...(base.amm ? { amm: { ...base.amm, coverage: gap } } : {}),
+        ...(base.reserves ? { reserves: { ...base.reserves, coverage: gap } } : {}),
+      };
+      const { page, failures } = supplyPage(testnet, supply, { anchor: fulfilled(LAST), fees: fulfilled(feeDays(net)), ...(net === "xahau" ? { minted: fulfilled(mintedDays()) } : {}) });
+      expect(failures).toEqual([]);
+      expect(page.network).toEqual({ id: net, name, native: net === "xrpl" ? "XRP" : "XAH" });
+      expect(page.bar.coverage).not.toBeNull();
+      // Every tile but the total has its note; a tile with a part of its own says it, and a card is whole.
+      expect(page.tiles.filter((tile) => tile.coverage === null).map((tile) => tile.id)).toEqual(["total"]);
+      expect(page.burnedCard.state).toBe("ok");
+      expect(page.mintedCard?.state ?? "ok").toBe("ok");
+    }
+    // The testnet of the XRP Ledger has the 100 billion bar and the burned line; the Xahau one names itself.
+    const xrplTestnet = supplyPage(NET_XRPL_TESTNET, xrplSupply(), { anchor: fulfilled(LAST), fees: fulfilled(feeDays("xrpl")) }).page;
+    expect(xrplTestnet.bar.title).toBe("Where the 100 billion XRP are");
+    expect(xrplTestnet.bar.burned).not.toBeNull();
+    const xahauTestnet = supplyPage(NET_XAHAU_TESTNET, xahauSupply(), { anchor: fulfilled(LAST), fees: fulfilled(feeDays("xahau")), minted: fulfilled(mintedDays()) }).page;
+    expect(xahauTestnet.bar.text).toMatch(/^Xahau Testnet has no 100 billion cap: /);
+    expect(xahauTestnet.bar.part!.text.at(-1)).toMatch(/ · no AMM on Xahau Testnet$/);
+    expect(tileOf(xahauTestnet, "total").definition).toBe("All the XAH that exists. No 100 billion cap: Xahau Testnet's supply grows by minting.");
+  });
+
+  it("shows a figure that is not in sum with the others as served", () => {
+    // D7 keeps total = escrowed + circulating; the client does not check it, and draws what it was given.
+    const { page, failures } = pageOf("xahau", { circulating: { amount: "1" } });
+    expect(failures).toEqual([]);
+    expect(tileOf(page, "circulating").whole).toBe("1");
+  });
+});
+
+describe("supplyPage: the snapshot, the intro and the description", () => {
+  it("names the ledger, its link, its time and the network", () => {
+    const { page } = pageOf("xrpl");
+    expect(page.network).toEqual({ id: "xrpl", name: "XRPL", native: "XRP" });
+    expect(page.snapshot).toEqual({ ledgerIndex: 107720688, ledgerHref: "/xrpl/ledger/107720688", closeTime: "2026-10-17T16:11:02Z", stale: null });
+    expect(page.intro).toBe("How much XRP exists, how much is burned and escrowed, and how much circulates.");
+    const xahau = pageOf("xahau").page;
+    expect(xahau.snapshot).toEqual({ ledgerIndex: 26596843, ledgerHref: "/xahau/ledger/26596843", closeTime: "2026-10-17T17:47:11Z", stale: null });
+    expect(xahau.intro).toBe("How much XAH exists, how much is minted, burned and escrowed, and how much circulates.");
+  });
+
+  it("the stale threshold", () => {
+    const snapshot = Date.parse(xrplSupply().close_time) / 1000;
+    const staleAt = (after: number) => {
+      const closes = new Date((snapshot + after) * 1000).toISOString().replace(".000Z", "Z");
+      return pageOf("xrpl", {}, { anchor: fulfilled({ ...LAST, close_time: closes }) }).page.snapshot.stale;
+    };
+    expect(staleAt(10_800)).toBeNull();
+    expect(staleAt(10_801)).toEqual({ hours: 3 });
+    expect(staleAt(18_000)).toEqual({ hours: 5 });
+    expect(staleAt(0)).toBeNull();
+    expect(staleAt(-600)).toBeNull();
+    expect(SUPPLY_STALE_SECONDS).toBe(10_800);
+    // The fixture's own: the newest ledger is 3,010 s after the snapshot's.
+    expect(pageOf("xrpl").page.snapshot.stale).toBeNull();
+  });
+
+  it("a failed anchor fails both cards and drops the stale check", () => {
+    const error = new TooLate();
+    const { page, failures } = pageOf("xahau", {}, { anchor: rejected(error) });
+    expect(page.snapshot.stale).toBeNull();
+    expect(page.burnedCard).toEqual({ state: "failed", reason: "took too long" });
+    expect(page.mintedCard).toEqual({ state: "failed", reason: "took too long" });
+    expect(failures).toEqual([
+      { part: "burned", error },
+      { part: "minted", error },
+    ]);
+    // The rest of the page stands.
+    expect(page.tiles.map((tile) => tile.id)).toEqual(["total", "minted", "burned", "escrowed", "circulating", "reserves"]);
+    expect(page.bar.data.rows[0]!.segments).toHaveLength(2);
+  });
+
+  it("an anchor that is fulfilled and is no time fails both cards, with no stale check and no throw", () => {
+    const { page, failures } = pageOf("xahau", {}, { anchor: fulfilled({ ...LAST, close_time: "yesterday" }) });
+    expect(page.snapshot.stale).toBeNull();
+    expect(page.burnedCard.state).toBe("failed");
+    expect(page.mintedCard!.state).toBe("failed");
+    expect(failures.map((failure) => failure.part)).toEqual(["burned", "minted"]);
+  });
+
+  it("fails one card on its own call and leaves the other whole", () => {
+    const { page, failures } = pageOf("xahau", {}, { fees: rejected(new Error("503")) });
+    expect(page.burnedCard).toEqual({ state: "failed", reason: "could not be loaded" });
+    expect(page.mintedCard!.state).toBe("ok");
+    expect(failures.map((failure) => failure.part)).toEqual(["burned"]);
+    const worse = pageOf("xahau", {}, { minted: rejected(new TooLate()) });
+    expect(worse.page.burnedCard.state).toBe("ok");
+    expect(worse.page.mintedCard).toEqual({ state: "failed", reason: "took too long" });
+    expect(worse.failures.map((failure) => failure.part)).toEqual(["minted"]);
+  });
+
+  it("the minted tile follows its card", () => {
+    const ok = pageOf("xahau").page;
+    expect(tileOf(ok, "minted")).toMatchObject({ whole: "2,981,418", fraction: ".527222", sub: null });
+    expect((ok.mintedCard as { total: string }).total).toBe("2981418.527222");
+    const failed = pageOf("xahau", {}, { minted: rejected(new TooLate()) }).page;
+    expect(tileOf(failed, "minted")).toMatchObject({ label: "Minted, last 90 days", whole: null, fraction: null, aside: null, sub: "Couldn't load the minted days." });
+    // A snapshot that mints, with the days not asked for at all, is a failed card too, and says so.
+    const unasked = supplyPage(NET_XAHAU, xahauSupply(), { anchor: fulfilled(LAST), fees: fulfilled(feeDays("xahau")) });
+    expect(unasked.page.mintedCard!.state).toBe("failed");
+    expect(unasked.failures.map((failure) => failure.part)).toEqual(["minted"]);
+    // A snapshot that does not mint has no card and no tile.
+    const xrpl = pageOf("xrpl").page;
+    expect(xrpl.mintedCard).toBeNull();
+    expect(xrpl.tiles.map((tile) => tile.id)).not.toContain("minted");
+  });
+
+  it("describes the snapshot for the meta tags", () => {
+    expect(pageOf("xrpl").page.description).toBe("XRP supply at ledger #107,720,688: 99.99B total, 14.69M burned, 35.21B escrowed, 64.77B circulating.");
+    expect(pageOf("xahau").page.description).toBe("XAH supply at ledger #26,596,843: 613.40M total, 49.43M minted, 2.32K burned, 18.41M escrowed, 595.00M circulating.");
+    // A snapshot that does not mint says nothing of minting, whatever the network.
+    const bare = { ...xahauSupply() };
+    delete bare.minted;
+    expect(supplyPage(NET_XAHAU, bare, { anchor: fulfilled(LAST), fees: fulfilled(feeDays("xahau")) }).page.description).toBe(
+      "XAH supply at ledger #26,596,843: 613.40M total, 2.32K burned, 18.41M escrowed, 595.00M circulating.",
+    );
   });
 });
