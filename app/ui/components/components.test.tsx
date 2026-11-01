@@ -572,6 +572,32 @@ describe("Card and StatTile", () => {
       unmount();
     }
   });
+
+  it("shows its aside right of the label, in a head of their own, and the label is as it was", () => {
+    const { container } = render(<StatTile figure label="Total supply" aside="≈ 99.99B" value="99,985,312,374.716318 XRP" sub="= 100,000,000,000 − burned" />);
+    const tile = container.firstElementChild!;
+    expect(Array.from(tile.children, (part) => part.className)).toEqual(["stat__head", "stat__value", "stat__sub"]);
+    const head = tile.querySelector(".stat__head")!;
+    expect(Array.from(head.children, (part) => [part.className, part.textContent])).toEqual([
+      ["stat__label", "Total supply"],
+      ["stat__aside", "≈ 99.99B"],
+    ]);
+  });
+
+  it("takes any node as its aside, and draws no head and no aside without one", () => {
+    const { container } = render(<StatTile label="Burned" aside={<b>≈ 14.69M</b>} value="14,687,625.283682 XRP" />);
+    expect(container.querySelector(".stat__aside b")!.textContent).toBe("≈ 14.69M");
+    cleanup();
+    const { container: bare } = render(<StatTile label="Burned" value="14,687,625.283682 XRP" />);
+    expect(bare.querySelector(".stat__head")).toBeNull();
+    expect(bare.querySelector(".stat__aside")).toBeNull();
+    expect(Array.from(bare.firstElementChild!.children, (part) => part.className)).toEqual(["stat__label", "stat__value"]);
+    // A page that has none says null for it.
+    cleanup();
+    const { container: nothing } = render(<StatTile label="Burned" aside={null} value="14,687,625.283682 XRP" />);
+    expect(nothing.querySelector(".stat__head")).toBeNull();
+    expect(nothing.querySelector(".stat__aside")).toBeNull();
+  });
 });
 
 describe("DataTable", () => {
@@ -1834,6 +1860,16 @@ describe("StatGrid and DetailList", () => {
     );
     expect(container.firstElementChild!.className).toBe("stat-grid stat-grid--narrow");
     expect(screen.getByRole("region", { name: "Totals" })).toBe(container.firstElementChild);
+  });
+
+  it("is wide for tiles that hold a formula and a definition: fewer of them in a row", () => {
+    const { container } = render(
+      <StatGrid label="Supply figures" wide>
+        <StatTile figure label="Total supply" value="99,985,312,374.716318 XRP" />
+      </StatGrid>,
+    );
+    expect(container.firstElementChild!.className).toBe("stat-grid stat-grid--wide");
+    expect(screen.getByRole("region", { name: "Supply figures" })).toBe(container.firstElementChild);
   });
 
   it("lists labels and values as a description list", () => {

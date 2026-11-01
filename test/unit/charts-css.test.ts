@@ -709,6 +709,40 @@ describe("the share bars (ShareBar)", () => {
   });
 });
 
+describe("the compact share bar (ShareBar compact, the supply page)", () => {
+  it("is one row of the bar alone, 40 px high: the label column of the plain form is not there to keep", () => {
+    expect(rule(chartsCss, ".share--compact .share__row")["grid-template-columns"]).toBe("minmax(0, 1fr)");
+    expect(rule(chartsCss, ".share--compact .share__bar")).toMatchObject({ height: "40px", "border-radius": "6px" });
+    // The plain bar is 28 px, and nothing outside the compact class changed it.
+    expect(rule(chartsCss, ".share__bar").height).toBe("28px");
+  });
+
+  it("keeps a sliver of the bar 5 px wide: 3 px of colour and the 2 px gap inside its end, where the plain 3 px leaves 1", () => {
+    const gap = Number.parseFloat(/inset -(\d+)px/.exec(rule(chartsCss, ".share__seg:not(:last-child)")["box-shadow"]!)![1]!);
+    const sliver = rule(chartsCss, ".share--compact .share__seg:not(:last-child)");
+    expect(Number.parseFloat(sliver["min-width"]!)).toBe(3 + gap);
+    expect(sliver["min-width"]).toBe("5px");
+    // The last segment has no gap and keeps the plain 3 px, and the compact form does not say less than that anywhere.
+    expect(rule(chartsCss, ".share__seg")["min-width"]).toBe("3px");
+    expect(parse(chartsCss).filter((r) => r.selectors.some((selector) => /^\.share--compact \.share__seg\b/.test(selector)) && r.declarations["min-width"] !== undefined)).toHaveLength(1);
+  });
+
+  it("gives a label the 48 px of two lines, the name and the caption, each cut with an ellipsis where it does not fit", () => {
+    expect(rule(chartsCss, ".share--compact .share__labels").height).toBe("48px");
+    expect(rule(chartsCss, ".share--compact .share__label")).toMatchObject({ "line-height": "1.35", "font-size": "12px" });
+    // Two lines of that, under the label's own top, fit in the band.
+    const label = rule(chartsCss, ".share--compact .share__label");
+    expect(Number.parseFloat(label.top!) + 2 * 12 * Number.parseFloat(label["line-height"]!)).toBeLessThanOrEqual(48);
+    expect(rule(chartsCss, ".share--compact .share__label b")).toMatchObject({ display: "block", overflow: "hidden", "text-overflow": "ellipsis" });
+    expect(rule(chartsCss, ".share--compact .share__caption")).toMatchObject({ display: "block", overflow: "hidden", "text-overflow": "ellipsis" });
+  });
+
+  it("opens the tooltip under the 40 px bar, 6 px under its edge as the plain form does under its 28 px", () => {
+    expect(rule(chartsCss, ".share__tip").top).toBe("34px");
+    expect(rule(chartsCss, ".share--compact .share__tip").top).toBe("46px");
+  });
+});
+
 describe("the sparkline (Sparkline)", () => {
   it("is a box that does not shrink in a row: its size is the svg's own, 100 × 28 px", () => {
     expect(rule(chartsCss, ".spark").flex).toBe("none");
@@ -1123,6 +1157,10 @@ describe("the tiles (components.css)", () => {
     expect(rule(componentsCss, ".stat-grid--narrow")["grid-template-columns"]).toBe("repeat(auto-fit, minmax(150px, 1fr))");
   });
 
+  it("make a wide grid of tiles of 360 px, or of the section's width where it is narrower, that keeps its empty columns", () => {
+    expect(rule(componentsCss, ".stat-grid--wide")["grid-template-columns"]).toBe("repeat(auto-fill, minmax(min(360px, 100%), 1fr))");
+  });
+
   it("keep the home page's tile mono at 22 px, and the figure tile is sans, proportional, 24 px and weight 600", () => {
     expect(rule(componentsCss, ".stat__value")).toMatchObject({ "font-family": "var(--font-mono)", "font-size": "22px", "font-weight": "500" });
     expect(rule(componentsCss, ".stat--figure .stat__value")).toMatchObject({
@@ -1140,6 +1178,17 @@ describe("the tiles (components.css)", () => {
 
   it("write the source in --faint, mono, small, breaking inside a path", () => {
     expect(rule(componentsCss, ".stat__source")).toMatchObject({ color: "var(--faint)", "font-family": "var(--font-mono)", "font-size": "11px", "overflow-wrap": "anywhere" });
+  });
+
+  it("put an aside at the end of the label's line: faint, 12 px, proportional figures, one line", () => {
+    expect(rule(componentsCss, ".stat__head")).toMatchObject({ display: "flex", "justify-content": "space-between", "align-items": "baseline" });
+    expect(rule(componentsCss, ".stat__aside")).toMatchObject({ color: "var(--faint)", "font-size": "12px", "font-variant-numeric": "proportional-nums", "white-space": "nowrap", flex: "none" });
+    // The label's own rule is the one it was, with or without an aside.
+    expect(rule(componentsCss, ".stat__label")).toMatchObject({ color: "var(--faint)", "font-size": "12px", "font-weight": "500" });
+  });
+
+  it("write a formula on a line of its own, mono, muted and 11.5 px, breaking inside a long one", () => {
+    expect(rule(componentsCss, ".stat__formula")).toMatchObject({ display: "block", color: "var(--muted)", "font-family": "var(--font-mono)", "font-size": "11.5px", "overflow-wrap": "anywhere" });
   });
 
   it("keep the figure's height while busy: one line of the figure's own size, which is the body's line height", () => {

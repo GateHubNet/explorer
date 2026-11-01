@@ -67,7 +67,15 @@ export interface BarListData {
   format: ValueFormat;
   token: string;
 }
-export interface ShareData { rows: { id: string; label: string; total: string; segments: { id: string; label: string; slot: Slot; value: string }[] }[]; token: string }
+/**
+ * The rows of a `ShareBar`. A segment may carry, for a `compact` bar and read by no other, `caption` (the line under its name: "35.21B XRP · 35.2%") and `share` (its share in the words the
+ * page chooses, for the tooltip, the slider and the summary: "35.21% of the 100 billion XRP"); the data may carry `unit` (the currency, said after an exact amount). The `token` covers them.
+ */
+export interface ShareData {
+  rows: { id: string; label: string; total: string; segments: { id: string; label: string; slot: Slot; value: string; caption?: string; share?: string }[] }[];
+  unit?: string;
+  token: string;
+}
 export interface MeterData { value: string; max: string; threshold?: { value: string; label: string }; label: string }
 export interface CandleData {
   axis: TimeAxis;

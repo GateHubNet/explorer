@@ -526,6 +526,11 @@ a.nav-item:hover {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
+/* Tiles that hold a formula and a definition beside the figure (the supply page): as many as fit at 360 px, a single column under it. */
+.stat-grid--wide {
+  grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr));
+}
+
 .stat {
   display: flex;
   flex-direction: column;
@@ -542,6 +547,22 @@ a.nav-item:hover {
   font-weight: 500;
 }
 
+/* A tile with an aside: the label at the start of a line and the aside at its end, on the baseline they share. The aside keeps its words on one line. */
+.stat__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.stat__aside {
+  flex: none;
+  color: var(--faint);
+  font-size: 12px;
+  font-variant-numeric: proportional-nums;
+  white-space: nowrap;
+}
+
 .stat__value {
   font-family: var(--font-mono);
   font-size: 22px;
@@ -553,6 +574,16 @@ a.nav-item:hover {
 .stat__sub {
   color: var(--muted);
   font-size: 12px;
+}
+
+/* The formula of a figure under it ("= total supply − escrowed"): mono, muted, on a line of its own in the tile's note, and broken inside a long one. */
+.stat__formula {
+  display: block;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 /* The tile of the network pages (spec 2.11): sans, proportional figures, 24 px, weight 600. The home page's mono 22 px above is the default. */

@@ -23,6 +23,11 @@ export interface ShareBarProps {
    * beside the bar, with no table, says where they are instead.
    */
   tableHint?: string;
+  /**
+   * The supply page's form: one row of 40 px with no name column and no % axis, a name and its caption under a segment of 18% or more, and the data's `unit` and each segment's `share` where the
+   * default says "of {total}" and a percent. The summary says every segment (the bar has no table), so `tableHint` is not read.
+   */
+  compact?: boolean;
 }
 
 /** What the summary ends with, where the bar is in a card that has a table of every value. */
@@ -72,6 +77,13 @@ function partsOf(data: ShareData): { row: Row; parts: Part[] }[] {
 const said = ({ row, segment }: Part): string =>
   `${row.label}: ${segment.label}, ${formatAmount(segment.value)} of ${formatAmount(row.total)} (${sharePercent(segment.value, row.total)})`;
 
+/** A compact bar's words for an amount and its share: "35,212,847,105.402318 XRP" and "35.21% of the 100 billion XRP", or the whole percent where the page gave no text. */
+const amountOf = ({ segment }: Part, unit: string | undefined): string => (unit === undefined ? formatAmount(segment.value) : `${formatAmount(segment.value)} ${unit}`);
+const shareOf = ({ row, segment }: Part): string => segment.share ?? sharePercent(segment.value, row.total);
+
+/** What is said of a segment of a compact bar, for the slider: "Escrowed, 35,212,847,105.402318 XRP (35.21% of the 100 billion XRP)". There is one row, and its label is not said. */
+const saidCompact = (part: Part, unit: string | undefined): string => `${part.segment.label}, ${amountOf(part, unit)} (${shareOf(part)})`;
+
 /**
  * The legend of the share bars (spec 2.11): a swatch for each segment id, in the order they are first met in the rows, in the slot of the
  * first row that has it, for the page to give to `Legend`.
@@ -95,10 +107,13 @@ export function shareLegend(data: ShareData): LegendItem[] {
  * plot cursor's (`useCursorState` in Cursor.tsx), so that they do not differ between forms; only the pointer is this form's own, since a
  * plot's cursor finds a bucket by its x and these segments are as wide as their values.
  *
- * Memoised on `title`, the data's `token`, the `unit` and the `tableHint` (spec 2.9): a beat that brings the same token renders nothing, and a new one rings the rows.
+ * `compact` draws the supply page's bar instead: one row of 40 px, with no name column and no % axis, and under a segment of 18% or more its name and, on a second line, its `caption` (the whole
+ * percent where it has none). The tooltip and the slider say a segment's amount with the data's `unit` and then its `share` text, and the summary says every segment that is drawn. See `ShareData`.
+ *
+ * Memoised on `title`, the data's `token`, the `unit`, the `tableHint` and `compact` (spec 2.9): a beat that brings the same token renders nothing, and a new one rings the rows.
  */
 export const ShareBar = memo(
-  function ShareBar({ title, data, unit, tableHint = TABLE_HINT }: ShareBarProps) {
+  function ShareBar({ title, data, unit, tableHint = TABLE_HINT, compact = false }: ShareBarProps) {
     const lines = partsOf(data);
     const parts = lines.flatMap((line) => line.parts);
     const last = parts.length - 1;
@@ -121,14 +136,16 @@ export const ShareBar = memo(
 
     const drawn = last >= 0;
     const largest = (items: Part[]) => items.reduce((top, part) => (Number(part.segment.value) > Number(top.segment.value) ? part : top));
-    const summary = drawn
-      ? `${title}. ${lines
-          .map(({ row, parts: own }) => (own.length > 0 ? `${row.label}: largest ${largest(own).segment.label}, ${sharePercent(largest(own).segment.value, row.total)}.` : `${row.label}: no data.`))
-          .join(" ")} ${tableHint}`
-      : `${title}: No data.`;
+    const summary = !drawn
+      ? `${title}: No data.`
+      : compact
+        ? `${title}: ${parts.map((part) => `${part.segment.label} ${amountOf(part, data.unit)} (${shareOf(part)})`).join("; ")}`
+        : `${title}. ${lines
+            .map(({ row, parts: own }) => (own.length > 0 ? `${row.label}: largest ${largest(own).segment.label}, ${sharePercent(largest(own).segment.value, row.total)}.` : `${row.label}: no data.`))
+            .join(" ")} ${tableHint}`;
 
     return (
-      <div ref={root} className={cx("share", ring && "is-changed")} data-active={current ? current.index : undefined}>
+      <div ref={root} className={cx("share", compact && "share--compact", ring && "is-changed")} data-active={current ? current.index : undefined}>
         <div
           ref={rows}
           className="share__rows"
@@ -153,10 +170,12 @@ export const ShareBar = memo(
             <div className="share__rows-in" aria-hidden="true">
               {lines.map(({ row, parts: own }) => (
                 <div key={row.id} className="share__row">
-                  <span className="share__name">
-                    <b>{row.label}</b>
-                    <span>{unit === undefined ? formatAmount(row.total) : `${formatAmount(row.total)} ${row.total === "1" ? unit.one : unit.other}`}</span>
-                  </span>
+                  {!compact && (
+                    <span className="share__name">
+                      <b>{row.label}</b>
+                      <span>{unit === undefined ? formatAmount(row.total) : `${formatAmount(row.total)} ${row.total === "1" ? unit.one : unit.other}`}</span>
+                    </span>
+                  )}
                   <div className="share__track">
                     <div className="share__bar">
                       {own.map((part) => (
@@ -174,39 +193,48 @@ export const ShareBar = memo(
                         (part) =>
                           part.labelled && (
                             <span key={part.index} className="share__label" style={{ left: percent(part.start, 3), width: percent(part.width, 3) }}>
-                              <b>{part.segment.label}</b> {sharePercent(part.segment.value, row.total)}
+                              <b>{part.segment.label}</b>
+                              {compact ? <span className="share__caption">{part.segment.caption ?? sharePercent(part.segment.value, row.total)}</span> : ` ${sharePercent(part.segment.value, row.total)}`}
                             </span>
                           ),
                       )}
                     </div>
                     {current && own.includes(current) && (
                       <div className={cx("plot__tip", "share__tip", tooltipSide(current.start + current.width / 2))} style={{ left: percent(current.start + current.width / 2, 3) }} aria-hidden="true">
-                        <span className="plot__tip-date">{row.label}</span>
+                        {!compact && <span className="plot__tip-date">{row.label}</span>}
                         <span className="plot__tip-row">
                           <span className="plot__tip-key" data-slot={current.segment.slot} />
                           <b>{current.segment.label}</b>
                         </span>
-                        <span className="plot__tip-row">
-                          <b>{formatAmount(current.segment.value)}</b>{" "}
-                          <span className="plot__tip-name">
-                            of {formatAmount(row.total)} ({sharePercent(current.segment.value, row.total)})
+                        {compact ? (
+                          <span className="plot__tip-row">
+                            <b>{amountOf(current, data.unit)}</b> <span className="plot__tip-name">{shareOf(current)}</span>
                           </span>
-                        </span>
+                        ) : (
+                          <span className="plot__tip-row">
+                            <b>{formatAmount(current.segment.value)}</b>{" "}
+                            <span className="plot__tip-name">
+                              of {formatAmount(row.total)} ({sharePercent(current.segment.value, row.total)})
+                            </span>
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
                 </div>
               ))}
-              <div className="share__row share__row--axis">
-                <span />
-                <div className="share__axis" aria-hidden="true">
-                  {TICKS.map((tick) => (
-                    <span key={tick} style={{ left: `${tick}%` }}>
-                      {tickLabel(tick, "percent")}
-                    </span>
-                  ))}
+              {!compact && (
+                <div className="share__row share__row--axis">
+                  <span />
+                  <div className="share__axis" aria-hidden="true">
+                    {TICKS.map((tick) => (
+                      <span key={tick} style={{ left: `${tick}%` }}>
+                        {tickLabel(tick, "percent")}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           ) : (
             // The summary already says it for a screen reader.
@@ -224,7 +252,7 @@ export const ShareBar = memo(
             aria-valuemin={0}
             aria-valuemax={last}
             aria-valuenow={index}
-            aria-valuetext={said(parts[index]!)}
+            aria-valuetext={compact ? saidCompact(parts[index]!, data.unit) : said(parts[index]!)}
             onKeyDown={onKeyDown}
             onFocus={() => {
               if (!open) select(index);
@@ -240,5 +268,6 @@ export const ShareBar = memo(
     before.data.token === after.data.token &&
     before.unit?.one === after.unit?.one &&
     before.unit?.other === after.unit?.other &&
-    before.tableHint === after.tableHint,
+    before.tableHint === after.tableHint &&
+    Boolean(before.compact) === Boolean(after.compact),
 );

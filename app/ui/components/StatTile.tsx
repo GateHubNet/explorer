@@ -12,10 +12,14 @@ import { TriangleDownIcon, TriangleUpIcon } from "./icons";
  * text, in `--muted`, because more is neither good nor bad. The triangle is a picture, so the text says the sign. `trend` is a `Sparkline`, and
  * `source` is the tile's own line under everything else: the data API path it is made from, faint and mono, as a chart card has.
  *
+ * `aside` is a short figure at the right of the label, faint and small ("≈ 99.99B" over an exact figure): the label and the aside are then one line of their own, `.stat__head`. A tile without one
+ * is as it was, the label alone in the tile.
+ *
  * `busy` is a tile before its data: `aria-busy`, and a figure that is empty, whatever `value` is, and keeps the height of one line.
  */
 export function StatTile({
   label,
+  aside,
   value,
   sub,
   figure,
@@ -25,6 +29,7 @@ export function StatTile({
   busy,
 }: {
   label: string;
+  aside?: ReactNode;
   value: ReactNode;
   sub?: ReactNode;
   figure?: boolean;
@@ -35,7 +40,14 @@ export function StatTile({
 }) {
   return (
     <div className={cx("stat", figure && "stat--figure")} aria-busy={busy || undefined}>
-      <span className="stat__label">{label}</span>
+      {aside === undefined || aside === null || aside === false ? (
+        <span className="stat__label">{label}</span>
+      ) : (
+        <span className="stat__head">
+          <span className="stat__label">{label}</span>
+          <span className="stat__aside">{aside}</span>
+        </span>
+      )}
       <span className="stat__value">{busy ? null : value}</span>
       {delta && (
         <span className="stat__delta">
@@ -51,10 +63,13 @@ export function StatTile({
   );
 }
 
-/** The row of tiles a page opens with. `narrow` is for tiles of a figure each: as many as fit at 150 px (a phone has two in a row). */
-export function StatGrid({ label, narrow, children }: { label: string; narrow?: boolean; children: ReactNode }) {
+/**
+ * The row of tiles a page opens with. `narrow` is for tiles of a figure each: as many as fit at 150 px (a phone has two in a row). `wide` is for tiles that hold a formula and a definition
+ * as well as the figure: as many as fit at 360 px, or one in a row where the section is narrower.
+ */
+export function StatGrid({ label, narrow, wide, children }: { label: string; narrow?: boolean; wide?: boolean; children: ReactNode }) {
   return (
-    <section className={cx("stat-grid", narrow && "stat-grid--narrow")} aria-label={label}>
+    <section className={cx("stat-grid", narrow && "stat-grid--narrow", wide && "stat-grid--wide")} aria-label={label}>
       {children}
     </section>
   );

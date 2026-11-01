@@ -996,6 +996,43 @@
   }
 }
 
+/* The compact form (ShareBar `compact`, the supply page): one row of 40 px with no name column, so the bar has the card's whole width, and no axis. A sliver keeps 5 px, three of colour and the
+   2 px gap drawn inside its end (the plain 3 px leaves 1 of colour), so that the burned 0.015% of XRPL shows; the last segment has no gap and keeps the plain 3 px. A label is two lines, the name and the
+   caption, in a band of 48 px as the board draws it, and the tooltip opens under the taller bar. */
+.share--compact .share__row {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.share--compact .share__bar {
+  height: 40px;
+  border-radius: 6px;
+}
+
+.share--compact .share__seg:not(:last-child) {
+  min-width: 5px;
+}
+
+.share--compact .share__labels {
+  height: 48px;
+}
+
+.share--compact .share__label {
+  top: 8px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.share--compact .share__label b,
+.share--compact .share__caption {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.share--compact .share__tip {
+  top: 46px;
+}
+
 /* ---------------------------------------------------------------------------------------------------------------
    Sparkline: a trend with no axes in a box of 100 × 28 px (the svg's own size: its viewBox is its px, so nothing is scaled and a stroke is the
    width it says). The line is the quiet colour and the end dot the network's, with a ring of the surface's colour round it. */
