@@ -1868,7 +1868,7 @@ export interface TokensResponse {
   tokens: IssuedTokenRow[];
 }
 
-/** What the issuer's toml says of a token, each as the toml gives it (text), `display_decimals` a whole number 0 to 30. Left out when the token is not listed. */
+/** What the issuer's toml says of a token, each as the toml gives it (text), `display_decimals` a whole number 0 to 30. Left out when the token is not listed, and when the listed entry has none of these fields. */
 export interface TokenToml {
   name?: string;
   desc?: string;

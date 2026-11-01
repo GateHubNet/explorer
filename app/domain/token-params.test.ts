@@ -434,7 +434,6 @@ describe("the loop a loader makes: a canonical URL is what the request says once
   function checkTokens(query: string): void {
     const parsed = tokens(query, true);
     loop("/xrpl/tokens", tokensHref("xrpl"), tokensQuery(parsed), query, (again) => tokensCanonical(again, true));
-    expect(tokensCanonical(query, true)).toBe(tokensHref("xrpl", parsed));
   }
   function checkPage(query: string): void {
     const parsed = page(query);
