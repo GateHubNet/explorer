@@ -100,7 +100,7 @@ function timeSeries(title: string, data: TimeSeriesData, totalLabel: string) {
     bucketCol(axis, data.forming),
     ...data.series.map((series): Col<number> => ({
       id: series.id,
-      header: series.label,
+      header: series.heading ?? series.label,
       min: format.kind === "count" ? COUNT : FIGURE,
       figure: true,
       grow: true,

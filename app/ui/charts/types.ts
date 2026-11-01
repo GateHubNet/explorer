@@ -10,7 +10,7 @@ export interface TimeAxis {
   unit: "day" | "week" | "month" | "hour" | "minute" | "flag";       // "month": YYYY-MM-01; "minute": 15-minute buckets ("17:15"); "flag": one point per flag ledger, evenly spaced
   buckets: string[];                                                 // UTC: YYYY-MM-DD, or YYYY-MM-DDTHH:mm:ssZ; oldest first
 }
-export interface Series { id: string; label: string; short?: string; slot: Slot; values: (string | null)[] }  // null: no value
+export interface Series { id: string; label: string; heading?: string; short?: string; slot: Slot; values: (string | null)[] }  // null: no value; heading: the column of the table, where it says more than the label ("Burned, XRP")
 /** A per-bucket figure that is shown in the tooltip, the slider and the table, and never drawn. */
 export interface TimeSeriesExtra {
   id: string;

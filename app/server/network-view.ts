@@ -216,7 +216,7 @@ export function contextOf(input: Pick<NetworkInput, "net" | "view" | "last">): V
  * message, which holds the upstream's path and query, the API's own text or the runtime's: a call that was too late "took too long" (spec 1.6),
  * anything else, a builder that throws included, "could not be loaded". The error itself stays in the context's failures, which the loader logs.
  */
-const reasonOf = (error: unknown): string => (error instanceof TooLate ? "took too long" : "could not be loaded");
+export const reasonOf = (error: unknown): string => (error instanceof TooLate ? "took too long" : "could not be loaded");
 
 /**
  * A part from a call's outcome. A rejection fails the part (see `reasonOf`), and so does an answer the builder cannot use: one broken part does

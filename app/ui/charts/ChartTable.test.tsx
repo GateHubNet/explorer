@@ -41,6 +41,18 @@ describe("ChartTable of a time series", () => {
     expect(errors).toEqual([]);
   });
 
+  it("heads a series' column with its heading where it has one, and with its label where it has not", async () => {
+    const data = stacked({
+      series: [
+        { id: "payment", label: "Payment", heading: "Payment, XRP", slot: 1, values: ["1180220", "1204331", "810004"] },
+        { id: "offer", label: "OfferCreate", slot: 2, values: ["520004", "431", "2"] },
+      ],
+    });
+    const { container, errors } = await serverThenHydrated(<ChartTable title="Transactions by type" data={data} />);
+    expect(headers(container)).toEqual(["Day (UTC)", "Payment, XRP", "OfferCreate", "Total"]);
+    expect(errors).toEqual([]);
+  });
+
   it("is a table named for the chart, in a compact region capped at 300 px", async () => {
     const { container, errors } = await serverThenHydrated(<ChartTable title="Transactions by type" data={stacked()} />);
     const region = within(container).getByRole("region", { name: "Transactions by type, scrollable table" });
