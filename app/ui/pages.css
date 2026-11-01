@@ -5040,3 +5040,266 @@ a.markets__pair:hover .markets__name {
     font-size: 24px;
   }
 }
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Token: /{net}/token/{token} (E11; the Token board's layout: the header card, the figures, the toml and the settings in a pair, the markets and the pools in a pair, then the holders and the
+   transfers). The root is the list's `.tokens` as well, for its column, its tables (`.tokens__table`), its foots and its 44 px pager. The kit's classes are the kit's: this sheet sets only where
+   they sit. Every text of the issuer's (a name, a domain, a toml's field) can be long and is of any characters, so it wraps anywhere inside its box. */
+
+.token-page {
+  overflow-wrap: anywhere;
+}
+
+/* The house target size for the page's buttons (the board's are 36 px): the copy button, the issuer's account, the toml file, All pools, All holders, the way back. */
+.token-page .btn {
+  min-height: 44px;
+}
+
+.token-page__card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 22px;
+}
+
+.token-page__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 18px;
+}
+
+/* The board's large coin: 44 px. */
+.token-page__coin .amm__coin {
+  width: 44px;
+  height: 44px;
+  font-size: 12px;
+}
+
+.token-page__titles {
+  display: flex;
+  flex: 1 1 420px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.token-page__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.token-page__title {
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.token-page__code {
+  font-size: 12px;
+}
+
+/* "Issued by" and the issuer's link: told from the words by more than its colour (WCAG 1.4.1, axe's link-in-text-block). */
+.token-page__issuer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 6px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.token-page__issuer a,
+.token-page__lede a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.token-page__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* The buttons that open another site show the icon beside their words. */
+.token-page__buttons a .extlink__icon {
+  margin-inline-start: 6px;
+}
+
+.token-page__figures {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* A supply is exact to its last decimal ("21,898,528.59363"): at the figure style's 24 px it does not fit a tile of 200 px on a line, and wraps its last digit. */
+.token-page__figures .stat__value {
+  font-size: 20px;
+}
+
+/* The pairs of cards: side by side while there is room for both, one under the other when there is not, each able to shrink so that a phone has no sideways scroll. */
+.token-page__pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.token-page__pair > .card {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+.token-page__lede {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.token-page__caption {
+  margin: 0 0 4px;
+  font-size: 12.5px;
+}
+
+.token-page__note {
+  color: var(--muted);
+}
+
+.token-page__failed {
+  padding: 16px;
+}
+
+/* The toml's list: a value of any length wraps; the hex of the code is in mono with its sentence under it. */
+.token-page__toml .kv dd {
+  min-width: 0;
+}
+
+.token-page__hex {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.token-page__hex .mono {
+  font-size: 12.5px;
+}
+
+.token-page__hex .faint {
+  font-size: 12px;
+}
+
+/* The issuer's settings: an icon, then the name with its pill and the sentence under them. */
+.token-page__settings {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.token-setting {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.token-setting:first-child {
+  border-top: 0;
+}
+
+.token-setting__icon {
+  flex: none;
+  padding-top: 2px;
+  color: var(--faint);
+}
+
+.token-setting__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.token-setting__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.token-setting__sentence {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* A pair of the markets table: its name, then the counter's issuer under it. */
+.token-page__pair-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.token-page__pairname {
+  font-weight: 600;
+}
+
+.token-page__by {
+  font-size: 12px;
+}
+
+/* A pool: its coins, then the pair, one link. */
+.token-page__poolname {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.token-page__holder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+.token-page__share {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.token-page__meter {
+  flex: 1 1 80px;
+  max-width: 160px;
+}
+
+.token-page__amount {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px 8px;
+}
+
+.token-page__back {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .token-page__title {
+    font-size: 22px;
+  }
+}

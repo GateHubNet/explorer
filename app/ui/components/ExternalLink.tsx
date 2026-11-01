@@ -7,11 +7,11 @@ import { ExternalIcon } from "./status-icons";
 
 /**
  * A link to another site: it opens a new tab, without handing the page over (`noopener noreferrer`), and says so with the icon and, to a
- * screen reader, "(opens in a new tab)". `nofollow` is for what anyone can point at (a validator's TOML file).
+ * screen reader, "(opens in a new tab)". `nofollow` is for what anyone can point at (a validator's TOML file). `className` makes it a button (`btn`) where a page has one.
  */
-export function ExternalLink({ href, nofollow, children }: { href: string; nofollow?: boolean; children: ReactNode }) {
+export function ExternalLink({ href, nofollow, className, children }: { href: string; nofollow?: boolean; className?: string; children: ReactNode }) {
   return (
-    <a href={href} target="_blank" rel={nofollow ? "noopener noreferrer nofollow" : "noopener noreferrer"}>
+    <a href={href} target="_blank" rel={nofollow ? "noopener noreferrer nofollow" : "noopener noreferrer"} className={className}>
       {children}
       <ExternalIcon className="extlink__icon" />
       <span className="sr"> (opens in a new tab)</span>

@@ -839,10 +839,11 @@ describe("marketRows", () => {
 
   it("is D6's order, each pair \"{CODE} / {COUNTER}\" with the last price in the counter, the volume in the native currency and the trades", () => {
     expect(marketRows(detail, XRPL_LINKED)).toEqual([
-      { key: "XRP.", pair: "RLUSD / XRP", href: `/xrpl/markets/XRP/RLUSD.${TOKEN_SAMPLE_ISSUER}`, last: "0.4 XRP", volume: "65", trades: "13" },
+      { key: "XRP.", pair: "RLUSD / XRP", counter: "XRP", href: `/xrpl/markets/XRP/RLUSD.${TOKEN_SAMPLE_ISSUER}`, last: "0.4 XRP", volume: "65", trades: "13" },
       {
         key: `USD.${TOKEN_SAMPLE_OTHER_ISSUER}`,
         pair: "RLUSD / USD",
+        counter: "USD",
         issuer: TOKEN_SAMPLE_OTHER_ISSUER,
         href: `/xrpl/markets/RLUSD.${TOKEN_SAMPLE_ISSUER}/USD.${TOKEN_SAMPLE_OTHER_ISSUER}`,
         last: "2 USD",

@@ -19,11 +19,11 @@ const read = (path: string) => readFileSync(new URL(path, appDir), "utf8");
 const SERVER_ONLY = [/\/server\//, /\/describe(\/|$)/, /\/parse(\/|$)/, /\/asset$/, /\/token-params$/, /\/market-pair$/, /ripple-/];
 const serverOnly = (from: string) => SERVER_ONLY.some((pattern) => pattern.test(from));
 
-/** The files of the pages the list is made of: the page, its table and the parts the token pages share. */
-const PAGE_FILES = ["ui/pages/TokensPage.tsx", "ui/pages/IssuedTable.tsx", "ui/pages/token-parts.tsx"];
+/** The files of the pages the token pages are made of: the list's page and its table, the token's page, and the parts they share. */
+const PAGE_FILES = ["ui/pages/TokensPage.tsx", "ui/pages/IssuedTable.tsx", "ui/pages/TokenPage.tsx", "ui/pages/token-parts.tsx"];
 
 /** The tags' builders, which the browser runs as the routes' `meta`. They are files of app/server that import nothing of it but `./meta`. */
-const META_FILES = ["server/meta-tokens.ts"];
+const META_FILES = ["server/meta-tokens.ts", "server/meta-token.ts"];
 
 /** What a file the browser loads may reach of the Worker's own files: the marker alphabet (`server/marker.ts`, an import-free leaf, which `parseTrail` reads markers with). */
 const LEAVES = ["server/marker.ts"];
@@ -87,6 +87,30 @@ describe("the files of the token pages that run in the browser", () => {
     // And it sees the Worker's code where a file does load it: the view builder reaches the token links, the asset module and the server.
     const builder = staticClosure(appDir, "server/token-view.ts");
     expect(workerFiles(builder, LEAVES)).toEqual(expect.arrayContaining(["domain/asset.ts", "domain/token-params.ts", "server/token-view.ts", "server/coverage.ts"]));
+  });
+
+  it("walks the files the token page draws with: the kit's tables, tiles, meter, links to another site and copy button, and nothing of the plot", () => {
+    const closure = staticClosure(appDir, "ui/pages/TokenPage.tsx");
+    expect(closure).toEqual(
+      expect.arrayContaining([
+        "ui/pages/token-parts.tsx",
+        "ui/charts/Meter.tsx",
+        "ui/components/DataTable.tsx",
+        "ui/components/DetailList.tsx",
+        "ui/components/StatTile.tsx",
+        "ui/components/Pager.tsx",
+        "ui/components/CoverageNote.tsx",
+        "ui/components/AccountLink.tsx",
+        "ui/components/ExternalLink.tsx",
+        "ui/components/CopyTextButton.tsx",
+        "ui/components/SectionError.tsx",
+        "ui/components/Pill.tsx",
+        "ui/components/WhenCell.tsx",
+        "ui/components/HashLink.tsx",
+      ]),
+    );
+    // The tags of the token page and the list read the facts of the view builder as types only: the closure of each is `./meta` and what it imports.
+    expect(staticClosure(appDir, "server/meta-token.ts")).toEqual(expect.not.arrayContaining(["server/token-view.ts"]));
   });
 
   it("is checked by filters that see each of those, and not a file named like one", () => {

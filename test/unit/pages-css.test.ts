@@ -380,6 +380,31 @@ describe("the token list", () => {
   });
 });
 
+describe("the token page", () => {
+  it("gives its buttons (the copy button, the issuer's account, the toml file, All holders, All pools, the way back, the pager) 44 px targets", () => {
+    expect(Number.parseFloat(rule(pagesCss, ".token-page .btn")["min-height"]!)).toBeGreaterThanOrEqual(44);
+  });
+
+  it("underlines the issuer's link and the links in the toml's sentence: their colour alone would not tell them from the words around them (axe: link-in-text-block)", () => {
+    const words = rule(pagesCss, ".token-page__issuer a,\n.token-page__lede a");
+    expect(words["text-decoration"]).toBe("underline");
+    expect(words["text-underline-offset"]).toBe("3px");
+  });
+
+  it("folds its pairs of cards under each other when there is no room for both, each able to shrink: 420 px, and a phone has no sideways scroll", () => {
+    expect(rule(pagesCss, ".token-page__pair")).toMatchObject({ display: "flex", "flex-wrap": "wrap" });
+    expect(rule(pagesCss, ".token-page__pair > .card")).toMatchObject({ flex: "1 1 420px", "min-width": "0" });
+  });
+
+  it("sets the figures a little smaller than the figure style, so that an exact supply keeps its line in a tile of 200 px", () => {
+    expect(Number.parseFloat(rule(pagesCss, ".token-page__figures .stat__value")["font-size"]!)).toBeLessThan(24);
+  });
+
+  it("wraps what the issuer wrote anywhere in its box, so that a long name or domain widens nothing", () => {
+    expect(rule(pagesCss, ".token-page")["overflow-wrap"]).toBe("anywhere");
+  });
+});
+
 describe("a disabled segment of the segmented links", () => {
   it("is quieter than a link and keeps its colour on hover; its note sits beside the control", () => {
     expect(rule(componentsCss, ".netswitch__item.is-disabled,\n.netswitch__item.is-disabled:hover")).toMatchObject({ color: "var(--faint)", cursor: "not-allowed" });

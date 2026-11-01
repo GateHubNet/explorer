@@ -21,13 +21,14 @@ import {
   URI_TOKEN_ISSUER,
   uriTokenCollectionSample,
 } from "../../test/support/nft-samples";
+import { holdersSample, tokenDetailSample, tokenSample, TOKEN_SAMPLE_CURRENCY, TOKEN_SAMPLE_ISSUER, transfersSample } from "../../test/support/token-samples";
 import { AMM_ID, amendmentDetailSample, amendmentsSample, SAMPLE_KEYS, UNKNOWN_ID, validationsSample, validatorDetailSample } from "../../test/support/d1-samples";
 import type { AmendmentStatus } from "../domain/amendments-params";
 import type { CollectionKey, CollectionQuery, NftsQuery } from "../domain/nft-params";
 import type { FlowStep } from "../domain/describe";
 import { shortAddress, shortHash } from "../domain/format";
 import { NAMES_OFF, NO_NAMES, type NameMap, type NamesPart, type NameView } from "../domain/names";
-import { tokensHref } from "../domain/token-params";
+import { tokenHref, tokensHref } from "../domain/token-params";
 import type { ValidatorsParams } from "../domain/validators-params";
 import { NO_FEATURES } from "../ui/features";
 import type { NetworkInfo } from "../ui/networks";
@@ -49,6 +50,7 @@ import { nftMeta } from "./meta-nft";
 import { nftCollectionMeta } from "./meta-nft-collection";
 import { nftSalesMeta } from "./meta-nft-sales";
 import { nftsMeta } from "./meta-nfts";
+import { tokenMeta } from "./meta-token";
 import { tokensMeta } from "./meta-tokens";
 import { homeMeta } from "./meta-home";
 import { ledgerMeta } from "./meta-ledger";
@@ -63,7 +65,7 @@ import { collectionMarkerPage, nftCollectionPage, type CollectionNet, type NftCo
 import { nftMarkerPage, nftPage, type NftNet, type NftPageData } from "./nft-view";
 import { nftSalesPage, nftsListPage, nftsMarkerPage, type NftSalesPageData, type NftsNet, type NftsPageData } from "./nfts-view";
 import { pairPage } from "./pair-view";
-import type { TokensMetaFacts } from "./token-view";
+import { tokenFacts, tokenPage, type TokenMetaFacts, type TokensMetaFacts } from "./token-view";
 import type { PaymentChannelMeta } from "./payment-channel-view";
 import { validatorHistoryPage, validatorPage, type ValidatorLiveData } from "./validator-view";
 import { validatorsPage } from "./validators-view";
@@ -1322,6 +1324,104 @@ describe("tokensMeta", () => {
 
   it("puts no figure of the data in the description: the page is stored for a minute", () => {
     expect(content(tokensMeta(facts(), XRPL), "description")?.replace("24-hour", "")).not.toMatch(/\d/);
+  });
+});
+
+describe("tokenMeta", () => {
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  const ISSUER = TOKEN_SAMPLE_ISSUER;
+  const ASSET = { currency: TOKEN_SAMPLE_CURRENCY, issuer: ISSUER };
+  /** The facts of a token as the view builder writes them (`TokenPageData.meta`): RLUSD with its toml's name, listed. */
+  const facts = (over: Partial<TokenMetaFacts> = {}): TokenMetaFacts => ({ ...tokenFacts({ id: "xrpl" }, tokenDetailSample(), false), ...over });
+  const withoutName = (): TokenMetaFacts => {
+    const { name: _name, ...rest } = facts();
+    return rest;
+  };
+  const DESCRIPTION = `RLUSD, issued by ${shortAddress(ISSUER)} on XRPL: holders, supply, price, markets, the issuer's settings and recent transfers.`;
+  const IMAGE = `https://explorer.test/og/xrpl/token/RLUSD.${ISSUER}.png`;
+
+  it("has the tags of the token's page: the name and the code in the title, a description with no figure, the canonical URL on the origin, Open Graph, the image and a large card", () => {
+    const list = tokenMeta(facts(), XRPL);
+    expect(title(list)).toBe("Ripple USD (RLUSD) · XRPL · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(link(list, "canonical")).toBe(`https://explorer.test/xrpl/token/RLUSD.${ISSUER}`);
+    expect(content(list, "og:title")).toBe("Ripple USD (RLUSD) · XRPL · explorer");
+    expect(content(list, "og:description")).toBe(DESCRIPTION);
+    expect(content(list, "og:url")).toBe(`https://explorer.test/xrpl/token/RLUSD.${ISSUER}`);
+    expect(content(list, "og:type")).toBe("website");
+    expect(content(list, "og:site_name")).toBe("explorer");
+    expect(content(list, "og:image")).toBe(IMAGE);
+    expect(content(list, "og:image:width")).toBe("1200");
+    expect(content(list, "og:image:height")).toBe("630");
+    expect(content(list, "og:image:alt")).toBe(`Ripple USD, an issued token of ${shortAddress(ISSUER)} on XRPL`);
+    expect(content(list, "twitter:card")).toBe("summary_large_image");
+    expect(content(list, "twitter:image")).toBe(IMAGE);
+    expect(keys(list)).not.toContain("robots");
+    expect(content(list, "description")).not.toMatch(/\d{3}/);
+  });
+
+  it("is headed by the code and the short issuer when the toml gives no name", () => {
+    const list = tokenMeta(withoutName(), XRPL);
+    expect(title(list)).toBe(`RLUSD by ${shortAddress(ISSUER)} · XRPL · explorer`);
+    expect(content(list, "og:image:alt")).toBe(`RLUSD, an issued token of ${shortAddress(ISSUER)} on XRPL`);
+  });
+
+  it("is on the path the page's own links write and the image's, whatever the code holds", () => {
+    expect(new URL(link(tokenMeta(facts(), XRPL), "canonical")!).pathname).toBe(tokenHref("xrpl", ASSET));
+    const usd = { currency: "USD", issuer: ISSUER };
+    const list = tokenMeta({ ...tokenFacts({ id: "xrpl" }, tokenDetailSample({ currency: "USD", code: "USD" }), false) }, XRPL);
+    expect(new URL(link(list, "canonical")!).pathname).toBe(tokenHref("xrpl", usd));
+    expect(content(list, "og:image")).toBe(`https://explorer.test/og/xrpl/token/USD.${ISSUER}.png`);
+    // A text code that holds a character a path escapes: the segment is the path's, escaped once.
+    const odd = tokenDetailSample({ currency: "5A2F23405E2A2F2F000000000000000000000000" });
+    const escaped = tokenMeta(tokenFacts({ id: "xrpl" }, odd, false), XRPL);
+    expect(new URL(link(escaped, "canonical")!).pathname).toBe(tokenHref("xrpl", { currency: odd.currency, issuer: ISSUER }));
+    expect(new URL(content(escaped, "og:image")!).pathname).toBe(`/og/xrpl/token/${tokenFacts({ id: "xrpl" }, odd, false).segment}.png`);
+  });
+
+  it("is Xahau's on Xahau, and the sandbox's names, in the title and in the description", () => {
+    const xahau = tokenMeta(tokenFacts({ id: "xahau" }, tokenDetailSample(), false), XAHAU);
+    expect(title(xahau)).toBe("Ripple USD (RLUSD) · Xahau · explorer");
+    expect(content(xahau, "description")).toBe(`RLUSD, issued by ${shortAddress(ISSUER)} on Xahau: holders, supply, price, markets, the issuer's settings and recent transfers.`);
+    expect(link(xahau, "canonical")).toBe(`https://explorer.test/xahau/token/RLUSD.${ISSUER}`);
+    expect(content(xahau, "og:image")).toBe(`https://explorer.test/og/xahau/token/RLUSD.${ISSUER}.png`);
+    const testnet = tokenMeta(facts(), XRPL_TESTNET);
+    expect(title(testnet)).toBe("Ripple USD (RLUSD) · XRPL Testnet · explorer");
+    expect(content(testnet, "description")).toContain("on XRPL Testnet:");
+  });
+
+  it("is on the request's origin", () => {
+    const list = tokenMeta(facts(), { ...XRPL, origin: "https://explorer.example" });
+    expect(link(list, "canonical")).toBe(`https://explorer.example/xrpl/token/RLUSD.${ISSUER}`);
+    expect(content(list, "og:image")).toBe(`https://explorer.example/og/xrpl/token/RLUSD.${ISSUER}.png`);
+  });
+
+  it("is noindex, follow behind a marker, with no canonical URL and no Open Graph or card tags", () => {
+    const list = tokenMeta(facts({ more: true }), XRPL);
+    expect(title(list)).toBe("Older transfers of RLUSD · XRPL · explorer");
+    expect(content(list, "description")).toBe(`Older transfers of RLUSD, issued by ${shortAddress(ISSUER)} on XRPL.`);
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(list).sort()).toEqual(["description", "robots"]);
+    // Whether it has a name or not: the title is the code's.
+    expect(title(tokenMeta({ ...withoutName(), more: true }, XRPL))).toBe("Older transfers of RLUSD · XRPL · explorer");
+  });
+
+  it("is written from the page the builder made", () => {
+    const page = tokenPage({
+      net: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled", hasAmm: true, features: NO_FEATURES },
+      asset: ASSET,
+      answer: tokenSample(),
+      mode: "first",
+      params: { back: [] },
+      holders: { state: "ok", value: holdersSample() },
+      transfers: { state: "ok", value: transfersSample() },
+      pools: { state: "ok", value: { result: "success", count: 0, pools: [] } },
+      ammVolume: null,
+      accountInfo: null,
+      names: NO_NAMES,
+    }).page;
+    expect(title(tokenMeta(page.meta, XRPL))).toBe("Ripple USD (RLUSD) · XRPL · explorer");
   });
 });
 

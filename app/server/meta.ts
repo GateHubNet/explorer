@@ -39,14 +39,14 @@ export function metaContext(
 }
 
 /** The kinds of object that have a link-preview image (`/og/{net}/{kind}/{id}.png`). */
-export type ImageKind = "tx" | "ledger" | "account" | "validator" | "amendment" | "amm" | "nft";
+export type ImageKind = "tx" | "ledger" | "account" | "validator" | "amendment" | "amm" | "nft" | "token";
 
 /** The absolute URL of a path on the origin. */
 export function absolute(origin: string, path: string): string {
   return `${origin.replace(/\/+$/, "")}${path}`;
 }
 
-/** The absolute URL of the link-preview image of a transaction, ledger, account, validator, amendment, AMM pool or NFT. */
+/** The absolute URL of the link-preview image of a transaction, ledger, account, validator, amendment, AMM pool, NFT or issued token. */
 export function imageUrl(origin: string, net: string, kind: ImageKind, id: string): string {
   return absolute(origin, `/og/${net}/${kind}/${id}.png`);
 }

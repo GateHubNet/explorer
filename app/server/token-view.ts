@@ -591,6 +591,8 @@ export interface MarketRowView {
   key: string;
   /** "{CODE} / {COUNTER}", always in this order: the natural orientation is for the href only. */
   pair: string;
+  /** The counter's display code, which the line under the pair says its issuer is of ("USD by …"). */
+  counter: string;
   /** The counter's issuer, drawn as an `AccountLink`; absent for the native currency. */
   issuer?: string;
   /** The pair page, while the markets pages are on and the data API can be asked for the pair; else none. */
@@ -611,6 +613,7 @@ export function marketRows(t: TokenDetail, net: TokensNet): MarketRowView[] {
     return {
       key: `${market.counter_currency}.${market.counter_issuer ?? ""}`,
       pair: `${code} / ${counterCode}`,
+      counter: counterCode,
       ...(market.counter_issuer === undefined ? {} : { issuer: market.counter_issuer }),
       href: net.features.markets && isLinkable([base, quote], net.native) ? marketHref(net.id, base, quote) : null,
       last: market.last === undefined ? DASH : `${formatPrice(market.last)} ${counterCode}`,
