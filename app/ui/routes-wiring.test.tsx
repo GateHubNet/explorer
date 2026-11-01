@@ -18,11 +18,15 @@ import {
   validatorDetailSample,
   validatorRowSample,
 } from "../../test/support/d1-samples";
+import xrplFees from "../../test/fixtures/http/xrpl/data-api/network/fees@end=2026-10-17&interval=day&limit=1000&start=2026-07-20.json";
+import xrplSupply from "../../test/fixtures/http/xrpl/data-api/network/supply.json";
 import { tradersCard } from "../../test/support/traders-card";
 import type { Loaded } from "../server/account-view";
 import { amendmentPage, type AmendmentPageData } from "../server/amendment-view";
 import { amendmentsPage, type AmendmentsPageData } from "../server/amendments-view";
 import { forwardCacheClass } from "../server/edge-cache";
+import type { FeeBucketRow, LastValidated, NetworkSupply, Page } from "../server/api-types";
+import { supplyPage, type SupplyPageData } from "../server/supply-view";
 import type { HomeLoaderData } from "../server/home-view";
 import type { AmmPart, NetworkLoaderData, SeriesView } from "../server/network-view";
 import type { LivePairData, OlderPairData, PairPageData } from "../server/pair-view";
@@ -39,6 +43,7 @@ import routes from "../routes";
 import * as pair from "../routes/net.markets.$base.$counter";
 import * as network from "../routes/net.network";
 import * as validators from "../routes/net.validators";
+import * as supply from "../routes/net.supply";
 import * as validator from "../routes/net.validators.$key";
 
 // The real route modules, not stand-ins: `net.tsx` and `net._index.tsx` as React Router's own build would load them. What these tests pin is
@@ -2061,6 +2066,92 @@ describe("net.amendments.$name.tsx", () => {
       await pass(300_000);
       expect(answer).not.toHaveBeenCalled();
     });
+  });
+});
+
+// The supply page's route, `net.supply.tsx`: a page that polls nothing, so no clientLoader and no beat; its `headers`, its `handle` and its `meta`, and a Retry that asks the route's loader again.
+describe("net.supply.tsx", () => {
+  const LAST: LastValidated = {
+    result: "success",
+    ledger_index: "107721455",
+    ledger_hash: "2F7C1D5A9B3E4F60A8D2C71B5E9F3A4D6C8B0E1F2A3B4C5D6E7F8A9B0C1D2E3F",
+    parent_hash: "9A8B7C6D5E4F30211203F4E5D6C7B8A998877665544332211FFEEDDCCBBAA990",
+    close_time: "2026-10-17T17:01:12Z",
+  };
+  const fulfilled = <V,>(value: V): PromiseFulfilledResult<V> => ({ status: "fulfilled", value });
+  /** The page data of XRPL's fixtures, with the burned card failed when `failed`. */
+  const dataOf = (failed = false): SupplyPageData =>
+    supplyPage({ id: "xrpl", name: "XRPL", native: "XRP", hasAmm: true }, xrplSupply as unknown as NetworkSupply, {
+      anchor: fulfilled(LAST),
+      fees: failed ? { status: "rejected", reason: new Error("503") } : fulfilled(xrplFees as unknown as Page<"rows", FeeBucketRow>),
+    }).page;
+
+  function SupplyRoute() {
+    return createElement(supply.default, { loaderData: useLoaderData() as SupplyPageData, params: useParams() as { net: string }, actionData: undefined, matches: [] } as never);
+  }
+
+  /** The layout as `net.tsx` has it and the page as `net.supply.tsx` has it, in a data router, on the data the server rendered. */
+  function mountSupply(first: SupplyPageData, loader: () => SupplyPageData) {
+    const layoutRuns = { count: 0 };
+    const router = createMemoryRouter(
+      [
+        {
+          id: "routes/net",
+          path: "/:net",
+          loader: () => ({ network: XRPL, origin: "https://explorer.test", run: ++layoutRuns.count }),
+          shouldRevalidate: net.shouldRevalidate,
+          Component: Outlet,
+          children: [{ id: "routes/net.supply", path: "supply", loader, Component: SupplyRoute }],
+        },
+      ],
+      { initialEntries: ["/xrpl/supply"], hydrationData: { loaderData: { "routes/net": { network: XRPL, origin: "https://explorer.test", run: 0 }, "routes/net.supply": first } } },
+    );
+    render(<RouterProvider router={router} />);
+    return { router, layoutRuns };
+  }
+
+  it("has the headers that forward the class and the handle that names the header's section, and neither a clientLoader nor a beat: the page polls nothing", () => {
+    expect(supply.default).toBeTypeOf("function");
+    expect(supply.headers).toBe(forwardCacheClass);
+    expect(supply.handle).toEqual({ navSection: "network" });
+    expect((supply as Record<string, unknown>).clientLoader).toBeUndefined();
+    expect(supply.loader).toBeTypeOf("function");
+  });
+
+  it("is the route `supply` under :net, after the amendment's", () => {
+    const children = routes.find((route) => route.path === ":net")?.children ?? [];
+    const at = children.findIndex((route) => route.path === "supply");
+    expect(children[at]).toMatchObject({ path: "supply", file: "routes/net.supply.tsx" });
+    expect(children[at - 1]).toMatchObject({ path: "amendments/:name" });
+  });
+
+  it("draws the page from the loader's data", () => {
+    mountSupply(dataOf(), dataOf);
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Supply");
+    expect(screen.getByRole("region", { name: "Where the 100 billion XRP are" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("asks the route's loader again for a Retry, and shows the card it brings, without asking for the layout again", async () => {
+    const answer = vi.fn<() => SupplyPageData>(() => dataOf());
+    const { layoutRuns } = mountSupply(dataOf(true), answer);
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toBe("Couldn’t load XRP burned per day.Retry");
+    fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
+    await act(async () => {});
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(within(screen.getByRole("region", { name: "XRP burned per day" })).getByRole("table", { name: "Burned per day" })).toBeTruthy();
+    expect(layoutRuns.count).toBe(0);
+  });
+
+  it("makes the tags of the page from the layout's network and origin, and none without them", () => {
+    const matches = [{ id: "routes/net", loaderData: { network: XRPL, origin: "https://explorer.test" } }];
+    const list = supply.meta({ loaderData: dataOf(), matches, params: { net: "xrpl" } } as never) as Array<Record<string, string>>;
+    expect(list.find((tag) => "title" in tag)?.title).toBe("Supply · XRPL · explorer");
+    expect(list.find((tag) => tag.tagName === "link" && tag.rel === "canonical")?.href).toBe("https://explorer.test/xrpl/supply");
+    expect(supply.meta({ loaderData: dataOf(), matches: [], params: { net: "xrpl" } } as never)).toEqual([]);
+    expect(supply.meta({ loaderData: undefined, matches, params: { net: "xrpl" } } as never)).toEqual([]);
   });
 });
 

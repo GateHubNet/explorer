@@ -52,6 +52,7 @@ import { nftSalesMeta } from "./meta-nft-sales";
 import { nftsMeta } from "./meta-nfts";
 import { tokenMeta } from "./meta-token";
 import { tokenHoldersMeta } from "./meta-token-holders";
+import { supplyMeta } from "./meta-supply";
 import { tokensMeta } from "./meta-tokens";
 import { homeMeta } from "./meta-home";
 import { ledgerMeta } from "./meta-ledger";
@@ -2063,5 +2064,43 @@ describe("paymentChannelMeta", () => {
     expect(content(list, "robots")).toBe("noindex, follow");
     expect(link(list, "canonical")).toBeUndefined();
     expect(keys(list).filter((key) => key.startsWith("og:") || key.startsWith("twitter:"))).toEqual([]);
+  });
+});
+
+describe("supplyMeta", () => {
+  // What the view builder writes for the tags (`SupplyPageData.description`): the snapshot's own figures.
+  const DESCRIPTION = "XRP supply at ledger #107,720,688: 99.99B total, 14.69M burned, 35.21B escrowed, 64.77B circulating.";
+  const page = { description: DESCRIPTION };
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+
+  it("has the tags of the page: Supply, the network and the product, the snapshot's description, a canonical URL on the origin, Open Graph, a summary card and no image", () => {
+    const list = supplyMeta(page, XRPL);
+    expect(title(list)).toBe("Supply · XRPL · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(link(list, "canonical")).toBe("https://explorer.test/xrpl/supply");
+    expect(content(list, "og:title")).toBe("Supply · XRPL · explorer");
+    expect(content(list, "og:description")).toBe(DESCRIPTION);
+    expect(content(list, "og:url")).toBe("https://explorer.test/xrpl/supply");
+    expect(content(list, "og:type")).toBe("website");
+    expect(content(list, "og:site_name")).toBe("explorer");
+    // No image of its own, and the site has no default one (ruling C14): the plain summary card.
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("is Xahau's on Xahau, and the sandbox's names in the title", () => {
+    const list = supplyMeta({ description: "XAH supply at ledger #26,596,843: 613.40M total, 49.43M minted, 2.32K burned, 18.41M escrowed, 595.00M circulating." }, XAHAU);
+    expect(title(list)).toBe("Supply · Xahau · explorer");
+    expect(link(list, "canonical")).toBe("https://explorer.test/xahau/supply");
+    expect(title(supplyMeta(page, XRPL_TESTNET))).toBe("Supply · XRPL Testnet · explorer");
+    expect(title(supplyMeta(page, XAHAU_TESTNET))).toBe("Supply · Xahau Testnet · explorer");
+  });
+
+  it("is on the request's origin", () => {
+    const list = supplyMeta(page, { ...XRPL, origin: "https://explorer.example" });
+    expect(link(list, "canonical")).toBe("https://explorer.example/xrpl/supply");
+    expect(content(list, "og:url")).toBe("https://explorer.example/xrpl/supply");
   });
 });

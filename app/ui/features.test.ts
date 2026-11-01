@@ -281,6 +281,35 @@ describe("the TOKENS switch", () => {
   });
 });
 
+// SUPPLY (E12): the supply page and the Network menu's Supply item ("soon" while off). A page-level switch.
+describe("the SUPPLY switch", () => {
+  // Its place is the eleventh, after E11's. Checked as a prefix of both lists, as TOKENS' is, so that a switch appended after it by a later plan leaves this test as it is.
+  it("is the eleventh switch, after the ten before it, and its feature is supply", () => {
+    const order = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS", "AMM_PAGES", "NFTS", "NAMES", "LEDGER_OBJECTS", "DELEGATION", "TOKENS", "SUPPLY"];
+    expect(FEATURE_VARS.slice(0, 11)).toEqual(order);
+    expect(FEATURE_VARS.indexOf("SUPPLY")).toBe(10);
+    expect(Object.keys(FEATURE_NAME).slice(0, 11)).toEqual(order);
+    expect(Object.keys(FEATURE_NAME).indexOf("SUPPLY")).toBe(10);
+    expect(FEATURE_NAME.SUPPLY).toBe("supply");
+  });
+
+  it('is on for "on" only', () => {
+    expect(featuresOf({ SUPPLY: "on" }).supply).toBe(true);
+    for (const value of ["off", "ON", "On", "yes", undefined]) expect(featuresOf({ SUPPLY: value }).supply, String(value)).toBe(false);
+    expect(featuresOf({}).supply).toBe(false);
+  });
+
+  it("is off in NO_FEATURES", () => {
+    expect(NO_FEATURES.supply).toBe(false);
+  });
+
+  it("does not turn on another feature, and no other switch turns it on", () => {
+    expect(featuresOf({ SUPPLY: "on" })).toEqual({ ...NO_FEATURES, supply: true });
+    expect(featuresOf({ ...allSwitches("on"), SUPPLY: "off" }).supply).toBe(false);
+    expect(featuresOf({ VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on", NFTS: "on", NAMES: "on", LEDGER_OBJECTS: "on", DELEGATION: "on", TOKENS: "on" }).supply).toBe(false);
+  });
+});
+
 describe("NO_FEATURES", () => {
   it("is frozen, so that a component cannot turn a feature on for everyone", () => {
     expect(Object.isFrozen(NO_FEATURES)).toBe(true);

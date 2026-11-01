@@ -711,6 +711,33 @@ describe("the token list", () => {
   });
 });
 
+describe("the supply page", () => {
+  it("has the tags of the page: the snapshot in the description, a canonical URL, and no image", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/supply")).html);
+    expect(tags.titles).toEqual(["Supply · XRPL · explorer"]);
+    expect(tags.content("description")).toBe("XRP supply at ledger #107,720,688: 99.99B total, 14.69M burned, 35.21B escrowed, 64.77B circulating.");
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/supply`]);
+    expect(tags.content("og:title")).toBe("Supply · XRPL · explorer");
+    expect(tags.content("og:description")).toBe(tags.content("description"));
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/supply`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("og:image")).toBeUndefined();
+    expect(tags.content("twitter:image")).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("is Xahau's on Xahau, with the minted figure in the description", async () => {
+    mock = mockUpstream("xahau");
+    const tags = head((await page("/xahau/supply")).html);
+    expect(tags.titles).toEqual(["Supply · Xahau · explorer"]);
+    expect(tags.content("description")).toBe("XAH supply at ledger #26,596,843: 613.40M total, 49.43M minted, 2.32K burned, 18.41M escrowed, 595.00M circulating.");
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/supply`]);
+  });
+});
+
 describe("a collection's page", () => {
   const OWNER = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
   const DESCRIPTION = (words: string, label: string, where: string) => `${words} collection ${label} on ${where}: its sales, ${words === "NFT" ? "NFTs" : "URITokens"} and holders.`;

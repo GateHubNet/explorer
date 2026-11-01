@@ -298,8 +298,8 @@ describe("storing and serving a page", () => {
     // AMM_PAGES is another: a stored page never meets the other value of the header's AMM item or of a pool link.
     expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(encodeURIComponent("AMM_PAGES=off"));
     expect(edgeCacheKey(url, cacheGeneration({ ...h.env, AMM_PAGES: "on" }))).not.toBe(edgeCacheKey(url, cacheGeneration(h.env)));
-    // NFTS is another (sorted between NAMES and TOKENS): a stored page never meets the other value of the header's NFTs item or of an NFT link.
-    expect(cacheGeneration(h.env)).toMatch(/,MARKETS=off,NAMES=off,NFTS=off,TOKENS=off,VALIDATORS=off$/);
+    // NFTS is another (sorted between NAMES and SUPPLY): a stored page never meets the other value of the header's NFTs item or of an NFT link.
+    expect(cacheGeneration(h.env)).toMatch(/,MARKETS=off,NAMES=off,NFTS=off,SUPPLY=off,TOKENS=off,VALIDATORS=off$/);
     expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(encodeURIComponent("NFTS=off"));
     expect(edgeCacheKey(url, cacheGeneration({ ...h.env, NFTS: "on" }))).not.toBe(edgeCacheKey(url, cacheGeneration(h.env)));
     // NAMES is another (sorted between MARKETS and NFTS): a stored page never meets the other value of an account's name, mark and title.
@@ -312,9 +312,12 @@ describe("storing and serving a page", () => {
     expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(encodeURIComponent("LEDGER_OBJECTS=off"));
     expect(edgeCacheKey(url, cacheGeneration({ ...h.env, LEDGER_OBJECTS: "on" }))).not.toBe(edgeCacheKey(url, cacheGeneration(h.env)));
     expect(edgeCacheKey(url, cacheGeneration({ ...h.env, LEDGER_OBJECTS: "on" }))).not.toBe(edgeCacheKey(url, cacheGeneration({ ...h.env, DELEGATION: "on" })));
-    // TOKENS is another (sorted between NFTS and VALIDATORS): a stored page never meets the other value of the header's Tokens item or of a token link.
+    // TOKENS is another (sorted between SUPPLY and VALIDATORS): a stored page never meets the other value of the header's Tokens item or of a token link.
     expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(encodeURIComponent("TOKENS=off"));
     expect(edgeCacheKey(url, cacheGeneration({ ...h.env, TOKENS: "on" }))).not.toBe(edgeCacheKey(url, cacheGeneration(h.env)));
+    // SUPPLY is another (sorted between NFTS and TOKENS): a stored page never meets the other value of the supply page's 404 or of the Network menu's Supply item.
+    expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(encodeURIComponent("SUPPLY=off"));
+    expect(edgeCacheKey(url, cacheGeneration({ ...h.env, SUPPLY: "on" }))).not.toBe(edgeCacheKey(url, cacheGeneration(h.env)));
     expect(edgeCacheKey(url, "build-a")).not.toBe(edgeCacheKey(url, "build-b"));
     expect(edgeCacheKey(url, "build-a")).not.toBe(edgeCacheKey(`${url}?x=1`, "build-a"));
     expect(edgeCacheKey(`${url}?x=1`, "build-a")).toBe(`${url}?x=1&__build=build-a`);

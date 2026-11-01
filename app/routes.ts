@@ -40,6 +40,8 @@ export default [
     route("validators/:key", "routes/net.validators.$key.tsx"),
     route("amendments", "routes/net.amendments.tsx"),
     route("amendments/:name", "routes/net.amendments.$name.tsx"),
+    // The supply of the native currency: one snapshot, with the burned (and on Xahau minted) days (E12).
+    route("supply", "routes/net.supply.tsx"),
   ]),
   // A resource route: the link-preview image of a transaction, ledger or account (`/og/xrpl/tx/{hash}.png`). Outside `:net`: no layout.
   route("og/:net/:kind/:id.png", "routes/og.$net.$kind.$id[.png].tsx"),

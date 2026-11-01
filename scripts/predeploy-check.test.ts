@@ -597,6 +597,58 @@ describe("deployProblems", () => {
       });
     });
 
+    // SUPPLY (E12): the supply page. A sandbox or production build must say it, and say it right. It needs no other switch: the supply data is D7's, which no switch of this list gates, so the guard has
+    // no cross-switch reason for it. (Decision 11 of the supply spec says when an environment turns it on: the owner's, and a commit.)
+    describe("SUPPLY", () => {
+      it("passes a build whose SUPPLY is off or on, and the passing configs carry it, off", () => {
+        expect((good("sandbox").vars as Config).SUPPLY).toBe("off");
+        expect((good("production").vars as Config).SUPPLY).toBe("off");
+        expect(deployProblems(good("sandbox"), "sandbox")).toEqual([]);
+        expect(deployProblems(good("production"), "production")).toEqual([]);
+        expect(deployProblems(withVars({ SUPPLY: "on" }), "sandbox")).toEqual([]);
+        expect(deployProblems(withVars({ SUPPLY: "off" }, "production"), "production")).toEqual([]);
+        expect(deployProblems(withVars({ SUPPLY: "on" }, "production"), "production")).toEqual([]);
+      });
+
+      it("refuses a build without SUPPLY, and names it", () => {
+        for (const env of ["sandbox", "production"] as const) {
+          const vars = { ...(good(env).vars as Config) };
+          delete vars.SUPPLY;
+          const problems = deployProblems(good(env, { vars }), env);
+          expect(problems, env).toHaveLength(1);
+          expect(problems[0]).toContain("SUPPLY is not set");
+          expect(problems[0]).toContain('"on" or "off"');
+        }
+      });
+
+      it('refuses SUPPLY: "yes", and names it', () => {
+        for (const env of ["sandbox", "production"] as const) {
+          const problems = deployProblems(withVars({ SUPPLY: "yes" }, env), env);
+          expect(problems, env).toHaveLength(1);
+          expect(problems[0]).toContain("SUPPLY");
+          expect(problems[0]).toContain('"yes"');
+          expect(problems[0]).toContain('not exactly "on" or "off"');
+        }
+      });
+
+      it('refuses a misspelt SUPLY: "on" as a var that is not a switch, naming SUPPLY among the switches', () => {
+        const problems = deployProblems(withVars({ SUPLY: "on" }), "sandbox");
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain("SUPLY is");
+        expect(problems[0]).toContain("not a switch");
+        expect(problems[0]).toContain("SUPPLY");
+        expect(problems[0]).toContain(`the switches are ${FEATURE_VARS.join(", ")}`);
+        expect(problems[0]).toContain("a misspelt one?");
+      });
+
+      it("depends on no other switch: on over every other switch off is accepted, and so is off over every other switch on", () => {
+        for (const env of ["sandbox", "production"] as const) {
+          expect(deployProblems(withVars({ ...allSwitches("off"), SUPPLY: "on" }, env), env), env).toEqual([]);
+          expect(deployProblems(withVars({ ...allSwitches("on"), SUPPLY: "off" }, env), env), env).toEqual([]);
+        }
+      });
+    });
+
     it("lets a var that is not a switch have any other value", () => {
       expect(deployProblems(withVars({ SENTRY_DSN: "", SOMETHING: "ON", OTHER: 3, YES: "yes" }), "sandbox")).toEqual([]);
     });
@@ -1173,5 +1225,14 @@ describe("the deploy scripts and wrangler.jsonc", () => {
     expect(vars().TOKENS).toBe("on");
     expect(vars("sandbox").TOKENS).toBe("off");
     expect(vars("production").TOKENS).toBe("off");
+  });
+
+  // SUPPLY (README "Switches"): on in development and the tests (the top level), off in sandbox and production until that environment's data API serves D7's snapshot on both networks and the escrowed
+  // figure is complete there (supply spec, decision 11). A flip is a commit, so it is read from the file.
+  it("has SUPPLY on at the top level and off in sandbox and production", () => {
+    const vars = (env?: string) => unstable_readConfig({ config: join(project, "wrangler.jsonc"), env }).vars as Record<string, unknown>;
+    expect(vars().SUPPLY).toBe("on");
+    expect(vars("sandbox").SUPPLY).toBe("off");
+    expect(vars("production").SUPPLY).toBe("off");
   });
 });

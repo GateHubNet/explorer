@@ -145,7 +145,8 @@ const ROUTES: FakeRoute[] = [
   // An escrow's page draws the chart kit's window bar and no table; no heavier than home's here all the same (the 150,000 B pin test above needs home to be the heaviest lookup
   // page of the build; the kit is in what the real build measures).
   { id: "routes/net.escrows.$id", parentId: "routes/net", module: "escrow.js", imports: ["shared.js"] },
-  // A check's page draws the flow of three boxes and no table, a channel's the chart kit's share bar and no table: lookup pages too, no heavier than home's here for the same reason.
+  // A check's page draws the flow of three boxes and no table: a lookup page too, no heavier than home's here for the same reason. A channel's draws the chart kit's share bar and no table, and has
+  // taken the dashboard budget since E12 (README, "The figures of E12"): no heavier than home's here all the same, so that the 150,000 B pin test below keeps home the heaviest page it sizes.
   { id: "routes/net.checks.$id", parentId: "routes/net", module: "check.js", imports: ["shared.js"] },
   { id: "routes/net.payment-channels.$id", parentId: "routes/net", module: "payment-channel.js", imports: ["shared.js"] },
   // The token list draws a table of issuer links, a form and a pager, and no chart: a lookup page, no heavier than home's here for the same reason.
@@ -154,6 +155,8 @@ const ROUTES: FakeRoute[] = [
   { id: "routes/net.token.$token", parentId: "routes/net", module: "token.js", imports: ["shared.js", "table.js"] },
   // A token's holders: a header and one table with the meter, and no chart: a lookup page too, the same.
   { id: "routes/net.token.$token.holders", parentId: "routes/net", module: "token-holders.js", imports: ["shared.js", "table.js"] },
+  // The supply page draws the chart kit's share bar, two cards of columns and its tiles, with a table in each card: a dashboard (decision 14 of the supply spec).
+  { id: "routes/net.supply", parentId: "routes/net", module: "supply.js", imports: ["shared.js", "table.js", "charts.js"] },
   // Not one of the pages: its chunk is loaded only when somebody goes there.
   { id: "routes/net.search", parentId: "routes/net", module: "search.js", imports: ["shared.js", "search-page.js"] },
 ];
@@ -189,6 +192,7 @@ const CHUNKS: FakeChunk[] = [
   { name: "tokens.js", size: 1500 },
   { name: "token.js", size: 1700 },
   { name: "token-holders.js", size: 1400 },
+  { name: "supply.js", size: 1800 },
   { name: "charts.js", size: 6000 },
   { name: "qr-picture.js", size: 700 },
   { name: "search.js", size: 500 },
@@ -196,7 +200,7 @@ const CHUNKS: FakeChunk[] = [
 ];
 
 describe("the pages", () => {
-  it("are home, ledger, transaction, account, network, markets, market-pair, validators, validator, amendments, amendment, amm, amm-pool, nfts, nft-sales, nft-collection, nft, escrow, check, payment-channel, tokens, token and token-holders, by their routes, each with the name of its budget", () => {
+  it("are home, ledger, transaction, account, network, markets, market-pair, validators, validator, amendments, amendment, amm, amm-pool, nfts, nft-sales, nft-collection, nft, escrow, check, payment-channel, tokens, token, token-holders and supply, by their routes, each with the name of its budget", () => {
     expect(PAGES).toEqual([
       { name: "home", route: "routes/net._index", budget: "lookup" },
       { name: "ledger", route: "routes/net.ledger.$id", budget: "lookup" },
@@ -217,10 +221,11 @@ describe("the pages", () => {
       { name: "nft", route: "routes/net.nft.$id", budget: "lookup" },
       { name: "escrow", route: "routes/net.escrows.$id", budget: "lookup" },
       { name: "check", route: "routes/net.checks.$id", budget: "lookup" },
-      { name: "payment-channel", route: "routes/net.payment-channels.$id", budget: "lookup" },
+      { name: "payment-channel", route: "routes/net.payment-channels.$id", budget: "dashboard" },
       { name: "tokens", route: "routes/net.tokens", budget: "lookup" },
       { name: "token", route: "routes/net.token.$token", budget: "lookup" },
       { name: "token-holders", route: "routes/net.token.$token.holders", budget: "lookup" },
+      { name: "supply", route: "routes/net.supply", budget: "dashboard" },
     ]);
   });
 
@@ -240,7 +245,7 @@ describe("checkBundle: what a page loads", () => {
     // The route manifest is one of the files every page loads, and counts like the others.
     const common = ["entry.js", "root.js", "net.js", "shared.js", "shell.js", MANIFEST];
     const byPage = Object.fromEntries(report.pages.map((page) => [page.name, page]));
-    expect(Object.keys(byPage)).toEqual(["home", "ledger", "transaction", "account", "network", "markets", "market-pair", "validators", "validator", "amendments", "amendment", "amm", "amm-pool", "nfts", "nft-sales", "nft-collection", "nft", "escrow", "check", "payment-channel", "tokens", "token", "token-holders"]);
+    expect(Object.keys(byPage)).toEqual(["home", "ledger", "transaction", "account", "network", "markets", "market-pair", "validators", "validator", "amendments", "amendment", "amm", "amm-pool", "nfts", "nft-sales", "nft-collection", "nft", "escrow", "check", "payment-channel", "tokens", "token", "token-holders", "supply"]);
     expect(byPage.home!.bytes).toBe(sum([...common, "table.js", "home.js"]));
     expect(byPage.ledger!.bytes).toBe(sum([...common, "table.js", "ledger.js"]));
     expect(byPage.transaction!.bytes).toBe(sum([...common, "tx.js"]));
@@ -264,6 +269,7 @@ describe("checkBundle: what a page loads", () => {
     expect(byPage.tokens!.bytes).toBe(sum([...common, "table.js", "tokens.js"]));
     expect(byPage.token!.bytes).toBe(sum([...common, "table.js", "token.js"]));
     expect(byPage["token-holders"]!.bytes).toBe(sum([...common, "table.js", "token-holders.js"]));
+    expect(byPage.supply!.bytes).toBe(sum([...common, "table.js", "charts.js", "supply.js"]));
     // The chunk of a route that is not a page, and the ones only it imports, are in none of the pages.
     expect(report.pages.flatMap((page) => page.files)).not.toContain("search-page.js");
     expect(byPage.home!.files).toEqual(expect.arrayContaining([...common, "table.js", "home.js"]));
@@ -319,10 +325,11 @@ describe("checkBundle: what a page loads", () => {
     expect(table).toMatch(/\ntokens\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toMatch(/\ntoken\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toMatch(/\ntoken-holders\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/\nsupply\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toContain("budgets: 150.0 KB for the lookup pages, 160.0 KB for the dashboards");
     expect(
-      table.split("\n").filter((line) => /^\s*(home|ledger|transaction|account|network|markets|market-pair|validators|validator|amendments|amendment|amm|amm-pool|nfts|nft-sales|nft-collection|nft|escrow|check|payment-channel|tokens|token|token-holders)\s+\d/.test(line)),
-    ).toHaveLength(23);
+      table.split("\n").filter((line) => /^\s*(home|ledger|transaction|account|network|markets|market-pair|validators|validator|amendments|amendment|amm|amm-pool|nfts|nft-sales|nft-collection|nft|escrow|check|payment-channel|tokens|token|token-holders|supply)\s+\d/.test(line)),
+    ).toHaveLength(24);
     expect(table).toMatch(/\naccount analytics\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
   });
 
@@ -418,8 +425,8 @@ describe("checkBundle: what a page loads", () => {
     });
     const report = checkBundle(dir);
     expect(report.pages.every((page) => page.files.includes("react-dom.js"))).toBe(true);
-    // The twenty-three pages, and the analytics view, which is the account page's files and more.
-    expect(report.problems).toHaveLength(24);
+    // The twenty-four pages, and the analytics view, which is the account page's files and more.
+    expect(report.problems).toHaveLength(25);
   });
 });
 

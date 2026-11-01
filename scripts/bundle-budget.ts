@@ -4,8 +4,8 @@
 // with `process.argv[1]`; through a link they differ, and it then printed nothing and exited 0.) The check fails when
 //
 //   - the JavaScript a page loads first, gzipped, is over the page's budget (`BUDGETS`, ruling R19): 150 KB on the home, ledger, transaction,
-//     account, markets, NFT older sales, NFT, escrow, check, payment channel, token list, token and token holders pages, 160 KB on the network, market pair, validators, validator, amendments, amendment,
-//     AMM pools, AMM pool, NFT list and NFT collection pages (the route manifest is in it: see below);
+//     account, markets, NFT older sales, NFT, escrow, check, token list, token and token holders pages, 160 KB on the network, market pair, validators, validator, amendments, amendment,
+//     AMM pools, AMM pool, NFT list, NFT collection, payment channel and supply pages (the route manifest is in it: see below);
 //   - the analytics view of the account page loads more than 160 KB of JavaScript, gzipped, in all (spec 5, gate 2): the account route's first
 //     load, the chunk of the view that its `import()` names (`ANALYTICS_VIEW`), and the files that chunk imports statically, followed from file
 //     to file (each file once); or that `import()` or a file it reaches is not in the build;
@@ -32,6 +32,9 @@ import { gzipSync } from "node:zlib";
  * and the NFT collection: like the AMM pool page they draw charts and account links, and E9's names in the shared `AccountLink` pushed both over 150 KB (they stood at 149.4 and 149.8 KB at the
  * end of E8, the two closest to their budget). The other lookup pages stood between 134.7 and 143.4 KB then, the dashboards between 140.2 and 153.5 KB (the AMM pool the heaviest) and the view
  * at 155.6 KB, the route manifest (about 2.2 KB) included (README, "The client bundle check").
+ * The payment channel took the dashboard budget with E12 (E11's rule for the page nearest its limit: under 300 bytes of room, it takes `dashboard` or a shared chunk leaves it): it draws the
+ * kit's share bar, which E12 grew a compact form (+222 bytes), and the supply page's route added 87 bytes to the manifest every page loads, which left it 215 bytes under 150,000 before the Network
+ * menu (about 0.4 KB for the shell of every page) was built. It stood at 149.8 KB then (README, "The figures of E12").
  */
 export const BUDGETS = { lookup: 150_000, dashboard: 160_000 } as const;
 export type BudgetName = keyof typeof BUDGETS;
@@ -57,10 +60,11 @@ export const PAGES = [
   { name: "nft", route: "routes/net.nft.$id", budget: "lookup" },
   { name: "escrow", route: "routes/net.escrows.$id", budget: "lookup" },
   { name: "check", route: "routes/net.checks.$id", budget: "lookup" },
-  { name: "payment-channel", route: "routes/net.payment-channels.$id", budget: "lookup" },
+  { name: "payment-channel", route: "routes/net.payment-channels.$id", budget: "dashboard" },
   { name: "tokens", route: "routes/net.tokens", budget: "lookup" },
   { name: "token", route: "routes/net.token.$token", budget: "lookup" },
   { name: "token-holders", route: "routes/net.token.$token.holders", budget: "lookup" },
+  { name: "supply", route: "routes/net.supply", budget: "dashboard" },
 ] as const satisfies ReadonlyArray<{ name: string; route: string; budget: BudgetName }>;
 
 /**
