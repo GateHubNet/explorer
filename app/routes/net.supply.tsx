@@ -24,8 +24,8 @@ import type { Route } from "./+types/net.supply";
 // The loader names a cache class (`slow`, and `short` for the redirect and the 404) and a TTL; a 503 it throws is not stored but replaced by the stored copy.
 export const headers = forwardCacheClass;
 
-// The header marks its Network item as the section of the page (`aria-current="true"`: the page is inside the section, it is not its index).
-export const handle = { navSection: "network" } satisfies NetworkRouteHandle;
+// The header marks its Network menu as the section of the page (`aria-current="true"` on the summary) and the menu's Supply item as the page (`"page"` on its own path).
+export const handle = { navSection: "network", navPage: "supply" } satisfies NetworkRouteHandle;
 
 /**
  * `/{net}/supply` (supply spec 1 and 3): one snapshot of the native currency, from the data API's D7 routes and the network page's fees. The class is `slow` for 300 s, the page and its `.data`

@@ -53,3 +53,18 @@ describe("the supply page with SUPPLY off", () => {
     expect(mock.requests).toEqual([]);
   });
 });
+
+describe("the menu with every switch off", () => {
+  it("the menu's Supply item reads soon, in the header's soon style, as a span and not a link", async () => {
+    mock = mockUpstream("xrpl");
+    const response = await get("/xrpl");
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain('<span class="menu__item is-soon" aria-disabled="true">Supply <span class="soon">soon</span></span>');
+    expect(html).not.toMatch(/href="\/(xrpl|xahau)\/supply"/);
+    // Overview never reads soon.
+    expect(html).toMatch(/<a class="menu__item" href="\/xrpl\/network"/);
+    expect(html).toContain('<details class="menu" data-menu="network">');
+  });
+});

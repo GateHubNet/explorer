@@ -226,8 +226,8 @@ describe("the header with TOKENS off", () => {
     expect(html).toContain(SOON);
     expect(html).not.toMatch(/href="\/(xrpl|xahau)\/tokens"/);
     expect(anchors(html).map((a) => a.text)).not.toContain("Tokens");
-    // Between Transactions and Network, where the link is when it is on.
+    // Between Transactions and Network (the menu), where the link is when it is on.
     expect(html.indexOf(SOON)).toBeGreaterThan(html.indexOf(">Transactions</a>"));
-    expect(html.indexOf(SOON)).toBeLessThan(html.indexOf(">Network</a>"));
+    expect(html.indexOf(SOON)).toBeLessThan(html.indexOf('data-menu="network"'));
   });
 });

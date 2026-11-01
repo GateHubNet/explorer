@@ -374,12 +374,15 @@ describe("the page without JavaScript", () => {
     expect(text).toContain("Oct 17 is not computed yet.");
   });
 
-  it("is a page of the section: the header marks Network as the current page", async () => {
+  it("is a page of the section: the header marks the Network menu as the current section and its Overview item as the current page", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await render("/xrpl/network?period=7d");
+    // The summary stands for the section; the menu's own item is the page, whatever the query.
+    expect(html).toContain('<summary class="nav-item menu__summary is-current" aria-current="true">Network<svg');
     const network = anchors(html).filter((a) => /href="\/xrpl\/network"/.test(a.attrs));
-    expect(network.map((a) => a.text)).toContain("Network");
-    expect(network.some((a) => /aria-current="page"/.test(a.attrs) && /is-current/.test(a.attrs))).toBe(true);
+    expect(network.map((a) => a.text)).toContain("Overview");
+    expect(network.some((a) => /class="menu__item"/.test(a.attrs) && /aria-current="page"/.test(a.attrs))).toBe(true);
+    expect(html).not.toContain('>Network</a>');
   });
 
   it("links Markets, AMM and NFTs in the header, while MARKETS, AMM_PAGES and NFTS are on (the top level)", async () => {

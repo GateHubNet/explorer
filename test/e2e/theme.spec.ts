@@ -247,7 +247,7 @@ test.describe("the theme", () => {
 // toggle on a second row by itself; the rule that mends it moves the toggle by a margin, which must never take it off the page). It shares the row of the box on a page that has one, and of
 // the nav on the home page, which has none, at every width above a phone. Which widths were the band depends on the nav's items and the fonts, so the test takes every few pixels from 721
 // to 1300 (the phone layout below has its own rows), with the nav as the Worker under test draws it (every switch on) and as production draws it today (Tokens, Markets, AMM and NFTs are
-// the "soon" labels: about 700 px of items); the unit test of components.css pins the rule.
+// the "soon" labels: about 704 px of items, the Network menu's chevron 16 of them); the unit test of components.css pins the rule.
 test.describe("the toggle in the header", () => {
   const CASES = [
     ["the box, on a page that has one", "/xrpl/network", "searchbox"],
@@ -278,7 +278,7 @@ test.describe("the toggle in the header", () => {
             }, name);
           }
         }
-        // The items are as wide as they are in production: 512 px with every switch on, about 700 with the four labels.
+        // The items are as wide as they are in production: 516 px with every switch on, about 704 with the four labels (the chevron of the Network menu is 16 px of each).
         const items = await nav.getByRole("listitem").evaluateAll((lis) => lis.reduce((sum, li) => sum + li.getBoundingClientRect().width, 0));
         expect(items, "the nav's items together").toBeGreaterThan(production ? 620 : 480);
         expect(items).toBeLessThan(production ? 800 : 600);

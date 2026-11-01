@@ -646,7 +646,7 @@ describe("net.network.tsx", () => {
     expect(network.clientLoader).toBeTypeOf("function");
     expect(network.default).toBeTypeOf("function");
     expect(network.headers).toBe(forwardCacheClass);
-    expect(network.handle).toEqual({ navSection: "network" });
+    expect(network.handle).toEqual({ navSection: "network", navPage: "overview" });
   });
 
   it("asks the server's loader again every 4 s, shows what it answers, and does not ask for the layout again", async () => {
@@ -1290,7 +1290,7 @@ describe("net.validators.tsx", () => {
     expect(validators.clientLoader).toBeTypeOf("function");
     expect(validators.default).toBeTypeOf("function");
     expect(validators.headers).toBe(forwardCacheClass);
-    expect(validators.handle).toEqual({ navSection: "network" });
+    expect(validators.handle).toEqual({ navSection: "network", navPage: "validators" });
   });
 
   it("asks the server's loader again every 10 s, not every 4, shows what it answers, and does not ask for the layout again", async () => {
@@ -1558,7 +1558,7 @@ describe("net.validators.$key.tsx", () => {
     expect(validator.clientLoader).toBeTypeOf("function");
     expect(validator.default).toBeTypeOf("function");
     expect(validator.headers).toBe(forwardCacheClass);
-    expect(validator.handle).toEqual({ navSection: "network" });
+    expect(validator.handle).toEqual({ navSection: "network", navPage: "validators" });
   });
 
   it("asks the server's loader again every ledger (4 s), and shows what it answers", async () => {
@@ -1767,7 +1767,7 @@ describe("net.amendments.tsx", () => {
     expect(amendments.clientLoader).toBeTypeOf("function");
     expect(amendments.default).toBeTypeOf("function");
     expect(amendments.headers).toBe(forwardCacheClass);
-    expect(amendments.handle).toEqual({ navSection: "network" });
+    expect(amendments.handle).toEqual({ navSection: "network", navPage: "amendments" });
   });
 
   it("asks the server's loader again every minute, not every 4 or 10 s, shows what it answers, and does not ask for the layout again", async () => {
@@ -1986,7 +1986,7 @@ describe("net.amendments.$name.tsx", () => {
     expect(amendment.clientLoader).toBeTypeOf("function");
     expect(amendment.default).toBeTypeOf("function");
     expect(amendment.headers).toBe(forwardCacheClass);
-    expect(amendment.handle).toEqual({ navSection: "network" });
+    expect(amendment.handle).toEqual({ navSection: "network", navPage: "amendments" });
   });
 
   it("asks the server's loader again every minute, shows what it answers, and does not ask for the layout again", async () => {
@@ -2113,7 +2113,7 @@ describe("net.supply.tsx", () => {
   it("has the headers that forward the class and the handle that names the header's section, and neither a clientLoader nor a beat: the page polls nothing", () => {
     expect(supply.default).toBeTypeOf("function");
     expect(supply.headers).toBe(forwardCacheClass);
-    expect(supply.handle).toEqual({ navSection: "network" });
+    expect(supply.handle).toEqual({ navSection: "network", navPage: "supply" });
     expect((supply as Record<string, unknown>).clientLoader).toBeUndefined();
     expect(supply.loader).toBeTypeOf("function");
   });

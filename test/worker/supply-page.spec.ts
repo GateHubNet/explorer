@@ -6,7 +6,7 @@ import { createLoadContext, type Env } from "../../app/server/env";
 import { supplySample } from "../support/d7-samples";
 import { namesCalls } from "../support/names";
 import { alerts, expectDegraded, isStored, keysOf, tiles, unavailable } from "../support/nft-pages";
-import { pageClient, textOf } from "../support/pages";
+import { anchors, pageClient, textOf } from "../support/pages";
 import { cold, keptFor, storedEntries } from "../support/subrequest-miss";
 import { dataApiError, mockUpstream, type UpstreamMock } from "../support/upstream";
 
@@ -276,5 +276,27 @@ describe("the page", () => {
     expect(text).toContain("Part of circulating: 46.22M XRP in AMM pools (0.071% of circulating)");
     expect(text).not.toContain("held as account reserves");
     expect(alerts(html)).toBe(0);
+  });
+
+  it("the page without JavaScript has the menu: its summary and four links", async () => {
+    cold();
+    mock = mockUpstream("xrpl");
+    const { response, html } = await render("/xrpl/supply");
+
+    expect(response.status).toBe(200);
+    // The server's HTML: a closed `<details>` whose summary is the section and whose panel holds the four links, so that it opens by itself, before any script and without one.
+    const menu = /<details class="menu" data-menu="network">([\s\S]*?)<\/details>/.exec(html)?.[1];
+    expect(menu, "the Network menu").toBeDefined();
+    expect(menu).toMatch(/^<summary class="nav-item menu__summary is-current" aria-current="true">Network<svg [^>]*aria-hidden="true"/);
+    expect(anchors(menu!).map((a) => [a.text, /href="([^"]*)"/.exec(a.attrs)![1], /aria-current="([^"]*)"/.exec(a.attrs)?.[1]])).toEqual([
+      ["Overview", "/xrpl/network", undefined],
+      ["Validators", "/xrpl/validators", undefined],
+      ["Amendments", "/xrpl/amendments", undefined],
+      // The page names its own item: "page" on its own path.
+      ["Supply", "/xrpl/supply", "page"],
+    ]);
+    expect(html).not.toMatch(/<details[^>]* open/);
+    // The Network item of the header is no link any more (the breadcrumb's is).
+    expect(anchors(html).filter((a) => /nav-item/.test(a.attrs)).map((a) => a.text)).not.toContain("Network");
   });
 });

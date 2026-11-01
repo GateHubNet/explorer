@@ -384,7 +384,8 @@ describe("the first page", () => {
     // The links: older sales, more collections, the sorts; indexable, no failure, complete coverage says nothing.
     expect(linksTo(html, "Older sales")).toEqual(["/xrpl/nfts/sales?marker=WzEwNzg4NjE2Myw4MywxXQ"]);
     expect(linksTo(html, "More collections")).toEqual(["/xrpl/nfts?marker=WzAsInI0cUhNN3ZXZUxUdFdQVm9FekRqVDZBc2twUWpTbXVpN0IiLDBd"]);
-    expect(linksTo(html, "Supply")).toEqual(["/xrpl/nfts?sort=supply"]);
+    // "Supply" twice: the header's Network menu leads to the supply page (SUPPLY is on at the top level), and the column's sort comes after it.
+    expect(linksTo(html, "Supply")).toEqual(["/xrpl/supply", "/xrpl/nfts?sort=supply"]);
     expect(html).toContain('<link rel="canonical" href="https://explorer.test/xrpl/nfts"/>');
     expect(html).toContain("<title>NFTs · XRPL · explorer</title>");
     expect(isNoindex(html)).toBe(false);

@@ -61,7 +61,11 @@ describe("/xrpl/network with the switches off", () => {
     expect(html).toContain('<span class="nav-item is-soon" aria-disabled="true"><span>Markets</span><span class="soon">soon</span></span>');
     expect(html).toContain('<span class="nav-item is-soon" aria-disabled="true"><span>AMM</span><span class="soon">soon</span></span>');
     expect(html).toContain('<span class="nav-item is-soon" aria-disabled="true"><span>NFTs</span><span class="soon">soon</span></span>');
-    // Network is a page.
-    expect(html).toMatch(/<a class="nav-item is-current" aria-current="page" href="\/xrpl\/network"/);
+    // Network is a menu whose Overview is the page, and whose other items are the soon label, since VALIDATORS and SUPPLY are off.
+    expect(html).toContain('<summary class="nav-item menu__summary is-current" aria-current="true">Network<svg');
+    expect(html).toMatch(/<a class="menu__item" aria-current="page" href="\/xrpl\/network"/);
+    for (const label of ["Validators", "Amendments", "Supply"]) {
+      expect(html).toContain(`<span class="menu__item is-soon" aria-disabled="true">${label} <span class="soon">soon</span></span>`);
+    }
   });
 });

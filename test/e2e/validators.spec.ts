@@ -38,8 +38,10 @@ test.describe("with VALIDATORS on", () => {
       await page.waitForURL((url) => url.pathname === "/xrpl/validators" && url.search === "?scope=all");
       await expect(page.getByRole("heading", { level: 1 })).toHaveText("Validators");
       await expect(page.getByRole("group", { name: "Which validators" }).getByRole("link", { name: /^All\b/ })).toHaveAttribute("aria-current", "true");
-      // The header's Network item is the section's: inside it, not its index.
-      await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Network", exact: true })).toHaveAttribute("aria-current", "true");
+      // The header's Network menu is the section's (its summary: inside it, not its index), and its Validators item the page, whatever the query.
+      const menu = page.getByRole("navigation", { name: "Main" }).locator('details[data-menu="network"]');
+      await expect(menu.locator("summary")).toHaveAttribute("aria-current", "true");
+      await expect(menu.getByRole("link", { name: "Validators", includeHidden: true })).toHaveAttribute("aria-current", "page");
 
       await page.goBack();
       await page.waitForURL("**/xrpl/network");

@@ -33,8 +33,8 @@ import type { Route } from "./+types/net.amendments.$name";
 // string (class `short`) and another spelling of the amendment (class `slow`); a 503 it throws is not stored but replaced by the stored copy.
 export const headers = forwardCacheClass;
 
-// The header marks its Network item as the section of the page (`aria-current="true"`: the page is inside the section, it is not its index).
-export const handle = { navSection: "network" } satisfies NetworkRouteHandle;
+// The header marks its Network menu as the section of the page (`aria-current="true"` on the summary) and the menu's Amendments item as the page (`"true"`: the page is under the item's own, it is not its index).
+export const handle = { navSection: "network", navPage: "amendments" } satisfies NetworkRouteHandle;
 
 /** What this route's loader answers: the view builder's page, the ledger it was built from and the Worker's build, for an open page to order its answers and to tell a deploy. */
 type AmendmentLoaderData = AmendmentPageData & { anchor: Anchor; build: string };

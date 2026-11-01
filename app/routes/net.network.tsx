@@ -29,8 +29,8 @@ import type { Route } from "./+types/net.network";
 // replaced by the stored copy.
 export const headers = forwardCacheClass;
 
-// The header marks its Network item as the page of the section (`aria-current="page"`).
-export const handle = { navSection: "network" } satisfies NetworkRouteHandle;
+// The header marks its Network menu as the section of the page (`aria-current="true"` on the summary) and the menu's Overview as the page (`aria-current="page"`).
+export const handle = { navSection: "network", navPage: "overview" } satisfies NetworkRouteHandle;
 
 /** The parts of the page that a beat may keep when its answer has them failed and the page shows them loaded (`keepLoaded`, spec 1.9), one for each call or chain. */
 const NETWORK_PARTS = ["openLedger", "validators", "types", "metrics", "fees", "payments", "exchanges", "amm"] as const;

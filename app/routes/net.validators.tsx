@@ -28,8 +28,8 @@ import type { Route } from "./+types/net.validators";
 // of class `short`; a 503 it throws is not stored but replaced by the stored copy.
 export const headers = forwardCacheClass;
 
-// The header marks its Network item as the section of the page (`aria-current="true"`: the page is inside the section, it is not its index).
-export const handle = { navSection: "network" } satisfies NetworkRouteHandle;
+// The header marks its Network menu as the section of the page (`aria-current="true"` on the summary) and the menu's Validators item as the page (`"page"` on its own path).
+export const handle = { navSection: "network", navPage: "validators" } satisfies NetworkRouteHandle;
 
 /** What this route's loader answers: the view builder's page, the ledger it was built from and the Worker's build, for an open page to order its answers and to tell a deploy. */
 type ValidatorsLoaderData = ValidatorsPageData & { anchor: Anchor; build: string };

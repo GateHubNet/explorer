@@ -37,8 +37,8 @@ import type { Route } from "./+types/net.validators.$key";
 // key that is none, and redirects another spelling of a key to the master key's URL; a 503 it throws is not stored but replaced by the stored copy.
 export const headers = forwardCacheClass;
 
-// The header marks its Network item as the section of the page (`aria-current="true"`: the page is inside the section, it is not its index).
-export const handle = { navSection: "network" } satisfies NetworkRouteHandle;
+// The header marks its Network menu as the section of the page (`aria-current="true"` on the summary) and the menu's Validators item as the page (`"true"`: the page is under the item's own, it is not its index).
+export const handle = { navSection: "network", navPage: "validators" } satisfies NetworkRouteHandle;
 
 /** The validations a page shows: the foundation's list size (spec 4.1). */
 const VALIDATIONS_LIMIT = 20;

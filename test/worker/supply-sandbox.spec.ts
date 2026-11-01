@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { pageClient, textOf } from "../support/pages";
+import { anchors, pageClient, textOf } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
 
 // The supply page in the sandbox (the `worker-sandbox` project: `ENVIRONMENT` "sandbox", README "The supply page", E7 §16): the network names are the layout's, so the page says XRPL Testnet and Xahau
@@ -51,5 +51,23 @@ describe("the supply page in the sandbox", () => {
     expect(text).toContain("no AMM on Xahau Testnet");
     expect(text).not.toContain("In AMM pools");
     expect(text).not.toContain("mainnet");
+  });
+
+  it.each([
+    ["xrpl", "XRPL Testnet"],
+    ["xahau", "Xahau Testnet"],
+  ] as const)("the Network menu has its four links on %s, under the Testnet badge", async (net, name) => {
+    mock = mockUpstream(net);
+    const { html } = await page(`/${net}/supply`);
+
+    expect(html).toContain('<span class="pill pill--testnet">Testnet</span>');
+    expect(textOf(html)).toContain(`${name} / Network / Supply`);
+    const menu = /<details class="menu" data-menu="network">([\s\S]*?)<\/details>/.exec(html)?.[1];
+    expect(anchors(menu!).map((a) => [a.text, /href="([^"]*)"/.exec(a.attrs)![1]])).toEqual([
+      ["Overview", `/${net}/network`],
+      ["Validators", `/${net}/validators`],
+      ["Amendments", `/${net}/amendments`],
+      ["Supply", `/${net}/supply`],
+    ]);
   });
 });

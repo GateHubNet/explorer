@@ -123,6 +123,91 @@ a.nav-item:hover {
   text-transform: uppercase;
 }
 
+/* The Network menu (supply spec 2): a `<details>` in the navigation, its summary one of the items and its panel a list of links under it. The summary is a `.nav-item`, so it is the other
+   items' size to the pixel; it takes the marker off and the hover of `a.nav-item:hover` (which does not reach a summary). The panel is the board's: the surface, a border, a radius and a
+   shadow, 230 px at least, 6 px under the summary, and below the search hints (20) and above the page. `.hdr__nav ul` (flex, wrap) also reaches it, so its selector is the longer one. */
+.menu {
+  position: relative;
+}
+
+.menu__summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.menu__summary::-webkit-details-marker {
+  display: none;
+}
+
+.menu__summary:hover {
+  background: var(--sunken);
+  color: var(--fg);
+}
+
+.menu__chevron {
+  margin-left: 4px;
+  transition: transform 0.15s;
+}
+
+/* base.css takes every transition off under prefers-reduced-motion: reduce (`*`, !important), the chevron's included: it turns at once there. */
+.menu[open] .menu__chevron {
+  transform: rotate(180deg);
+}
+
+.hdr__nav .menu__panel {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 230px;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 2px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px -16px rgba(15, 18, 23, 0.35);
+}
+
+.menu__item {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 7px;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+a.menu__item:hover {
+  background: var(--sunken);
+  text-decoration: none;
+}
+
+/* The item of the page the visitor is on ("page"), or of the one it is under ("true"): the board's sunken background; forced colours (below) add a rule. */
+.menu__item[aria-current] {
+  background: var(--sunken);
+}
+
+.menu__item.is-soon {
+  color: var(--muted);
+  cursor: default;
+}
+
+@media (forced-colors: active) {
+  /* The surface and the shadow are gone in forced colours: the panel keeps its border, and the current item a 2 px rule at its left in place of its background (the padding gives the 2 px back). */
+  .hdr__nav .menu__panel {
+    border-color: CanvasText;
+  }
+
+  .menu__item[aria-current] {
+    border-left: 2px solid CanvasText;
+    padding-left: 8px;
+  }
+}
+
 .hdr__tools {
   display: flex;
   align-items: center;
@@ -1736,6 +1821,14 @@ a.tabs__item:hover {
   .nav-item {
     min-height: 44px;
   }
+
+  /* The folded nav: the panel is in the flow under its summary, indented 12 px, its items as wide as the nav (44 px high: the touch rule below). */
+  .hdr__nav.is-open .menu__panel {
+    position: static;
+    min-width: 0;
+    margin: 6px 0 4px 12px;
+    box-shadow: none;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1778,7 +1871,8 @@ a.tabs__item:hover {
 @media (pointer: coarse), (max-width: 720px) {
   .btn,
   .tabs__item,
-  .nav-item {
+  .nav-item,
+  .menu__item {
     min-height: 44px;
   }
 

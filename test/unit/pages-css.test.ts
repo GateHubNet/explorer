@@ -881,6 +881,80 @@ describe("the hints of the search box", () => {
   });
 });
 
+describe("the Network menu (components.css)", () => {
+  // The header's menu (supply spec 2.5): a `<details>` with a summary that is a nav item and a panel of links. Its geometry in a browser is test/e2e/header-menu.spec.ts's and theme.spec.ts's sweep.
+  const touch = rulesOf(mediaBlocks(componentsCss, "(pointer: coarse), (max-width: 720px)"));
+  const phone = rulesOf(mediaBlocks(componentsCss, "(max-width: 720px)"));
+  const forced = rulesOf(mediaBlocks(componentsCss, "(forced-colors: active)"));
+
+  it("takes the disclosure marker off the summary, and keeps it a nav item with the hover of the others", () => {
+    expect(rule(componentsCss, ".menu")).toEqual({ position: "relative" });
+    expect(rule(componentsCss, ".menu__summary")).toMatchObject({ "list-style": "none", cursor: "pointer" });
+    expect(rule(componentsCss, ".menu__summary::-webkit-details-marker").display).toBe("none");
+    expect(rule(componentsCss, ".menu__summary:hover")).toEqual(rule(componentsCss, ".nav-item.is-current"));
+  });
+
+  it("puts the panel under the summary, 230 px at least, 6 px away, in a column that the nav's own list rule does not turn into a row", () => {
+    // `.hdr__nav ul` (a row that wraps, 2 px gap) reaches the panel too: the panel's selector is the longer one, so it wins without `!important`.
+    expect(rule(componentsCss, ".hdr__nav ul")).toMatchObject({ display: "flex", "flex-wrap": "wrap" });
+    const panel = rule(componentsCss, ".hdr__nav .menu__panel");
+    expect(panel).toMatchObject({ position: "absolute", top: "calc(100% + 6px)", left: "0", "min-width": "230px", display: "flex", "flex-direction": "column", "flex-wrap": "nowrap" });
+    expect(Object.values(panel).join(" ")).not.toContain("!important");
+    expect(panel).toMatchObject({ background: "var(--surface)", border: "1px solid var(--border)", "border-radius": "10px" });
+    expect(panel["box-shadow"]).toBeDefined();
+  });
+
+  it("stacks the panel above the page and below the search hints", () => {
+    const panel = Number(rule(componentsCss, ".hdr__nav .menu__panel")["z-index"]);
+    const hints = Number(rule(componentsCss, ".search--header .search__hints")["z-index"]);
+    expect(hints).toBe(20);
+    // The kit's tooltips are 3 at most.
+    expect(panel).toBeGreaterThan(3);
+    expect(panel).toBeLessThan(hints);
+  });
+
+  it("makes an item 36 px high, and 44 px on a touch screen and in the folded nav", () => {
+    expect(rule(componentsCss, ".menu__item")).toMatchObject({ display: "flex", "align-items": "center", "min-height": "36px", padding: "0 10px" });
+    const selector = Object.keys(touch).find((selectors) => selectors.split(",").map((one) => one.trim()).includes(".menu__item"));
+    expect(selector, "the touch rule names .menu__item").toBeDefined();
+    expect(touch[selector!]).toEqual({ "min-height": "44px" });
+    // The same rule is the nav items' own 44 px, so the folded nav's summary and its links are one size.
+    expect(selector).toContain(".nav-item");
+  });
+
+  it("marks the current item with the sunken background, and the hover of a link with it too, the soon item with neither", () => {
+    expect(rule(componentsCss, ".menu__item[aria-current]").background).toBe("var(--sunken)");
+    expect(rule(componentsCss, "a.menu__item:hover")).toMatchObject({ background: "var(--sunken)", "text-decoration": "none" });
+    expect(rule(componentsCss, ".menu__item.is-soon")).toMatchObject({ color: "var(--muted)", cursor: "default" });
+  });
+
+  it("is in the flow in the folded nav: static, indented 12 px, no shadow, the width of the nav", () => {
+    const folded = phone[".hdr__nav.is-open .menu__panel"]!;
+    expect(folded).toMatchObject({ position: "static", "min-width": "0", "box-shadow": "none" });
+    expect(folded.margin!.split(/\s+/)[3]).toBe("12px");
+  });
+
+  it("keeps a border round the panel in forced colours, and a 2 px rule at the left of the current item, its padding giving the 2 px back", () => {
+    expect(forced[".hdr__nav .menu__panel"]).toEqual({ "border-color": "CanvasText" });
+    expect(forced[".menu__item[aria-current]"]).toEqual({ "border-left": "2px solid CanvasText", "padding-left": "8px" });
+    expect(Number.parseInt(rule(componentsCss, ".menu__item").padding!.split(/\s+/)[1]!, 10)).toBe(10);
+  });
+
+  it("turns the chevron half a turn while open, with a transition that base.css takes off under prefers-reduced-motion", () => {
+    expect(rule(componentsCss, ".menu[open] .menu__chevron").transform).toBe("rotate(180deg)");
+    const chevron = rule(componentsCss, ".menu__chevron");
+    expect(chevron.transition).toMatch(/^transform 0?\.\d+s$/);
+    // `base.css` turns every transition off for the setting, with `!important` on `*`; a transition of the menu's own that is not `!important` yields to it.
+    expect(chevron.transition).not.toContain("!important");
+    expect(baseCss).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\*\s*\{[^}]*transition: none !important/);
+    expect(componentsCss.match(/\.menu[^{]*\{[^}]*!important/g)).toBeNull();
+  });
+
+  it("adds nothing to the block above a phone, which is the toggle's alone", () => {
+    expect(Object.keys(rulesOf(mediaBlocks(componentsCss, "(min-width: 721px)")))).toHaveLength(5);
+  });
+});
+
 describe("the supply page", () => {
   const phone = rulesOf(mediaBlocks(pagesCss, "(max-width: 640px)"));
 

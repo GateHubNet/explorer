@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { valueImports } from "../support/value-imports";
 
-// The supply page is drawn in the browser too (a client-side navigation renders it there), so what it imports must be light. The view builder (`server/supply-view.ts`, which reads bignumber.js) is
+// The supply page and the Network menu of the header are drawn in the browser too (a client-side navigation renders them there), so what they import must be light. The view builder (`server/supply-view.ts`, which reads bignumber.js) is
 // the loader's: the page gets every figure as text from it, and the route's `meta` imports the builder of the tags, not the view builder. A type import is erased and costs nothing; a value import
 // of `app/server` (but `./meta`, which `meta-supply.ts` builds on and the browser runs) is the bug. (`pnpm check:bundle` counts the result.)
 
@@ -13,9 +13,12 @@ const read = (path: string) => readFileSync(new URL(path, appDir), "utf8");
 /** A module of the Worker alone (`app/server`, however it is reached), or a package of the codec family. */
 const SERVER_ONLY = (from: string) => /(^|\/)server(\/|$)/.test(from) || /ripple-/.test(from);
 
-describe("the files of the supply page that run in the browser", () => {
+describe("the files of the supply page and of the Network menu that run in the browser", () => {
   it.each([
     "ui/pages/SupplyPage.tsx",
+    // The menu is in the shell, so on every page: the header and its hook are the browser's, and weigh on every page's budget.
+    "ui/components/Header.tsx",
+    "ui/use-disclosure-menu.ts",
     // A page's tags are made in the browser too (a client-side navigation): its builder imports ./meta, which SERVER_ONLY lets through, and nothing else of app/server.
     "server/meta-supply.ts",
     "domain/percent.ts",

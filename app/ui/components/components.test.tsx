@@ -1319,9 +1319,25 @@ describe("Header and Shell", () => {
       return within(await screen.findByRole("navigation", { name: "Main" }));
     }
 
-    /** The label of each item of the navigation, in order: a link's text, or a "soon" item's own label without its tag. */
+    /**
+     * The label of each item of the navigation, in order: a link's text, a "soon" item's own label without its tag, or the summary of the Network menu. Only the navigation's own items:
+     * the menu's panel has its items in `listitem`s too (Header.test.tsx has those).
+     */
     function labelsOf(nav: ReturnType<typeof within>) {
-      return nav.getAllByRole("listitem").map((item: HTMLElement) => (item.querySelector(".nav-item.is-soon > span:first-child") ?? item.querySelector("a.nav-item"))!.textContent);
+      return nav
+        .getAllByRole("listitem", { hidden: true })
+        .filter((item: HTMLElement) => item.parentElement!.parentElement!.tagName === "NAV")
+        .map((item: HTMLElement) => (item.querySelector("summary.nav-item") ?? item.querySelector(".nav-item.is-soon > span:first-child") ?? item.querySelector("a.nav-item"))!.textContent);
+    }
+
+    /** The summary of the Network menu: the item that stands for the section, which was a link to the network page. */
+    function networkSummary(nav: ReturnType<typeof within>) {
+      return nav.getByText("Network", { selector: "summary" });
+    }
+
+    /** The menu's links, by name: closed, so they are hidden to the role query. */
+    function menuLink(nav: ReturnType<typeof within>, name: string) {
+      return nav.getByRole("link", { name, hidden: true });
     }
 
     function expectSoon(nav: ReturnType<typeof within>, label: string) {
@@ -1333,49 +1349,53 @@ describe("Header and Shell", () => {
       expect(nav.queryByRole("link", { name: new RegExp(`^${label}`) })).toBeNull();
     }
 
-    it("links Network to the network page and marks it as the current page there", () => {
-      const nav = renderHeaderAt("/xrpl/network", { navSection: "network" });
-      const link = nav.getByRole("link", { name: "Network" });
-      expect(link.getAttribute("href")).toBe("/xrpl/network");
-      expect(link.getAttribute("aria-current")).toBe("page");
-      expect(link.classList.contains("is-current")).toBe(true);
-      expect(link.classList.contains("is-soon")).toBe(false);
+    it("draws Network as a menu whose summary is current on the network page, and Overview is the page", () => {
+      const nav = renderHeaderAt("/xrpl/network", { navSection: "network", navPage: "overview" });
+      expect(nav.queryByRole("link", { name: "Network" })).toBeNull();
+      const summary = networkSummary(nav);
+      expect(summary.getAttribute("aria-current")).toBe("true");
+      expect(summary.classList.contains("is-current")).toBe(true);
+      expect(summary.classList.contains("is-soon")).toBe(false);
+      const overview = menuLink(nav, "Overview");
+      expect(overview.getAttribute("href")).toBe("/xrpl/network");
+      expect(overview.getAttribute("aria-current")).toBe("page");
     });
 
-    it("links Network to the page of the network the header is on", () => {
-      const nav = renderHeaderAt("/xahau/network", { navSection: "network" }, XAHAU);
-      expect(nav.getByRole("link", { name: "Network" }).getAttribute("href")).toBe("/xahau/network");
+    it("leads the menu's Overview to the page of the network the header is on", () => {
+      const nav = renderHeaderAt("/xahau/network", { navSection: "network", navPage: "overview" }, XAHAU);
+      expect(menuLink(nav, "Overview").getAttribute("href")).toBe("/xahau/network");
     });
 
     it("keeps the network page current under any query", () => {
-      const nav = renderHeaderAt("/xrpl/network?period=1y", { navSection: "network" });
-      const link = nav.getByRole("link", { name: "Network" });
-      expect(link.getAttribute("aria-current")).toBe("page");
-      expect(link.classList.contains("is-current")).toBe(true);
+      const nav = renderHeaderAt("/xrpl/network?period=1y", { navSection: "network", navPage: "overview" });
+      expect(menuLink(nav, "Overview").getAttribute("aria-current")).toBe("page");
+      const summary = networkSummary(nav);
+      expect(summary.getAttribute("aria-current")).toBe("true");
+      expect(summary.classList.contains("is-current")).toBe(true);
     });
 
-    it('names the section on its other pages with aria-current="true"', () => {
+    it('names the section on its other pages with aria-current="true" on the summary, and no item of the menu', () => {
       const nav = renderHeaderAt("/xrpl/validators", { navSection: "network" });
-      const link = nav.getByRole("link", { name: "Network" });
-      expect(link.getAttribute("href")).toBe("/xrpl/network");
-      expect(link.getAttribute("aria-current")).toBe("true");
-      expect(link.classList.contains("is-current")).toBe(true);
+      const summary = networkSummary(nav);
+      expect(summary.getAttribute("aria-current")).toBe("true");
+      expect(summary.classList.contains("is-current")).toBe(true);
+      expect(menuLink(nav, "Overview").hasAttribute("aria-current")).toBe(false);
     });
 
     it("names the section on the validators list too, through that route's own handle", () => {
       const nav = renderHeaderAt("/xrpl/validators", validatorsHandle);
-      const link = nav.getByRole("link", { name: "Network" });
-      expect(link.getAttribute("href")).toBe("/xrpl/network");
-      expect(link.getAttribute("aria-current")).toBe("true");
-      expect(link.classList.contains("is-current")).toBe(true);
+      const summary = networkSummary(nav);
+      expect(summary.getAttribute("aria-current")).toBe("true");
+      expect(summary.classList.contains("is-current")).toBe(true);
+      expect(menuLink(nav, "Overview").getAttribute("href")).toBe("/xrpl/network");
     });
 
-    it("leaves Network a plain link on a page that names no section", () => {
+    it("leaves Network unmarked on a page that names no section", () => {
       const nav = renderHeaderAt("/xrpl/ledger/1");
-      const link = nav.getByRole("link", { name: "Network" });
-      expect(link.getAttribute("href")).toBe("/xrpl/network");
-      expect(link.hasAttribute("aria-current")).toBe(false);
-      expect(link.classList.contains("is-current")).toBe(false);
+      const summary = networkSummary(nav);
+      expect(summary.hasAttribute("aria-current")).toBe(false);
+      expect(summary.classList.contains("is-current")).toBe(false);
+      expect(menuLink(nav, "Overview").getAttribute("href")).toBe("/xrpl/network");
     });
 
     it("takes the section from a parent route when the deepest route names none", () => {
@@ -1396,16 +1416,17 @@ describe("Header and Shell", () => {
         { initialEntries: ["/xrpl/deeper"] },
       );
       render(<RouterProvider router={router} />);
-      const link = within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Network" });
-      expect(link.classList.contains("is-current")).toBe(true);
-      expect(link.getAttribute("aria-current")).toBe("true");
+      const summary = networkSummary(within(screen.getByRole("navigation", { name: "Main" })));
+      expect(summary.classList.contains("is-current")).toBe(true);
+      expect(summary.getAttribute("aria-current")).toBe("true");
     });
 
     it("marks no section by the path alone: a route has to say so", () => {
       const nav = renderHeaderAt("/xrpl/network");
-      const link = nav.getByRole("link", { name: "Network" });
-      expect(link.hasAttribute("aria-current")).toBe(false);
-      expect(link.classList.contains("is-current")).toBe(false);
+      const summary = networkSummary(nav);
+      expect(summary.hasAttribute("aria-current")).toBe(false);
+      expect(summary.classList.contains("is-current")).toBe(false);
+      expect(menuLink(nav, "Overview").hasAttribute("aria-current")).toBe(false);
     });
 
     it("keeps the hrefs of Ledgers and Transactions, and marks neither as current", () => {
@@ -1465,7 +1486,7 @@ describe("Header and Shell", () => {
       expect(link.getAttribute("aria-current")).toBe("page");
       expect(link.classList.contains("is-current")).toBe(true);
       // The section is Markets alone: Network is not current.
-      const network = nav.getByRole("link", { name: "Network" });
+      const network = networkSummary(nav);
       expect(network.hasAttribute("aria-current")).toBe(false);
       expect(network.classList.contains("is-current")).toBe(false);
     });
@@ -1491,13 +1512,13 @@ describe("Header and Shell", () => {
       const markets = network.getByRole("link", { name: "Markets" });
       expect(markets.hasAttribute("aria-current")).toBe(false);
       expect(markets.classList.contains("is-current")).toBe(false);
-      expect(network.getByRole("link", { name: "Network" }).getAttribute("aria-current")).toBe("page");
+      expect(networkSummary(network).getAttribute("aria-current")).toBe("true");
     });
 
     it("marks nothing current on a markets page while MARKETS is off (the item is a label)", async () => {
       const nav = await renderHeaderWithFeatures({ ...featuresOf(allSwitches("on")), markets: false }, "/xrpl/markets", { navSection: "markets" });
       expectSoon(nav, "Markets");
-      expect(nav.getByRole("link", { name: "Network" }).hasAttribute("aria-current")).toBe(false);
+      expect(networkSummary(nav).hasAttribute("aria-current")).toBe(false);
     });
 
     it("links Markets to the page of the network the header is on", async () => {
@@ -1559,7 +1580,7 @@ describe("Header and Shell", () => {
           expect(link.getAttribute("aria-current"), path).toBe("page");
           expect(link.classList.contains("is-current"), path).toBe(true);
           // The section is AMM alone.
-          expect(nav.getByRole("link", { name: "Network" }).hasAttribute("aria-current")).toBe(false);
+          expect(networkSummary(nav).hasAttribute("aria-current")).toBe(false);
           cleanup();
         }
       });
@@ -1636,7 +1657,7 @@ describe("Header and Shell", () => {
           expect(link.getAttribute("aria-current"), path).toBe("page");
           expect(link.classList.contains("is-current"), path).toBe(true);
           // The section is NFTs alone.
-          expect(nav.getByRole("link", { name: "Network" }).hasAttribute("aria-current")).toBe(false);
+          expect(networkSummary(nav).hasAttribute("aria-current")).toBe(false);
           cleanup();
         }
       });
@@ -1711,7 +1732,7 @@ describe("Header and Shell", () => {
           expect(link.getAttribute("aria-current"), path).toBe("page");
           expect(link.classList.contains("is-current"), path).toBe(true);
           // The section is Tokens alone.
-          expect(nav.getByRole("link", { name: "Network" }).hasAttribute("aria-current")).toBe(false);
+          expect(networkSummary(nav).hasAttribute("aria-current")).toBe(false);
           cleanup();
         }
         for (const path of [`/xrpl/token/${TOKEN}`, `/xrpl/token/${TOKEN}/holders`]) {
@@ -1736,9 +1757,10 @@ describe("Header and Shell", () => {
       });
     });
 
-    it("links Network with every switch off, since it has none", async () => {
+    it("draws Network as the menu with every switch off, and its Overview a link, since Overview has no switch", async () => {
       const nav = await renderHeaderWithLayout(false);
-      expect(nav.getByRole("link", { name: "Network" }).getAttribute("href")).toBe("/xrpl/network");
+      expect(networkSummary(nav).closest("details")!.getAttribute("data-menu")).toBe("network");
+      expect(menuLink(nav, "Overview").getAttribute("href")).toBe("/xrpl/network");
     });
   });
 
