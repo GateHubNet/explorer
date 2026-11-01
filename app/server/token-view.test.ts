@@ -127,6 +127,13 @@ describe("tokensPage: the tiles", () => {
     expect(xahau[2]).toEqual({ label: "Volume, 24 h", value: "1.23M XAH", sub: "DEX trades of every pair" });
   });
 
+  it("say 'has' for one token with fewer holders, not 'have' (final review M1)", () => {
+    const one = tokensSample({ totals: { tokens: 10, tokens_with_10_holders: 9, holders: 40, native_volume: "5" } });
+    expect(listed("", one).tiles[0]!.sub).toBe("1 more has fewer than 10 holders");
+    const none = tokensSample({ totals: { tokens: 9, tokens_with_10_holders: 9, holders: 40, native_volume: "5" } });
+    expect(listed("", none).tiles[0]!.sub).toBe("0 more have fewer than 10 holders");
+  });
+
   it("read a dash for the volume while D6 has no day set, and for the holders while it has not counted them", () => {
     const answer = tokensSample({ totals: { tokens: 15, tokens_with_10_holders: 9 } });
     expect(listed("", answer).tiles).toEqual([
@@ -1013,6 +1020,12 @@ describe("tokenPage: the holders card", () => {
     expect(holders?.state === "ok" && holders.rows).toHaveLength(3);
   });
 
+  it("says 'All 1 holder', not 'holders', for a token with one holder (final review M1)", () => {
+    const { holders } = pageOfToken(withToken({ holders: 1 }));
+    expect(holders).toMatchObject({ state: "ok", all: { href: `/xrpl/token/RLUSD.${TOKEN_SAMPLE_ISSUER}/holders`, label: "All 1 holder →" } });
+    expect(pageOfToken(withToken({ holders: 2 })).holders).toMatchObject({ all: { label: "All 2 holders →" } });
+  });
+
   it("says no account holds the token, with no way to the holders", () => {
     const { holders } = pageOfToken(tokenInput({ holders: ok(holdersSample({ holders: [], count: 0, marker: undefined })) }));
     expect(holders).toMatchObject({ state: "ok", rows: [], empty: "No account holds RLUSD.", all: null });
@@ -1150,6 +1163,14 @@ describe("tokenPage: the pools card", () => {
     expect(page.pools).toMatchObject({ state: "ok", note: "Couldn't load the 24-hour volume" });
     expect(page.pools?.state === "ok" && page.pools.rows.map((row) => row.volume)).toEqual(["—"]);
     expect(problems).toEqual([{ part: "ammVolume" }]);
+  });
+
+  it("takes a live volume with no row for a failed one: the note, and the problem that keeps the page from being stored (final review, T7-T9 Minor 5; the AMM list does the same)", () => {
+    const { page, problems } = tokenPage(tokenInput({ ammVolume: ok({ ...volumeOf([]), rows: [], count: 0 }) }));
+    expect(page.pools).toMatchObject({ state: "ok", note: "Couldn't load the 24-hour volume" });
+    expect(problems).toEqual([{ part: "ammVolume" }]);
+    // A volume with its row is not a problem.
+    expect(tokenPage(tokenInput({ ammVolume: ok(volumeOf([AMM_POOL])) })).problems).toEqual([]);
   });
 
   it("fails on its own: the card's words and the problem (and the volume's, when it failed too)", () => {

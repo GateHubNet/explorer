@@ -16,7 +16,7 @@ import BigNumber from "bignumber.js";
 
 import { ammListHref } from "../domain/amm-params";
 import { apiAssetText, assetText, type Asset } from "../domain/asset";
-import { compactNumber, decodesCurrency, formatAmount, formatChange, formatCurrency, formatPrice, formatUtcDay, shortAddress } from "../domain/format";
+import { compactNumber, formatAmount, formatChange, formatCurrency, formatPrice, formatUtcDay } from "../domain/format";
 import { isLinkable, marketHref, naturalOrientation } from "../domain/market-pair";
 import { shownIssuer, withoutBidiControls, type NamesPart, type NameView } from "../domain/names";
 import { trailPaging, type Paging } from "../domain/paging";
@@ -123,7 +123,8 @@ export interface TokensPageData {
 
 /** The three tiles of the totals (spec 2.1). A total D6 does not have is a dash; the first tile's sub says what the rest of the tokens are, and has no words without the totals. */
 function tilesOf(net: TokensNet, totals: IssuedTokensTotals | undefined): TokensPageData["tiles"] {
-  const hidden = totals === undefined ? "" : `${counted(totals.tokens - totals.tokens_with_10_holders)} more have fewer than ${MIN_HOLDERS} holders`;
+  const rest = totals === undefined ? 0 : totals.tokens - totals.tokens_with_10_holders;
+  const hidden = totals === undefined ? "" : `${counted(rest)} more ${rest === 1 ? "has" : "have"} fewer than ${MIN_HOLDERS} holders`;
   return [
     { label: `Tokens with ${MIN_HOLDERS}+ holders`, value: totals === undefined ? DASH : counted(totals.tokens_with_10_holders), sub: hidden },
     { label: "Holders", value: totals?.holders === undefined ? DASH : counted(totals.holders), sub: "accounts holding at least one issued token" },
@@ -800,7 +801,7 @@ function holdersCard(input: TokenInput, t: TokenDetail, code: string, problems: 
     rows,
     empty: rows.length === 0 ? `No account holds ${code}.` : null,
     top10,
-    all: rows.length === 0 ? null : { href: tokenHoldersHref(net.id, asset), label: `All ${counted(t.holders)} holders →` },
+    all: rows.length === 0 ? null : { href: tokenHoldersHref(net.id, asset), label: `All ${counted(t.holders)} ${t.holders === 1 ? "holder" : "holders"} →` },
   };
 }
 
@@ -815,6 +816,8 @@ function poolsCard(input: TokenInput, t: TokenDetail, code: string, problems: To
     return { source, ...failed("the AMM pools") };
   }
   const { rows, more, volumeFailed } = poolRows(pools.value, volume, asset, net);
+  // An answer with no row is no live volume (as the AMM list takes it): the note says so, so the request is degraded, as for a call that failed.
+  if (ammVolume !== null && ammVolume.state === "ok" && volumeFailed) problems.push("ammVolume");
   return {
     source,
     state: "ok",
