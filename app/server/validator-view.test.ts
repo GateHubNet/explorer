@@ -940,6 +940,24 @@ describe("tomlCardOf", () => {
     expect(listing(undefined)).toBeNull();
   });
 
+  it("never counts fewer accounts than it draws: '1 listed, 2 served' says 2 listed", () => {
+    const served = (toml: ValidatorTomlDetail, accounts: string[]) =>
+      cardOf({}, { validator: validatorDetailSample({ toml, domain_verification: { status: "verified", toml_url: OWN_TOML, accounts } }) })!.accounts;
+    // The toml store's count is the domain's; the addresses served can be more (api-types), and then the count is what the card draws, with nothing "more" above it.
+    expect(served({ accounts_listed: 1 }, [OTHER, ISSUER])).toEqual({ listed: "2 listed:", addresses: [OTHER, ISSUER], more: null });
+    expect(served({ accounts_listed: 0 }, [ISSUER])).toEqual({ listed: "1 listed:", addresses: [ISSUER], more: null });
+    // A count above the addresses stays, with its "and N more".
+    expect(served({ accounts_listed: 5 }, [OTHER, ISSUER])).toEqual({ listed: "5 listed:", addresses: [OTHER, ISSUER], more: "and 3 more" });
+  });
+
+  it("draws an address that D1 repeats once, the first of each, and counts it once", () => {
+    const served = (toml: ValidatorTomlDetail, accounts: string[]) =>
+      cardOf({}, { validator: validatorDetailSample({ toml, domain_verification: { status: "verified", toml_url: OWN_TOML, accounts } }) })!.accounts;
+    expect(served({}, [ISSUER, OTHER, ISSUER, ISSUER, OTHER])).toEqual({ listed: "2 listed:", addresses: [ISSUER, OTHER], more: null });
+    // Repeats do not lift the count either: two addresses are drawn, so a count of 2 says nothing more.
+    expect(served({ accounts_listed: 2 }, [OTHER, OTHER, ISSUER, OTHER])).toEqual({ listed: "2 listed:", addresses: [OTHER, ISSUER], more: null });
+  });
+
   it("draws the currencies in D's order as formatCurrency shows them, none when the toml names none", () => {
     const nothing = cardOf({ server_country: "US" })!;
     expect(nothing.currencies).toBeNull();

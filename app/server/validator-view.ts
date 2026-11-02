@@ -303,7 +303,10 @@ export function tomlCardOf(input: { network: NetworkInfo; validator: ValidatorDe
   if (!features.validatorsMap || domain === undefined || verification?.status !== "verified") return null;
   const file = tomlFileOf(network.software);
   const { toml } = validator;
-  const addresses = accountLinks(network.id, verification.accounts)?.map((link) => link.address) ?? null;
+  // Each address once, the first of its entries (the card keys its links by address); the count never says fewer than the card draws: the toml store's `accounts_listed` is the domain's
+  // own and can be below the addresses D1 served (api-types).
+  const served = verification.accounts === undefined ? undefined : [...new Set(verification.accounts)];
+  const addresses = accountLinks(network.id, served)?.map((link) => link.address) ?? null;
   const currencies = toml?.currencies ?? [];
   return {
     title: `From ${domain}'s toml`,
@@ -314,7 +317,7 @@ export function tomlCardOf(input: { network: NetworkInfo; validator: ValidatorDe
       ["The [[VALIDATORS]] list in ", domain, `'s ${file} includes this master key.`],
     ],
     facts: toml === undefined ? null : tomlFactsOf(network, toml),
-    accounts: addresses === null ? null : { listed: `${count(toml?.accounts_listed ?? addresses.length)} listed:`, addresses, more: moreOf(toml?.accounts_listed, addresses.length) },
+    accounts: addresses === null ? null : { listed: `${count(Math.max(toml?.accounts_listed ?? 0, addresses.length))} listed:`, addresses, more: moreOf(toml?.accounts_listed, addresses.length) },
     currencies:
       currencies.length === 0
         ? null
