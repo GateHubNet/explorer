@@ -14,6 +14,7 @@ import { checkHandlers } from "./checks";
 import { delegationHandlers } from "./delegation";
 import { escrowHandlers } from "./escrow";
 import { account, delegateOf, genericDetails, mergeHandlers, seq, text, withArticle } from "./helpers";
+import { mptHandlers } from "./mpt";
 import { nftHandlers } from "./nft";
 import { offerHandlers } from "./offers";
 import { paychanHandlers } from "./paychan";
@@ -36,6 +37,7 @@ const HANDLERS = mergeHandlers(
   ammHandlers,
   xahauHandlers,
   delegationHandlers,
+  mptHandlers,
 );
 
 /** A type with no handler: "{account} submitted a {Type}." and a table of its fields. */
