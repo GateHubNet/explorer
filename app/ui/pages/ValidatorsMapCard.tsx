@@ -71,7 +71,8 @@ function pointerIsMouse(event: PointerEvent): boolean {
  * `world-dots.svg`, drawn with `<use>` so that no byte of them is in the page's JavaScript or HTML.
  *
  * It holds the code that is highlighted (from a circle or a table row), so that the two follow each other, and the code whose tooltip is shown (a circle that has the pointer or
- * focus). Every circle and every table name is a link, so the card works without JavaScript; with it, one circle is a Tab stop and the arrow keys move focus along `order`.
+ * focus). Every circle and every table name is a link, so the card works without JavaScript; with it, one circle is a Tab stop (the last to take focus) and the arrow keys move focus
+ * along `order`.
  * The card spreads `holds` so that the pointer over it, or focus in it, holds the page's updates as the live tables do.
  */
 export function ValidatorsMapCard({ map, holds, onRetry, retrying }: { map: ValidatorsPageData["map"]; holds: HoldHandlers; onRetry: () => void; retrying: boolean }) {
@@ -80,6 +81,8 @@ export function ValidatorsMapCard({ map, holds, onRetry, retrying }: { map: Vali
   const [overRow, setOverRow] = useState<string | null>(null);
   const [overCircle, setOverCircle] = useState<string | null>(null);
   const [focusedCircle, setFocusedCircle] = useState<string | null>(null);
+  /** The code of the last circle that took focus: the Tab stop follows the arrow keys. `null` until one has, when the stop is the chosen circle, else the largest (the server's HTML). */
+  const [tabbedCircle, setTabbedCircle] = useState<string | null>(null);
   /** The code whose tooltip Escape has hidden, until the pointer or focus leaves it. */
   const [dismissed, setDismissed] = useState<string | null>(null);
 
@@ -129,8 +132,10 @@ export function ValidatorsMapCard({ map, holds, onRetry, retrying }: { map: Vali
 
   const highlighted = overRow ?? overCircle ?? focusedCircle;
   const tip = map.circles.find((circle) => circle.code === tipCode);
-  // The one Tab stop: the chosen circle, else the largest (the first).
-  const stop = map.circles.find((circle) => circle.current)?.code ?? map.circles[0]?.code;
+  // The one Tab stop (spec 4.3): the chosen circle, else the largest (the first), until a circle takes focus; then that one (a roving tabindex, so that Shift+Tab from a circle the arrow
+  // keys have reached leaves the map instead of landing on the first stop). If the circles change and that one is gone, the first rule again.
+  const first = map.circles.find((circle) => circle.current)?.code ?? map.circles[0]?.code;
+  const stop = tabbedCircle !== null && map.circles.some((circle) => circle.code === tabbedCircle) ? tabbedCircle : first;
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     // A modified key belongs to the browser (Alt or Cmd with an arrow is Back and Forward, Ctrl with Home and End scrolls): nothing of it is prevented.
@@ -185,6 +190,7 @@ export function ValidatorsMapCard({ map, holds, onRetry, retrying }: { map: Vali
                 }}
                 onFocus={() => {
                   setFocusedCircle(circle.code);
+                  setTabbedCircle(circle.code);
                   setDismissed(null);
                 }}
                 onBlur={() => {

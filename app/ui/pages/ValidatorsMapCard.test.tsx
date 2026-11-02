@@ -118,6 +118,46 @@ describe("ValidatorsMapCard", () => {
     expect(html).not.toContain("vmap__tip");
   });
 
+  it("moves the Tab stop with the arrow keys, so Shift+Tab and Tab leave the map from the circle that has focus", () => {
+    mount(mapOf(FLEET));
+    const stops = () => circles().filter((link) => link.tabIndex === 0).map((link) => link.getAttribute("aria-label")!.split(":")[0]);
+    expect(stops()).toEqual(["Germany"]);
+    act(() => circle(/^Germany/).focus());
+    expect(stops()).toEqual(["Germany"]);
+    // West to east is United States, Cuba, Panama, Germany: each circle that takes focus is the only Tab stop.
+    fireEvent.keyDown(document.activeElement!, { key: "Home" });
+    expect(stops()).toEqual(["United States"]);
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" });
+    expect(stops()).toEqual(["Cuba"]);
+    // It stays there when focus leaves the map: Tab from before the map comes back to it.
+    act(() => (document.activeElement as HTMLElement).blur());
+    expect(stops()).toEqual(["Cuba"]);
+    // A circle that takes focus any other way (a click) is the stop too.
+    act(() => circle(/^Panama/).focus());
+    expect(stops()).toEqual(["Panama"]);
+  });
+
+  it("falls back to the chosen or the largest circle when the circle that held the stop is gone", () => {
+    const view = mount(mapOf(FLEET));
+    act(() => circle(/^United States/).focus());
+    const stopName = () => circles().filter((link) => link.tabIndex === 0).map((link) => link.getAttribute("aria-label")!.split(":")[0]);
+    expect(stopName()).toEqual(["United States"]);
+    view.rerender(
+      <MemoryRouter initialEntries={["/xrpl/validators"]}>
+        <ValidatorsMapCard map={mapOf({ DE: FLEET.DE!, PA: FLEET.PA!, CU: FLEET.CU! })} holds={holdHandlers()} onRetry={vi.fn()} retrying={false} />
+      </MemoryRouter>,
+    );
+    // The map with no United States has Germany, the largest, for its stop, and the stale code is not a second one.
+    expect(stopName()).toEqual(["Germany"]);
+    // Back again: the code is a circle once more, and it is the stop.
+    view.rerender(
+      <MemoryRouter initialEntries={["/xrpl/validators"]}>
+        <ValidatorsMapCard map={mapOf(FLEET)} holds={holdHandlers()} onRetry={vi.fn()} retrying={false} />
+      </MemoryRouter>,
+    );
+    expect(stopName()).toEqual(["United States"]);
+  });
+
   it("names the group and describes it by the attribution", () => {
     mount(mapOf(FLEET));
     const described = group().getAttribute("aria-describedby")!;

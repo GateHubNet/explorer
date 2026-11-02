@@ -486,6 +486,13 @@ test.describe("with VALIDATORS_MAP on", () => {
       await page.keyboard.press("ArrowRight");
       expect(await nameOf()).toBe(west[1]);
       await expect(card.locator(".vmap__tip strong")).toHaveText(west[1]!);
+      // The Tab stop moved with the arrow key: Shift+Tab leaves the map (it does not land on the first stop), and Tab comes back to the circle it left.
+      await expect(stop).toBeFocused();
+      await page.keyboard.press("Shift+Tab");
+      await expect(focused).toHaveCount(0);
+      await page.keyboard.press("Tab");
+      await expect(stop).toBeFocused();
+      expect(await nameOf()).toBe(west[1]);
       await page.keyboard.press("ArrowDown");
       expect(await nameOf()).toBe(west[2]);
       await page.keyboard.press("ArrowLeft");
