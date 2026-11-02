@@ -4874,6 +4874,10 @@ describe("D7's supply calls", () => {
       expect(early.message).toBe(`data API GET ${SUPPLY_URL} answered 404: supply not computed yet`);
       expect(isNotFound(early)).toBe(true);
       expect(isMissingRoute(early)).toBe(false);
+      // Nor was this one stored: the next call goes to the API again (it is not served from a copy of the first), and stores nothing.
+      fetchSpy.mockResolvedValueOnce(notFound("supply not computed yet"));
+      expect(await storedBy(() => api.networkSupply(KEPT).catch(() => undefined))).toEqual([]);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
 
       // An API without D7 answers the framework's words: an outage, which is never a 404 page.
       fetchSpy.mockImplementation(async (input) => notFound(`Cannot GET ${new URL(input instanceof Request ? input.url : String(input)).pathname}`));
