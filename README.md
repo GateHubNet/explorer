@@ -333,7 +333,7 @@ node also says so; a node failure (5xx, 429, malformed) or a failed index is a 5
 (`toml not found`) is `not_found`; a `Cannot GET` (a data API without D4) is kind `server`, an outage, as for every route ("A route the data API does not have"). Each answer is checked inside the load, by `names-shape.ts`: the names' `count` and list are as long as the
 addresses asked and each entry is the address asked at its place (a name shown against another address is worse than none), a `display_name` has text that is not empty and a `kind` that is text, `labels` is an object of `{ description, source?, url? }`, and the
 domain and the names are text; a toml is the toml of the domain asked, its `status` is `ok` or `failed`, its text fields are text, its `status_code` a whole number, and its lists lists of rows with the text that names them. A wrong 200 is kind `server` and is never stored.
-A `kind` this build does not know is read as no name later (`nameViewOf`), not refused: the API may add one. A toml's `accounts` repeat an address once for each network that counts it, so a page that lists them (E13's toml card) takes the first entry of an address.
+A `kind` this build does not know is read as no name later (`nameViewOf`), not refused: the API may add one. A toml's `accounts` repeat an address once for each network that counts it.
 When D4 cannot read its toml store, a names answer is still a 200 but has no `verified` and no `domain` name: an entry with a `domain` and no `display_name`, which the account page says is "Not checked yet.", never "not verified" (plan Ruling 12). A names call that fails
 or is late never fails a page ("Display names").
 
@@ -1691,7 +1691,7 @@ alone: "From {domain}'s toml" with the source line and "View toml →" (E6's `to
 (each with "Passed: " for a screen reader), the facts the toml gives, and under a rule its lists. The facts: Owner country; Server country, or "Not given" with "so its location is unknown"; Network, the file's value in mono with its name
 under it ("XRPL mainnet", `tomlNetworkName`) and ", not this network" when the name is another kind's than the page's network (mainnet in production, Testnet in the sandbox: `test/worker/validators-map-sandbox.spec.ts`); "On a UNL, says the
 toml", "Yes · " and the host of its `unl` in mono (`unlHostOf`: an https URL only; the value is text and never a link), with "its own claim; UNL membership above is from the lists"; Principals; Last modified with "from [METADATA]". A fact
-the file does not give is not drawn, but Server country. The lists: the accounts the domain lists (`AccountLink`, so E9's names; "{n} listed:" and "and N more" when the toml lists more than D1 serves) and the currencies (as `formatCurrency` shows
+the file does not give is not drawn, but Server country. The lists: the accounts the domain lists (D1's `domain_verification.accounts`, each address once, the first of its entries, because D1 can repeat one and the card keys its links by address; `AccountLink`, so E9's names; "{n} listed:" is the toml's `accounts_listed` or the addresses drawn, whichever is more, so the card never counts fewer than it shows, and "and N more" is there when the toml lists more than D1 serves) and the currencies (as `formatCurrency` shows
 them, each a link to its token page only through E11's `tokenLink`, with an issuer and while `TOKENS` is on, else mono text). While D8 has not read the file (D's `toml` is absent) the card has its head, its checks and its accounts and says "The data API has
 not read this toml's details yet." While the card is drawn the identity's "Accounts {domain} lists" is not (the card has them; E9's one names call is the same either way); with the switch off the page is E6's. There is no card for a domain that is
 unverified, pending or none, and none on a page of older validations. What the file says is the domain's own text: every value breaks inside its box, up to the 200-character host, the 100-character principal and the 40-digit code of the
@@ -1708,7 +1708,7 @@ loudly on another.
 
 | Page | Parameters, in order | Notes |
 |---|---|---|
-| the list | `scope` (`unl`, the default, or `all`), `publisher` (an id of S, as S writes it), `amendment` (one in `majority`, `voting` or `unknown`, as A names it), `country` (E13: two letters made upper case, or `unknown`), `q` (trimmed, at most 100 characters) | `scope`, `country` and `q` are checked before any call (a `country` is dropped with `VALIDATORS_MAP` off or when it is not in `COUNTRY_CODES`); `publisher` and `amendment` once S and A answered, in the same 302. When S or A failed, its parameter is applied as given (the page is degraded, so not stored, and the next render checks again) |
+| the list | `scope` (`unl`, the default, or `all`), `publisher` (an id of S, as S writes it), `amendment` (one in `majority`, `voting` or `unknown`, as A names it), `country` (E13: two letters made upper case, or `unknown`), `q` (trimmed, at most 100 characters) | `scope`, `country` and `q` are checked before any call (a `country` is dropped with `VALIDATORS_MAP` off or when it is not in `COUNTRY_CODES`), in a first 302 that makes none, unless the query also names a `publisher` or an `amendment`: then all of them are settled by the one 302 after the calls, with `publisher` and `amendment` once S and A answered. When S or A failed, its parameter is applied as given (the page is degraded, so not stored, and the next render checks again) |
 | a validator | `marker` (else the page does not exist: a 404 of class `short`), `back` (dropped without a marker) | as the account page |
 | the amendments list | `status`: `majority`, `voting`, `enabled`, `obsolete` or `unknown` (the chips say "Activating", "Voting", "Activated", "Obsolete", "Unknown") | |
 | an amendment | none | any query string is a 302 to the bare path |
@@ -3598,43 +3598,43 @@ at which it would have been moved to the dashboards' budget with its reason writ
   Every threshold moves 16 px; one window of the home page's header (the Worker's nav with the badge, 994 to 1010 px) is two rows where it was one. **For the owner: the header is two rows (125 px) at 1280 px on the network page for as long as production's four labels read "soon" (and with the badge, in the sandbox, even with every switch on)**; E12 neither made it so nor mended it, and the menu does not (ruling C6).
 - **Not a browser figure, but kept beside them:** a whole `VITEST_MAX_WORKERS=2 pnpm verify` at the end of E12 is 325 files and 16,142 tests (16,134 before the final review's fixes, which added eight); the synthetic fixtures' size budget has about 29 KB left (\"Upstream fixtures\").
 
-**The figures of E13** (the validators map and the validator's toml card, the `country` parameter, the switch `VALIDATORS_MAP`; `pnpm build && pnpm check:bundle`, gzip -9 bytes as the check counts them, each file once, the manifest included, every column built from `git archive` of its commit). *Before* is `eb70fc5`, the commit E13 started from (the *Fix* column of "The figures of E12" to the byte); the other columns are the ends of the stages of the work: *shell* `e164da8` (the switch, the `country` parameter and the generated map files; no card yet), *map* `3967727` (the countries card, the Country select, the place under a row, `DataTable.rowProps`, the bundle check's two map problems); *after* is `8fbc87c` (the toml card), the last commit of the plan that changes a file the browser loads (the last task changes tests and the README). Budgets are the same as before; no page changed its budget.
+**The figures of E13** (the validators map and the validator's toml card, the `country` parameter, the switch `VALIDATORS_MAP`; `pnpm build && pnpm check:bundle`, gzip -9 bytes as the check counts them, each file once, the manifest included, every column built from `git archive` of its commit). *Before* is `eb70fc5`, the commit E13 started from (the *Fix* column of "The figures of E12" to the byte); the other columns are the ends of the stages of the work: *shell* `e164da8` (the switch, the `country` parameter and the generated map files; no card yet), *map* `3967727` (the countries card, the Country select, the place under a row, `DataTable.rowProps`, the bundle check's two map problems); *after* is `8fbc87c` (the toml card), the last commit of the plan that changes a file the browser loads (the last task changes tests and the README); *fix* is `54aff91`, the last commit of the final review's fixes that changes a file the browser loads (the map's tooltip, its modified keys and its Tab stop, and the live row's note; the fixes to the empty-UNL sentence and the toml card are the Worker's, the others change tests, a comment and this README), built in the clean worktree at that commit. Budgets are the same as before; no page changed its budget. *Under it by* is of the *Fix* column.
 
-| page | Before `eb70fc5` | shell `e164da8` | map `3967727` | After `8fbc87c` (files) | Change | Budget | Under it by |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| home | 138,602 | 138,632 | 138,678 | 138,667 (15) | +65 | 150,000 | 11,333 |
-| ledger | 139,958 | 139,997 | 140,048 | 140,022 (21) | +64 | 150,000 | 9,978 |
-| transaction | 143,460 | 143,500 | 143,553 | 143,523 (23) | +63 | 150,000 | 6,477 |
-| account | 145,163 | 145,204 | 145,241 | 145,214 (27) | +51 | 150,000 | 4,786 |
-| network | 155,561 | 155,589 | 155,647 | 155,612 (30) | +51 | 160,000 | 4,388 |
-| markets | 138,068 | 138,099 | 138,138 | 138,130 (15) | +62 | 150,000 | 11,870 |
-| market-pair | 155,161 | 155,191 | 155,245 | 155,207 (31) | +46 | 160,000 | 4,793 |
-| validators | 152,143 | 152,264 | 154,459 | **154,438** (32) | +2,295 | 160,000 | 5,562 |
-| validator | 154,673 | 154,718 | 154,758 | **155,385** (33) | +712 | 160,000 | 4,615 |
-| amendments | 142,478 | 142,522 | 142,552 | 142,541 (21) | +63 | 160,000 | 17,459 |
-| amendment | 151,530 | 151,571 | 151,607 | 151,589 (28) | +59 | 160,000 | 8,411 |
-| amm | 149,440 | 149,470 | 149,516 | 149,490 (28) | +50 | 160,000 | 10,510 |
-| amm-pool | 157,760 | 157,804 | 157,856 | 157,804 (41) | +44 | 160,000 | 2,196 |
-| nfts | 153,637 | 153,674 | 153,736 | 153,692 (34) | +55 | 160,000 | 6,308 |
-| nft-sales | 137,949 | 137,990 | 138,040 | 138,008 (22) | +59 | 150,000 | 11,992 |
-| nft-collection | 153,887 | 153,935 | 153,982 | 153,942 (36) | +55 | 160,000 | 6,058 |
-| nft | 141,201 | 141,251 | 141,301 | 141,264 (27) | +63 | 150,000 | 8,736 |
-| escrow | 146,613 | 146,655 | 146,709 | 146,671 (30) | +58 | 150,000 | 3,329 |
-| check | 142,638 | 142,686 | 142,733 | 142,698 (27) | +60 | 150,000 | 7,302 |
-| payment-channel | 150,362 | 150,406 | 150,462 | 150,425 (33) | +63 | 160,000 | 9,575 |
-| tokens | 137,750 | 137,792 | 137,829 | 137,806 (19) | +56 | 150,000 | 12,194 |
-| token | 142,863 | 142,917 | 142,947 | 142,917 (27) | +54 | 150,000 | 7,083 |
-| token-holders | 138,624 | 138,661 | 138,701 | 138,681 (20) | +57 | 150,000 | 11,319 |
-| supply | 148,759 | 148,796 | 148,850 | 148,817 (26) | +58 | 160,000 | 11,183 |
-| account analytics (gate 2) | 157,525 | 157,563 | 157,603 | 157,574 (28) | +49 | 160,000 | 2,426 |
-| manifest `assets/manifest-*.js`, the check's `gzipSync` (in each) | 2,936 | 2,943 | 2,942 | 2,939 | +3 |  |  |
+| page | Before `eb70fc5` | shell `e164da8` | map `3967727` | After `8fbc87c` (files) | Change | Fix `54aff91` (files) | Fix cost | Budget | Under it by, after the fix |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| home | 138,602 | 138,632 | 138,678 | 138,667 (15) | +65 | 138,668 (15) | +1 | 150,000 | 11,332 |
+| ledger | 139,958 | 139,997 | 140,048 | 140,022 (21) | +64 | 140,023 (21) | +1 | 150,000 | 9,977 |
+| transaction | 143,460 | 143,500 | 143,553 | 143,523 (23) | +63 | 143,524 (23) | +1 | 150,000 | 6,476 |
+| account | 145,163 | 145,204 | 145,241 | 145,214 (27) | +51 | 145,215 (27) | +1 | 150,000 | 4,785 |
+| network | 155,561 | 155,589 | 155,647 | 155,612 (30) | +51 | 155,613 (30) | +1 | 160,000 | 4,387 |
+| markets | 138,068 | 138,099 | 138,138 | 138,130 (15) | +62 | 138,131 (15) | +1 | 150,000 | 11,869 |
+| market-pair | 155,161 | 155,191 | 155,245 | 155,207 (31) | +46 | 155,208 (31) | +1 | 160,000 | 4,792 |
+| validators | 152,143 | 152,264 | 154,459 | **154,438** (32) | +2,295 | **154,579** (32) | +141 | 160,000 | 5,421 |
+| validator | 154,673 | 154,718 | 154,758 | **155,385** (33) | +712 | **155,386** (33) | +1 | 160,000 | 4,614 |
+| amendments | 142,478 | 142,522 | 142,552 | 142,541 (21) | +63 | 142,542 (21) | +1 | 160,000 | 17,458 |
+| amendment | 151,530 | 151,571 | 151,607 | 151,589 (28) | +59 | 151,590 (28) | +1 | 160,000 | 8,410 |
+| amm | 149,440 | 149,470 | 149,516 | 149,490 (28) | +50 | 149,491 (28) | +1 | 160,000 | 10,509 |
+| amm-pool | 157,760 | 157,804 | 157,856 | 157,804 (41) | +44 | 157,805 (41) | +1 | 160,000 | 2,195 |
+| nfts | 153,637 | 153,674 | 153,736 | 153,692 (34) | +55 | 153,693 (34) | +1 | 160,000 | 6,307 |
+| nft-sales | 137,949 | 137,990 | 138,040 | 138,008 (22) | +59 | 138,009 (22) | +1 | 150,000 | 11,991 |
+| nft-collection | 153,887 | 153,935 | 153,982 | 153,942 (36) | +55 | 153,943 (36) | +1 | 160,000 | 6,057 |
+| nft | 141,201 | 141,251 | 141,301 | 141,264 (27) | +63 | 141,265 (27) | +1 | 150,000 | 8,735 |
+| escrow | 146,613 | 146,655 | 146,709 | 146,671 (30) | +58 | 146,672 (30) | +1 | 150,000 | 3,328 |
+| check | 142,638 | 142,686 | 142,733 | 142,698 (27) | +60 | 142,699 (27) | +1 | 150,000 | 7,301 |
+| payment-channel | 150,362 | 150,406 | 150,462 | 150,425 (33) | +63 | 150,426 (33) | +1 | 160,000 | 9,574 |
+| tokens | 137,750 | 137,792 | 137,829 | 137,806 (19) | +56 | 137,807 (19) | +1 | 150,000 | 12,193 |
+| token | 142,863 | 142,917 | 142,947 | 142,917 (27) | +54 | 142,918 (27) | +1 | 150,000 | 7,082 |
+| token-holders | 138,624 | 138,661 | 138,701 | 138,681 (20) | +57 | 138,682 (20) | +1 | 150,000 | 11,318 |
+| supply | 148,759 | 148,796 | 148,850 | 148,817 (26) | +58 | 148,818 (26) | +1 | 160,000 | 11,182 |
+| account analytics (gate 2) | 157,525 | 157,563 | 157,603 | 157,574 (28) | +49 | 157,575 (28) | +1 | 160,000 | 2,425 |
+| manifest `assets/manifest-*.js`, the check's `gzipSync` (in each) | 2,936 | 2,943 | 2,942 | 2,939 | +3 | 2,940 | +1 |  |  |
 
 - **The map adds no JavaScript to any page.** The dots are the static asset `assets/world-dots-<hash>.svg` (32,345 bytes, 6,664 at `gzip -9`), imported with `?url` and drawn with `<use>`, so they are in no figure above; the country table (`app/server/countries.ts`) is the Worker's and is in none either. `pnpm check:bundle` holds both to it (the problems "holds the world map's dots" and "does not have exactly one `assets/world-dots-*.svg`", and the country table among the forbidden names).
-- **The validators list weighs 154,438** (32 files), 2,295 more than it did and 5,562 under 160,000. The spec's "a few hundred bytes" for the two components was too little for the list's: the countries card (the map's circles, the tooltip, the keyboard, the highlighting between circle and row, the table and its bars) is most of the +2,195 of the *map* stage, the Country select and the place under a row the rest, and the switch and the `country` parameter were +121 at the *shell* stage. The toml card's step took 21 bytes off it (for the owner: the list is 5,562 under its budget, and the card is the largest part of the growth).
-- **The validator page weighs 155,385** (33 files), 712 more and 4,615 under: +45 for the switch, +40 at the *map* stage (the shared chunks) and **+627 for the toml card** (`ValidatorTomlCard.tsx`; the view builder, `tomlCardOf`, `tomlNetworkName` and the country table are the Worker's and are in no script).
-- **Every other page grew 44 to 65 bytes** (+51 to +65 on the lookup pages, +44 to +63 on the dashboards): the switch's name in the shell every page loads (`Features`: +28 to +54 at the *shell* stage) and `DataTable.rowProps` (+30 to +62 at the *map* stage), less the 8 to 52 bytes the last stage took off again, when the toml card's imports moved a few modules of the shared chunks. Plan ruling C14 expected the shell to grow 65 to 110 bytes; it grew less, and no budget moved. The manifest grew 3 bytes in all (2,936 to 2,939): E13 adds no route.
-- **The tightest pages** are the AMM pool, 2,196 under its 160,000, and the account's analytics view, 2,426 under (2,240 and 2,475 at the end of E12), then the escrow, 3,329 under its 150,000 (the tightest lookup page), the network page, 4,388 under, and the validator page, 4,615. **No row is under 300 bytes of its budget or over it** (E11's rule, stated again by E13Δ1: a verify that leaves one stops the work), and the payment channel stays a dashboard (150,425; 9,575 under 160,000), as E12 decided (ruling E13Δ1: nothing moved for it). The next step that grows a chunk the AMM pool and the view share, or the shell again, has to move something out of them or take a budget to the owner, as E11 and E12 said.
-- **Not a browser figure, but kept beside them:** a whole `VITEST_MAX_WORKERS=2 pnpm verify` at the end of E13 is 331 files and 16,429 tests (325 files and 16,142 tests at the end of E12).
+- **The validators list weighed 154,438 after the plan's tasks** (32 files), 2,295 more than it did and 5,562 under 160,000, and **154,579 after the final review's fixes** (+140 and the manifest's 1: the tooltip's flip, the modified-key return, the roving Tab stop and the live row's note per part), 5,421 under. Spec §1.4 put the validators page's card at about 2–3 KB, and the build gives +2,195 at the *map* stage (+2,295 in all), so it was met; the "few hundred bytes" of spec §11 is the toml card's (+627, below). The countries card (the map's circles, the tooltip, the keyboard, the highlighting between circle and row, the table and its bars) is most of the +2,195 of the *map* stage, the Country select and the place under a row the rest, and the switch and the `country` parameter were +121 at the *shell* stage. The toml card's step took 21 bytes off it (for the owner: the list is 5,421 under its budget, and the card is the largest part of the growth).
+- **The validator page weighed 155,385 after the plan's tasks and weighs 155,386 after the fixes** (33 files; the one byte is the manifest's), 712 more than before E13 and 4,614 under: +45 for the switch, +40 at the *map* stage (the shared chunks) and **+627 for the toml card** (`ValidatorTomlCard.tsx`; the view builder, `tomlCardOf`, `tomlNetworkName` and the country table are the Worker's and are in no script).
+- **Every other page grew 44 to 65 bytes** (+51 to +65 on the lookup pages, +44 to +63 on the dashboards): the switch's name in the shell every page loads (`Features`: +28 to +54 at the *shell* stage) and `DataTable.rowProps` (+30 to +62 at the *map* stage), less the 8 to 52 bytes the last stage took off again, when the toml card's imports moved a few modules of the shared chunks. Plan ruling C14 expected the shell to grow 65 to 110 bytes; it grew less, and no budget moved. The manifest grew 3 bytes in all (2,936 to 2,939): E13 adds no route. The final review's fixes added 1 byte to each of them (and to every figure, the manifest being in each): the manifest's entries for the chunks the fixes changed, 2,939 to 2,940.
+- **The tightest pages** are the AMM pool, 2,195 under its 160,000, and the account's analytics view, 2,425 under (2,240 and 2,475 at the end of E12), then the escrow, 3,328 under its 150,000 (the tightest lookup page), the network page, 4,387 under, and the validator page, 4,614. **No row is under 300 bytes of its budget or over it** (E11's rule, stated again by E13Δ1: a verify that leaves one stops the work), and the payment channel stays a dashboard (150,426; 9,574 under 160,000), as E12 decided (ruling E13Δ1: nothing moved for it). The next step that grows a chunk the AMM pool and the view share, or the shell again, has to move something out of them or take a budget to the owner, as E11 and E12 said.
+- **Not a browser figure, but kept beside them:** a whole `VITEST_MAX_WORKERS=2 pnpm verify` at the end of E13 is 331 files and 16,436 tests (16,429 before the final review's fixes, which added seven; 325 files and 16,142 tests at the end of E12).
 
 ## The parsing libraries in the Workers runtime
 
@@ -4050,7 +4050,7 @@ Run the suite against production with `AMM_PAGES` no longer in `E2E_FEATURES_OFF
 
 - [ ] **The bundle figures of the supply page and the menu.** `pnpm build && pnpm check:bundle` on the commit being deployed: `supply` under a dashboard's 160,000 bytes with the manifest (148,759 at the end of E12), the payment channel (150,362: a dashboard since E12) and the tightest pages (the AMM pool, 157,760; the analytics view, 157,525; the network page, 155,561 with the menu), written down beside "The client bundle check" ("The figures of E12").
 
-- [ ] **The bundle figures of the validators map and the toml card.** `pnpm build && pnpm check:bundle` on the commit being deployed: `validators` and `validator` under a dashboard's 160,000 bytes with the manifest (154,438 and 155,385 at the end of E13), `payment-channel` at 150,425, no row under 300 bytes of its budget, the tightest pages (the AMM pool, 157,804; the analytics view, 157,574; the network page, 155,612) written down beside "The client bundle check" ("The figures of E13"); the build holds exactly one `assets/world-dots-*.svg` (32,345 bytes, 6,664 gzipped) and no script holds the dots or the country table.
+- [ ] **The bundle figures of the validators map and the toml card.** `pnpm build && pnpm check:bundle` on the commit being deployed: `validators` and `validator` under a dashboard's 160,000 bytes with the manifest (154,579 and 155,386 at the end of E13's final review's fixes), `payment-channel` at 150,426, no row under 300 bytes of its budget, the tightest pages (the AMM pool, 157,805; the analytics view, 157,575; the network page, 155,613) written down beside "The client bundle check" ("The figures of E13"); the build holds exactly one `assets/world-dots-*.svg` (32,345 bytes, 6,664 gzipped) and no script holds the dots or the country table.
 
 **The API description.** `api/openapi.yaml` is a copy of `data-api-new/docs/openapi.yaml`. When the API changes, `pnpm api:sync` copies it from a local
 checkout (`$DATA_API_REPO`, default `../data-api-new`) and regenerates `app/server/openapi.d.ts`; name the source commit it prints in the commit message.

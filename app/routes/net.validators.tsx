@@ -72,7 +72,8 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 
   const search = queryOf(request.url);
   const asked = `/${net.id}/validators${search === "" ? "" : `?${search}`}`;
-  // `country` is part of the pure rules, so a hand-made one (`de`, `Unknown`, `uk`, a second one, or any while `VALIDATORS_MAP` is off) is settled by the first, call-free 302.
+  // `country` is part of the pure rules, so a hand-made one (`de`, `Unknown`, `uk`, a second one, or any while `VALIDATORS_MAP` is off) is settled by the first, call-free 302, unless
+  // the query also names a `publisher` or an `amendment`: E6 settles those URLs after the calls, in the one 302 below.
   const pure = withCountry(parseValidatorsParams(search), net.features.validatorsMap ? COUNTRY_CODES : null);
   if (pure.publisher === undefined && pure.amendment === undefined && validatorsHref(net.id, pure) !== asked) {
     return redirect(validatorsHref(net.id, pure), { status: 302, headers: cacheClassHeaders("short") });
