@@ -2280,7 +2280,12 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   plugin and `wrangler.jsonc`; the vars, `ENVIRONMENT`, secrets, `BUILD_ID` and switches are pinned in `vitest.config.ts`, so a developer's
   `.dev.vars` does not reach the tests; the `VISITOR_LIMITER` binding comes from `wrangler.jsonc`). Call
   the Worker with `exports.default.fetch(...)` and read bindings with `env`, both from `cloudflare:workers`. (`SELF`
-  and `cloudflare:test`'s `env` still exist but are deprecated.)
+  and `cloudflare:test`'s `env` still exist but are deprecated.) A file that calls the Worker makes its first request in a
+  `beforeAll` with a budget of its own (`warmWorker()`, `test/support/warm-worker.ts`: the root's redirect, which the edge cache
+  never stores, so it leaves no entry and no late write behind): otherwise
+  its first test loads the whole app, about 0.85 s on a developer's machine and 2.5 to 5 s on a CI runner, against vitest's 5 s
+  limit. `pageClient` registers it; a file that calls `exports.default.fetch` without `pageClient` calls `warmWorker()` at its top.
+  (An `import()` of the server build from the test loads the same modules another way, and with many files at once workerd exits.)
   The `worker-off` project is the same Worker with every switch `"off"`, for the files `test/worker/*-off.spec.ts` (which `worker` leaves out; see "Switches").
   The `worker-names-off` project is the same Worker with every switch the top level has `"on"` but `NAMES`, which is `"off"`, for the files `test/worker/*-names-off.spec.ts` (which `worker` and `worker-off` leave out): the pages another switch gates, with the names alone off.
   The `worker-sandbox` project is the Worker as the sandbox runs it: the top level's bindings (its placeholder URLs, so that no test reaches a deployed data API, and its switches, all "on", so that every page can be drawn) with `ENVIRONMENT`

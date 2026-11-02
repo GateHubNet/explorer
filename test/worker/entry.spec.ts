@@ -4,11 +4,14 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Env } from "../../app/server/env";
 import { requestIdOf, withRequestLog, withSentryWhenConfigured } from "../../app/server/logging";
 import worker from "../../workers/app";
+import { warmWorker } from "../support/warm-worker";
 
 // The Worker entry (workers/app.ts) as a deployed Worker runs it: React Router behind the edge cache, the
 // visitor limit and the request log. What is stored is tested in edge-cache.spec.ts and route-headers.spec.ts;
 // this file is about what the entry adds to every request. A 404 page is class `short`, so it is stored: a test that
 // needs a miss (the visitor limit applies to misses only) asks for a path no other test has.
+
+warmWorker();
 
 afterEach(() => vi.restoreAllMocks());
 
