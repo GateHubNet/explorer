@@ -26,6 +26,7 @@ import { useHolds, type HoldHandlers } from "../use-hold";
 import type { LiveControls } from "../use-live-controls";
 import { useRefetching } from "../use-refetching";
 import { useRetry } from "../use-retry";
+import { ValidatorTomlCard } from "./ValidatorTomlCard";
 
 const DASH = "—";
 
@@ -224,7 +225,8 @@ function Identity({ data }: { data: Data }) {
         </Fact>
         <Fact label="First seen">{grid.firstSeen ?? DASH}</Fact>
         <LastSeen data={data} />
-        {grid.accounts && (
+        {/* While the toml card is drawn the accounts are its: its list names the same addresses (E13 spec 5.1). */}
+        {grid.accounts && data.toml === null && (
           <Fact label={`Accounts ${identity.heading.text} lists`}>
             {/* The accounts' names come from the page's `NamesProvider` (the route's): `AccountLink` draws a name with its mark, else the short address. */}
             <span className="validator__accounts">
@@ -473,8 +475,8 @@ function RecentCard({
 // The pages
 
 /**
- * One validator (`/{net}/validators/{key}`, spec 4.1), in the board's order: the breadcrumb, E2's live row, the identity with its facts, the agreement tiles
- * beside the 30-day chart, the fee votes beside the amendment votes, and the recent validations. Takes what the view builder made of the data API's answers
+ * One validator (`/{net}/validators/{key}`, spec 4.1), in the board's order: the breadcrumb, E2's live row, the identity with its facts, the toml card of a
+ * verified domain (E13 spec 5.1: only with VALIDATORS_MAP on, and it takes the accounts line from the identity), the agreement tiles beside the 30-day chart, the fee votes beside the amendment votes, and the recent validations. Takes what the view builder made of the data API's answers
  * (`validatorPage`) and never fetches: every label, href and figure is text in `data`. D is the page; each of VV, S and A stands or fails alone (spec 4.4):
  * the recent validations are a section error and last seen comes from D, coarse; the fee votes lose Now and Against now; the amendment votes keep D's statuses.
  *
@@ -493,6 +495,7 @@ export function ValidatorPage({ data, live }: { data: Data; live: LiveControls }
       <Crumbs net={data.network.id} name={data.network.name} identity={data.identity} />
       <LiveRow label="Live · updates every ledger" live={live} heldNote="Paused while you look at the table" />
       <Identity data={data} />
+      {data.toml !== null && <ValidatorTomlCard card={data.toml} net={data.network.id} />}
       <div className="validator__pair">
         <AgreementTiles tiles={data.agreement.tiles} />
         <DailyCard agreement={data.agreement} />

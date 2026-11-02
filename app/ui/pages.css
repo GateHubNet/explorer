@@ -2849,6 +2849,106 @@ a.markets__pair:hover .markets__name {
   min-height: 24px;
 }
 
+/* The toml card of a verified domain (E13 spec 5.1): the head is the other cards' (`validator__cardhead`); under it the two checks and the facts, and under a rule the lists. Everything the
+   file says is the domain's own text, up to a 200-character host and a 100-character principal (E13 C8), so every value breaks inside its box. */
+.validator__tomlbody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.validator__verified {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.validator__checks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.validator__checks li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.validator__tick {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+/* The facts: as many columns as fit at 170 px (spec 5.1), one on a phone. */
+.validator__tomlgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr));
+  gap: 16px 24px;
+}
+
+.validator__tomlgrid .validator__value {
+  overflow-wrap: anywhere;
+}
+
+.validator__tomlgrid .validator__sub {
+  overflow-wrap: anywhere;
+}
+
+.validator__tomlnote {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.validator__tomllists {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.validator__tomllist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.validator__tomlitems {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+/* Each account and each currency that leads somewhere is a link of at least 24 px (WCAG 2.5.8); a code breaks anywhere, a 40-digit one included. */
+.validator__tomlitems a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  overflow-wrap: anywhere;
+}
+
+.validator__code {
+  overflow-wrap: anywhere;
+}
+
+.validator__tomlcount {
+  color: var(--muted);
+}
+
 /* Two cards side by side, under each other on a phone. */
 .validator__pair {
   display: flex;

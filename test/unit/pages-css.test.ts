@@ -301,6 +301,23 @@ describe("the validator page", () => {
   });
 });
 
+describe("the validator's toml card", () => {
+  it("lays the facts out in as many columns as fit at 170 px (spec 5.1), one on a phone", () => {
+    expect(rule(pagesCss, ".validator__tomlgrid")).toMatchObject({ display: "grid", "grid-template-columns": "repeat(auto-fit, minmax(min(170px, 100%), 1fr))" });
+  });
+
+  it("breaks what the domain's own file says inside its box (a 200-character host, a 100-character principal, a 40-digit code), so that a phone does not scroll sideways (E13 C8)", () => {
+    for (const selector of [".validator__tomlgrid .validator__value", ".validator__tomlgrid .validator__sub", ".validator__checks li", ".validator__tomlitems a", ".validator__code"]) {
+      expect(rule(pagesCss, selector)["overflow-wrap"], selector).toBe("anywhere");
+    }
+  });
+
+  it("gives the links of its lists a target of at least 24 px (WCAG 2.5.8), and puts a rule over them", () => {
+    expect(Number.parseFloat(rule(pagesCss, ".validator__tomlitems a")["min-height"]!)).toBeGreaterThanOrEqual(24);
+    expect(rule(pagesCss, ".validator__tomllists")["border-top"]).toBe("1px solid var(--border)");
+  });
+});
+
 describe("the amendments list", () => {
   it("is one column of rows 18 px apart, as the board is", () => {
     expect(rule(pagesCss, ".amendments")).toMatchObject({ display: "flex", "flex-direction": "column", gap: "18px" });

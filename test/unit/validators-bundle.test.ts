@@ -20,6 +20,8 @@ describe("the files of the validators pages that run in the browser", () => {
     // The countries card draws text and percentages the view builder made: the country table (app/server/countries.ts) is the Worker's.
     "ui/pages/ValidatorsMapCard.tsx",
     "ui/pages/ValidatorPage.tsx",
+    // The toml card draws text and hrefs the view builder made: validator-view.ts (the Worker's) and the country table behind it are never imported.
+    "ui/pages/ValidatorTomlCard.tsx",
     "ui/pages/AmendmentsPage.tsx",
     "ui/pages/AmendmentPage.tsx",
     "ui/components/StatusMarks.tsx",
