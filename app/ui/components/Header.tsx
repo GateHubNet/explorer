@@ -1,16 +1,18 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Link, useLocation, useMatches } from "react-router";
 
-import { PRODUCT_NAME } from "../brand";
+import { LOGO_TEXT } from "../brand";
 import { LATEST_LEDGERS_ID, LATEST_TRANSACTIONS_ID } from "../anchors";
 import { cx } from "../cx";
 import { networkKindOf } from "../environment";
 import type { Feature } from "../features";
+import logoDark from "../logo/gatehub-explorer-dark.svg?url";
+import logoWhite from "../logo/gatehub-explorer-white.svg?url";
 import type { NetworkBrief } from "../networks";
 import { navPageOf, navSectionOf, type NavPage, type NavSection } from "../route-handle";
 import { useDisclosureMenu } from "../use-disclosure-menu";
 import { useEnvironment, useFeatures } from "../use-network";
-import { ChevronDownIcon, CloseIcon, LogoMark, MenuIcon } from "./icons";
+import { ChevronDownIcon, CloseIcon, MenuIcon } from "./icons";
 import { NetworkSwitch } from "./NetworkSwitch";
 import { Pill } from "./Pill";
 import { SearchBox } from "./SearchBox";
@@ -116,9 +118,10 @@ export function Header({ net, search = true }: { net: NetworkBrief; search?: boo
     <header className="hdr">
       <div className="container hdr__inner">
         <div className="hdr__brandgroup">
-          <Link to={`/${net.id}`} className="hdr__brand" aria-label={`${PRODUCT_NAME} home`}>
-            <LogoMark />
-            <span className="hdr__name">{PRODUCT_NAME}</span>
+          <Link to={`/${net.id}`} className="hdr__brand" aria-label={`${LOGO_TEXT} home`}>
+            {/* Both colours, as the toggle has both icons: the HTML is the same for every visitor, and the CSS shows the theme's (tokens.css). */}
+            <img className="hdr__logo hdr__logo--dark" src={logoDark} alt={LOGO_TEXT} width={130} height={48} />
+            <img className="hdr__logo hdr__logo--white" src={logoWhite} alt={LOGO_TEXT} width={130} height={48} />
           </Link>
           {testnet && (
             <Pill tone="testnet" icon={null}>

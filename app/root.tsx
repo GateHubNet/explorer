@@ -32,7 +32,13 @@ export function loader({ context }: Route.LoaderArgs): RootLoaderData {
 // (or the home page's refresh every few seconds) makes no request for it.
 export const shouldRevalidate = () => false;
 
-export const links: Route.LinksFunction = () => [...FONT_PRELOADS, { rel: "stylesheet", href: styles }];
+// The favicon is the logo's mark (public/): the SVG for the browsers that take one (white when the browser is dark), the .ico, dark, for the rest.
+export const links: Route.LinksFunction = () => [
+  ...FONT_PRELOADS,
+  { rel: "stylesheet", href: styles },
+  { rel: "icon", href: "/favicon.ico", sizes: "32x32" },
+  { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+];
 
 // The description names the networks of the environment (the root's own data: no `/:net` layout above it). Without the data (the loader failed) it is the mainnets'.
 export const meta: Route.MetaFunction = ({ error, loaderData }) => {
