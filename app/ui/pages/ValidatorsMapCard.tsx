@@ -11,9 +11,9 @@ import dotsUrl from "../map/world-dots.svg?url";
 import type { HoldHandlers } from "../use-hold";
 
 /**
- * The tooltip's CSS transform beside a circle (the board's rule, plan ruling R10): horizontally 14 px in from the circle's left edge when the circle is in the first 14 % of the
- * map, 14 px short of its right edge in the last 14 %, else centred; vertically below the circle (by half its size and 8 px) in the upper part of the map, above it elsewhere.
- * `left` and `top` are the circle's percentages as the view builder wrote them (`"52.89%"`).
+ * The tooltip's CSS transform beside a circle (the board's rule, plan ruling R10), from the point the tooltip is placed at (the circle's centre): horizontally its left edge 14 px
+ * before that point while the circle is in the first 14 % of the map, its right edge 14 px past it in the last 14 %, else centred on it; vertically below the circle (by half its
+ * size and 8 px) in the upper part of the map (above 42 %), above it elsewhere. `left` and `top` are the circle's percentages as the view builder wrote them (`"52.89%"`).
  */
 export function tipTransform(circle: Pick<CircleView, "left" | "top" | "size">): string {
   const left = Number.parseFloat(circle.left);
