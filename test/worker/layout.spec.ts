@@ -4,10 +4,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PRODUCT_NAME } from "../../app/ui/brand";
 import { THEME_SCRIPT } from "../../app/ui/theme-script";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
+import { warmWorker } from "../support/warm-worker";
 
 // The layout and the network routes on the real Worker (workers/app.ts, React Router, the edge cache): the
 // redirect from `/`, the unknown-network and unknown-path 404s, the `/:net` layout with its header, the theme and the
 // network cookie, robots.txt.
+
+warmWorker();
 
 let visitors = 0;
 /** An address of the documentation range (RFC 5737) no other test file uses: the visitor limit is per address. */

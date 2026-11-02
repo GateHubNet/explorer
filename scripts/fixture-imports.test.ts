@@ -23,10 +23,11 @@ describe("the fixture generators, loaded from derived-trades.ts", () => {
     expect(Object.values(FEATURED_POOLS).every((pool) => typeof pool === "string")).toBe(true);
   });
 
+  // A whole generation and three of its generators again: about 1.5 s on a developer's machine, and close to 5 s on a CI runner.
   it("generate the files `pnpm fixtures:sync` wrote, which loads them from http-fixtures.ts", () => {
     expect(derivedExchanges(readLedgers("xrpl")).length).toBeGreaterThan(0);
     const generated = generate();
     for (const [path, text] of [...marketFixtures(), ...ammInfoFixtures(), ...ammFixtures()]) expect(generated.get(path), path).toBe(text);
     expect(compare(generated)).toEqual({ missing: [], changed: [], stale: [] });
-  });
+  }, 15_000);
 });

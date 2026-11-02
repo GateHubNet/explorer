@@ -8,8 +8,11 @@ import { createNodeRpc } from "../../app/server/node-rpc";
 import { passThroughCache } from "../support/subrequest-cache";
 import { allSwitches } from "../support/switches";
 import { dataApiError, mockUpstream, nodeError, statusesOf, type UpstreamMock } from "../support/upstream";
+import { warmWorker } from "../support/warm-worker";
 
 // The upstream mock: the data API and the nodes of both networks, answered from test/fixtures/http/.
+
+warmWorker();
 
 const env: Env = {
   XRPL_DATA_API_URL: "https://xrpl.data.example.invalid",
