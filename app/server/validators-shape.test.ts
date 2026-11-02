@@ -348,6 +348,99 @@ describe("checkValidatorDetail", () => {
   });
 });
 
+describe("the toml of a validator (D8)", () => {
+  const FULL = { owner_country: "DE", server_country: "NL", network: "main", unl: "https://vl.ripple.com" };
+  const rowOf = (toml: unknown) => listOf(validatorRowSample({ toml: toml as never }));
+  const detailOf = (toml: unknown) => validatorDetailSample({ toml: toml as never });
+
+  it("accepts toml on a row: full, {}, a code it has no name for, a network it has no name for", () => {
+    for (const toml of [
+      FULL,
+      {},
+      { server_country: "XK" },
+      { owner_country: "QQ", server_country: "ZZ" },
+      { network: "devnet-7" },
+      { network: "21337", unl: "https://vl.xahau.org" },
+    ]) {
+      const body = rowOf(toml);
+      expect(checkValidatorsList(body, "/x")).toBe(body);
+    }
+    const without = listOf(validatorRowSample());
+    expect((without.validators[0] as { toml?: unknown }).toml).toBeUndefined();
+    expect(checkValidatorsList(without, "/x")).toBe(without);
+  });
+
+  it("refuses a toml that is not an object, a country in lower case or of three letters, a network that is not text", () => {
+    for (const [what, toml] of [
+      ["a toml that is a list", []],
+      ["a toml that is text", "DE"],
+      ["a toml that is null", null],
+      ["an owner_country in lower case", { ...FULL, owner_country: "de" }],
+      ["a server_country of three letters", { ...FULL, server_country: "DEU" }],
+      ["a server_country of one letter", { ...FULL, server_country: "D" }],
+      ["a server_country that is empty", { ...FULL, server_country: "" }],
+      ["a server_country with a digit", { ...FULL, server_country: "D1" }],
+      ["a server_country that is a number", { ...FULL, server_country: 49 }],
+      ["a network that is a number", { ...FULL, network: 21337 }],
+      ["a network that is empty", { ...FULL, network: "" }],
+      ["a unl that is a list", { ...FULL, unl: ["https://vl.ripple.com"] }],
+    ] as const) {
+      const body = rowOf(toml);
+      refuses(checkValidatorsList, body);
+      expect(() => checkValidatorsList(body, "/x"), what).toThrow("validators[0].toml");
+    }
+  });
+
+  it("says which key of the toml is wrong, and does not repeat what the API sent", () => {
+    let message = "";
+    try {
+      checkValidatorsList(rowOf({ ...FULL, server_country: "<b>de</b>" }), "/x");
+    } catch (error) {
+      message = (error as UpstreamError).message;
+    }
+    expect(message).toBe("data API GET /x answered something unexpected: validators[0].toml.server_country is not a two-letter country code in upper case");
+  });
+
+  it("accepts the detail's facts and refuses principals that are not text, a negative count, a currency without a code", () => {
+    const facts = {
+      ...FULL,
+      principals: ["Mara Lindqvist", "Tomas Okafor"],
+      modified: "2026-10-02T00:00:00Z",
+      accounts_listed: 4,
+      currencies: [{ code: "USD", issuer: ADDRESS }, { code: "4E50555344000000000000000000000000000000", issuer: ADDRESS }, { code: "EUR" }],
+      currencies_listed: 5,
+      fetched: "2026-10-19T18:54:52.750Z",
+    };
+    for (const toml of [facts, { principals: ["North Peak Ops"], fetched: "2026-10-19T18:54:52.750Z" }, {}, FULL, { currencies: [], principals: [] }]) {
+      const body = detailOf(toml);
+      expect(checkValidatorDetail(body, "/x")).toBe(body);
+    }
+    for (const [what, toml] of [
+      ["principals that is text", { ...facts, principals: "Mara Lindqvist" }],
+      ["a principal that is a number", { ...facts, principals: ["Mara Lindqvist", 7] }],
+      ["a principal that is empty", { ...facts, principals: [""] }],
+      ["a negative accounts_listed", { ...facts, accounts_listed: -1 }],
+      ["an accounts_listed that is text", { ...facts, accounts_listed: "4" }],
+      ["a currencies_listed that is not whole", { ...facts, currencies_listed: 2.5 }],
+      ["currencies that is not a list", { ...facts, currencies: { code: "USD" } }],
+      ["a currency that is not an object", { ...facts, currencies: ["USD"] }],
+      ["a currency without a code", { ...facts, currencies: [{ issuer: ADDRESS }] }],
+      ["a currency code that is a number", { ...facts, currencies: [{ code: 840 }] }],
+      ["a currency issuer that is a number", { ...facts, currencies: [{ code: "USD", issuer: 7 }] }],
+      ["a modified that is a number", { ...facts, modified: 1791000000 }],
+      ["a fetched that is a number", { ...facts, fetched: 1792254380 }],
+      ["a server_country in lower case", { ...facts, server_country: "nl" }],
+    ] as const) {
+      expect(() => checkValidatorDetail(detailOf(toml), "/x"), what).toThrow(UpstreamError);
+    }
+  });
+
+  it("does not read the detail's facts on a row of the list", () => {
+    const body = rowOf({ ...FULL, principals: "not a list", accounts_listed: -1 });
+    expect(checkValidatorsList(body, "/x")).toBe(body);
+  });
+});
+
 describe("checkValidatorValidations", () => {
   pins(checkValidatorValidations, validationsSample, [
     ["a result that is not success", (b) => (b.result = "error")],

@@ -22,6 +22,15 @@ export const VALIDATOR_CASES = [
   "incomplete",
   "no-score",
   "xahau-build",
+  "toml-full",
+  "toml-not-read",
+  "toml-empty",
+  "toml-no-network",
+  "toml-other-network",
+  "toml-network-id",
+  "toml-xk",
+  "toml-long",
+  "unknown-location",
 ] as const;
 export type ValidatorCase = (typeof VALIDATOR_CASES)[number];
 
@@ -42,6 +51,9 @@ export function signingFileOf(row: ValidatorRow, { details }: CaseSources): stri
   for (const [key, detail] of details) if (key !== row.validation_public_key && detail.validation_public_key === row.validation_public_key) return key;
   return undefined;
 }
+
+/** The long case (C8): a server in `GS`, whose toml gives every text at the length D8 keeps (a 32-character network, a 200-character host, a 100-character principal, a 40-character code). */
+const isLong = (row: ValidatorRow): boolean => row.toml?.server_country === "GS";
 
 /** What makes a row of the list a case. */
 export const VALIDATOR_CASE_RULES: Record<ValidatorCase, (row: ValidatorRow, sources: CaseSources) => boolean> = {
@@ -69,6 +81,24 @@ export const VALIDATOR_CASE_RULES: Record<ValidatorCase, (row: ValidatorRow, sou
   incomplete: (row) => row.last_seen !== undefined && [row.agreement_1h, row.agreement_24h, row.agreement_30d].some((window) => window.incomplete),
   "no-score": (row) => row.last_seen !== undefined && row.agreement_24h.score === undefined,
   "xahau-build": (row) => row.version_build !== undefined,
+  // D8: the detail's toml adds the facts of the domain's file to the row's four. The long one has them too, at their limits, and is a case of its own.
+  "toml-full": (row, { details }) => {
+    const toml = details.get(row.validation_public_key)?.toml;
+    return !isLong(row) && toml?.principals !== undefined && toml.currencies !== undefined;
+  },
+  // A verified domain whose file the checker has not read yet (D8: `toml` is absent until a pair is read again after the deploy).
+  "toml-not-read": (row) => row.domain_verification?.status === "verified" && row.toml === undefined,
+  // The entry gives none of the four.
+  "toml-empty": (row) => row.toml !== undefined && Object.keys(row.toml).length === 0,
+  "toml-no-network": (row) => row.toml?.server_country !== undefined && row.toml.network === undefined,
+  // XRPL: the file says `testnet` (not this network). Xahau: its network ID, `"21337"`, which is its mainnet. Neither is on the other network.
+  "toml-other-network": (row) => row.toml?.network === "testnet",
+  "toml-network-id": (row) => row.toml?.network === "21337",
+  // Kosovo has no ISO code of its own; XRPL's pool has it, Xahau's has not.
+  "toml-xk": (row) => row.toml?.server_country === "XK",
+  "toml-long": isLong,
+  // A validator that was seen and whose toml names no server country: a domain that is not verified, one not read yet, an entry without one.
+  "unknown-location": (row) => row.last_seen !== undefined && row.toml?.server_country === undefined,
 };
 
 export const AMENDMENT_CASES = ["majority", "voting", "enabled-ledger", "enabled-metadata", "obsolete", "unknown", "retired"] as const;

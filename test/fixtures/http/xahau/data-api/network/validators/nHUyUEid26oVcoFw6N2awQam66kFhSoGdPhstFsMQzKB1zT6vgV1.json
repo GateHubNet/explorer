@@ -93,6 +93,25 @@
   "result": "success",
   "server_version": "1745992618040362935",
   "signing_key": "n94fsf6EJkvUgKNhtCMto6xjiVewTyhiEMJS3Nbike44Lpoq3aEX",
+  "toml": {
+    "accounts_listed": 4,
+    "currencies": [
+      {"code":"USD","issuer":"r4fYTnBmPnWcE5D7MnUveSvbXxYmmF3kNU"},
+      {"code":"4E50555344000000000000000000000000000000","issuer":"r4fYTnBmPnWcE5D7MnUveSvbXxYmmF3kNU"},
+      {"code":"EUR"}
+    ],
+    "currencies_listed": 5,
+    "fetched": "2026-10-17T17:17:11.000Z",
+    "modified": "2026-10-02T00:00:00Z",
+    "network": "main",
+    "owner_country": "DE",
+    "principals": [
+      "Mara Lindqvist",
+      "Tomas Okafor"
+    ],
+    "server_country": "DE",
+    "unl": "https://vl.xahau.org"
+  },
   "unl": true,
   "unl_lists": [
     "vl.xahau.org"

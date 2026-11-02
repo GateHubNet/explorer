@@ -414,7 +414,15 @@ the rules that tie one figure to another follow the data API's reference:
 | `apps/api/src/validators/*.ts`, `packages/shared/src/validators/consensus.ts`, `server-version.ts` | `data-api-new`, `feat/explorer-data` | `7d495ab50cc7ad9b1434ab8e28b2ca5f7cbde13e` | read for what the reference leaves to the builders: the windows of agreement, `sfServerVersion`, the votes of `unl_votes` and `other_votes` |
 
 Read with `git -C ../data-api-new show <commit>:<path>`, never checked out. The client's types (`app/server/api-types.ts`) and checks (`app/server/validators-shape.ts`) follow
-the same commit, and every file passes them.
+the same commit, and every file passes them. The `toml` of a validator (E13) follows D8, which is one commit of its own:
+
+| | Repository, ref | Commit | For |
+|---|---|---|---|
+| `docs/api-reference.md`, "Validators and amendments": `toml` on a validator row and on the answer for one | `data-api`, `feat/explorer-data-2` | `cbd6c51caccfdc28c678f8b620e2f8a4b45c5e09` | the keys of `toml` and their order ("Keys of toml on a validator row", "Keys of toml on the validator answer"), when a key or the whole `toml` is absent and when it is `{}`, what the detail adds from the toml store (D8 §4.1, §4.2) |
+| `docs/openapi.yaml` | the same commit | `cbd6c51caccfdc28c678f8b620e2f8a4b45c5e09` | `api/openapi.yaml` and `app/server/openapi.d.ts`, synced from this commit (`git show` into a scratch `docs/`, `DATA_API_REPO=<scratch> pnpm api:sync`) and not from the branch tip, which holds routes of later work (E13 Ruling C1) |
+
+`PIN` of E13 is that commit. The sync is not a clean addition: the document gains `/v2/network/validators/countries` and the `country` parameter of the list, and two path
+blocks (`/v2/account_names`, `/v2/toml/{domain}`) moved up (142 lines of diff); the explorer calls neither new route.
 
 **Generator and seeds.** `scripts/validators-fixtures.ts`, over `scripts/synthetic.ts`: one stream `mulberry32(seedOf(net, route))` for each network and each of
 `network/validators` (the fleet: keys, domains, accounts, first sightings, manifests), `network/validators/summary` (the publishers' keys and fetch times),
@@ -433,8 +441,30 @@ from its index.
 | `amendments.json` | XRPL: `MPTokensV1` (majority), `DynamicNFT`, `XChainBridge`, `PermissionedDomains` (voting), an unknown ID, `DID`, `AMM` (enabled by an indexed EnableAmendment), `fix1201` (enabled, as the metadata says), `fixNFTokenNegOffer` (obsolete). Xahau: `Remit` (majority), `URIToken` (voting), `Import` (indexed), `Hooks` (metadata), `XahauGenesis` (retired), `introduced` in xahaud's date versions. IDs are SHA-512Half of the names |
 | `amendments/<NAME>.json`, `amendments/<ID>.json` | each amendment's answer, by its name and, a byte copy, by its ID (the unknown one by its ID only), with the list's envelope (G3). XRPL's majority has 30 days of rounds (about 2,600) and a got/lost/got history, the last got 10 days before the anchor, so it activates in 4; the others not enabled have 3 days of rounds (the spec's "deployment that has run three days"); a tally holds from round to round and changes at a few points only (the runs of the got/lost/got story, half-way through a majority's 3 days, a third and two thirds of a vote's climb, where the trusted count moves, and the newest round: 4 changes in the majority's 30 days, 1 to 3 in 3 days), as a deployment records them and as the spec sizes the page (6.3, 7); Xahau's majority was got before the indexed history, so it has no `majority.ledger_index` or `tx_hash` (G5) and no history |
 
+**The `toml` of a verified validator (E13, `tomlsOf` in `scripts/validators-fixtures.ts`).** D8 gives `toml` to a validator whose domain is `verified` and has been read by its checker,
+and to no other, so only the verified validators have one, in both the list and the answer for one; the rest of the fleet has none. They are drawn from a stream of their own,
+`mulberry32(seedOf(net, "toml"))`, so nothing else in the files moves. The verified validators in the list's order get:
+
+| | `toml` of the row | The detail adds |
+|---|---|---|
+| **F**, the first verified validator with `[[ACCOUNTS]]` (`birchridge` on XRPL, `kestrelbay` on Xahau) | all four keys: `owner_country`, `server_country`, `network` `"main"`, `unl` | `principals` `["Mara Lindqvist", "Tomas Okafor"]`, `modified` `2026-10-02T00:00:00Z`, `accounts_listed` the served accounts + 2 (D8: the store's facts can be a check newer or older than the row's), `currencies` `USD` and the 40-hex `4E50555344…` (NPUSD) of its first account and `EUR` with no issuer, `currencies_listed` 5, `fetched` half an hour before the newest ledger |
+| no. 1 of the others | none: a verified domain whose file is not read yet | |
+| no. 2 | `{}`: the entry gives none of the four | |
+| no. 3 | a country and no `network` | `principals` `["North Peak Ops"]`, `fetched` |
+| no. 4 | `network` `"testnet"` on XRPL (the "not this network" case), `"21337"` on Xahau (its network ID, which is its mainnet) | |
+| no. 5 | XRPL only: `server_country` `XK` (Kosovo, which has no ISO code of its own) | |
+| no. 7, the long one (E13 C8, E11's I1) | `server_country` `GS` (a 38-character name), a 32-character `network`, a `unl` host of 200 characters in labels of up to 63, all `*.example` | `principals` of one name of 100 characters, one currency of a 40-character code without an issuer, `currencies_listed` 1, `fetched` |
+| no. 6 and every 6th after (12, 18, …) | no `server_country` (the other keys as drawn), so that "Unknown location" counts more than the validators whose domain does not verify | |
+| the others | drawn values: `network` `"main"`, `unl` the network's publisher list (`https://vl.ripple.com`, `https://vl.xahau.org`), `server_country` from the pool below, `owner_country` the same one 7 times in 10 and another of the pool otherwise | the row's `toml` alone |
+
+The pools are XRPL's `US DE NL GB FR CH SG JP CA FI SE IE AU HK KR ES PL NO IN XK` and Xahau's `NL DE FI SE US GB FR SG JP AU NO EE`, the first three of each weighing 10, 8 and 6 and the
+others 1 (the first three then lead: XRPL's US 9, DE 6, NL 4; Xahau's DE 6, FI 5, NL 4). The numbers are the plan's ("numbered from 1", F taken out). No address is new: F's currencies
+name its own first account, which E9's `names-fixtures.ts` already names, and `pnpm fixtures:check` shows `account_names.json` unchanged. No domain is new either; every `unl` is a publisher
+of the network or a `*.example` host. The cases are rules of `test/support/validators-case-rules.ts`: `toml-full`, `toml-not-read`, `toml-empty`, `toml-no-network`, `toml-other-network`
+(XRPL), `toml-network-id` (Xahau), `toml-xk` (XRPL), `toml-long` and `unknown-location`.
+
 **Invented, and not checked against anything real:** every key but the given validators', every domain (`*.example`, RFC 2606: no operator is implied), the accounts of G1, the
-publishers' keys, sequences and dates; the hours of agreement and their scores; the versions and their counts; the vote records and fee votes; the amendments' statuses,
+publishers' keys, sequences and dates; every `toml` (the countries, the principals' names, the currencies, the dates of `modified` and `fetched`); the hours of agreement and their scores; the versions and their counts; the vote records and fee votes; the amendments' statuses,
 votes, rounds, dates, ledgers, `introduced`, descriptions and `xls_url` paths (under `https://github.com/XRPLF/XRPL-Standards/`, as G2 wants), and the hashes of their
 EnableAmendment transactions and of every ledger but the recorded ones (no transaction or ledger page serves them). Where the rules leave a choice open: the files sort their
 keys as every generated fixture does (the generator builds every object in the reference's order, which the test checks); one hour of the 30 days has no final record, so
@@ -444,9 +474,9 @@ not files. Only an end-to-end run against a real stack (`E2E_DATA_API_URL`) chec
 
 **What keeps them true.** `test/unit/validators-fixtures.test.ts` works D1's rules out again from the answers (the validators' order and the summary's counts and versions, F7 for
 every round and tally, `pct`, the amendments' order, the envelope of every amendment answer, the votes against the records, the server versions decoded), checks every object's
-keys against the reference's order, runs the client's checks on every answer, and holds every case by the rules of `test/support/validators-case-rules.ts`, the ones
+keys against the reference's order (the `toml` of a row and of a detail too), runs the client's checks on every answer, and holds every case by the rules of `test/support/validators-case-rules.ts`, the ones
 `test/support/validators-cases.ts` finds a validator or an amendment of a case by for the worker specs (over the files, never by a fixed key). `scripts/http-fixtures.test.ts` fails when a file is not what the generator writes.
-`isValidatorsGenerated` names the files, and they have a budget of their own in `test/unit/http-fixtures.test.ts` (239 files, about 2.7 MiB).
+`isValidatorsGenerated` names the files, and they have a budget of their own in `test/unit/http-fixtures.test.ts` (239 files, 2,884,903 bytes, about 2.75 MiB; the `toml` added about 15.7 KB).
 
 ## AMM answers: `http/xrpl/data-api/amm/` and the featured pools' `http/xrpl/node/amm_info/`, with their synthetic day rows, candles and live volume
 

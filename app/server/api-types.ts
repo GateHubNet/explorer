@@ -1032,6 +1032,33 @@ export interface YesEntry {
 }
 
 /**
+ * What a validator's verified toml says about it (D8 §4.1, `docs/api-reference.md` of the data API at the commit `test/fixtures/PROVENANCE.md` names): each key is absent
+ * when the file gives no valid value, and `{}` when it gives none of the four. These are the file's claims, nothing checks them: a `network` naming another network is
+ * shown as it is, a country is an upper-case ISO 3166-1 alpha-2 code or `XK`, `network` is lower case (`main`, `testnet`, `21337`) and `unl` an https URL, text and never
+ * followed.
+ */
+export interface ValidatorToml {
+  owner_country?: string;
+  server_country?: string;
+  network?: string;
+  unl?: string;
+}
+
+/**
+ * The detail's `toml` (D8 §4.2): the row's, then its domain's facts from the toml store, which can be a check newer or older than the row's (they are the domain's,
+ * not the validator's, so `accounts_listed` can be below the addresses served). `principals` are at most 10 names in file order, `modified` is `YYYY-MM-DDTHH:mm:ssZ`,
+ * `currencies` the first 10 entries that count on the network and `fetched` an instant of receipt; each is absent when there is none.
+ */
+export interface ValidatorTomlDetail extends ValidatorToml {
+  principals?: string[];
+  modified?: string;
+  accounts_listed?: number;
+  currencies?: { code: string; issuer?: string }[];
+  currencies_listed?: number;
+  fetched?: string;
+}
+
+/**
  * A validator of the list. A member of the UNL that was never seen has only the keys down to `negative_unl` (with `signing_key` when a manifest names one);
  * `version`, `version_build` and `version_latest` are absent for a validator that reported no version (an unrecognised number has `server_version` only), and
  * `amendment_votes` for one without a vote record.
@@ -1063,6 +1090,8 @@ export interface ValidatorRow {
   amendment_votes?: { ledger_index: number; yes: YesEntry[] };
   first_seen?: string;
   last_seen?: string;
+  /** Present when the domain is `verified` and was read by D8's checker; `{}` when its `[[VALIDATORS]]` entry gives none of the four. */
+  toml?: ValidatorToml;
 }
 
 /** `GET /v2/network/validators`: the page, domain-first alphabetical, then by key. `marker` is there only when more follow. */
@@ -1103,8 +1132,10 @@ export interface ValidatorManifest {
  * `GET /v2/network/validators/{key}`: the row, with `amendment_votes` always there (`ledger_index` is absent for a validator with no record, and `votes` then holds
  * `none` for every amendment being decided), then the manifest (absent without one) and the agreement of each of the last 30 days (empty while no hour is final).
  */
-export interface ValidatorDetail extends Omit<ValidatorRow, "amendment_votes"> {
+export interface ValidatorDetail extends Omit<ValidatorRow, "amendment_votes" | "toml"> {
   amendment_votes: { ledger_index?: number; yes: YesEntry[]; votes: ValidatorVote[] };
+  /** The row's `toml`, then the facts of its domain (D8 §4.2). */
+  toml?: ValidatorTomlDetail;
   manifest?: ValidatorManifest;
   daily_agreement: DailyAgreement[];
   result: "success";

@@ -93,6 +93,20 @@
   "result": "success",
   "server_version": "1745992596280311808",
   "signing_key": "n9KJvnrgdCa9D9eThHxD9rjqevgefGNN53Wpic3ocuWawV96z5Qk",
+  "toml": {
+    "currencies": [
+      {"code":"BEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEF"}
+    ],
+    "currencies_listed": 1,
+    "fetched": "2026-10-17T16:41:11.255Z",
+    "network": "longnetworklongnetworklongnetwor",
+    "owner_country": "NO",
+    "principals": [
+      "LongPrincipalNameLongPrincipalNameLongPrincipalNameLongPrincipalNameLongPrincipalNameLongPrincipalNa"
+    ],
+    "server_country": "GS",
+    "unl": "https://vl.longhostlonghostlonghostlonghostlonghostlonghostlonghostlonghos.longhostlonghostlonghostlonghostlonghostlonghostlonghostlonghos.longhostlonghostlonghostlonghostlonghostlonghostlonghostlongh.example"
+  },
   "unl": true,
   "unl_lists": [
     "unl.xrplf.org",

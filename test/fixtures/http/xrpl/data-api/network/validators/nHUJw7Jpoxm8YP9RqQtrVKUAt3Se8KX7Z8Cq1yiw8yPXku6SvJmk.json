@@ -97,6 +97,25 @@
   "result": "success",
   "server_version": "1745992596280311808",
   "signing_key": "n9Lghx9jf1VVTDtM2mrvPVUSZXqR5CJyBBhEFkenJiQBvkxYhfAK",
+  "toml": {
+    "accounts_listed": 4,
+    "currencies": [
+      {"code":"USD","issuer":"rKVQKaUgYcrSpQ9Eizqy33KYo4btGy3Q7Z"},
+      {"code":"4E50555344000000000000000000000000000000","issuer":"rKVQKaUgYcrSpQ9Eizqy33KYo4btGy3Q7Z"},
+      {"code":"EUR"}
+    ],
+    "currencies_listed": 5,
+    "fetched": "2026-10-17T16:31:12.000Z",
+    "modified": "2026-10-02T00:00:00Z",
+    "network": "main",
+    "owner_country": "DE",
+    "principals": [
+      "Mara Lindqvist",
+      "Tomas Okafor"
+    ],
+    "server_country": "CA",
+    "unl": "https://vl.ripple.com"
+  },
   "unl": true,
   "unl_lists": [
     "unl.xrplf.org",

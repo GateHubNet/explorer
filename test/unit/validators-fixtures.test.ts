@@ -13,6 +13,7 @@ import type {
   ValidatorRow,
   ValidatorsList,
   ValidatorsSummary,
+  ValidatorTomlDetail,
   ValidatorValidationsPage,
 } from "../../app/server/api-types";
 import {
@@ -166,11 +167,32 @@ function compareAmendments(a: AmendmentRow, b: AmendmentRow): number {
 
 /** What the case rules read beside a row: the summary, and every validator file by the key it is named by. */
 const sourcesOf = (net: Net): CaseSources => ({ summary: summaryOf(net), details: new Map(detailFiles(net).map(({ key, value }) => [key, value])) });
-/** Xahau has no unknown amendment to vote on, and XRPL no build number. */
+/**
+ * Xahau has no unknown amendment to vote on, no `testnet` and no server in Kosovo (its pool has no `XK`), and XRPL no build number and no network ID in its
+ * toml files.
+ */
 const VALIDATOR_CASES_OF: Record<Net, ValidatorCase[]> = {
-  xrpl: VALIDATOR_CASES.filter((which) => which !== "xahau-build"),
-  xahau: VALIDATOR_CASES.filter((which) => which !== "votes-unknown"),
+  xrpl: VALIDATOR_CASES.filter((which) => which !== "xahau-build" && which !== "toml-network-id"),
+  xahau: VALIDATOR_CASES.filter((which) => which !== "votes-unknown" && which !== "toml-other-network" && which !== "toml-xk"),
 };
+/** The cases D8's `toml` makes (E13 spec section 9), by the network that has them. */
+const TOML_CASES_OF: Record<Net, ValidatorCase[]> = {
+  xrpl: ["toml-full", "toml-not-read", "toml-empty", "toml-no-network", "toml-other-network", "toml-xk", "toml-long", "unknown-location"],
+  xahau: ["toml-full", "toml-not-read", "toml-empty", "toml-no-network", "toml-network-id", "toml-long", "unknown-location"],
+};
+/** The countries a server is drawn from (E13 Task 1), the first three leading. */
+const TOML_POOL: Record<Net, string[]> = {
+  xrpl: "US DE NL GB FR CH SG JP CA FI SE IE AU HK KR ES PL NO IN XK".split(" "),
+  xahau: "NL DE FI SE US GB FR SG JP AU NO EE".split(" "),
+};
+const TOML_UNL: Record<Net, string> = { xrpl: "https://vl.ripple.com", xahau: "https://vl.xahau.org" };
+const verified = (row: ValidatorRow) => row.domain_verification?.status === "verified";
+/** The verified members of the list in its order, the first with accounts (F) taken out: no. 1 is the next one. */
+function numberedVerified(net: Net): { fleet: ValidatorRow; others: ValidatorRow[] } {
+  const members = listOf(net).validators.filter(verified);
+  const fleet = members.find((row) => row.domain_verification!.accounts !== undefined)!;
+  return { fleet, others: members.filter((row) => row !== fleet) };
+}
 /** Xahau has no obsolete or unknown amendment, and XRPL no retired one. */
 const AMENDMENT_CASES_OF: Record<Net, AmendmentCase[]> = {
   xrpl: AMENDMENT_CASES.filter((which) => which !== "retired"),
@@ -229,7 +251,7 @@ describe("the synthetic answers of D1's validators and amendments routes", () =>
     const publishers = summaryOf(net).unl.publishers.map((publisher) => publisher.id);
     for (const { value } of ANSWERS[net]) {
       for (const [, domain] of JSON.stringify(value).matchAll(/"domain":"([^"]*)"/g)) expect(domain).toMatch(/\.example$/);
-      for (const [, host] of JSON.stringify(value).matchAll(/"(?:toml_url|url)":"https:\/\/([^/"]+)/g)) {
+      for (const [, host] of JSON.stringify(value).matchAll(/"(?:toml_url|url|unl)":"https:\/\/([^/"]+)/g)) {
         expect(host!.endsWith(".example") || publishers.includes(host!), host).toBe(true);
       }
     }
@@ -303,9 +325,12 @@ describe("the synthetic answers of D1's validators and amendments routes", () =>
 
     // Each row's answer: the row, with the votes on every amendment being decided, its manifest and its 30 days; and its newest validations.
     for (const row of rows) {
-      const { amendment_votes: votes, manifest, daily_agreement: days, result, ...rest } = detailOf(net, row.validation_public_key);
-      const { amendment_votes: rowVotes, ...rowRest } = row;
+      const { amendment_votes: votes, manifest, daily_agreement: days, result, toml: detailToml, ...rest } = detailOf(net, row.validation_public_key);
+      const { amendment_votes: rowVotes, toml: rowToml, ...rowRest } = row;
       expect(rest, row.validation_public_key).toEqual(rowRest);
+      // The detail's toml is the row's, followed by what the toml store holds of the domain (D8): it has one exactly when the row has.
+      expect(detailToml === undefined, row.validation_public_key).toBe(rowToml === undefined);
+      expect(Object.entries(detailToml ?? {}).slice(0, Object.keys(rowToml ?? {}).length), row.validation_public_key).toEqual(Object.entries(rowToml ?? {}));
       expect(result).toBe("success");
       expect(votes.yes).toEqual(rowVotes?.yes ?? []);
       expect(votes.ledger_index).toBe(rowVotes?.ledger_index);
@@ -334,6 +359,123 @@ describe("the synthetic answers of D1's validators and amendments routes", () =>
     for (const which of VALIDATOR_CASES.filter((each) => !VALIDATOR_CASES_OF[net].includes(each))) {
       expect(listOf(net).validators.some((row) => VALIDATOR_CASE_RULES[which](row, sources)), which).toBe(false);
     }
+  });
+
+  // ---- D8's toml (E13 Task 1) ----------------------------------------------------------------------------------------------
+
+  it.each(NETS.flatMap((net) => TOML_CASES_OF[net].map((which) => [net, which] as const)))("%s: has a validator of the case %s", (net, which) => {
+    const sources = sourcesOf(net);
+    expect(listOf(net).validators.filter((row) => VALIDATOR_CASE_RULES[which](row, sources)).length).toBeGreaterThan(0);
+  });
+
+  it.each(NETS)("%s: gives toml to verified validators only, and every verified one is numbered", (net) => {
+    const rows = listOf(net).validators;
+    for (const row of rows) if (!verified(row)) expect(row.toml, row.validation_public_key).toBeUndefined();
+    const { others } = numberedVerified(net);
+    expect(others.length).toBeGreaterThanOrEqual(net === "xrpl" ? 30 : 20);
+    expect(rows.filter((row) => row.toml !== undefined).length).toBe(others.length);
+  });
+
+  it.each(NETS)("%s: numbers the verified validators as the plan does (not read, {}, no network, other networks, XK, every 6th without a country)", (net) => {
+    const { others } = numberedVerified(net);
+    const no = (n: number) => others[n - 1]!;
+    expect(no(1).toml).toBeUndefined();
+    expect(no(2).toml).toEqual({});
+    expect(no(3).toml!.server_country).toMatch(/^[A-Z]{2}$/);
+    expect(no(3).toml!.network).toBeUndefined();
+    expect(detailOf(net, no(3).validation_public_key).toml).toEqual({
+      ...no(3).toml,
+      principals: ["North Peak Ops"],
+      fetched: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/),
+    });
+    expect(no(4).toml!.network).toBe(net === "xrpl" ? "testnet" : "21337");
+    if (net === "xrpl") expect(no(5).toml!.server_country).toBe("XK");
+
+    const pool = TOML_POOL[net];
+    for (const [at, row] of others.entries()) {
+      const n = at + 1;
+      if (n < 6 || n === 7) continue;
+      const toml = row.toml!;
+      expect(toml.server_country === undefined, `no. ${n}`).toBe(n % 6 === 0);
+      if (toml.server_country !== undefined) expect(pool, `no. ${n}`).toContain(toml.server_country);
+      expect(pool, `no. ${n}`).toContain(toml.owner_country);
+      expect([toml.network, toml.unl], `no. ${n}`).toEqual(["main", TOML_UNL[net]]);
+      expect(detailOf(net, row.validation_public_key).toml, `no. ${n}`).toEqual(toml);
+    }
+    // The rest of the details carry the row's toml alone, those of no. 1 and 2 too.
+    const extras = new Set([no(3), no(7)].map((row) => row.validation_public_key));
+    for (const row of listOf(net).validators) {
+      if (row.toml === undefined || extras.has(row.validation_public_key) || row.domain_verification!.accounts !== undefined) continue;
+      expect(detailOf(net, row.validation_public_key).toml, row.validation_public_key).toEqual(row.toml);
+    }
+  });
+
+  it.each(NETS)("%s: draws the servers' countries from the pool, and the first three of it lead", (net) => {
+    const counts = new Map<string, number>();
+    for (const row of listOf(net).validators) {
+      const country = row.toml?.server_country;
+      if (country !== undefined && country !== "GS") counts.set(country, (counts.get(country) ?? 0) + 1);
+    }
+    const lead = [...counts].sort(([a, x], [b, y]) => y - x || compareText(a, b));
+    expect(lead.slice(0, 3).map(([code]) => code).sort()).toEqual(TOML_POOL[net].slice(0, 3).sort());
+    expect(lead[2]![1]).toBeGreaterThan(lead[3]![1]);
+    expect(counts.size).toBeGreaterThanOrEqual(net === "xrpl" ? 8 : 6);
+  });
+
+  it("has more unknown-location rows than unverified ones", () => {
+    for (const net of NETS) {
+      const rows = listOf(net).validators;
+      const sources = sourcesOf(net);
+      const unknown = rows.filter((row) => VALIDATOR_CASE_RULES["unknown-location"](row, sources));
+      expect(unknown.length, net).toBeGreaterThan(rows.filter((row) => VALIDATOR_CASE_RULES.unverified(row, sources)).length);
+      // Not only the validators whose domain does not verify: a verified one gives none, or none valid.
+      expect(unknown.filter(verified).length, net).toBeGreaterThan(0);
+      // A country in a toml makes a validator located, and an unverified one is never.
+      for (const row of unknown) expect(row.toml?.server_country, row.validation_public_key).toBeUndefined();
+    }
+  });
+
+  it("has the full toml facts on one detail per network", () => {
+    for (const net of NETS) {
+      const { fleet } = numberedVerified(net);
+      const accounts = fleet.domain_verification!.accounts!;
+      expect(Object.keys(fleet.toml!), net).toEqual(["owner_country", "server_country", "network", "unl"]);
+      expect(detailOf(net, fleet.validation_public_key).toml, net).toEqual({
+        ...fleet.toml,
+        principals: ["Mara Lindqvist", "Tomas Okafor"],
+        modified: "2026-10-02T00:00:00Z",
+        accounts_listed: accounts.length + 2,
+        currencies: [{ code: "USD", issuer: accounts[0] }, { code: "4E50555344000000000000000000000000000000", issuer: accounts[0] }, { code: "EUR" }],
+        currencies_listed: 5,
+        // An instant of receipt, half an hour before the newest ledger.
+        fetched: new Date(anchorOf(net) - 30 * 60_000).toISOString(),
+      });
+      // `accounts_listed` is above the addresses served, as D8 says it can be; `currencies_listed` above the entries shown.
+      expect(detailOf(net, fleet.validation_public_key).toml!.accounts_listed).toBeGreaterThan(accounts.length);
+      // The only validator of the toml-full case (the long one, which has principals and currencies too, is a case of its own).
+      const sources = sourcesOf(net);
+      expect(listOf(net).validators.filter((row) => VALIDATOR_CASE_RULES["toml-full"](row, sources)).map((row) => row.validation_public_key)).toEqual([fleet.validation_public_key]);
+    }
+  });
+
+  it.each(NETS)("%s: has a toml at the limits D8 keeps: a country with a 38-character name, a 100-character principal, a 32-character network, a 200-character host, a 40-character code", (net) => {
+    const long = numberedVerified(net).others[6]!;
+    const toml = long.toml!;
+    expect(toml.server_country).toBe("GS");
+    expect(toml.network).toMatch(/^[a-z0-9]{32}$/);
+    expect(toml.unl).toMatch(/^https:\/\/[a-z0-9.]+$/);
+    const host = toml.unl!.slice("https://".length);
+    expect(host).toHaveLength(200);
+    expect(host.endsWith(".example")).toBe(true);
+    expect(host.split(".").every((label) => label.length >= 1 && label.length <= 63)).toBe(true);
+    const detail = detailOf(net, long.validation_public_key).toml!;
+    expect(detail.principals).toHaveLength(1);
+    expect(detail.principals![0]).toHaveLength(100);
+    expect(detail.currencies).toHaveLength(1);
+    expect(detail.currencies![0]!.code).toMatch(/^[0-9A-F]{40}$/);
+    // The fixtures stay *.example and add no address: the long one lists no account and its currency names no issuer.
+    expect(detail.currencies![0]!.issuer).toBeUndefined();
+    expect(long.domain_verification!.accounts).toBeUndefined();
   });
 
   it.each(NETS)("%s: holds every amendment case, by the same rules", (net) => {
@@ -605,7 +747,8 @@ describe("the synthetic answers of D1's validators and amendments routes", () =>
 
 /**
  * The order of the keys of every object of the answers, copied from data-api-new docs/api-reference.md at 7d495ab ("Validators and amendments"): its "Keys of …,
- * in order" lines, and for the objects that have none (the summary's parts, `rules`, `counts`) the order of its examples.
+ * in order" lines, and for the objects that have none (the summary's parts, `rules`, `counts`) the order of its examples. `toml`, last on a row, and its parts are D8's
+ * ("Keys of toml on a validator row", "…on the validator answer", "Keys of a toml currency"), at the commit PROVENANCE.md names.
  */
 const ROW = [
   "validation_public_key",
@@ -628,6 +771,7 @@ const ROW = [
   "amendment_votes",
   "first_seen",
   "last_seen",
+  "toml",
 ];
 const AMENDMENT = ["id", "name", "status", "retired", "introduced", "xls", "xls_url", "description", "node_supported", "votes", "majority", "enabled"];
 const KEYS = {
@@ -664,6 +808,9 @@ const KEYS = {
   detail: [...ROW, "manifest", "daily_agreement", "result"],
   agreement: ["missed", "total", "score", "incomplete", "partial"],
   domainVerification: ["status", "reason", "status_code", "toml_url", "checked", "verified", "accounts"],
+  toml: ["owner_country", "server_country", "network", "unl"],
+  tomlDetail: ["owner_country", "server_country", "network", "unl", "principals", "modified", "accounts_listed", "currencies", "currencies_listed", "fetched"],
+  tomlCurrency: ["code", "issuer"],
   feeVote: ["ledger_index", "base_fee", "reserve_base", "reserve_inc"],
   rowVotes: ["ledger_index", "yes"],
   yes: ["id", "name"],
@@ -717,6 +864,10 @@ function keysOfRow(row: ValidatorRow | ValidatorDetail, detail: boolean, where: 
   ordered(row, detail ? KEYS.detail : KEYS.row, where);
   for (const window of [row.agreement_1h, row.agreement_24h, row.agreement_30d]) ordered(window, KEYS.agreement, where);
   if (row.domain_verification) ordered(row.domain_verification, KEYS.domainVerification, where);
+  if (row.toml) {
+    ordered(row.toml, detail ? KEYS.tomlDetail : KEYS.toml, where);
+    for (const currency of (row.toml as ValidatorTomlDetail).currencies ?? []) ordered(currency, KEYS.tomlCurrency, where);
+  }
   if (row.fee_vote) ordered(row.fee_vote, KEYS.feeVote, where);
   if (row.amendment_votes) {
     ordered(row.amendment_votes, detail ? KEYS.detailVotes : KEYS.rowVotes, where);

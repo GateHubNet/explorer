@@ -2502,7 +2502,10 @@ manifest does not name (a controller ruling: no case uses them, and their transa
 names ("Synthetic validators and amendments"), from `seedOf(net, route)` streams: the summary is counted from the list, the list is in D1's order, the amendments obey F7 and D1's
 order, and every amendment answer carries the list's envelope (G3). `test/unit/validators-fixtures.test.ts` works those rules out again, checks the key orders and runs the client's
 checks. The worker specs find a validator or an amendment of each case with `test/support/validators-cases.ts` (`validatorCase`, `amendmentCase`, `fixtureValidatorKeys`,
-`validationsMarker`), by the rules of `test/support/validators-case-rules.ts` over the files (the ones the fixtures test checks the generator with), never a fixed key. They are about 2.7 MiB (`isValidatorsGenerated`, 239 files) and have a size budget of their own.
+`validationsMarker`), by the rules of `test/support/validators-case-rules.ts` over the files (the ones the fixtures test checks the generator with), never a fixed key. D8's `toml`
+(E13: `tomlsOf`, a stream `toml` of its own) is on the verified validators only, in the list and in their answers, with the cases `toml-full`, `toml-not-read`, `toml-empty`, `toml-no-network`,
+`toml-other-network`, `toml-network-id`, `toml-xk`, `toml-long` and `unknown-location`; `test/fixtures/PROVENANCE.md` has the table. They are about 2.75 MiB (`isValidatorsGenerated`, 239 files,
+2,884,903 bytes) and have a size budget of their own (3.0 MiB).
 
 **The display names' files.** `scripts/names-fixtures.ts` (`namesFixtures(net, files)`, called by `generate()` last, for each network, over every other file of the network, the generated
 ones and the ones written by hand) writes what D4 (data-api-new `feat/explorer-data-2` at 3feb11a, "Account names and tomls") would answer: `account_names.json`, the entries by

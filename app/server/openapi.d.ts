@@ -40,6 +40,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/network/validators/countries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the validators of the network per server country
+         * @description How many validators of a scope name each country as the server_country of their verified toml, and how many of them are on the trusted UNL; those without one count as unknown. Every count is what the list gives with the same scope and country. JSON only.
+         */
+        get: operations["ValidatorsController_countries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/network/validators": {
         parameters: {
             query?: never;
@@ -69,7 +89,7 @@ export interface paths {
         };
         /**
          * Get a validator of the network
-         * @description One validator by its master key, its signing key or 66 hex digits: the row of the list, its vote on every amendment being decided, its manifest and its agreement of each of the last 30 days. JSON only.
+         * @description One validator by its master key, its signing key or 66 hex digits: the row of the list, its vote on every amendment being decided, the facts of its verified toml with those of its domain (principals, last modified, accounts, currencies), its manifest and its agreement of each of the last 30 days. JSON only.
          */
         get: operations["ValidatorsController_detail"];
         put?: never;
@@ -132,6 +152,46 @@ export interface paths {
          * @description One amendment by its name or its ID, with the envelope of the list, how each validator votes on it, its rounds of the last 30 days and its history. JSON only.
          */
         get: operations["AmendmentsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/account_names": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the display names of up to 100 addresses
+         * @description One entry per address asked, in the order asked (an address asked twice is answered at each place). `display_name` is the name to show and what stands behind it: `verified` (the toml of the account domain lists the address; the text is its description, else the domain), `account` (the name the operator gave the address) or `domain` (the account domain, which nothing vouches for). `domain` is the account domain whatever its state; `account_name`, `account_network_name` and `labels` are served whenever they exist. Any address is answered: one that is no account on this network still has its name and labels and no domain. A key without a value is left out.
+         */
+        get: operations["AccountNamesController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/toml/{domain}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get what the toml of a domain says
+         * @description What the toml file of a domain says, as the last check of it stored: the accounts it lists, the currencies, the principals' names and the validators, only the entries that count on this network (no network, or a name of it). `status` is `ok` (the file was read) or `failed`, with the `reason` and, for `http_status`, the `status_code`; a toml that failed transiently still carries what its last read said until 24 hours after the re-read it missed, one after a definite failure carries nothing but the check. `checked` is when the domain was last checked, `fetched` when the content was read. Emails and social handles are never served. A key without a value is left out. 404 when the domain was never checked (no account and no validator named it while the workers ran, or its first check has not run yet); a domain nobody names any more answers its last check.
+         */
+        get: operations["TomlController_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1197,46 +1257,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v2/account_names": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get the display names of up to 100 addresses
-         * @description One entry per address asked, in the order asked (an address asked twice is answered at each place). `display_name` is the name to show and what stands behind it: `verified` (the toml of the account domain lists the address; the text is its description, else the domain), `account` (the name the operator gave the address) or `domain` (the account domain, which nothing vouches for). `domain` is the account domain whatever its state; `account_name`, `account_network_name` and `labels` are served whenever they exist. Any address is answered: one that is no account on this network still has its name and labels and no domain. A key without a value is left out.
-         */
-        get: operations["AccountNamesController_list"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v2/toml/{domain}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get what the toml of a domain says
-         * @description What the toml file of a domain says, as the last check of it stored: the accounts it lists, the currencies, the principals' names and the validators, only the entries that count on this network (no network, or a name of it). `status` is `ok` (the file was read) or `failed`, with the `reason` and, for `http_status`, the `status_code`; a toml that failed transiently still carries what its last read said until 24 hours after the re-read it missed, one after a definite failure carries nothing but the check. `checked` is when the domain was last checked, `fetched` when the content was read. Emails and social handles are never served. A key without a value is left out. 404 when the domain was never checked (no account named it while the worker ran, or its first check has not run yet); a domain no account names any more answers its last check.
-         */
-        get: operations["TomlController_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v2/escrows/{escrow_id}": {
         parameters: {
             query?: never;
@@ -2124,6 +2144,26 @@ export interface operations {
             };
         };
     };
+    ValidatorsController_countries: {
+        parameters: {
+            query?: {
+                /** @description Default: unl. */
+                scope?: "unl" | "all";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     ValidatorsController_list: {
         parameters: {
             query?: {
@@ -2133,6 +2173,8 @@ export interface operations {
                 marker?: unknown;
                 /** @description Default 200, at most 1000. */
                 limit?: number;
+                /** @description An ISO 3166-1 alpha-2 code, any case (uk is GB): the validators whose toml's server_country is it. unknown, any case: those without one. */
+                country?: unknown;
                 /** @description A part of the domain, the master key or the signing key (at most 100 characters). */
                 q?: unknown;
                 /** @description The name or the ID (64 hex digits) of an amendment: the validators that vote for it. */
@@ -2234,6 +2276,46 @@ export interface operations {
             path: {
                 /** @description The name of the amendment (as written, else in any case when only one has it) or its ID (64 hex digits). */
                 name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AccountNamesController_list: {
+        parameters: {
+            query: {
+                /** @description 1 to 100 classic addresses separated by `,` (no spaces). A repeated address is answered at each place and counts towards the 100. Case matters. */
+                addresses: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TomlController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A domain as an account names it (`northpeak.example`); the case does not matter. */
+                domain: string;
             };
             cookie?: never;
         };
@@ -3933,46 +4015,6 @@ export interface operations {
             };
             header?: never;
             path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AccountNamesController_list: {
-        parameters: {
-            query: {
-                /** @description 1 to 100 classic addresses separated by `,` (no spaces). A repeated address is answered at each place and counts towards the 100. Case matters. */
-                addresses: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    TomlController_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description A domain as an account names it (`northpeak.example`); the case does not matter. */
-                domain: string;
-            };
             cookie?: never;
         };
         requestBody?: never;

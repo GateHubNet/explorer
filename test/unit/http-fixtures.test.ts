@@ -142,8 +142,9 @@ describe("every fixture file", () => {
     // Xahau markets tables, a row to a line; 81 files, 896,704 bytes, about 0.86 MiB) are reviewed as their generator too, and have a budget of their own.
     expect(bytes(files.filter(isMarketGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isMarketGenerated))).toBeLessThan(1.0 * 1024 * 1024);
-    // The validators and amendments pages' files (scripts/validators-fixtures.ts: D1's six routes, a row to a line; 239 files, 2,869,339 bytes, about 2.7 MiB, of
-    // which the 30 days of XRPL's majority amendment, under its name and its ID, are 0.7 MiB) are reviewed as their generator too, with a budget of their own.
+    // The validators and amendments pages' files (scripts/validators-fixtures.ts: D1's six routes, a row to a line; 239 files, 2,884,903 bytes, about 2.75 MiB, of
+    // which the 30 days of XRPL's majority amendment, under its name and its ID, are 0.7 MiB, and D8's `toml` on the rows and the details of 61 of the 63 verified validators,
+    // about 15.7 KB) are reviewed as their generator too, with a budget of their own. D8's `toml` stays inside these files, so it raises nothing (260,825 bytes left).
     expect(bytes(files.filter(isValidatorsGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isValidatorsGenerated))).toBeLessThan(3.0 * 1024 * 1024);
     // The AMM pages' files (scripts/amm-fixtures.ts, a row to a line: the pool routes derived from the recordings, 195 files of 194,156 bytes, the list with the

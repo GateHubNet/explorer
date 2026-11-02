@@ -94,6 +94,12 @@
   "result": "success",
   "server_version": "1745992596280311808",
   "signing_key": "n9KSbMS9EwomDGtRzLKJFkVyohCSBeBzwkqAcV35E3HTtEUSxWjL",
+  "toml": {
+    "network": "main",
+    "owner_country": "KR",
+    "server_country": "DE",
+    "unl": "https://vl.ripple.com"
+  },
   "unl": false,
   "unl_lists": [],
   "validation_public_key": "nHB5oZyXQ7w9uUdgUMqqECc9pbsW2KZRtnLYMcTHxWPDgzBae5hS",

@@ -93,6 +93,11 @@
   "result": "success",
   "server_version": "1745992596280311808",
   "signing_key": "n9KTpUgGbQvDgvrukBDpLuLePdrJjKh8CrUfj8JUJjMzhCKgbQUz",
+  "toml": {
+    "network": "main",
+    "owner_country": "SE",
+    "unl": "https://vl.ripple.com"
+  },
   "unl": true,
   "unl_lists": [
     "unl.xrplf.org",

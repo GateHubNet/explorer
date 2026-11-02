@@ -12,6 +12,8 @@
 //   - the words a newer D1 may add to (an amendment's status, a domain check's status, the status of a validator's vote, a history event: `OpenWord` in api-types.ts)
 //     are any text that is not empty. The pages have a default for a word they do not know ("Unknown", "not verified", an event left out), so a new word is shown
 //     as that, never a refused answer. The words the pages build on (a vote, a validation's match, an enabling's source, a publisher's status) keep their sets.
+//   - a validator's `toml` (D8 of the data API, at the commit test/fixtures/PROVENANCE.md names; E13): an object when it is there, `{}` included; a country two capitals
+//     (a code or a `network` this build has no name for passes, the pages show it as written); the detail's facts as D8 §4.2 keeps them.
 
 import { AMENDMENT_STATUSES } from "../domain/amendments-params";
 import { isNodePublicKey } from "../domain/validator-key";
@@ -38,6 +40,8 @@ const SERVER_VERSION = /^\d+$/;
 /** The three forms of time D1 writes (its "Formats"): an instant of receipt with milliseconds, a ledger's close time, or a day. */
 const TIME = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?Z)?$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+/** A country of a toml: an upper-case ISO 3166-1 alpha-2 code, or `XK`. Any two capitals pass, so a code assigned after this build was made is taken. */
+const COUNTRY = /^[A-Z]{2}$/;
 
 /** A name that is there: a domain, a version, a description. */
 const isName = (value: unknown): value is string => typeof value === "string" && value !== "";
@@ -54,6 +58,7 @@ const isScore = (value: unknown): value is string => typeof value === "string" &
 const isKey = (value: unknown): value is string => typeof value === "string" && isNodePublicKey(value);
 /** The signing key of a validation: D1 reads it from the collector's `ephemeral_public_key`, a column that can be empty. */
 const isKeyOrEmpty = (value: unknown): value is string => value === "" || isKey(value);
+const isCountry = (value: unknown): value is string => typeof value === "string" && COUNTRY.test(value);
 const isHash = (value: unknown): value is string => typeof value === "string" && HASH.test(value);
 const isLedgerHash = (value: unknown): value is string => typeof value === "string" && LEDGER_HASH.test(value);
 /** A word out of a fixed set. */
@@ -211,6 +216,27 @@ class Shape {
     }
 
     if (detail || row.amendment_votes !== undefined) this.amendmentVotes(`${where}.amendment_votes`, this.object(`${where}.amendment_votes`, row.amendment_votes), detail);
+    if (row.toml !== undefined) this.toml(`${where}.toml`, this.object(`${where}.toml`, row.toml), detail);
+  }
+
+  /**
+   * What the validator's verified toml says (D8 §4): `{}` is there when the file gives none of the four, and a key the file gives no valid value for is absent. A country is two
+   * capitals, so one this build has no name for passes (the pages name it by its code), and so does a `network` it has no name for (it is shown as written). The detail adds
+   * the facts of the domain's toml; a row of the list is not read for them.
+   */
+  toml(here: string, toml: Row, detail: boolean): void {
+    this.optional(here, toml, ["owner_country", "server_country"], isCountry, "a two-letter country code in upper case");
+    this.optional(here, toml, ["network", "unl"], isName, "text");
+    if (!detail) return;
+    if (toml.principals !== undefined) this.listOf(here, toml, "principals", isName, "text");
+    this.optional(here, toml, ["accounts_listed", "currencies_listed"], isWhole, "a whole number");
+    this.optional(here, toml, ["modified", "fetched"], isName, "text");
+    if (toml.currencies !== undefined) {
+      for (const [index, currency] of this.rows(here, toml, "currencies").entries()) {
+        this.fields(`${here}.currencies[${index}]`, currency, ["code"], isName, "text");
+        this.optional(`${here}.currencies[${index}]`, currency, ["issuer"], isName, "text");
+      }
+    }
   }
 
   /**

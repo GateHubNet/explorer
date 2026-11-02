@@ -89,6 +89,15 @@
   "result": "success",
   "server_version": "1745992618040362935",
   "signing_key": "n9Lm5oeFwF8JrvBsNrQHMXdVHvGmB1GJEJqkBJSK3xoEcDj6y6Sk",
+  "toml": {
+    "fetched": "2026-10-17T17:02:10.891Z",
+    "owner_country": "FI",
+    "principals": [
+      "North Peak Ops"
+    ],
+    "server_country": "NL",
+    "unl": "https://vl.xahau.org"
+  },
   "unl": true,
   "unl_lists": [
     "vl.xahau.org"
