@@ -213,6 +213,56 @@ describe("the validators list", () => {
   });
 });
 
+describe("the countries card", () => {
+  it("is a container, so that its own width and not the screen's folds the circles and takes the tooltip away", () => {
+    expect(rule(pagesCss, ".vmapcard")["container-type"]).toBe("inline-size");
+    const query = /@container \(width < 560px\) \{([\s\S]*?)\n\}/.exec(pagesCss)![1]!;
+    expect(query).toMatch(/\.vmap__circle \{[^}]*width: max\(8px, calc\(var\(--d\) \* 0\.6\)\)/);
+    expect(query).toMatch(/\.vmap__tip \{[^}]*display: none/);
+  });
+
+  it("reserves the box before the dots arrive, and draws them in the border colour of both themes", () => {
+    expect(rule(pagesCss, ".vmap")["aspect-ratio"]).toBe("1000 / 378");
+    expect(rule(pagesCss, ".vmap__dots").color).toBe("var(--border-strong)");
+  });
+
+  it("draws a circle as a round accent border over a quarter of it, centred, with a transparent ring that makes the target 6 px bigger on every side", () => {
+    expect(rule(pagesCss, ".vmap__circle")).toMatchObject({
+      width: "var(--d)",
+      height: "var(--d)",
+      transform: "translate(-50%, -50%)",
+      border: "1.5px solid var(--accent)",
+      "border-radius": "50%",
+      background: "color-mix(in srgb, var(--accent) 25%, transparent)",
+    });
+    expect(rule(pagesCss, ".vmap__circle::after").inset).toBe("-6px");
+    expect(rule(pagesCss, ".vmap__circle.is-current")["box-shadow"]).toBe("0 0 0 2.5px var(--fg)");
+    expect(rule(pagesCss, ".vmap__circle.is-highlighted")).toMatchObject({ "box-shadow": "0 0 0 2px var(--fg)", "z-index": "2" });
+    expect(rule(pagesCss, ".vmap__circle.is-dim").opacity).toBe("0.35");
+  });
+
+  it("puts the table beside the map and under it when narrow, and the highlighted row on --sunken", () => {
+    expect(rule(pagesCss, ".vmapcard__table").flex).toBe("1 1 400px");
+    expect(rule(pagesCss, ".vmapcard__body")["flex-wrap"]).toBe("wrap");
+    expect(rule(pagesCss, ".vmapcard__table .table__row.is-highlighted:not(.table__head)").background).toBe("var(--sunken)");
+  });
+
+  // E11's I1, a defect no test saw: fixtures had short names. A country's name (`South Georgia & South Sandwich Islands`) breaks inside its track and beside "Clear country".
+  it("breaks a long country name wherever it stands: in the table, beside Clear country, and in the tooltip", () => {
+    for (const selector of [".vmapcard__country", ".vmapcard__chosen strong", ".vmap__tip strong"]) expect(rule(pagesCss, selector)["overflow-wrap"], selector).toBe("anywhere");
+  });
+
+  it("gives the links of the card a target of at least 24 px (WCAG 2.5.8), and tells Clear country from the words around it by more than its colour", () => {
+    expect(Number.parseFloat(rule(pagesCss, ".vmapcard__country")["min-height"]!)).toBeGreaterThanOrEqual(24);
+    expect(Number.parseFloat(rule(pagesCss, ".vmapcard__chosen a")["min-height"]!)).toBeGreaterThanOrEqual(24);
+    expect(rule(pagesCss, ".vmapcard__chosen a")["text-decoration"]).toBe("underline");
+  });
+
+  it("does not let the tooltip catch the pointer", () => {
+    expect(rule(pagesCss, ".vmap__tip")["pointer-events"]).toBe("none");
+  });
+});
+
 describe("the validator page", () => {
   it("is one column of rows 18 px apart, as the board is, with the facts in as many columns as fit at 240 px", () => {
     expect(rule(pagesCss, ".validator")).toMatchObject({ display: "flex", "flex-direction": "column", gap: "18px" });

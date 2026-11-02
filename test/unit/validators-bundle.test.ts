@@ -17,6 +17,8 @@ const SERVER_ONLY = (from: string) => /(^|\/)server(\/|$)/.test(from) || /ripple
 describe("the files of the validators pages that run in the browser", () => {
   it.each([
     "ui/pages/ValidatorsPage.tsx",
+    // The countries card draws text and percentages the view builder made: the country table (app/server/countries.ts) is the Worker's.
+    "ui/pages/ValidatorsMapCard.tsx",
     "ui/pages/ValidatorPage.tsx",
     "ui/pages/AmendmentsPage.tsx",
     "ui/pages/AmendmentPage.tsx",
@@ -51,6 +53,18 @@ describe("the files of the validators pages that run in the browser", () => {
       "../../server/meta",
       "ripple-address-codec",
     ]);
+  });
+});
+
+describe("the country table", () => {
+  it("is imported as a value by app/server and by the routes' loaders, and by nothing the browser draws", () => {
+    const importers: string[] = [];
+    for (const file of readdirSync(appDir, { recursive: true, encoding: "utf8" })) {
+      if (!/\.(ts|tsx)$/.test(file) || /\.test\.tsx?$/.test(file)) continue;
+      if (valueImports(read(file)).some((from) => /(^|\/)countries$/.test(from))) importers.push(file);
+    }
+    // A route imports it for `COUNTRY_CODES` in its loader, which the client build leaves out (`pnpm check:bundle` looks for the table in the files of the build).
+    expect(importers.filter((file) => !file.startsWith("routes/") && !file.startsWith("server/"))).toEqual([]);
   });
 });
 

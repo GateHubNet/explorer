@@ -379,12 +379,74 @@ describe("the country in the list", () => {
     const countries = [...new Set(xrplList.validators.flatMap((row: CountryRow) => row.toml?.server_country ?? []))];
     expect(options.slice(1, -1).map((option) => option.value).sort()).toEqual(countries.sort());
     expect(options.at(-1)).toEqual({ value: "unknown", label: "Unknown location", selected: false });
-    // The label is after "Votes yes for", in the filter form.
-    expect(html.indexOf(">Votes yes for<")).toBeGreaterThan(-1);
-    expect(html.indexOf(">Country<")).toBeGreaterThan(html.indexOf(">Votes yes for<"));
+    // The label is after "Votes yes for", in the filter form ("Country" is also the countries table's first column: only a label is a field).
+    const labelAt = (label: string) => html.search(new RegExp(`<label[^>]*>${label}</label>`));
+    expect(labelAt("Votes yes for")).toBeGreaterThan(-1);
+    expect(labelAt("Country")).toBeGreaterThan(labelAt("Votes yes for"));
     // The default view selects none of them.
     const all = countrySelect((await page("/xrpl/validators")).html)!;
     expect(all.filter((option) => option.selected).map((option) => option.value)).toEqual([""]);
+  });
+});
+
+describe("the countries card", () => {
+  /** L's rows grouped by their toml's server country: the figures the card's table must show, by country name, and the rows with none. */
+  function grouped(list: { validators: readonly CountryRow[] }) {
+    const countries = new Map<string, { validators: number; unl: number }>();
+    let unknown = 0;
+    for (const row of list.validators) {
+      const code = row.toml?.server_country;
+      if (code === undefined) {
+        unknown += 1;
+        continue;
+      }
+      const entry = countries.get(code) ?? { validators: 0, unl: 0 };
+      entry.validators += 1;
+      if (row.unl) entry.unl += 1;
+      countries.set(code, entry);
+    }
+    return { countries, unknown };
+  }
+
+  it.each([
+    ["xrpl", xrplList, ["United States", "Germany", "Netherlands"]],
+    // The leaders of Xahau are Germany, Finland, the Netherlands; the order is the counts', not the fixture's pool's.
+    ["xahau", xahauList, ["Germany", "Finland", "Netherlands"]],
+  ] as const)("counts the map from L's rows, on both networks: %s", async (net, list, leaders) => {
+    mock = mockUpstream(net);
+    const { html, response } = await page(`/${net}/validators`);
+    expect(response.status).toBe(200);
+    const { countries, unknown } = grouped(list as { validators: readonly CountryRow[] });
+
+    // The first three cells of a row read whole (the share's meter holds divs, which cut a row short for the helper): country, validators, on the UNL.
+    const rows = tableRows(html, "Validators by country").slice(1);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.map(([name, validators, unl]) => [name, validators, unl]).sort()).toEqual(
+      [...countries].map(([code, { validators, unl }]) => [COUNTRIES[code]!.name, String(validators), String(unl)]).sort(),
+    );
+    // In the order of the counts, and the leaders are the fixture's.
+    expect(rows.slice(0, 3).map(([name]) => name)).toEqual(leaders);
+    expect(rows.map(([, validators]) => Number(validators))).toEqual([...rows.map(([, validators]) => Number(validators))].sort((a, b) => b - a));
+
+    // The chip says how many are of unknown location, and the circles are the countries' (each is a link named by its label).
+    expect(unknown).toBeGreaterThan(0);
+    expect(textOf(html)).toContain(`Unknown location: ${unknown} validators`);
+    const labels = anchors(html).filter((a) => a.attrs.includes("vmap__circle")).map((a) => /aria-label="([^"]*)"/.exec(a.attrs)![1]!.replace(/&amp;/g, "&"));
+    expect(labels).toHaveLength(countries.size);
+    expect(labels[0]).toBe(`${leaders[0]}: ${rows[0]![1]} validators, ${rows[0]![2]} on the UNL`);
+    // The card is on the page once, between the tiles and the versions.
+    expect(html.indexOf("Where validators are")).toBeGreaterThan(html.indexOf("Network overview"));
+    expect(html.indexOf("Where validators are")).toBeLessThan(html.indexOf("Validator software versions"));
+  });
+
+  it("draws the dots by <use> of the asset, never the path itself", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page("/xrpl/validators");
+    expect(html).toMatch(/<use href="[^"]*world-dots[^"]*\.svg#dots"/);
+    expect(html).not.toContain("M316.0 3.5h0");
+    // The tooltip is the browser's: none in the server's HTML, and one circle is the Tab stop.
+    expect(html).not.toContain("vmap__tip");
+    expect(anchors(html).filter((a) => a.attrs.includes("vmap__circle") && a.attrs.includes('tabindex="0"'))).toHaveLength(1);
   });
 });
 

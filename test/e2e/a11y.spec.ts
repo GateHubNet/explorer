@@ -45,8 +45,9 @@ interface PageUnderTest {
   act?: (page: Page) => Promise<void>;
 }
 
-const visible = (name: string) => async (page: Page) => {
-  await expect(page.getByRole("table", { name })).toBeVisible();
+/** The table `name` is drawn. `exact` where the name is also a part of another table's ("Validators" is of "Validators by country"). */
+const visible = (name: string, options: { exact?: boolean } = {}) => async (page: Page) => {
+  await expect(page.getByRole("table", { name, ...options })).toBeVisible();
 };
 
 /** The network page is whole when its first chart is drawn and the script has given the plots their sliders. */
@@ -698,7 +699,7 @@ interface ValidatorsPageUnderTest extends Omit<PageUnderTest, "path"> {
 
 const slidersReady = async (page: Page) => void (await expect(page.getByRole("slider").first()).toBeAttached());
 const validatorsListReady = async (page: Page) => {
-  await visible("Validators")(page);
+  await visible("Validators", { exact: true })(page);
   await slidersReady(page);
 };
 const validatorReady = async (page: Page) => {

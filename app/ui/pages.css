@@ -2496,6 +2496,235 @@ a.markets__pair:hover .markets__name {
 }
 
 /* ---------------------------------------------------------------------------------------------------------------
+   The countries card (ValidatorsMapCard.tsx; E13): the title, a dot-grid world map with a circle for each country that has a validator, and the countries table beside it, with
+   the legend, the chip of the validators whose location is unknown and the attribution under them. The card is a container: its width, not the screen's, says when the circles
+   shrink and the tooltip goes (a phone's map is the table's companion). Every circle is a link and so is every name in the table; the tooltip is a hint for the pointer and focus, with
+   the same words as the circle's `aria-label`. */
+
+.vmapcard {
+  container-type: inline-size;
+}
+
+.vmapcard__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* The chosen country's name is the visitor's own choice of a table row, and a long one (`South Georgia & South Sandwich Islands`) breaks in its place. */
+.vmapcard__chosen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 12px;
+  min-width: 0;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.vmapcard__chosen strong {
+  color: var(--fg);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.vmapcard__chosen a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.vmapcard__failed {
+  padding: 16px;
+}
+
+/* The map wraps over the table when the card is narrower than both (400 px for the table, 420 for the map and the gap and padding between). */
+.vmapcard__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px;
+}
+
+.vmapcard__map {
+  flex: 2 1 420px;
+  min-width: 0;
+}
+
+.vmapcard__table {
+  flex: 1 1 400px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* The dots: the box is reserved before the file arrives, so nothing moves, and the circles stand on a blank box without it. */
+.vmap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1000 / 378;
+}
+
+.vmap__dots {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  color: var(--border-strong);
+}
+
+/* A circle: a round 1.5 px border in the accent over a quarter of it, as wide as the count says (`--d`), centred on its point. The transparent ring around it is a bigger target (6 px on
+   every side) and takes nothing of the map's looks. */
+.vmap__circle {
+  position: absolute;
+  box-sizing: border-box;
+  width: var(--d);
+  height: var(--d);
+  transform: translate(-50%, -50%);
+  border: 1.5px solid var(--accent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.vmap__circle::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+}
+
+.vmap__circle.is-current {
+  box-shadow: 0 0 0 2.5px var(--fg);
+}
+
+/* The circle of the row the pointer is on, or the one that has the pointer or focus: a ring, and raised over the others. */
+.vmap__circle.is-highlighted {
+  z-index: 2;
+  box-shadow: 0 0 0 2px var(--fg);
+}
+
+.vmap__circle.is-dim {
+  opacity: 0.35;
+}
+
+/* The hint beside a circle: placed by `tipTransform`, never in the server's HTML, and out of the way of the pointer. */
+.vmap__tip {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: max-content;
+  max-width: 220px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.vmap__tip strong {
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.vmap__hint {
+  color: var(--faint);
+}
+
+/* In a card narrower than 560 px the circles are 0.6 of their size, at least 8 px, and the tooltip is not drawn: its words are the circle's `aria-label` and the table's row. */
+@container (width < 560px) {
+  .vmap__circle {
+    width: max(8px, calc(var(--d) * 0.6));
+    height: max(8px, calc(var(--d) * 0.6));
+  }
+
+  .vmap__tip {
+    display: none;
+  }
+}
+
+/* The table: a name is a link of at least 24 px (WCAG 2.5.8) and breaks inside its track; the row of the highlighted circle is `--sunken`, the chosen one's has the accent wash. */
+.vmapcard__country {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  overflow-wrap: anywhere;
+}
+
+.vmapcard__table .table__row.is-current:not(.table__head) {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.vmapcard__table .table__row.is-highlighted:not(.table__head) {
+  background: var(--sunken);
+}
+
+.vmapcard__share {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* The kit's meter fills the box it is in (its own classes are charts.css's). */
+.vmapcard__bar {
+  flex: 1 1 36px;
+  min-width: 36px;
+}
+
+/* The legend, the chip, E6's sentence about the first 1,000 validators, and the attribution. */
+.vmapcard__foot {
+  row-gap: 8px;
+}
+
+.vmapcard__swatch {
+  flex: none;
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--accent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.vmapcard__limited {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.vmapcard__attribution {
+  margin: 0;
+  padding: 0 16px 14px;
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
+.vmapcard__attribution code {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+}
+
+@media (pointer: coarse), (max-width: 720px) {
+  .vmapcard__chosen a {
+    min-height: 44px;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
    Validator: /{net}/validators/{key} (the board's layout: the identity card, the agreement tiles beside the 30-day chart, the fee votes beside the
    amendment votes, the recent validations; each pair folds into one column on a phone, and the tables scroll sideways inside their cards). The chart kit's
    classes (charts.css) are never defined here: the cards that are not charts use its title and source line. */

@@ -25,6 +25,7 @@ import { useHolds, type HoldHandlers } from "../use-hold";
 import type { LiveControls } from "../use-live-controls";
 import { useRefetching } from "../use-refetching";
 import { useRetry } from "../use-retry";
+import { ValidatorsMapCard } from "./ValidatorsMapCard";
 
 const DASH = "—";
 
@@ -403,8 +404,8 @@ function ValidatorsCard({ data, holds, onRetry, retrying }: { data: ValidatorsPa
 
 /**
  * The validators list (`/{net}/validators`, spec 3.1), in the board's order: the breadcrumb, the heading with its intro and the link to the amendments, E2's live
- * row, the notices about the publishers' lists, the network overview, the versions card, and the validators card (the scope links, the filter form, the table and its
- * footer). Takes what the view builder made of the data API's three answers (`validatorsPage`) and never fetches: every label, href and figure is text in `data`.
+ * row, the notices about the publishers' lists, the network overview, the countries card (E13, while `VALIDATORS_MAP` is on), the versions card, and the validators card (the
+ * scope links, the filter form, the table and its footer). Takes what the view builder made of the data API's three answers (`validatorsPage`) and never fetches: every label, href and figure is text in `data`.
  * Each of the three stands or fails alone (spec 3.3): the summary's parts are dashes and a section error, the list's card is a section error with the filters kept, and
  * a missing list of amendments only takes "Votes yes for" away.
  *
@@ -447,6 +448,7 @@ export function ValidatorsPage({ data, live }: { data: ValidatorsPageData & { an
         ))}
 
       <Overview summary={data.summary} onRetry={retry} retrying={retrying} />
+      <ValidatorsMapCard map={data.map} holds={holds("countries")} onRetry={retry} retrying={retrying} />
       <VersionsCard summary={data.summary} onRetry={retry} retrying={retrying} />
       <ValidatorsCard data={data} holds={holds("table")} onRetry={retry} retrying={retrying} />
     </div>

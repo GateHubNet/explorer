@@ -27,8 +27,8 @@ export function needs(present: boolean, what: string): void {
 /** The rows of a table, without its head. */
 export const rowsOf = (table: Locator) => table.locator('[role="row"]:not(.table__head)');
 
-/** The validators list's table. */
-export const validatorsTable = (page: Page) => page.getByRole("table", { name: "Validators" });
+/** The validators list's table. Exact: a name is matched as a substring otherwise, and "Validators by country" (the countries card's table, which comes first on the page) holds it. */
+export const validatorsTable = (page: Page) => page.getByRole("table", { name: "Validators", exact: true });
 
 /** A validator of the list, as its row says it: the key of its page (the end of the link's `href`), the link's text and the `href`. */
 export interface Listed {

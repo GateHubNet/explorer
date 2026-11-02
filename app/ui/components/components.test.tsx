@@ -671,6 +671,31 @@ describe("DataTable", () => {
     expect(region.getAttribute("tabindex")).toBe("0");
   });
 
+  it("spreads rowProps on each body row: its class beside the row's own, and its pointer handlers", () => {
+    const enter = vi.fn();
+    const leave = vi.fn();
+    render(
+      <DataTable
+        label="Transactions"
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.hash}
+        rowProps={(row, index) => ({ className: row.hash === "BBBB" ? "is-picked" : undefined, onPointerEnter: () => enter(row.hash, index), onPointerLeave: () => leave(row.hash) })}
+      />,
+    );
+    const [head, first, second] = within(screen.getByRole("table", { name: "Transactions" })).getAllByRole("row") as [HTMLElement, HTMLElement, HTMLElement];
+    expect([first, second].map((row) => row.classList.contains("is-picked"))).toEqual([false, true]);
+    expect(second.classList.contains("table__row")).toBe(true);
+    expect(head.className).toBe("table__row table__head");
+    fireEvent.pointerEnter(second, { pointerType: "mouse" });
+    expect(enter).toHaveBeenCalledWith("BBBB", 1);
+    fireEvent.pointerLeave(second, { pointerType: "mouse" });
+    expect(leave).toHaveBeenCalledWith("BBBB");
+    // The head row has none.
+    fireEvent.pointerEnter(head, { pointerType: "mouse" });
+    expect(enter).toHaveBeenCalledTimes(1);
+  });
+
   // axe: landmark-unique. A card is a `section` named by its title, which is a region landmark, and the scroll region of a table in it
   // is one too: two regions with one name, which a screen reader's list of landmarks cannot tell apart.
   it("does not take the name of the card it is in", () => {

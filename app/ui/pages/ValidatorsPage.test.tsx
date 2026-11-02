@@ -641,6 +641,57 @@ describe("ValidatorsPage, the countries", () => {
   });
 });
 
+describe("ValidatorsPage, the countries card", () => {
+  const placed = ok(listOf(placedFleet()));
+  const followsOrPrecedes = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? "before" : "after");
+
+  it("draws the card between the tiles and the versions", () => {
+    mount(build({ features: MAP_ON, list: placed }));
+    const tiles = region("Network overview");
+    const countries = card("Where validators are");
+    const versions = card("Validator software versions");
+    expect(followsOrPrecedes(tiles, countries)).toBe("before");
+    expect(followsOrPrecedes(countries, versions)).toBe("before");
+    // Its table is the countries' (Germany 2, France 1), beside the validators' own, which is the page's second.
+    expect(within(countries).getByRole("table", { name: "Validators by country" })).toBeTruthy();
+    expect(screen.getByRole("table", { name: "Validators" })).toBeTruthy();
+    expect(within(countries).getAllByRole("link", { name: /^(Germany|France): / }).map((link) => link.getAttribute("aria-label"))).toEqual([
+      "Germany: 2 validators, 2 on the UNL",
+      "France: 1 validator, 0 on the UNL",
+    ]);
+  });
+
+  it("draws no card while the switch is off, and a section error in its place when L failed", () => {
+    mount(build({ list: placed }));
+    expect(screen.queryByRole("heading", { level: 2, name: "Where validators are" })).toBeNull();
+    cleanup();
+    mount(build({ features: MAP_ON, list: FAILED }));
+    const countries = card("Where validators are");
+    expect(within(countries).getByRole("alert").textContent).toContain("Couldn’t load where validators are.");
+    expect(within(countries).queryByRole("table")).toBeNull();
+    // The list's own card says its own: two alerts, one for each.
+    expect(screen.getAllByRole("alert").map((alert) => alert.textContent)).toEqual(expect.arrayContaining([expect.stringContaining("Couldn’t load the validators.")]));
+  });
+
+  it("retries from the card's own button, asking the route's loader again", async () => {
+    const loader = vi.fn(() => null);
+    mount(build({ features: MAP_ON, list: FAILED }), { loader });
+    const calls = loader.mock.calls.length;
+    fireEvent.click(within(card("Where validators are")).getByRole("button", { name: "Retry" }));
+    await act(async () => {});
+    expect(loader.mock.calls.length).toBe(calls + 1);
+  });
+
+  it("holds the page while the pointer is on the card, as it does for the table", () => {
+    const live = controls();
+    mount(build({ features: MAP_ON, list: placed }), { live });
+    fireEvent.pointerEnter(card("Where validators are"), { pointerType: "mouse" });
+    expect(live.onHold).toHaveBeenLastCalledWith(true);
+    fireEvent.pointerLeave(card("Where validators are"), { pointerType: "mouse" });
+    expect(live.onHold).toHaveBeenLastCalledWith(false);
+  });
+});
+
 describe("ValidatorsPage, Apply", () => {
   const apply = (fill: (form: HTMLElement) => void, data = build()) => {
     const { router } = mount(data);
