@@ -414,9 +414,10 @@ test.describe("a collection", () => {
     await page.getByRole("checkbox", { name: "Include burned" }).check();
     await page.getByRole("button", { name: "Show" }).click();
     await page.waitForURL(`**${XRPL_FEATURED_PATH}?tab=nfts&burned=1`);
-    expect(await rowsOf(page, "NFTs").count()).toBeGreaterThan(held);
+    // The URL can change before the new rows are drawn (a CI runner read the old 14): wait for them.
+    await expect.poll(() => rowsOf(page, "NFTs").count()).toBeGreaterThan(held);
     const burned = rowsOf(page, "NFTs").filter({ has: page.locator(".tag", { hasText: /^burned$/ }) });
-    expect(await burned.count()).toBeGreaterThan(0);
+    await expect.poll(() => burned.count()).toBeGreaterThan(0);
     await expect(page.getByRole("checkbox", { name: "Include burned" })).toBeChecked();
   });
 

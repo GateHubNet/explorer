@@ -190,7 +190,8 @@ test.describe("the list", () => {
 
     await pagination(page).getByRole("link", { name: "More tokens" }).click();
     await page.waitForURL((url) => url.pathname === "/xrpl/tokens" && url.searchParams.has("marker"));
-    expect(await ranks(page)).toEqual(Array.from({ length: 20 }, (_, at) => at + 21));
+    // The URL can change before the new rows are drawn (a CI runner read the old page's ranks): each read waits for them.
+    await expect.poll(() => ranks(page)).toEqual(Array.from({ length: 20 }, (_, at) => at + 21));
     await expect(page.getByText(/^Showing 21–40 of /)).toBeVisible();
     await expect.poll(async () => (await head(page)).robots).toBe("noindex, follow");
     expect(await head(page)).toMatchObject({ canonical: null, ogImage: null, title: "More tokens · XRPL · explorer" });
@@ -198,13 +199,13 @@ test.describe("the list", () => {
     // The third page keeps the way back: Previous is the second page, then the first.
     await pagination(page).getByRole("link", { name: "More tokens" }).click();
     await page.waitForURL((url) => url.searchParams.has("back"));
-    expect((await ranks(page))[0]).toBe(41);
+    await expect.poll(async () => (await ranks(page))[0]).toBe(41);
     await pagination(page).getByRole("link", { name: "Previous" }).click();
     await page.waitForURL((url) => url.searchParams.has("marker") && !url.searchParams.has("back"));
-    expect((await ranks(page))[0]).toBe(21);
+    await expect.poll(async () => (await ranks(page))[0]).toBe(21);
     await pagination(page).getByRole("link", { name: "Previous" }).click();
     await page.waitForURL((url) => url.pathname === "/xrpl/tokens" && url.search === "");
-    expect((await ranks(page))[0]).toBe(1);
+    await expect.poll(async () => (await ranks(page))[0]).toBe(1);
     await expect.poll(async () => (await head(page)).robots).toBeNull();
     expect(await sameDocument(page)).toBe(true);
   });
@@ -643,10 +644,10 @@ test.describe("without JavaScript", () => {
     await page.goto("/xrpl/tokens");
     await pagination(page).getByRole("link", { name: "More tokens" }).click();
     await page.waitForURL((url) => url.searchParams.has("marker"));
-    expect((await ranks(page))[0]).toBe(21);
+    await expect.poll(async () => (await ranks(page))[0]).toBe(21);
     await pagination(page).getByRole("link", { name: "Previous" }).click();
     await page.waitForURL((url) => url.pathname === "/xrpl/tokens" && url.search === "");
-    expect((await ranks(page))[0]).toBe(1);
+    await expect.poll(async () => (await ranks(page))[0]).toBe(1);
 
     // A token's code is a link, too.
     await tableOf(page, "Issued tokens").locator(`a[href="${RLUSD_PATH}"]`).click();
