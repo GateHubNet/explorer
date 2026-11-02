@@ -133,6 +133,8 @@ export function ValidatorsMapCard({ map, holds, onRetry, retrying }: { map: Vali
   const stop = map.circles.find((circle) => circle.current)?.code ?? map.circles[0]?.code;
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    // A modified key belongs to the browser (Alt or Cmd with an arrow is Back and Forward, Ctrl with Home and End scrolls): nothing of it is prevented.
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
     const code = (event.target as HTMLElement).closest<HTMLElement>("[data-code]")?.dataset.code;
     if (code === undefined) return;
     const at = map.order.indexOf(code);

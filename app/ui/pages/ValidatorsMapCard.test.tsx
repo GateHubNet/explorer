@@ -161,6 +161,22 @@ describe("ValidatorsMapCard", () => {
     expect(press("Tab")).toBe(true);
   });
 
+  it("leaves a modified arrow key to the browser: Alt, Ctrl or Cmd with it is Back, Forward and the like", () => {
+    mount(mapOf(FLEET));
+    const focused = () => document.activeElement?.getAttribute("aria-label")?.split(":")[0];
+    act(() => circle(/^Germany/).focus());
+    for (const modifier of ["altKey", "ctrlKey", "metaKey"] as const) {
+      for (const key of ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"]) {
+        // `fireEvent` returns false when a handler called preventDefault: true says the browser still has the key.
+        expect(fireEvent.keyDown(document.activeElement!, { key, [modifier]: true })).toBe(true);
+        expect(focused()).toBe("Germany");
+      }
+    }
+    // Shift does not make it the browser's: it still moves.
+    expect(fireEvent.keyDown(document.activeElement!, { key: "ArrowLeft", shiftKey: true })).toBe(false);
+    expect(focused()).toBe("Panama");
+  });
+
   it("shows the tooltip on focus and hover, and hides it on Escape", () => {
     mount(mapOf(FLEET));
     expect(tip()).toBeNull();
