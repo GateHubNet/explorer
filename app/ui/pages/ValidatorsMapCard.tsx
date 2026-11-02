@@ -12,14 +12,18 @@ import type { HoldHandlers } from "../use-hold";
 
 /**
  * The tooltip's CSS transform beside a circle (the board's rule, plan ruling R10), from the point the tooltip is placed at (the circle's centre): horizontally its left edge 14 px
- * before that point while the circle is in the first 14 % of the map, its right edge 14 px past it in the last 14 %, else centred on it; vertically below the circle (by half its
+ * before that point while the circle is in the first 20 % of the map, its right edge 14 px past it in the last 20 %, else centred on it; vertically below the circle (by half its
  * size and 8 px) in the upper part of the map (above 42 %), above it elsewhere. `left` and `top` are the circle's percentages as the view builder wrote them (`"52.89%"`).
+ *
+ * 20 and 80, not the board's 14 and 86: `.card` clips what leaves it, the tooltip is up to 220 px wide, and the narrowest card that draws one is 560 px (a map of 528 px, 16 px of
+ * padding each side). Centred, half of it (110 px) must stay within 16 px of the map's edge, so a circle needs 94 px of map on each side: 18 % of 528 px. At 86 % South Korea
+ * (85.53 %) lost about 18 px of its tooltip; from 80 % it flips, and the tooltip's right edge is then 14 px past the circle.
  */
 export function tipTransform(circle: Pick<CircleView, "left" | "top" | "size">): string {
   const left = Number.parseFloat(circle.left);
   const top = Number.parseFloat(circle.top);
   const gap = circle.size / 2 + 8;
-  const x = left < 14 ? "-14px" : left > 86 ? "calc(-100% + 14px)" : "-50%";
+  const x = left < 20 ? "-14px" : left > 80 ? "calc(-100% + 14px)" : "-50%";
   const y = top < 42 ? `${gap}px` : `calc(-100% - ${gap}px)`;
   return `translate(${x}, ${y})`;
 }

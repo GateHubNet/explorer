@@ -331,9 +331,21 @@ describe("ValidatorsMapCard", () => {
   });
 
   it("places the tooltip by the board's rule", () => {
-    // Horizontally: 14 px in from the edge in the first and last 14 % of the box, else centred.
+    // Horizontally: 14 px in from the edge in the first and last 20 % of the box, else centred. The 220 px tooltip, centred, would pass the card's clip on the narrowest card that draws it
+    // (560 px, a map of 528 px) from 86 % on, and South Korea sits at 85.53 %: so it flips from 80 %, and on the west side from 20 %.
     const x = (left: string) => /^translate\((.*), /.exec(tipTransform({ left, top: "20.00%", size: 44 }))![1];
-    expect([x("10.00%"), x("14.00%"), x("50.00%"), x("86.00%"), x("90.00%")]).toEqual(["-14px", "-50%", "-50%", "-50%", "calc(-100% + 14px)"]);
+    expect([x("10.00%"), x("19.00%"), x("20.00%"), x("21.00%"), x("50.00%"), x("79.00%"), x("80.00%"), x("81.00%"), x("90.00%")]).toEqual([
+      "-14px",
+      "-14px",
+      "-50%",
+      "-50%",
+      "-50%",
+      "-50%",
+      "-50%",
+      "calc(-100% + 14px)",
+      "calc(-100% + 14px)",
+    ]);
+    expect(x("85.53%")).toBe("calc(-100% + 14px)");
     // Vertically: below the circle (half its size and 8 px) in the upper part, above it elsewhere.
     expect(tipTransform({ left: "50.00%", top: "20.00%", size: 44 })).toBe("translate(-50%, 30px)");
     expect(tipTransform({ left: "50.00%", top: "60.00%", size: 44 })).toBe("translate(-50%, calc(-100% - 30px))");
