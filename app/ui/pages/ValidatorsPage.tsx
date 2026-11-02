@@ -1,4 +1,4 @@
-import { useId, type FormEvent } from "react";
+import { useId, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { formatUtc } from "../../domain/format";
@@ -21,7 +21,7 @@ import { SegmentedLinks } from "../components/SegmentedLinks";
 import { StatTile } from "../components/StatTile";
 import { DomainStatus, FeeArrow, IncompleteMark, LatestMark, NegativeUnlTag, Parts, UnlTag } from "../components/StatusMarks";
 import { cx } from "../cx";
-import { useHolds, type HoldHandlers } from "../use-hold";
+import { holdsFocus, useHolds, type HoldHandlers } from "../use-hold";
 import type { LiveControls } from "../use-live-controls";
 import { useRefetching } from "../use-refetching";
 import { useRetry } from "../use-retry";
@@ -31,6 +31,14 @@ const DASH = "—";
 
 /** The tiles of the overview, as the builder labels them: a summary that did not load has no tiles to read them from, and the page still shows six dashes. */
 const TILE_LABELS = ["Validators seen, last 24 h", "On the default UNL", "Quorum", "Negative UNL", "Base / owner reserve", "Next flag ledger"] as const;
+
+/** The parts of the page that hold it while the visitor is on them (spec decision 13): the countries card and the list's table, which both have links. */
+type HeldPart = "countries" | "table";
+/** What the live row says of the part that holds the page: one note for each part, as MarketPairPage has. */
+const HELD_NOTES = {
+  countries: "Paused while you look at the map.",
+  table: "Paused while you look at the table",
+} as const satisfies Record<HeldPart, string>;
 
 /** What the versions card counts in the label column of its bars. */
 const VALIDATOR_UNIT = { one: "validator", other: "validators" } as const;
@@ -411,7 +419,8 @@ function ValidatorsCard({ data, holds, onRetry, retrying }: { data: ValidatorsPa
  *
  * The page follows the chain (spec 2.3): the table's rows enter and slide (`DataTable live`, keyed by master key), a figure that changed ticks in (`LiveValue`), the
  * share bar rings when its versions moved. Nothing animates on the first render, so a view navigation must remount the page (the route keys it by the view). The
- * table holds the page while a mouse is over it or keyboard focus is in it; the charts do not. While another view loads (`useRefetching`) the charts are dimmed.
+ * table and the countries card hold the page while a mouse is over them or keyboard focus is in them (the live row says which one: the map or the table); the charts do not.
+ * While another view loads (`useRefetching`) the charts are dimmed.
  *
  * `live` is what the route gives the page (`useLiveControls`): the pause button, the status line and the hold. `anchor` and `build` are the route's data, which the
  * page does not draw.
@@ -420,7 +429,24 @@ export function ValidatorsPage({ data, live }: { data: ValidatorsPageData & { an
   const refetching = useRefetching();
   const { retry, retrying } = useRetry();
   const holds = useHolds(live.onHold);
+  const [heldPart, setHeldPart] = useState<HeldPart>("table");
   const net = data.network.id;
+
+  /** The handlers of `useHolds` for a part, which also note that the hold, when there is one, is this part's (the part the visitor came to last). */
+  const holding = (part: HeldPart): HoldHandlers => {
+    const handlers = holds(part);
+    return {
+      ...handlers,
+      onPointerEnter: (event) => {
+        if (event.pointerType !== "touch") setHeldPart(part);
+        handlers.onPointerEnter(event);
+      },
+      onFocus: (event) => {
+        if (holdsFocus(event.target)) setHeldPart(part);
+        handlers.onFocus(event);
+      },
+    };
+  };
 
   return (
     <div className={cx("validators", refetching && "is-refetching")}>
@@ -438,7 +464,7 @@ export function ValidatorsPage({ data, live }: { data: ValidatorsPageData & { an
         </Link>
       </div>
 
-      <LiveRow label="Live · updates every 10 s" live={live} heldNote="Paused while you look at the table" />
+      <LiveRow label="Live · updates every 10 s" live={live} heldNote={HELD_NOTES[heldPart]} />
 
       {data.summary.state === "ok" &&
         data.summary.notices.map((notice) => (
@@ -448,9 +474,9 @@ export function ValidatorsPage({ data, live }: { data: ValidatorsPageData & { an
         ))}
 
       <Overview summary={data.summary} onRetry={retry} retrying={retrying} />
-      <ValidatorsMapCard map={data.map} holds={holds("countries")} onRetry={retry} retrying={retrying} />
+      <ValidatorsMapCard map={data.map} holds={holding("countries")} onRetry={retry} retrying={retrying} />
       <VersionsCard summary={data.summary} onRetry={retry} retrying={retrying} />
-      <ValidatorsCard data={data} holds={holds("table")} onRetry={retry} retrying={retrying} />
+      <ValidatorsCard data={data} holds={holding("table")} onRetry={retry} retrying={retrying} />
     </div>
   );
 }
