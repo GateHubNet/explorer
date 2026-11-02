@@ -1,3 +1,4 @@
+import { mptIdOf } from "../mpt-id";
 import type { AffectedNode, AffectedNodeBody, TouchedObject, TxMeta } from "./types";
 
 type Change = TouchedObject["change"];
@@ -36,16 +37,36 @@ export function nodesOf(meta: TxMeta): Node[] {
   return (meta.AffectedNodes ?? []).map(flatten);
 }
 
+const MPT_ID = /^[0-9A-Fa-f]{48}$/;
+
+/**
+ * The issuance an `MPToken` or an `MPTokenIssuance` node is about, as its ID in capitals: an `MPToken` holds it (`MPTokenIssuanceID`), an `MPTokenIssuance` is made of it (`mptIdOf` of its
+ * `Sequence` and `Issuer`). `undefined` for any other node, and for one whose fields make no ID: a ledger's text is not trusted to be well formed.
+ */
+export function mptIdOfNode({ type, fields }: Pick<Node, "type" | "fields">): string | undefined {
+  if (type === "MPToken") return typeof fields.MPTokenIssuanceID === "string" && MPT_ID.test(fields.MPTokenIssuanceID) ? fields.MPTokenIssuanceID.toUpperCase() : undefined;
+  if (type !== "MPTokenIssuance" || typeof fields.Sequence !== "number" || typeof fields.Issuer !== "string") return undefined;
+  try {
+    return mptIdOf(fields.Sequence, fields.Issuer);
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * The ledger entries a transaction created, modified or deleted, in the order of the metadata. `account` is the
- * entry's `Account`, or, for entries that have only an owner (directories, NFT offers, URITokens), its `Owner`;
- * entries with neither (trust lines, which have two parties) leave it out.
+ * entry's `Account`, or, for entries that have only an owner (directories, NFT offers, URITokens), its `Owner`, or an
+ * issuance's `Issuer`; entries with none (trust lines, which have two parties) leave it out. An `MPToken` or an
+ * `MPTokenIssuance` carries the ID of its issuance as `mpt`.
  */
 export function objectsTouched(meta: TxMeta): TouchedObject[] {
-  return nodesOf(meta).map(({ change, type, index, fields }) => {
+  return nodesOf(meta).map((node) => {
+    const { change, type, index, fields } = node;
     const touched: TouchedObject = { change, type, index };
-    const account = fields.Account ?? fields.Owner;
+    const account = fields.Account ?? fields.Owner ?? (type === "MPTokenIssuance" ? fields.Issuer : undefined);
     if (typeof account === "string") touched.account = account;
+    const mpt = mptIdOfNode(node);
+    if (mpt !== undefined) touched.mpt = mpt;
     return touched;
   });
 }

@@ -10,6 +10,7 @@ import { DataTable, type Column } from "../components/DataTable";
 import { HashLink, LedgerLink } from "../components/HashLink";
 import { LiveStatus, LiveToggle, PAUSED_AFTER_FAILURES } from "../components/LiveStatus";
 import { LiveValue } from "../components/LiveValue";
+import { MptAmount } from "../components/MptAmount";
 import { ResultPill } from "../components/Pill";
 import { RelativeTime } from "../components/RelativeTime";
 import { SearchBox } from "../components/SearchBox";
@@ -78,7 +79,11 @@ export function HomePage({ network, data, live }: { network: NetworkInfo; data: 
       ellipsis: true,
       cell: (row) =>
         row.amount ? (
-          <Amount value={row.amount.value} currency={row.amount.currency} issuer={row.amount.issuer} />
+          "mpt" in row.amount ? (
+            <MptAmount id={row.amount.mpt} units={row.amount.units} />
+          ) : (
+            <Amount value={row.amount.value} currency={row.amount.currency} issuer={row.amount.issuer} />
+          )
         ) : (
           <span className="faint">—</span>
         ),

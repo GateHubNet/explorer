@@ -158,6 +158,17 @@ describe("plainText", () => {
   });
 });
 
+describe("plainText with an MPT", () => {
+  const ID = "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8";
+  const issuer = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+
+  it("writes an MPT amount in the words of `MptAmount` (units, grouped, and the start of the ID) and a reference to an issuance as 'MPT ' and the start of the ID", () => {
+    expect(plainText([{ t: "text", v: "locked " }, { t: "mpt", id: ID, issuer, units: "2500000" }, { t: "text", v: " of the " }, { t: "mpt", id: ID, issuer }])).toBe(
+      "locked 2,500,000 units of MPT 0000012A… of the MPT 0000012A…",
+    );
+  });
+});
+
 describe("plainText with a permission", () => {
   it("writes a permission of a delegation by its name, as its chip shows it", () => {
     expect(

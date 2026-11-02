@@ -9,6 +9,7 @@ import type { NetworkId } from "../../server/networks";
 import { useFeatures } from "../use-network";
 import { AccountLink } from "./AccountLink";
 import { Amount } from "./Amount";
+import { MptAmount } from "./MptAmount";
 import { NftLink } from "./NftLink";
 import { PermissionChip } from "./PermissionChip";
 
@@ -18,7 +19,8 @@ import { PermissionChip } from "./PermissionChip";
  * while `AMM_PAGES` is on, its account's otherwise), an NFT through `NftLink` (its page while `NFTS` is on, its short id in
  * mono otherwise), a permission of a delegation through `PermissionChip`, and an escrow, a check or a payment channel as its
  * words linking to its page (`objectHref`: while `LEDGER_OBJECTS` is on; its ID, when it is named by one, as the title), the
- * words as text otherwise. Put it in the element the sentence belongs in (`<p className="sentence">`, a table cell).
+ * words as text otherwise, and an MPT as `MptAmount` (units of the issuance and its ID, raw: the scale and the link come with the lookup) or, without units, a reference to
+ * the issuance as text ("MPT 0000012A…"). Put it in the element the sentence belongs in (`<p className="sentence">`, a table cell).
  * `compact` is for a table's cell: accounts and pools are plain links, without the chip's box, so that more of the sentence
  * fits on its one line.
  */
@@ -54,6 +56,8 @@ export function Sentence({ net, segments, compact }: { net: NetworkId; segments:
               </Link>
             );
           }
+          case "mpt":
+            return segment.units === undefined ? `MPT ${segment.id.slice(0, 8)}…` : <MptAmount key={index} id={segment.id} units={segment.units} />;
         }
       })}
     </>

@@ -47,7 +47,11 @@ export const said = (segments: readonly Segment[]): string =>
               ? segment.pair
               : segment.t === "permission"
                 ? segment.name
-                : segment.v,
+                : segment.t === "mpt"
+                  ? segment.units === undefined
+                    ? `MPT ${segment.id.slice(0, 8)}…`
+                    : `${formatAmount(segment.units)} units of MPT ${segment.id.slice(0, 8)}…`
+                  : segment.v,
     )
     .join("");
 

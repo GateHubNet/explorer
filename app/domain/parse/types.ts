@@ -1,11 +1,14 @@
 // The shapes of a transaction and its metadata as rippled (and xahaud) send them in API v1, and of what
 // `parse/` makes of them. Types only: nothing here runs.
 
-/** An issued-currency amount. (MPT amounts, `{ mpt_issuance_id, value }`, are not modelled.) */
+/** An issued-currency amount. */
 export type IssuedAmount = { currency: string; issuer: string; value: string };
 
-/** Drops of the native currency as a string, or an issued-currency amount. */
-export type Amount = string | IssuedAmount;
+/** An amount of a Multi-Purpose Token: the issuance's ID (48 hex digits) and an integer number of its units, as a string. The scale is the issuance's, not the amount's. */
+export type MptAmount = { mpt_issuance_id: string; value: string };
+
+/** Drops of the native currency as a string, an issued-currency amount or an MPT amount. */
+export type Amount = string | IssuedAmount | MptAmount;
 
 /** A transaction's JSON, without its metadata. */
 export type TxJson = Record<string, unknown> & {
@@ -44,6 +47,8 @@ export type TxMeta = {
   TransactionResult: string;
   AffectedNodes: AffectedNode[];
   delivered_amount?: Amount;
+  /** What a payment delivered, as the ledger's own metadata field (stored when it is less than `Amount`; an MPT payment's, after fixMPTDeliveredAmount). */
+  DeliveredAmount?: Amount;
 };
 
 /** The network's own currency. */
@@ -63,12 +68,17 @@ export type Asset = { currency: string; issuer?: string };
  * the issuer in the entry of a holder, and the holder in the entry of the issuer, whose `value` is the
  * opposite of what the holder's moved. A native `value` is the whole change of the balance, so the fee payer's
  * includes the transaction fee: the sender's, or the delegate's on a transaction a delegate sent.
+ *
+ * With `mpt` the entry is an MPT's: `currency` is the issuance's ID, and `value` and `after` are integer units, not scaled. A holder's entry has the
+ * ID's issuer as its `issuer`; the issuer's own has none and no `after` (it is the change of the issuance's outstanding amount, negated).
  */
 export type BalanceChange = Asset & {
   account: string;
   value: string;
   /** The balance after the transaction. */
   after?: string;
+  /** An MPT's entry: `currency` is the issuance ID, `value` and `after` units. */
+  mpt?: true;
 };
 
 /**
@@ -89,6 +99,8 @@ export type TouchedObject = {
   type: string;
   /** The entry's key in the ledger (64 hex). */
   index: string;
-  /** Its `Account` (or, for entries that have only an owner, its `Owner`), when it has one. */
+  /** Its `Account` (or, for entries that have only an owner, its `Owner`; an `MPTokenIssuance`'s `Issuer`), when it has one. */
   account?: string;
+  /** An `MPToken` or an `MPTokenIssuance`: the ID of the issuance, in capitals. */
+  mpt?: string;
 };

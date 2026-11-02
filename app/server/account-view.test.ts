@@ -90,7 +90,9 @@ const text = (segments: readonly Segment[]) =>
                 ? `[${s.pair}]`
                 : s.t === "permission"
                   ? `(${s.name})`
-                  : `«${s.v}»`,
+                  : s.t === "mpt"
+                    ? `<MPT ${s.id}${s.units === undefined ? "" : ` ${s.units}`}>`
+                    : `«${s.v}»`,
     )
     .join("");
 

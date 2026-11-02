@@ -7,7 +7,7 @@ import { permissionChip } from "../permissions";
 import type { Native, TxJson, TxMeta } from "../parse/types";
 import { formatCurrency } from "../format";
 import { resultText } from "../results";
-import { mergeHandlers, pairName, poolPair } from "./helpers";
+import { mergeHandlers, mptSegment, pairName, poolPair } from "./helpers";
 import { describe as describeTx } from "./index";
 import type { Description, Handler, Segment } from "./types";
 
@@ -28,6 +28,8 @@ function textOf(segments: Segment[]): string {
           return `${s.value} ${s.currency}`;
         case "permission":
           return `[${s.name}]`;
+        case "mpt":
+          return s.units === undefined ? `[mpt ${s.id}]` : `${s.units} [mpt ${s.id}]`;
       }
     })
     .join("");
@@ -49,6 +51,8 @@ function readOf(segments: Segment[]): string {
           return `${s.value} ${formatCurrency(s.currency)}`;
         case "permission":
           return s.name;
+        case "mpt":
+          return s.units === undefined ? `MPT ${s.id.slice(0, 8)}…` : `${s.units} units of MPT ${s.id.slice(0, 8)}…`;
       }
     })
     .join("");
@@ -665,22 +669,30 @@ describe("describe: escrows", () => {
   describe("an MPT's amount", () => {
     const ISSUANCE = "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8";
     const AMOUNT = { mpt_issuance_id: ISSUANCE, value: "2500000" };
-    const WORDS = "2,500,000 units of MPT 0000012A…";
+    // The segment `Sentence` draws as `MptAmount` (raw units until a lookup scales them) and `plainText` writes as "2,500,000 units of MPT 0000012A…".
+    const SEGMENT = mptSegment(ISSUANCE, "2500000");
 
-    it("is in the words of `MptAmount` in an EscrowCreate's sentence and its Amount detail, never raw JSON", () => {
+    it("is an MPT segment, with the issuer decoded from the ID, in an EscrowCreate's sentence and its Amount detail, never raw JSON", () => {
       const d = say(synth("EscrowCreate", { Amount: AMOUNT, Destination: B, FinishAfter: 845387999 }), SUCCESS);
-      expect(textOf(d.sentence)).toBe(`${A} locked ${WORDS} for ${B}, release after 2026-10-15 13:59:59 UTC.`);
+      expect(SEGMENT).toMatchObject({ t: "mpt", id: ISSUANCE, units: "2500000", issuer: expect.stringMatching(/^r/) });
+      expect(d.sentence).toContainEqual(SEGMENT);
+      expect(textOf(d.sentence)).toBe(`${A} locked 2500000 [mpt ${ISSUANCE}] for ${B}, release after 2026-10-15 13:59:59 UTC.`);
       const amount = d.details.find((row) => row.label === "Amount")!;
-      expect(amount.value).toStrictEqual([text(WORDS)]);
+      expect(amount.value).toStrictEqual([SEGMENT]);
       expect(textOf(d.sentence)).not.toContain("{");
       expect(textOf(amount.value)).not.toContain("{");
     });
 
-    it("is in the same words in a type's own sentence and in a field of a type nothing here describes", () => {
+    it("is the same segment in a type's own sentence and in a field of a type nothing here describes", () => {
       const payment = say(synth("Payment", { Amount: AMOUNT, Destination: B }), SUCCESS);
-      expect(textOf(payment.sentence)).toContain(WORDS);
+      expect(payment.sentence).toContainEqual(SEGMENT);
       expect(textOf(payment.sentence)).not.toContain("{");
-      expect(say(synth("SomethingNew", { Amount: AMOUNT }), SUCCESS).details.find((row) => row.label === "Amount")!.value).toStrictEqual([text(WORDS)]);
+      expect(say(synth("SomethingNew", { Amount: AMOUNT }), SUCCESS).details.find((row) => row.label === "Amount")!.value).toStrictEqual([SEGMENT]);
+    });
+
+    it("is a reference to the issuance, without units, in a field that holds an issuance ID", () => {
+      const generic = say(synth("SomethingNew", { MPTokenIssuanceID: ISSUANCE.toLowerCase() }), SUCCESS);
+      expect(generic.details.find((row) => row.label === "MPTokenIssuanceID")!.value).toStrictEqual([mptSegment(ISSUANCE)]);
     });
   });
 

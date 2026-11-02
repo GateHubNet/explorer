@@ -142,6 +142,15 @@ describe("transactionDescription", () => {
     expect(transactionDescription(payment(flow), XAHAU.network)).toBe("Payment of 1,250 USD from rJF2Xa…FQvg to rNYbL8…UKq5 · Xahau ledger 107,695,660");
   });
 
+  it("names an MPT's units and the start of its ID, as the card does", () => {
+    const amount = { mpt: "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8", issuer: "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh", units: "2500000" };
+    const flow: FlowStep[] = [
+      { role: "sender", account: SENDER, label: "Sender", amount },
+      { role: "destination", account: RECEIVER, label: "Destination", amount },
+    ];
+    expect(transactionDescription(payment(flow), XRPL.network)).toBe("Payment of 2,500,000 units of MPT 0000012A… from rJF2Xa…FQvg to rNYbL8…UKq5 · XRPL ledger 107,695,660");
+  });
+
   it("writes a currency code as the page does", () => {
     const flow: FlowStep[] = [
       { role: "sender", account: SENDER, label: "Sender" },

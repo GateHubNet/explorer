@@ -259,6 +259,27 @@ describe("Sentence", () => {
     expect(links[2]!.textContent).toBe("XRP/USD");
   });
 
+  it("draws an MPT amount as its units and the start of its ID, and a reference to an issuance as text without units", () => {
+    const ID = "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8";
+    const issuer = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+    const { container } = renderInRouter(
+      <Sentence
+        net="xrpl"
+        segments={[
+          { t: "text", v: "locked " },
+          { t: "mpt", id: ID, issuer, units: "2500000" },
+          { t: "text", v: " of " },
+          { t: "mpt", id: ID, issuer },
+          { t: "text", v: "." },
+        ]}
+      />,
+    );
+    expect(container.textContent).toBe("locked 2,500,000 units of MPT 0000012A… of MPT 0000012A….");
+    expect(container.querySelectorAll(".mptamount")).toHaveLength(1);
+    expect(container.querySelector(".mptamount")!.getAttribute("title")).toBe(ID);
+    expect(screen.queryAllByRole("link")).toEqual([]);
+  });
+
   it("formats an amount that arrives in exponent form", () => {
     const { container } = renderInRouter(
       <Sentence net="xrpl" segments={[{ t: "amount", value: "1e-7", currency: "XRP" }]} />,

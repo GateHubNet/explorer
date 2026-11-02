@@ -2,13 +2,14 @@
 
 import BigNumber from "bignumber.js";
 import { dropsToNative, formatAmount, formatCurrency, formatUtc, shortHash } from "../format";
+import { mptIdOf, mptIssuerOf } from "../mpt-id";
 import { kindOfType, ledgerId, type ObjectKind, type ObjectRefParts } from "../object-link";
 import { nodesOf } from "../parse/objects";
 import type { AmmHop, Asset, Native, TxJson, TxMeta } from "../parse/types";
-import type { Detail, FlowAmount, Handler, HandlerMap, Segment } from "./types";
+import type { CurrencyAmount, Detail, Handler, HandlerMap, MptFlowAmount, Segment } from "./types";
 
 // The two functions of an MPT issuance ID live in a leaf (`../mpt-id.ts`), so that `parse/objects.ts` (which this file imports, and the Node type-check project lists) can use them without a cycle, and are exported from here, as the spec names them.
-export { mptIdOf, mptIssuerOf } from "../mpt-id";
+export { mptIdOf, mptIssuerOf };
 
 // --- Segments ------------------------------------------------------------------------------------------------------
 
@@ -73,10 +74,10 @@ const DROPS = /^\d+$/;
 
 /**
  * An amount of a transaction field as whole units: drops of the native currency (a string) become the native
- * currency, an issued amount keeps its value as given. Anything else (an MPT amount, a missing field, the node's
- * "unavailable") is not an amount here.
+ * currency, an issued amount keeps its value as given. Anything else (an MPT amount, which `parseMptAmount` and
+ * `mptFlowAmount` read, a missing field, the node's "unavailable") is not an amount here.
  */
-export function parseAmount(raw: unknown, native: Native): FlowAmount | undefined {
+export function parseAmount(raw: unknown, native: Native): CurrencyAmount | undefined {
   if (typeof raw === "string") return DROPS.test(raw) ? { value: dropsToNative(raw), currency: native } : undefined;
   if (typeof raw !== "object" || raw === null) return undefined;
   const { currency, issuer, value } = raw as Record<string, unknown>;
@@ -84,26 +85,49 @@ export function parseAmount(raw: unknown, native: Native): FlowAmount | undefine
   return typeof issuer === "string" ? { value, currency, issuer } : { value, currency };
 }
 
-export const amountOf = (amount: FlowAmount): Segment => ({ t: "amount", ...amount });
+export const amountOf = (amount: CurrencyAmount): Segment => ({ t: "amount", ...amount });
+
+const MPT_ID = /^[0-9A-Fa-f]{48}$/;
+
+/**
+ * An MPT's amount of a transaction field, `{ mpt_issuance_id, value }`: the ID in capitals and the units, when the ID is 48 hex digits and the value an integer in digits (what the ledger writes for
+ * a 64-bit amount). `undefined` for anything else, so an object that only looks like one (a 40-digit ID, a value with a fraction) is shown as the unknown field it is.
+ */
+export function parseMptAmount(raw: unknown): { id: string; units: string } | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const { mpt_issuance_id: id, value } = raw as Record<string, unknown>;
+  return typeof id === "string" && MPT_ID.test(id) && typeof value === "string" && DROPS.test(value) ? { id: id.toUpperCase(), units: value } : undefined;
+}
+
+/** A segment for an MPT: an amount with `units`, a reference to the issuance without. The issuer is decoded from the ID, which must be 48 hex digits (`parseMptAmount` and the nodes `mptIdOfNode` reads give such IDs). */
+export function mptSegment(id: string, units?: string): Segment {
+  const upper = id.toUpperCase();
+  return units === undefined ? { t: "mpt", id: upper, issuer: mptIssuerOf(upper) } : { t: "mpt", id: upper, issuer: mptIssuerOf(upper), units };
+}
+
+/** An MPT amount field as a flow step's amount; `undefined` for anything `parseMptAmount` does not read. */
+export function mptFlowAmount(raw: unknown): MptFlowAmount | undefined {
+  const amount = parseMptAmount(raw);
+  return amount === undefined ? undefined : { mpt: amount.id, issuer: mptIssuerOf(amount.id), units: amount.units };
+}
 
 /** What `MptAmount` draws, as words for a sentence: "2,500,000 units of MPT 0000012A…" (raw units, no scale: E14 replaces them). */
 export const mptWords = ({ id, units }: { id: string; units: string }): string => `${formatAmount(units)} units of MPT ${id.slice(0, 8)}…`;
 
-/** A field that is an MPT's amount (`{ mpt_issuance_id, value }`), as `mptWords` has it, which a segment cannot hold as an amount; `undefined` for anything else. */
+/** An MPT amount field as its segment, `undefined` for anything else. */
 function mptField(raw: unknown): Segment | undefined {
-  if (typeof raw !== "object" || raw === null) return undefined;
-  const { mpt_issuance_id: id, value } = raw as Record<string, unknown>;
-  return typeof id === "string" && typeof value === "string" ? text(mptWords({ id, units: value })) : undefined;
+  const amount = parseMptAmount(raw);
+  return amount === undefined ? undefined : mptSegment(amount.id, amount.units);
 }
 
-/** An amount field as an amount segment, an MPT's as its words; a value that is neither is shown as it is. */
+/** An amount field as an amount segment, an MPT's as an MPT segment; a value that is neither is shown as it is. */
 export function amountSegment(raw: unknown, native: Native): Segment {
   const amount = parseAmount(raw, native);
   if (amount) return amountOf(amount);
   return mptField(raw) ?? text(typeof raw === "string" ? raw : (JSON.stringify(raw) ?? "an unknown amount"));
 }
 
-export function sameAmount(a: FlowAmount, b: FlowAmount): boolean {
+export function sameAmount(a: CurrencyAmount, b: CurrencyAmount): boolean {
   return a.currency === b.currency && (a.issuer ?? "") === (b.issuer ?? "") && new BigNumber(a.value).isEqualTo(b.value);
 }
 
@@ -210,10 +234,11 @@ const AMOUNT_FIELDS: ReadonlySet<string> = new Set([
 
 const ADDRESS = /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/;
 
-/** A field of a transaction as segments: an amount, an account, or text (JSON for what has a structure). */
+/** A field of a transaction as segments: an amount, an account, a reference to an MPT issuance (`MPTokenIssuanceID`), or text (JSON for what has a structure). */
 export function fieldValue(name: string, value: unknown, native: Native): Segment[] {
   if (typeof value === "string") {
     if (AMOUNT_FIELDS.has(name) && DROPS.test(value)) return [amountSegment(value, native)];
+    if (name === "MPTokenIssuanceID" && MPT_ID.test(value)) return [mptSegment(value)];
     if (ADDRESS.test(value)) return [account(value)];
     return [text(value === "" ? "(empty)" : value)];
   }

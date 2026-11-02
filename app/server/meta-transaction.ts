@@ -12,8 +12,12 @@ import type { TransactionPageData } from "./transaction-view";
 /** What the description of a transaction reads: the page's own data, which the image route also has. */
 export type TxFacts = Pick<TransactionPageData, "hash" | "ledgerIndex" | "title" | "ok" | "summary" | "flow">;
 
-function amountText(amount: FlowAmount): string {
-  return `${formatAmount(amount.value)} ${formatCurrency(amount.currency)}`;
+/**
+ * An amount as the tags and the card say it: "1,250.00 USD". An MPT's is its units and its ID, "2,500,000 units of MPT 0000012A…" (the words `mptWords` writes; this module is the browser's,
+ * which `describe/` is not).
+ */
+export function amountText(amount: FlowAmount): string {
+  return "mpt" in amount ? `${formatAmount(amount.units)} units of MPT ${amount.mpt.slice(0, 8)}…` : `${formatAmount(amount.value)} ${formatCurrency(amount.currency)}`;
 }
 
 /** Who sent what to whom, from the flow: the sender, the destination and what the destination got. */

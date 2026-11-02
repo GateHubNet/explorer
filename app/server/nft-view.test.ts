@@ -103,7 +103,9 @@ const said = (segments: readonly Segment[]): string =>
                 ? segment.pair
                 : segment.t === "permission"
                   ? segment.name
-                  : segment.v,
+                  : segment.t === "mpt"
+                    ? `MPT ${segment.id}`
+                    : segment.v,
     )
     .join("");
 

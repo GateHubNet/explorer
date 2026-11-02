@@ -16,6 +16,7 @@ const ALICE = "rJF2XanJQGFLS5ZUdcqEzwJcTJ7aFfQvg";
 const BOB = "rNYbL8WZKKNNni5rb2MzcxnAEgkQC5Kq5";
 const POOL = "rAtRwrVakWQaGpzxtqgJZDb3Tg7t32rXT";
 const USD = { currency: "USD", issuer: "rA7wzfRjziBcrbFwErG1t2sdVofKQmg95" };
+const MPT_ID = "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8";
 
 const steps: FlowStep[] = [
   { role: "sender", account: ALICE, label: "Sender", amount: { value: "512.402115", currency: "XRP" } },
@@ -59,6 +60,25 @@ describe("Flow", () => {
     expect(pool!.textContent).toContain("pays out");
     expect(destination!.querySelector(".amt")?.textContent).toBe("+1,250.00 USD");
     expect(destination!.querySelector(".amt")?.classList.contains("amt--pos")).toBe(true);
+  });
+
+  it("shows an MPT's amount as its units and the ID of its issuance, raw: a loss for the sender, a gain for the destination, as it is for a pool", () => {
+    const amount = { mpt: MPT_ID, issuer: BOB, units: "2500000" };
+    renderInRouter(
+      <Flow
+        net="xrpl"
+        steps={[
+          { role: "sender", account: ALICE, label: "Sender", amount },
+          { role: "pool", account: POOL, label: "DEX offer", amount },
+          { role: "destination", account: BOB, label: "Destination", amount },
+        ]}
+      />,
+    );
+    const [sender, via, destination] = [...screen.getByRole("group").querySelectorAll(".flow__node")] as HTMLElement[];
+    expect(sender!.querySelector(".flow__amount")?.textContent).toBe("−2,500,000 units of MPT 0000012A…");
+    expect(via!.querySelector(".flow__sub")?.textContent).toBe("pays out 2,500,000 units of MPT 0000012A…");
+    expect(destination!.querySelector(".flow__amount")?.textContent).toBe("+2,500,000 units of MPT 0000012A…");
+    expect(sender!.querySelector(".mptamount")?.getAttribute("title")).toBe(MPT_ID);
   });
 
   it("separates the nodes by arrows that screen readers skip", () => {

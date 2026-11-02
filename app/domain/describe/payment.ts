@@ -19,7 +19,7 @@ import {
   type FlagTable,
   type Part,
 } from "./helpers";
-import type { Detail, FlowAmount, FlowStep, HandlerMap, Input, Summary } from "./types";
+import type { CurrencyAmount, Detail, FlowAmount, FlowStep, HandlerMap, Input, Summary } from "./types";
 
 const TF_PARTIAL_PAYMENT = 0x00020000;
 
@@ -34,7 +34,7 @@ const PAYMENT_FLAGS: FlagTable = [
  * includes the fee, which is taken out, unless a delegate sent the transaction: the delegate paid the fee. Undefined
  * when the balances show no fall, so a sentence never claims a number the metadata does not give.
  */
-function spentOf(input: Input, max: FlowAmount): FlowAmount | undefined {
+function spentOf(input: Input, max: CurrencyAmount): CurrencyAmount | undefined {
   const { tx, native } = input;
   let net = new BigNumber(0);
   for (const change of input.changes()) {

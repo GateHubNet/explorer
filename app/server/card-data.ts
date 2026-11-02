@@ -3,7 +3,7 @@
 // app/og/card.tsx draws what this returns.
 
 import { describe, headlineAmount, type FlowAmount } from "../domain/describe";
-import { formatAmount, formatCurrency, shortAddress, shortHash } from "../domain/format";
+import { formatAmount, shortAddress, shortHash } from "../domain/format";
 import { labelWords, plainNameOf, vouchedByOf, type NameView } from "../domain/names";
 import type { Native } from "../domain/parse/types";
 import { formatDate } from "../domain/time-words";
@@ -12,7 +12,7 @@ import type { NetworkBrief } from "../ui/networks";
 import type { AmmPoolFacts } from "./amm-view";
 import type { AmendmentDetail, NftKind, ValidatorDetail } from "./api-types";
 import type { LedgerFacts } from "./meta-ledger";
-import { movement, type TxFacts } from "./meta-transaction";
+import { amountText, movement, type TxFacts } from "./meta-transaction";
 import type { Network } from "./networks";
 import type { NftFacts } from "./nft-view";
 import type { TokenMetaFacts } from "./token-view";
@@ -43,7 +43,6 @@ function clip(text: string, max: number): string {
 }
 
 const labelOf = (network: NetworkBrief) => network.label;
-const amountText = (amount: FlowAmount) => `${formatAmount(amount.value)} ${formatCurrency(amount.currency)}`;
 
 /** What the card of a transaction reads: the page's own data, and what only the transaction itself says. */
 export type TxCardFacts = TxFacts &

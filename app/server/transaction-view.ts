@@ -5,7 +5,7 @@
 
 import { encodeCtid } from "../domain/ctid";
 import { delegateOf, describe, isInnerBatch, type Detail, type FlowStep, type Segment } from "../domain/describe";
-import { decodeHex } from "../domain/describe/helpers";
+import { decodeHex, mptWords } from "../domain/describe/helpers";
 import { dropsToNative, formatAmount, formatCurrency, shortAddress, shortHash } from "../domain/format";
 import type { NamesPart } from "../domain/names";
 import { shortNftId } from "../domain/nft-params";
@@ -230,6 +230,8 @@ export function plainText(segments: readonly Segment[]): string {
           return segment.name;
         case "object":
           return segment.v;
+        case "mpt":
+          return segment.units === undefined ? `MPT ${segment.id.slice(0, 8)}…` : mptWords({ id: segment.id, units: segment.units });
       }
     })
     .join("");

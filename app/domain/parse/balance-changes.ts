@@ -1,5 +1,7 @@
 import BigNumber from "bignumber.js";
 import { parseBalanceChanges, parseFinalBalances } from "ripple-lib-transactionparser";
+import { mptIssuerOf } from "../mpt-id";
+import { mptIdOfNode, nodesOf, type Node } from "./objects";
 import type { BalanceChange, Native, TxJson, TxMeta } from "./types";
 
 type LibraryChange = { counterparty: string; currency: string; value: string };
@@ -22,7 +24,8 @@ const keyOf = (account: string, { counterparty, currency }: LibraryChange): stri
  * of the metadata. Values are exact decimal strings in whole units, never in exponent notation. `after` is the
  * balance after the transaction.
  *
- * For an issued currency `issuer` is the other side of the trust line (see `BalanceChange`).
+ * For an issued currency `issuer` is the other side of the trust line (see `BalanceChange`). The library knows no MPT:
+ * an `MPToken` node and an `MPTokenIssuance` node give the entries of `mptChanges`, after the others.
  */
 export function balanceChanges(tx: TxJson, meta: TxMeta, native: Native): BalanceChange[] {
   const finals = new Map<string, string>();
@@ -43,6 +46,69 @@ export function balanceChanges(tx: TxJson, meta: TxMeta, native: Native): Balanc
     }
   }
 
+  changes.push(...mptChanges(tx, meta));
+
   // Array.prototype.sort is stable: only the sender's entries move, to the front.
   return changes.sort((a, b) => Number(b.account === tx.Account) - Number(a.account === tx.Account));
+}
+
+/** An MPT's units: an integer in digits (the ledger writes its 64-bit amounts in base ten). */
+const UNITS = /^\d+$/;
+
+/**
+ * The holders a succeeded transaction credits with an MPT, for a node whose metadata lists no "before" (an added field is never listed, so a first credit is a node with `PreviousFields`
+ * present and empty): a Payment's `Destination`, the destination of the escrow an EscrowFinish deleted, the owner of the escrow an EscrowCancel deleted (D9 section 4.1's dated note).
+ */
+function creditedHolders(tx: TxJson, meta: TxMeta, nodes: readonly Node[]): ReadonlySet<string> {
+  const credited = new Set<string>();
+  if (meta.TransactionResult !== "tesSUCCESS") return credited;
+  if (tx.TransactionType === "Payment" && typeof tx.Destination === "string") credited.add(tx.Destination);
+  if (tx.TransactionType === "EscrowFinish" || tx.TransactionType === "EscrowCancel") {
+    for (const { change, type, fields } of nodes) {
+      const who = tx.TransactionType === "EscrowFinish" ? fields.Destination : fields.Account;
+      if (change === "deleted" && type === "Escrow" && typeof who === "string") credited.add(who);
+    }
+  }
+  return credited;
+}
+
+/** A node's amount field as units; a field the node leaves out is 0 (the ledger leaves out what is at its default), and one that is not units is `undefined`. */
+function unitsOf(fields: Record<string, unknown>, name: string): BigNumber | undefined {
+  const raw = fields[name];
+  if (raw === undefined) return new BigNumber(0);
+  return typeof raw === "string" && UNITS.test(raw) ? new BigNumber(raw) : undefined;
+}
+
+/**
+ * The MPT entries of a transaction, in the order of the metadata. An `MPToken` node whose `MPTAmount` changed is its holder's entry: `value` the change, `after` the new amount. An
+ * `MPTokenIssuance` node whose `OutstandingAmount` is listed among the `PreviousFields` and changed is the issuer's entry, the change negated (what left the issuer's side), with no `after`.
+ *
+ * The "before" of `MPTAmount` is the listed value; a created node's is 0; an unlisted one is 0 for a holder the transaction credits (`creditedHolders`) and the final value for any other, so a
+ * node that only moved its flags or its `LockedAmount` is no change. A field the final fields leave out is 0 (a holder that spent everything, a redemption, a clawback). A node whose ID or amounts
+ * are not well formed gives no entry.
+ */
+function mptChanges(tx: TxJson, meta: TxMeta): BalanceChange[] {
+  const nodes = nodesOf(meta);
+  const credited = creditedHolders(tx, meta, nodes);
+  const changes: BalanceChange[] = [];
+  for (const node of nodes) {
+    const { change, type, fields, previous } = node;
+    const id = type === "MPToken" || type === "MPTokenIssuance" ? mptIdOfNode(node) : undefined;
+    if (id === undefined) continue;
+
+    if (type === "MPToken") {
+      const holder = fields.Account;
+      const after = unitsOf(fields, "MPTAmount");
+      const before = change === "created" ? new BigNumber(0) : "MPTAmount" in previous ? unitsOf(previous, "MPTAmount") : typeof holder === "string" && credited.has(holder) ? new BigNumber(0) : after;
+      if (typeof holder !== "string" || after === undefined || before === undefined || after.isEqualTo(before)) continue;
+      changes.push({ account: holder, currency: id, issuer: mptIssuerOf(id), value: after.minus(before).toFixed(), after: after.toFixed(), mpt: true });
+    } else if ("OutstandingAmount" in previous) {
+      const issuer = fields.Issuer;
+      const after = unitsOf(fields, "OutstandingAmount");
+      const before = unitsOf(previous, "OutstandingAmount");
+      if (typeof issuer !== "string" || after === undefined || before === undefined || after.isEqualTo(before)) continue;
+      changes.push({ account: issuer, currency: id, value: before.minus(after).toFixed(), mpt: true });
+    }
+  }
+  return changes;
 }

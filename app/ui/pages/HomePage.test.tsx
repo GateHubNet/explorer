@@ -80,6 +80,13 @@ describe("HomePage", () => {
     expect(within(bad!).getByText("tecNO_LINE")).toBeTruthy();
   });
 
+  it("lists an MPT payment's amount in units, with the start of the issuance's ID, as the home page makes no lookup", () => {
+    const mpt = { type: "Payment", hash: "DD".repeat(32), account: ALICE, amount: { mpt: "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8", issuer: ALICE, units: "2500000" }, ok: true, code: "tesSUCCESS", date: 1792256470 };
+    renderInRouter(<HomePage network={XRPL} data={data({ transactions: [mpt] })} />);
+    const [row] = within(screen.getByRole("table", { name: "Latest transactions" })).getAllByRole("row").slice(1);
+    expect(within(row!).getByText("2,500,000 units of MPT 0000012A…")).toBeTruthy();
+  });
+
   it("has the cards the header's links lead to, and a link to the ledger in each", () => {
     renderInRouter(<HomePage network={XRPL} data={data()} />);
     expect(document.getElementById("latest-ledgers")).toBeTruthy();

@@ -21,7 +21,7 @@ import {
   type FlagTable,
   type Part,
 } from "./helpers";
-import type { Detail, FlowAmount, HandlerMap, Input, Segment, Summary } from "./types";
+import type { CurrencyAmount, Detail, HandlerMap, Input, Segment, Summary } from "./types";
 
 // --- The pool ------------------------------------------------------------------------------------------------------
 
@@ -71,9 +71,9 @@ const sameAsset = (a: Asset, b: Asset): boolean => a.currency === b.currency && 
  * not an asset of the pool, so they are not among them. A sender that issues one of the assets is read from its side
  * of the trust line with the pool.
  */
-function movedAmounts({ tx, native, changes }: Input, direction: "in" | "out"): FlowAmount[] {
+function movedAmounts({ tx, native, changes }: Input, direction: "in" | "out"): CurrencyAmount[] {
   const mine = changes().filter((change) => change.account === tx.Account);
-  const amounts: FlowAmount[] = [];
+  const amounts: CurrencyAmount[] = [];
   for (const asset of pairOfAssets(tx)) {
     let net = new BigNumber(0);
     // The issuer of the asset has no balance of it: its entry is its side of a trust line, whose counterparty is the
@@ -99,7 +99,7 @@ function movedAmounts({ tx, native, changes }: Input, direction: "in" | "out"): 
 }
 
 /** The amounts a deposit or a withdrawal names, the most it allows. */
-function namedAmounts({ tx, native }: Input): FlowAmount[] {
+function namedAmounts({ tx, native }: Input): CurrencyAmount[] {
   return [tx.Amount, tx.Amount2].map((raw) => parseAmount(raw, native)).filter((amount) => !!amount);
 }
 

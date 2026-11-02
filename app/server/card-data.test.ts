@@ -81,6 +81,16 @@ describe("transactionCard", () => {
     expect(card.headline).toEqual({ text: "7 EUR", mono: true });
   });
 
+  it("writes an MPT's amount as units of the issuance, which the card does not look up", () => {
+    const amount = { mpt: "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8", issuer: "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh", units: "2500000" };
+    expect(transactionCard(tx({ amount }), XRPL).headline).toEqual({ text: "2,500,000 units of MPT 0000012A…", mono: true });
+    const moved: FlowStep[] = [
+      { role: "sender", account: SENDER, label: "Sender", amount },
+      { role: "destination", account: RECEIVER, label: "Destination", amount },
+    ];
+    expect(transactionCard(tx({ flow: moved }), XRPL).headline).toEqual({ text: "2,500,000 units of MPT 0000012A…", mono: true });
+  });
+
   it("writes a currency code as the page does", () => {
     const card = transactionCard(tx({ flow: null, amount: { value: "5", currency: "534F4C4F00000000000000000000000000000000" } }), XRPL);
     expect(card.headline.text).toBe("5 SOLO");
