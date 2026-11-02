@@ -53,7 +53,7 @@ describe("the fixture generators, loaded from derived-trades.ts", () => {
     for (const { currency, issuer } of FEATURED_XRPL_TOKENS) expect(ammFixtures().has(`xrpl/data-api/amm/pools@asset=${currency}+${issuer}&limit=20.json`), currency).toBe(true);
   });
 
-  // A whole generation and three of its generators again: about 1.5 s on a developer's machine, and close to 5 s on a CI runner.
+  // A whole generation and five of its generators again: about 1.8 s on a developer's machine, and more than 5 s on a CI runner.
   it("generate the files `pnpm fixtures:sync` wrote, which loads them from http-fixtures.ts", () => {
     expect(derivedExchanges(readLedgers("xrpl")).length).toBeGreaterThan(0);
     const generated = generate();
