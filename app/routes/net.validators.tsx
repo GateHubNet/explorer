@@ -35,8 +35,11 @@ export const handle = { navSection: "network", navPage: "validators" } satisfies
 /** What this route's loader answers: the view builder's page, the ledger it was built from and the Worker's build, for an open page to order its answers and to tell a deploy. */
 type ValidatorsLoaderData = ValidatorsPageData & { anchor: Anchor; build: string };
 
-/** The parts of the page that a beat may keep when its answer has them failed and the page shows them loaded (`keepLoaded`, spec 2.3): S, L and A. */
-const VALIDATORS_PARTS = ["summary", "list", "amendments"] as const;
+/**
+ * The parts of the page that a beat may keep when its answer has them failed and the page shows them loaded (`keepLoaded`, spec 2.3): S, L and A, and the countries card, which is
+ * counted from L (plan ruling R1: a beat whose L failed would otherwise show a failed card beside the list it keeps).
+ */
+const VALIDATORS_PARTS = ["summary", "list", "amendments", "map"] as const;
 
 /** The validators one call asks for: D1's maximum, so that one cached call per network serves every view and the filters are applied in the Worker (spec 3.2). */
 const LIST_LIMIT = 1000;
@@ -107,7 +110,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   if (validatorsHref(net.id, canonical) !== asked) return redirect(validatorsHref(net.id, canonical), { status: 302, headers: cacheClassHeaders("short") });
 
   // The network the page is given is what the browser may have: the facts the page draws, and not the data API's URL or the node's.
-  const page = validatorsPage({ network: networkInfoOf(net), params: canonical, summary: partOf(summary), list: partOf(list), amendments: partOf(amendments) });
+  const page = validatorsPage({ network: networkInfoOf(net), params: canonical, summary: partOf(summary), list: partOf(list), amendments: partOf(amendments), features: net.features });
 
   const failures = (
     [

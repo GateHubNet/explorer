@@ -119,6 +119,8 @@ function build(over: Partial<Input> = {}): ValidatorsPageData {
     summary: ok(summary()),
     list: ok(listOf(fleet())),
     amendments: ok(amendmentsSample()),
+    // Off unless a test is about the countries: the older tests are of the page E6 built.
+    features: { validatorsMap: false },
     ...over,
   });
 }
@@ -526,6 +528,116 @@ describe("ValidatorsPage, the filter form", () => {
     cleanup();
     mount(build({ params: { scope: "all", q: "north" } }));
     expect(screen.getAllByRole("link", { name: "Clear filters" }).map((link) => link.getAttribute("href"))).toEqual(["/xrpl/validators?scope=all"]);
+  });
+});
+
+// ---- The countries: the Country filter and each row's place (E13 spec 4.4) ------------------------------------------------------------------------
+
+const MAP_ON = { validatorsMap: true } as const;
+
+/** The fleet with what D8 says of each row's toml: northpeak and shoreline are served from DE, tidewater from FR, `nameless` gave `{}` and `quiet` has no toml. */
+function placedFleet(): ValidatorRow[] {
+  const [north, shore, tide, nameless, quiet] = fleet() as [ValidatorRow, ValidatorRow, ValidatorRow, ValidatorRow, ValidatorRow];
+  return [{ ...north, toml: { server_country: "DE" } }, { ...shore, toml: { server_country: "DE" } }, { ...tide, toml: { server_country: "FR" } }, { ...nameless, toml: {} }, quiet];
+}
+
+describe("ValidatorsPage, the countries", () => {
+  const form = () => screen.getByRole("search", { name: "Filter validators" });
+  const placed = ok(listOf(placedFleet()));
+  const hiddenFields = () => Array.from(form().querySelectorAll<HTMLInputElement>('input[type="hidden"]'), (input) => [input.name, input.value]);
+
+  it("draws the Country select after Votes yes for, with the view's value", () => {
+    mount(build({ features: MAP_ON, list: placed, params: { scope: "all", country: "FR" } }));
+    const labels = Array.from(form().querySelectorAll("label"), (label) => label.textContent).filter((label) => ["Listed by", "Votes yes for", "Country"].includes(label ?? ""));
+    expect(labels).toEqual(["Listed by", "Votes yes for", "Country"]);
+    const country = within(form()).getByLabelText("Country") as unknown as HTMLSelectElement;
+    expect(country.name).toBe("country");
+    expect(country.value).toBe("FR");
+    expect(Array.from(country.options, (option) => [option.value, option.textContent])).toEqual([
+      ["", "all countries"],
+      ["FR", "France"],
+      ["DE", "Germany"],
+      ["unknown", "Unknown location"],
+    ]);
+    // The select carries the country: no hidden field beside it.
+    expect(hiddenFields()).toEqual([["scope", "all"]]);
+  });
+
+  it("has no Country select while the switch is off, and none where nothing places a validator but Unknown location", () => {
+    mount(build({ list: placed }));
+    expect(within(form()).queryByLabelText("Country")).toBeNull();
+    cleanup();
+    mount(build({ features: MAP_ON }));
+    const country = within(form()).getByLabelText("Country") as unknown as HTMLSelectElement;
+    expect(Array.from(country.options, (option) => option.value)).toEqual(["", "unknown"]);
+  });
+
+  it("applies a country with the other fields, and sets the select back to every country", async () => {
+    const { router } = mount(build({ features: MAP_ON, list: placed }));
+    fireEvent.change(within(form()).getByLabelText("Country"), { target: { value: "DE" } });
+    fireEvent.change(within(form()).getByLabelText("Search validators by domain or key"), { target: { value: "north" } });
+    fireEvent.submit(form());
+    await act(async () => {});
+    expect(router.state.location.pathname + router.state.location.search).toBe("/xrpl/validators?country=DE&q=north");
+    cleanup();
+    const again = mount(build({ features: MAP_ON, list: placed, params: { scope: "unl", country: "DE" } }));
+    fireEvent.change(within(form()).getByLabelText("Country"), { target: { value: "" } });
+    fireEvent.submit(form());
+    await act(async () => {});
+    expect(again.router.state.location.pathname + again.router.state.location.search).toBe("/xrpl/validators");
+  });
+
+  it("keeps a country in a hidden field when the map failed", async () => {
+    const failed = build({ features: MAP_ON, list: FAILED, params: { scope: "unl", country: "DE" } });
+    expect(failed.map.state).toBe("failed");
+    const { router } = mount(failed);
+    expect(within(form()).queryByLabelText("Country")).toBeNull();
+    expect(hiddenFields()).toEqual([["country", "DE"]]);
+    // Apply does not drop what the address applies as given.
+    fireEvent.change(within(form()).getByLabelText("Search validators by domain or key"), { target: { value: "x" } });
+    fireEvent.submit(form());
+    await act(async () => {});
+    expect(router.state.location.pathname + router.state.location.search).toBe("/xrpl/validators?country=DE&q=x");
+    // With the switch off the select is not drawn either, and the field keeps the address's country the same way.
+    cleanup();
+    mount(build({ list: placed, params: { scope: "unl", country: "DE" } }));
+    expect(hiddenFields()).toEqual([["country", "DE"]]);
+  });
+
+  it("draws the place after the short key, in the page's own face", () => {
+    mount(build({ features: MAP_ON, list: placed, params: { scope: "all" } }));
+    const sub = (name: string | RegExp) => within(rowOf(name)).getAllByText(/./).find((element) => element.classList.contains("validators__sub"))!;
+    const north = sub("northpeak.example");
+    expect(north.textContent).toBe(`${shortHash(KEY_NORTH)} · Germany`);
+    // The key is mono and the place is not: it is a name, in a span of its own inside the mono line.
+    expect(north.classList.contains("mono")).toBe(true);
+    const place = north.querySelector(".validators__place")!;
+    expect(place.textContent).toBe(" · Germany");
+    expect(place.classList.contains("mono")).toBe(false);
+    expect(sub("tidewater.example").textContent).toBe(`${shortHash(KEY_TIDE)} · France`);
+    // No server country, no place, and no separator: the line is what it was.
+    expect(sub(shortHash(KEY_NAMELESS)).textContent).toBe("no domain");
+    expect(sub(shortHash(KEY_NAMELESS)).querySelector(".validators__place")).toBeNull();
+  });
+
+  it("draws no place with the switch off", () => {
+    mount(build({ list: placed, params: { scope: "all" } }));
+    expect(table().querySelector(".validators__place")).toBeNull();
+    expect(text(table())).not.toContain("Germany");
+  });
+
+  it("draws the empty-UNL sentence and its link, in place of the filters' sentence", () => {
+    mount(build({ features: MAP_ON, list: placed, params: { scope: "unl", country: "FR" } }));
+    const empty = table().closest('[role="region"]')!.querySelector(".table__empty")!;
+    expect(empty.textContent).toBe("No validator in France is on the default UNL. Show the 1 in All");
+    expect(within(empty as HTMLElement).getByRole("link", { name: "Show the 1 in All" }).getAttribute("href")).toBe("/xrpl/validators?scope=all&country=FR");
+    expect(text(empty)).not.toContain("No validators match these filters.");
+    cleanup();
+    // Unknown location keeps E6's sentence and its link.
+    mount(build({ features: MAP_ON, list: placed, params: { scope: "unl", country: "unknown", q: "nameless" } }));
+    const other = table().closest('[role="region"]')!.querySelector(".table__empty")!;
+    expect(other.textContent).toBe("No validators match these filters. Clear filters");
+    expect(within(other as HTMLElement).getByRole("link", { name: "Clear filters" }).getAttribute("href")).toBe("/xrpl/validators");
   });
 });
 

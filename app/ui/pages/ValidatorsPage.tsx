@@ -134,9 +134,11 @@ function viewOf(form: HTMLFormElement): ValidatorsParams {
   const view: ValidatorsParams = { scope: field("scope") === "all" ? "all" : "unl" };
   const publisher = field("publisher");
   const amendment = field("amendment");
+  const country = field("country");
   const q = field("q");
   if (publisher !== undefined) view.publisher = publisher;
   if (amendment !== undefined) view.amendment = amendment;
+  if (country !== undefined) view.country = country;
   if (q !== undefined) view.q = q;
   return view;
 }
@@ -159,7 +161,7 @@ function FilterSelect({ name, label, anyLabel, options, value }: { name: string;
 }
 
 /**
- * The search field, "Listed by" and "Votes yes for" (each only while the data it lists loaded), and Apply. A plain GET form that works without a script (the
+ * The search field, "Listed by", "Votes yes for" and "Country" (each only while the data it lists loaded), and Apply. A plain GET form that works without a script (the
  * list's canonical redirect tidies its empty fields); with one, Apply goes straight to the canonical address of the fields and keeps the window where it is. The
  * fields are uncontrolled: the page is keyed by its view, so another view is a new form, and a beat that brings the same view leaves what the visitor typed alone.
  * A filter whose field is not drawn (its data did not load) rides in a hidden field, so that Apply does not drop what the address applies as given.
@@ -170,10 +172,13 @@ function FilterForm({ data }: { data: ValidatorsPageData }) {
   const { params, hrefs } = data;
   const publishers = data.summary.state === "ok" ? data.summary.publishers : null;
   const amendments = data.amendments.state === "ok" && data.amendments.options.length > 0 ? data.amendments.options : null;
+  // The countries are L's: while L failed (or the switch is off) there is no select, and the country of the address rides in a hidden field like the other filters.
+  const countries = data.map.state === "ok" ? data.map.options : null;
   const hidden: Array<[string, string]> = [];
   if (params.scope === "all") hidden.push(["scope", "all"]);
   if (publishers === null && params.publisher !== undefined) hidden.push(["publisher", params.publisher]);
   if (amendments === null && params.amendment !== undefined) hidden.push(["amendment", params.amendment]);
+  if (countries === null && params.country !== undefined) hidden.push(["country", params.country]);
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -201,6 +206,7 @@ function FilterForm({ data }: { data: ValidatorsPageData }) {
       </div>
       {publishers !== null && <FilterSelect name="publisher" label="Listed by" anyLabel="any publisher" options={publishers} value={params.publisher} />}
       {amendments !== null && <FilterSelect name="amendment" label="Votes yes for" anyLabel="any amendment" options={amendments} value={params.amendment} />}
+      {countries !== null && <FilterSelect name="country" label="Country" anyLabel="all countries" options={countries} value={params.country} />}
       {hidden.map(([name, value]) => (
         <input key={name} type="hidden" name={name} value={value} />
       ))}
@@ -231,7 +237,10 @@ function ValidatorCell({ row }: { row: ValidatorRowView }) {
         {row.unl && <UnlTag listedBy={row.listedBy} />}
         {row.negativeUnl && <NegativeUnlTag />}
       </span>
-      <span className="validators__sub mono">{row.sub}</span>
+      <span className="validators__sub mono">
+        {row.sub}
+        {row.place !== null && <span className="validators__place">{` · ${row.place}`}</span>}
+      </span>
     </span>
   );
 }
@@ -354,7 +363,14 @@ function ValidatorsCard({ data, holds, onRetry, retrying }: { data: ValidatorsPa
               rowKey={(row) => row.validation_public_key}
               minWidth={980}
               empty={
-                hrefs.clear !== null ? (
+                list.unlEmpty !== null ? (
+                  <>
+                    {list.unlEmpty.text}{" "}
+                    <Link to={list.unlEmpty.link.href} preventScrollReset>
+                      {list.unlEmpty.link.text}
+                    </Link>
+                  </>
+                ) : hrefs.clear !== null ? (
                   <>
                     No validators match these filters.{" "}
                     <Link to={hrefs.clear} preventScrollReset>

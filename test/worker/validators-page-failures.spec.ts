@@ -211,6 +211,22 @@ describe("a call the list cannot be built without", () => {
     expect(negative.sub).not.toContain("embermill.example");
   });
 
+  it("xahau: L failing hides the Country select and keeps ?country=FI in a hidden field", async () => {
+    // The hold of the test before is over; S and A are in the Cache API, and L, which never answers well in this file for Xahau, asks the mock.
+    mock = mockUpstream("xahau", { [LIST]: unavailable() });
+    const path = "/xahau/validators?country=FI";
+    const { response, html } = await render(path);
+
+    await expectDegraded(path, response);
+    expect(statusesOf(mock, LIST)).toEqual([503]);
+    // The countries are L's: no select, and no place; the country of the address rides in a hidden field, so that Apply does not drop what the address applies as given.
+    expect(hasField(html, "Country")).toBe(false);
+    expect(html).not.toContain("validators__place");
+    expect(html).toMatch(/<input[^>]*type="hidden"[^>]*name="country"[^>]*value="FI"|<input[^>]*name="country"[^>]*type="hidden"[^>]*value="FI"/);
+    // The other filters are the page's: "Votes yes for" is A's, which loaded.
+    expect(hasField(html, "Votes yes for")).toBe(true);
+  });
+
   it("xahau: L past the 4.5 s deadline is that card, 'took too long', and the rest of the page is there", async () => {
     // L never answers. `Date` is faked and frozen here, so the deadline (`at - Date.now()`) is the full 4.5 s of the real timer.
     mock = mockUpstream("xahau", { [LIST]: () => new Promise<Response>(() => {}) });

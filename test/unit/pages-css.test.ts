@@ -205,6 +205,12 @@ describe("the validators list", () => {
   it("colours the swatch of a version's group from its slot, the legend's way", () => {
     expect(rule(pagesCss, ".validators__swatch").background).toBe("var(--mark)");
   });
+
+  // The place is in the mono line of the short key (`.validators__sub.mono`), and a country's name is not a key: its own rule sets the face back.
+  it("sets the place after the short key in the page's face, not the key's mono", () => {
+    expect(rule(pagesCss, ".validators__place")["font-family"]).toBe("var(--font-sans)");
+    expect(rule(baseCss, ".mono")["font-family"]).toBe("var(--font-mono)");
+  });
 });
 
 describe("the validator page", () => {

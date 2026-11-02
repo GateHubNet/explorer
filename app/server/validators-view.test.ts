@@ -90,9 +90,13 @@ function build(over: Partial<Input> = {}): ValidatorsPageData {
     summary: ok(summarySample()),
     list: ok(listOf(fleet())),
     amendments: ok(amendmentsSample()),
+    // The switch is off unless a test is about the map: the older tests are of the page E6 built.
+    features: { validatorsMap: false },
     ...over,
   });
 }
+
+const MAP_ON = { validatorsMap: true } as const;
 
 /** The parts that must have loaded. */
 function shown(data: ValidatorsPageData) {
@@ -252,6 +256,96 @@ describe("validatorsPage: the country filter", () => {
     expect(hrefs.scope).toEqual({ unl: "/xrpl/validators?country=DE", all: "/xrpl/validators?scope=all&country=DE" });
     expect(hrefs.action).toBe("/xrpl/validators");
     expect(build({ params: { scope: "unl", country: "unknown", q: "x" }, list: placed }).hrefs.scope.all).toBe("/xrpl/validators?scope=all&country=unknown&q=x");
+  });
+});
+
+// ---- The map, the place under each row and the empty-UNL sentence (E13 spec 4.1, 4.2 and 4.4) ----------------------------------------------------
+
+describe("validatorsPage: the countries card's data", () => {
+  const placed = ok(listOf(placedFleet()));
+  const mapOf = (over: Partial<Input> = {}) => {
+    const { map } = build({ features: MAP_ON, list: placed, ...over });
+    if (map.state !== "ok") throw new Error(`the map is ${map.state}`);
+    return map;
+  };
+
+  it("gives the map from every row of L, whatever the chip and filters", () => {
+    const figures = (map: ReturnType<typeof mapOf>) => map.rows.map((row) => [row.code, row.validators, row.unl, row.share]);
+    const wholeList = mapOf({ params: { scope: "unl" } });
+    expect(wholeList.total).toBe(6);
+    expect(figures(wholeList)).toEqual([
+      ["DE", "2", "2", "33.3%"],
+      ["FR", "1", "0", "16.7%"],
+    ]);
+    expect(wholeList.unknown.count).toBe("3");
+    // A search that keeps one row, the UNL chip, a publisher and an amendment change the list and not the card.
+    for (const params of [{ scope: "unl", q: "tidewater" }, { scope: "all", q: "nothing-matches-this" }, { scope: "unl", publisher: "vl.ripple.com" }, { scope: "all", amendment: "DID" }] as const) {
+      const map = mapOf({ params });
+      expect([map.total, figures(map), map.unknown.count], JSON.stringify(params)).toEqual([6, figures(wholeList), "3"]);
+    }
+    // The chosen country is the view's: the card says so, and its rows are still every country's.
+    const chosen = mapOf({ params: { scope: "all", country: "FR" } });
+    expect(chosen.chosen).toEqual({ name: "France", clear: "/xrpl/validators?scope=all" });
+    expect(chosen.rows.map((row) => row.code)).toEqual(["DE", "FR"]);
+    // L's marker: the card counts the first 1,000 and says so.
+    expect(mapOf().limited).toBeNull();
+    expect(mapOf({ list: ok(listOf(placedFleet(), "WzEwMDAsIm5IQiJd")) }).limited).toBe("The first 1,000 validators in this order are shown.");
+  });
+
+  it("has the map off with the switch off, failed with L failed", () => {
+    expect(build({ list: placed }).map).toEqual({ state: "off" });
+    expect(build({ features: { validatorsMap: false }, list: FAILED }).map).toEqual({ state: "off" });
+    expect(build({ features: MAP_ON, list: FAILED }).map).toEqual({ state: "failed" });
+    expect(build({ features: MAP_ON, list: MISSING }).map).toEqual({ state: "failed" });
+    // The map is the list's: the other parts failing take nothing from it.
+    expect(build({ features: MAP_ON, list: placed, summary: FAILED, amendments: FAILED }).map.state).toBe("ok");
+  });
+
+  it("names the place of a row, and none without a server country or with the switch off", () => {
+    const placeOf = (data: ValidatorsPageData) => listPart(data).rows.map((row) => [row.validation_public_key, row.place]);
+    expect(placeOf(build({ features: MAP_ON, list: placed, params: { scope: "all" } }))).toEqual([
+      [KEY_NORTH, "Germany"],
+      [KEY_SHORE, "Germany"],
+      [KEY_TIDE, "France"],
+      // read and gave `{}`, not read yet, and a toml with an owner country alone: no server country.
+      [KEY_NAMELESS, null],
+      [KEY_QUIET, null],
+      [KEY_FIFTH, null],
+    ]);
+    // A code this build's table lacks is named by itself.
+    const [north, ...rest] = placedFleet() as [ValidatorRow, ...ValidatorRow[]];
+    expect(placeOf(build({ features: MAP_ON, list: ok(listOf([{ ...north, toml: { server_country: "QQ" } }, ...rest])) }))[0]).toEqual([KEY_NORTH, "QQ"]);
+    // The switch off: a row has no place whatever its toml says.
+    expect(placeOf(build({ list: placed, params: { scope: "all" } })).every(([, place]) => place === null)).toBe(true);
+  });
+
+  it("says no validator of the country is on the default UNL, with a link to All", () => {
+    // FR has one validator, tidewater, which is off the UNL: the UNL chip shows none of it.
+    const data = build({ features: MAP_ON, list: placed, params: { scope: "unl", country: "FR" } });
+    expect(listPart(data).empty).toBe(true);
+    expect(listPart(data).unlEmpty).toEqual({
+      text: "No validator in France is on the default UNL.",
+      link: { text: "Show the 1 in All", href: "/xrpl/validators?scope=all&country=FR" },
+    });
+    // The other filters stay in the link; the count is of the rows All would show with them.
+    expect(listPart(build({ features: MAP_ON, list: placed, params: { scope: "unl", country: "FR", q: "tide" } })).unlEmpty?.link).toEqual({
+      text: "Show the 1 in All",
+      href: "/xrpl/validators?scope=all&country=FR&q=tide",
+    });
+  });
+
+  it("has no such sentence where it would be wrong: All, a country with UNL members, unknown location, no row in All, other filters that keep none, or the switch off", () => {
+    const unlEmptyOf = (params: ValidatorsParams, over: Partial<Input> = {}) => listPart(build({ features: MAP_ON, list: placed, params, ...over })).unlEmpty;
+    expect(unlEmptyOf({ scope: "all", country: "FR" })).toBeNull();
+    // DE has rows on the UNL, so the list is not empty.
+    expect(unlEmptyOf({ scope: "unl", country: "DE" })).toBeNull();
+    // `unknown` is no country: the view keeps E6's "No validators match these filters.".
+    expect(unlEmptyOf({ scope: "unl", country: "unknown", q: "nameless" })).toBeNull();
+    // A code with no row in All says nothing about the UNL.
+    expect(unlEmptyOf({ scope: "unl", country: "JP" })).toBeNull();
+    // With a search that none of FR's rows meets, All would not show a row either: no link that promises one.
+    expect(unlEmptyOf({ scope: "unl", country: "FR", q: "northpeak" })).toBeNull();
+    expect(unlEmptyOf({ scope: "unl", country: "FR" }, { features: { validatorsMap: false } })).toBeNull();
   });
 });
 

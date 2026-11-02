@@ -1228,7 +1228,7 @@ const FAILED = { state: "failed" } as const;
  * The list's data at ledger `index` for `params`, every part loaded, made by build `build`. The quorum is `index - 72` ("28 of 35" at ledger
  * 100): the figure that says which answer is on screen. The one validator it lists is `northpeak.example`.
  */
-function validatorsAt(index: number, over: Partial<ValidatorsData> = {}, build = "abc1234", params: ValidatorsParams = { scope: "unl" }): ValidatorsData {
+function validatorsAt(index: number, over: Partial<ValidatorsData> = {}, build = "abc1234", params: ValidatorsParams = { scope: "unl" }, features = { validatorsMap: false }): ValidatorsData {
   return {
     ...validatorsPage({
       network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" },
@@ -1236,6 +1236,7 @@ function validatorsAt(index: number, over: Partial<ValidatorsData> = {}, build =
       summary: ok(summarySample({ quorum: { value: index - 72, unl_size: 35, negative_unl: 1, node: index - 72 } })),
       list: ok({ result: "success", count: 1, validators: [validatorRowSample()] }),
       amendments: ok(amendmentsSample()),
+      features,
     }),
     anchor: { lastValidated: index, closeTime: 1792256472 + index },
     build,
@@ -1382,6 +1383,20 @@ describe("net.validators.tsx", () => {
     expect(screen.getByRole("table", { name: "Validators" })).toBeTruthy();
     expect(screen.getByText("northpeak.example")).toBeTruthy();
     expect(screen.queryByText("Couldn’t load the validators.")).toBeNull();
+  });
+
+  it("keeps the map with the list when a beat has L failed", async () => {
+    // The map is counted from L: a beat whose L failed has it failed too, and `VALIDATORS_PARTS` names it so that it is kept with the list (plan ruling R1).
+    const shown = validatorsAt(100, {}, "abc1234", { scope: "unl" }, { validatorsMap: true });
+    expect(shown.map.state).toBe("ok");
+    expect(validatorsAt(101, { list: FAILED, map: FAILED }).map.state).toBe("failed");
+    mountValidators(async () => validatorsAt(101, { list: FAILED, map: FAILED }), shown);
+    expect(screen.getByLabelText("Country")).toBeTruthy();
+    await pass(10_000);
+    // The answer was taken (its quorum is on screen); its failed map was not: the Country select is still drawn from the map on screen, beside the list that was kept.
+    expect(quorum()).toBe("29 of 35");
+    expect(screen.getByLabelText("Country")).toBeTruthy();
+    expect(screen.getByRole("table", { name: "Validators" })).toBeTruthy();
   });
 
   it("keeps the overview and the amendments' filter the same way, each part on its own", async () => {

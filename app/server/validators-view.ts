@@ -12,9 +12,11 @@ import { shortHash } from "../domain/format";
 import { formatDate } from "../domain/time-words";
 import { UNKNOWN_COUNTRY, validatorHref, validatorsHref, type ValidatorsParams } from "../domain/validators-params";
 import type { ShareData, Slot } from "../ui/charts/types";
+import type { Features } from "../ui/features";
 import type { NetworkInfo } from "../ui/networks";
 import type { Loaded } from "./account-view";
 import type { AmendmentRow, AmendmentsList, NativeFees, NegativeUnlMember, NextFlagLedger, UnlPublisher, ValidatorRow, ValidatorsList, ValidatorsSummary } from "./api-types";
+import { countryName, LIMITED_SENTENCE, validatorMapOf, type ValidatorMapView } from "./validator-map-view";
 import {
   clock,
   compareFee,
@@ -91,6 +93,8 @@ export interface ValidatorRowView {
   fees: FeeCell[] | null;
   /** The amendments it votes yes for, each a link to its page. */
   yes: { label: string; href: string }[];
+  /** The name of its toml's server country (its code when this build's table lacks it); `null` without one, and while `VALIDATORS_MAP` is off. */
+  place: string | null;
   /** Unix seconds; `null` for a validator never seen. */
   lastSeen: number | null;
 }
@@ -110,8 +114,20 @@ export interface ValidatorsPageData {
         publishers: Option[] | null;
       }
     | { state: "failed" };
-  list: { state: "ok"; counts: { unl: number; all: number }; rows: ValidatorRowView[]; footer: string[]; empty: boolean } | { state: "failed" };
+  list:
+    | {
+        state: "ok";
+        counts: { unl: number; all: number };
+        rows: ValidatorRowView[];
+        footer: string[];
+        empty: boolean;
+        /** With the UNL chip, a chosen country that has validators but none on the UNL: the sentence that says so and the link to the same view in All (spec 4.4); else `null`. */
+        unlEmpty: { text: string; link: { text: string; href: string } } | null;
+      }
+    | { state: "failed" };
   amendments: { state: "ok"; options: Option[] } | { state: "failed" };
+  /** The countries card, counted from every row of L (spec 4.2). `off` while `VALIDATORS_MAP` is off, `failed` when L failed (the card draws a section error then). */
+  map: ({ state: "ok" } & ValidatorMapView) | { state: "failed" } | { state: "off" };
 }
 
 // ---- Version slots (3.2) -------------------------------------------------------------------------------------------------------------------------
@@ -337,7 +353,7 @@ function feeCells(vote: NonNullable<ValidatorRow["fee_vote"]>, fees: NativeFees 
   ];
 }
 
-function rowView(net: NetworkInfo, row: ValidatorRow, fees: NativeFees | null): ValidatorRowView {
+function rowView(net: NetworkInfo, row: ValidatorRow, fees: NativeFees | null, places: boolean): ValidatorRowView {
   const key = row.validation_public_key;
   const domain = row.domain !== undefined && row.domain !== "" ? row.domain : undefined;
   const seen = row.last_seen === undefined ? Number.NaN : unixOf(row.last_seen);
@@ -354,6 +370,7 @@ function rowView(net: NetworkInfo, row: ValidatorRow, fees: NativeFees | null): 
     agreement: { text: scoreText(row.agreement_24h.score), incomplete: row.agreement_24h.incomplete },
     fees: row.fee_vote === undefined ? null : feeCells(row.fee_vote, fees, net.native),
     yes: (row.amendment_votes?.yes ?? []).map((yes) => ({ label: yes.name ?? shortHash(yes.id), href: amendmentHref(net.id, amendmentSegment(yes)) })),
+    place: places && row.toml?.server_country !== undefined ? countryName(row.toml.server_country) : null,
     lastSeen: Number.isNaN(seen) ? null : seen,
   };
 }
@@ -365,8 +382,21 @@ function footerOf(net: NetworkInfo, shown: number, hasFilter: boolean, summary: 
   const units = `Fee votes in ${net.native} / ${net.native} / drops`;
   if (summary?.fees !== undefined) footer.push(`${units}; ↑ ↓ against the current value`);
   else footer.push(units, feesNotCompared(summary === null ? "failed" : "unknown"));
-  if (marker) footer.push("The first 1,000 validators in this order are shown.");
+  if (marker) footer.push(LIMITED_SENTENCE);
   return footer;
+}
+
+/**
+ * The sentence for a view of the UNL whose chosen country has validators, all of them off it (spec 4.4): "No validator in Germany is on the default UNL." and the link to the same
+ * view in All, "Show the 3 in All". Only for a code (`unknown` is no country: its view keeps E6's "No validators match these filters."), and `n` counts the rows All would show
+ * with the other filters kept, so the link never promises rows it does not show; at 0 there is no sentence (plan ruling C13).
+ */
+function unlEmptyOf(net: string, params: ValidatorsParams, all: readonly ValidatorRow[], amendments: readonly AmendmentRow[] | null) {
+  const { country } = params;
+  if (params.scope !== "unl" || country === undefined || country === UNKNOWN_COUNTRY) return null;
+  const n = filtered(all, { ...params, scope: "all" }, amendments).length;
+  if (n === 0) return null;
+  return { text: `No validator in ${countryName(country)} is on the default UNL.`, link: { text: `Show the ${count(n)} in All`, href: validatorsHref(net, { ...params, scope: "all" }) } };
 }
 
 function listOf(
@@ -375,6 +405,7 @@ function listOf(
   list: ValidatorsList,
   summary: ValidatorsSummary | null,
   amendments: readonly AmendmentRow[] | null,
+  features: Pick<Features, "validatorsMap">,
 ): Extract<ValidatorsPageData["list"], { state: "ok" }> {
   const all = list.validators;
   const kept = filtered(all, params, amendments);
@@ -382,9 +413,10 @@ function listOf(
   return {
     state: "ok",
     counts: { unl: all.filter((row) => row.unl).length, all: all.length },
-    rows: kept.map((row) => rowView(net, row, fees)),
+    rows: kept.map((row) => rowView(net, row, fees, features.validatorsMap)),
     footer: footerOf(net, kept.length, hasFilter(params), summary, list.marker !== undefined),
     empty: kept.length === 0,
+    unlEmpty: kept.length === 0 && features.validatorsMap ? unlEmptyOf(net.id, params, all, amendments) : null,
   };
 }
 
@@ -412,8 +444,10 @@ export function validatorsPage(input: {
   summary: Loaded<ValidatorsSummary>;
   list: Loaded<ValidatorsList>;
   amendments: Loaded<AmendmentsList>;
+  /** `validatorsMap`: the countries card, the place under each row and the empty-UNL sentence. (The filter by `country` needs no switch here: the loader drops the parameter while it is off.) */
+  features: Pick<Features, "validatorsMap">;
 }): ValidatorsPageData {
-  const { network, params } = input;
+  const { network, params, features } = input;
   const summary = valueOf(input.summary);
   const list = valueOf(input.list);
   const amendments = valueOf(input.amendments);
@@ -434,7 +468,13 @@ export function validatorsPage(input: {
     },
     intro,
     summary: summary === null ? { state: "failed" } : summaryOf(network, summary, new Map((list?.validators ?? []).map((row) => [row.validation_public_key, row]))),
-    list: list === null ? { state: "failed" } : listOf(network, params, list, summary, amendments?.amendments ?? null),
+    list: list === null ? { state: "failed" } : listOf(network, params, list, summary, amendments?.amendments ?? null, features),
     amendments: amendments === null ? { state: "failed" } : { state: "ok", options: amendmentOptions(amendments) },
+    // Counted from every row of L, whatever the scope, the chip and the filters.
+    map: !features.validatorsMap
+      ? { state: "off" }
+      : list === null
+        ? { state: "failed" }
+        : { state: "ok", ...validatorMapOf({ network, params, rows: list.validators, truncated: list.marker !== undefined }) },
   };
 }

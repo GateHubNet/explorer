@@ -77,6 +77,9 @@ function byName(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+/** A country's name, or its code when this build's table lacks it (the Country filter, the map and a row's place say it the same way). */
+export const countryName = (code: string): string => COUNTRIES[code]?.name ?? code;
+
 const validatorsOf = (n: number): string => `${count(n)} ${n === 1 ? "validator" : "validators"}`;
 
 /** The view without its `country`: where a second select of the chosen country, "Clear country" and the like go. */
@@ -116,7 +119,6 @@ export function validatorMapOf(input: { network: NetworkInfo; params: Validators
   const clear = validatorsHref(net, withoutCountry(params));
   /** Where a country's circle and row go: its view, or, for the chosen one, the view without it. */
   const hrefOf = (code: string): string => (code === chosen ? clear : validatorsHref(net, { ...params, country: code }));
-  const nameOf = (code: string): string => COUNTRIES[code]?.name ?? code;
 
   const circles: CircleView[] = placed.map(([code, { validators, unl }]) => {
     const point = COUNTRIES[code]!;
@@ -141,7 +143,7 @@ export function validatorMapOf(input: { network: NetworkInfo; params: Validators
 
   const countryRows: CountryRowView[] = countries.map(([code, { validators, unl }]) => ({
     code,
-    name: nameOf(code),
+    name: countryName(code),
     href: COUNTRIES[code] === undefined ? null : hrefOf(code),
     current: code === chosen,
     validators: count(validators),
@@ -162,7 +164,7 @@ export function validatorMapOf(input: { network: NetworkInfo; params: Validators
   const optionCodes = placed.map(([code]) => code);
   if (chosen !== undefined && chosen !== UNKNOWN_COUNTRY && !optionCodes.includes(chosen)) optionCodes.push(chosen);
   optionCodes.sort(byName);
-  const options = optionCodes.map((code) => ({ value: code, label: nameOf(code) }));
+  const options = optionCodes.map((code) => ({ value: code, label: countryName(code) }));
   if (unknown > 0 || chosen === UNKNOWN_COUNTRY) options.push({ value: UNKNOWN_COUNTRY, label: UNKNOWN_NAME });
 
   return {
@@ -171,7 +173,7 @@ export function validatorMapOf(input: { network: NetworkInfo; params: Validators
     circles,
     rows: countryRows,
     unknown: { count: count(unknown), noun: unknown === 1 ? "validator" : "validators", href: unknown > 0 ? validatorsHref(net, { ...params, country: UNKNOWN_COUNTRY }) : null },
-    chosen: chosen === undefined ? null : { name: chosen === UNKNOWN_COUNTRY ? UNKNOWN_NAME : nameOf(chosen), clear },
+    chosen: chosen === undefined ? null : { name: chosen === UNKNOWN_COUNTRY ? UNKNOWN_NAME : countryName(chosen), clear },
     unplaced,
     limited: truncated ? LIMITED_SENTENCE : null,
     options,

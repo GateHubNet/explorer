@@ -1,15 +1,19 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { shortHash } from "../../app/domain/format";
 import { loader } from "../../app/routes/net.validators";
 import { CACHE_CLASSES, HOME_CALL_TTL_SECONDS, VALIDATORS_CALL_TTL_SECONDS } from "../../app/server/cache-class";
+import { COUNTRIES } from "../../app/server/countries";
 import { createLoadContext, type Env } from "../../app/server/env";
+import type { ValidatorsPageData } from "../../app/server/validators-view";
 import xrplAmendments from "../fixtures/http/xrpl/data-api/network/amendments.json";
 import xrplList from "../fixtures/http/xrpl/data-api/network/validators@limit=1000&scope=all.json";
 import xrplSummary from "../fixtures/http/xrpl/data-api/network/validators/summary.json";
 import xahauAmendments from "../fixtures/http/xahau/data-api/network/amendments.json";
 import xahauList from "../fixtures/http/xahau/data-api/network/validators@limit=1000&scope=all.json";
 import { anchors, hrefs, pageClient, tableRows, textOf } from "../support/pages";
+import { cold } from "../support/subrequest-miss";
 import { mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 import { AMENDMENTS, LAST_VALIDATED, LIST, SUMMARY } from "../support/validators-calls";
 
@@ -332,6 +336,58 @@ describe("the country parameter", () => {
   });
 });
 
+// ---- The country in the list: each row's place and the Country select (E13 spec 4.4) -------------------------------------------------------------
+
+/** The Country select of a page: its options in order, with the one that is selected; `null` where the page has none. */
+function countrySelect(html: string): Array<{ value: string; label: string; selected: boolean }> | null {
+  const select = /<select[^>]*name="country"[^>]*>([\s\S]*?)<\/select>/.exec(html);
+  if (!select) return null;
+  return [...select[1]!.matchAll(/<option value="([^"]*)"( selected(?:="")?)?>([\s\S]*?)<\/option>/g)].map((option) => ({ value: option[1]!, label: textOf(option[3]!), selected: option[2] !== undefined }));
+}
+
+describe("the country in the list", () => {
+  it("shows each row's country after its short key, and none for a row whose toml gives no server country", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page("/xrpl/validators?scope=all");
+    const keys = tableKeys(html);
+    expect(keys).toEqual(xrplList.validators.map((row) => row.validation_public_key));
+    const lines = tableRows(html, "Validators").slice(1);
+    expect(lines).toHaveLength(keys.length);
+    let placed = 0;
+    lines.forEach((cells, index) => {
+      const row = xrplList.validators[index] as CountryRow;
+      const code = row.toml?.server_country;
+      if (code === undefined) {
+        expect(cells[0], row.validation_public_key).not.toContain(" · ");
+        return;
+      }
+      placed += 1;
+      expect(cells[0]!.endsWith(`${shortHash(row.validation_public_key)} · ${COUNTRIES[code]!.name}`), `${row.validation_public_key}: ${cells[0]}`).toBe(true);
+    });
+    // The control: the fixture has rows of both kinds, so that the two branches above ran.
+    expect(placed).toBeGreaterThan(0);
+    expect(placed).toBeLessThan(keys.length);
+  });
+
+  it("selects DE in the Country select on ?country=DE, offering the countries of L by name and Unknown location last", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page("/xrpl/validators?scope=all&country=DE");
+    const options = countrySelect(html)!;
+    expect(options).not.toBeNull();
+    expect(options[0]).toEqual({ value: "", label: "all countries", selected: false });
+    expect(options.filter((option) => option.selected)).toEqual([{ value: "DE", label: "Germany", selected: true }]);
+    const countries = [...new Set(xrplList.validators.flatMap((row: CountryRow) => row.toml?.server_country ?? []))];
+    expect(options.slice(1, -1).map((option) => option.value).sort()).toEqual(countries.sort());
+    expect(options.at(-1)).toEqual({ value: "unknown", label: "Unknown location", selected: false });
+    // The label is after "Votes yes for", in the filter form.
+    expect(html.indexOf(">Votes yes for<")).toBeGreaterThan(-1);
+    expect(html.indexOf(">Country<")).toBeGreaterThan(html.indexOf(">Votes yes for<"));
+    // The default view selects none of them.
+    const all = countrySelect((await page("/xrpl/validators")).html)!;
+    expect(all.filter((option) => option.selected).map((option) => option.value)).toEqual([""]);
+  });
+});
+
 describe("with VALIDATORS_MAP off (the route's loader, with a load context of its own)", () => {
   const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
 
@@ -359,6 +415,31 @@ describe("with VALIDATORS_MAP off (the route's loader, with a load context of it
     }
     expect(mock.requests).toEqual([]);
     expect(lookups).toEqual([]);
+  });
+
+  /** What the route's loader gives the page for `path` of XRPL while the switch is `map`: the view builder's data. */
+  const pageOf = async (path: string, map: "on" | "off") => ((await loaded(path, map)) as unknown as { data: ValidatorsPageData }).data;
+
+  it("has the map off and no place with VALIDATORS_MAP off, and makes the same calls either way", async () => {
+    mock = mockUpstream("xrpl");
+    // Every lookup of the subrequest cache misses, so that both renders reach the mock with all their calls.
+    cold();
+    const off = await pageOf("/xrpl/validators?scope=all", "off");
+    const offCalls = keysOf(mock.requests).sort();
+    expect(offCalls).toEqual([LAST_VALIDATED, SUMMARY, LIST, AMENDMENTS].sort());
+    expect(off.map).toEqual({ state: "off" });
+    if (off.list.state !== "ok") throw new Error("the list did not load");
+    expect(off.list.rows.length).toBeGreaterThan(0);
+    expect(off.list.rows.every((row) => row.place === null)).toBe(true);
+
+    // The switch is the only difference: the same L has places and a map with it on, from the same calls.
+    const seen = mock.requests.length;
+    const on = await pageOf("/xrpl/validators?scope=all", "on");
+    expect(keysOf(mock.requests.slice(seen)).sort()).toEqual(offCalls);
+    expect(on.map.state).toBe("ok");
+    if (on.list.state !== "ok") throw new Error("the list did not load");
+    expect(on.list.rows.some((row) => row.place !== null)).toBe(true);
+    expect(on.list.rows.map((row) => row.validation_public_key)).toEqual(off.list.rows.map((row) => row.validation_public_key));
   });
 
   it("keeps the country, tidied, with the switch on: the same request has another answer", async () => {
