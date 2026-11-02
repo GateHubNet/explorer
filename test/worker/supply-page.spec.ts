@@ -8,7 +8,7 @@ import { namesCalls } from "../support/names";
 import { alerts, expectDegraded, isStored, keysOf, tiles, unavailable } from "../support/nft-pages";
 import { anchors, pageClient, textOf } from "../support/pages";
 import { cold, keptFor, storedEntries } from "../support/subrequest-miss";
-import { dataApiError, mockUpstream, type UpstreamMock } from "../support/upstream";
+import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 
 // The supply page, `/{net}/supply` (supply spec 1, 3 and 5), on the real Worker against the generated supply answers of the data API (test/fixtures/http/*/data-api/network/supply.json and
 // the minted days of Xahau): what a failed call does to it, the 302 of a query string, the class each answer is stored under, the calls of each network and how long each is kept, and a
@@ -147,6 +147,114 @@ describe("a card's call failing (spec 3.2)", () => {
     expect(text).toContain("Couldn't load the minted days.");
     expect(logged).toHaveBeenCalled();
   });
+});
+
+// A call that never answers (spec 3.2). The cards race `CARD_DEADLINE_MS` (4.5 s from the loader's start) with `byDeadline`; the data API client would give up on a call at 5 s, so a page that
+// answers at 4.5 s has raced it, and one that answers at 5 s has not. S does not race: its answer is the client's own limit. After `byDeadline` is taken off a call, or put on S, one of these fails.
+describe("a call that has not answered (spec 3.2)", () => {
+  const never = () => new Promise<Response>(() => {});
+
+  // One whole render before the first clock starts, so that a test run by itself (`-t`) is not timed over the page's modules loading: the first render of a file takes about half a second more.
+  beforeAll(async () => {
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warm = mockUpstream("xrpl", { [LAST_VALIDATED]: unavailable() });
+    try {
+      await render("/xrpl/supply");
+    } finally {
+      warm.restore();
+      quiet.mockRestore();
+    }
+  });
+
+  /** The parts the loader logged as having taken too long, in order: the log line names the card (`the supply page's burned could not be loaded`) and says why. */
+  const tookTooLong = (logged: { mock: { calls: unknown[][] } }) =>
+    logged.mock.calls
+      .map(([line]) => JSON.parse(String(line)) as { what: string; error: string })
+      .filter((entry) => entry.error === "took too long")
+      .map((entry) => entry.what);
+
+  it("F never answering: the page is a degraded 200 at 4.5 s with the burned card failed, logged as taking too long", async () => {
+    cold();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    mock = mockUpstream("xrpl", { [FEES]: never });
+    const started = performance.now();
+    const { response, html, text } = await render("/xrpl/supply");
+    const took = performance.now() - started;
+
+    await expectDegraded("/xrpl/supply", response);
+    // The card's deadline; the data API client would have given up at 5 s, and its failure would be logged as "did not answer within 5000 ms", not as "took too long".
+    expect(took).toBeGreaterThanOrEqual(4_400);
+    expect(took).toBeLessThan(5_000);
+    expect(statusesOf(mock, FEES)).toEqual([0]);
+    expect(alerts(html)).toBe(1);
+    expect(text).toContain("Couldn’t load XRP burned per day.");
+    // The snapshot's own parts stand.
+    expect(tiles(html).map((tile) => tile.label)).toEqual(["Total supply", "Burned", "Escrowed", "Circulating supply", "In AMM pools", "Account reserves"]);
+    expect(tiles(html).map((tile) => tile.value)).not.toContain("—");
+    expect(tookTooLong(logged)).toEqual(["the supply page's burned could not be loaded"]);
+  }, 15_000);
+
+  it("M never answering, on Xahau: the page is a degraded 200 at 4.5 s with the minted card failed and the Minted tile a dash, logged as taking too long", async () => {
+    cold();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    mock = mockUpstream("xahau", { [MINTED]: never });
+    const started = performance.now();
+    const { response, html, text } = await render("/xahau/supply");
+    const took = performance.now() - started;
+
+    await expectDegraded("/xahau/supply", response);
+    expect(took).toBeGreaterThanOrEqual(4_400);
+    expect(took).toBeLessThan(5_000);
+    expect(statusesOf(mock, MINTED)).toEqual([0]);
+    // The burned card has its days; the minted card is the one that failed.
+    expect(alerts(html)).toBe(1);
+    expect(text).toContain("Couldn’t load XAH minted per day.");
+    expect(text).not.toContain("Couldn’t load XAH burned per day.");
+    expect(text).toContain("XAH burned per day");
+    expect(tiles(html).find((tile) => tile.label === "Minted, last 90 days")?.value).toBe("—");
+    expect(tiles(html).find((tile) => tile.label === "Total supply")?.value).not.toBe("—");
+    expect(tookTooLong(logged)).toEqual(["the supply page's minted could not be loaded"]);
+  }, 15_000);
+
+  it("A never answering, on Xahau: the page is a degraded 200 at 4.5 s with both cards failed, the snapshot's tiles drawn and no stale check; F and M are not asked", async () => {
+    cold();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    mock = mockUpstream("xahau", { [LAST_VALIDATED]: never });
+    const started = performance.now();
+    const { response, html, text } = await render("/xahau/supply");
+    const took = performance.now() - started;
+
+    await expectDegraded("/xahau/supply", response);
+    expect(took).toBeGreaterThanOrEqual(4_400);
+    expect(took).toBeLessThan(5_000);
+    expect(statusesOf(mock, LAST_VALIDATED)).toEqual([0]);
+    // F and M wait for A, and are given up on with it: neither is asked.
+    expect(keysOf(mock.requests).sort()).toEqual([LAST_VALIDATED, SUPPLY].sort());
+    expect(alerts(html)).toBe(2);
+    expect(text).toContain("Couldn’t load XAH burned per day.");
+    expect(text).toContain("Couldn’t load XAH minted per day.");
+    expect(text).not.toContain("older than the newest ledger");
+    expect(tiles(html).map((tile) => tile.label)).toEqual(["Total supply", "Minted, last 90 days", "Burned", "Escrowed", "Circulating supply", "Account reserves"]);
+    expect(tiles(html).find((tile) => tile.label === "Total supply")?.value).not.toBe("—");
+    expect(tiles(html).find((tile) => tile.label === "Minted, last 90 days")?.value).toBe("—");
+    expect(tookTooLong(logged).sort()).toEqual(["the supply page's burned could not be loaded", "the supply page's minted could not be loaded"]);
+  }, 15_000);
+
+  it("S never answering does not race: the answer is the outage, at the data API client's own limit and not at 4.5 s", async () => {
+    cold();
+    mock = mockUpstream("xrpl", { [SUPPLY]: never });
+    const started = performance.now();
+    const { response, text } = await render("/xrpl/supply");
+    const took = performance.now() - started;
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).not.toBeNull();
+    expect(text).not.toContain("took too long");
+    // The client's own 5 s (`DATA_API_TIMEOUT_MS`, and it does not retry): a lower bound only. A page that raced S would have answered at 4.5 s.
+    expect(took).toBeGreaterThanOrEqual(4_900);
+    expect(statusesOf(mock, SUPPLY)).toEqual([0]);
+    expect(await isStored("/xrpl/supply")).toBe(false);
+  }, 15_000);
 });
 
 describe("the URL (spec 1)", () => {
