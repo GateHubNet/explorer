@@ -697,12 +697,12 @@ describe("ValidatorsPage, the countries card", () => {
     const note = () => container.querySelector(".hero__held")!.textContent;
     expect(note()).toBe("Paused while you look at the table");
     fireEvent.pointerEnter(card("Where validators are"), { pointerType: "mouse" });
-    expect(note()).toBe("Paused while you look at the map.");
+    expect(note()).toBe("Paused while you look at the map");
     fireEvent.pointerEnter(region("Validators, scrollable table"), { pointerType: "pen" });
     expect(note()).toBe("Paused while you look at the table");
     // Keyboard focus on a link of either part says the same; a finger holds nothing and changes nothing.
     act(() => within(card("Where validators are")).getAllByRole("link")[0]!.focus());
-    expect(note()).toBe("Paused while you look at the map.");
+    expect(note()).toBe("Paused while you look at the map");
     act(() => within(region("Validators, scrollable table")).getAllByRole("link")[0]!.focus());
     expect(note()).toBe("Paused while you look at the table");
     fireEvent.pointerEnter(card("Where validators are"), { pointerType: "touch" });

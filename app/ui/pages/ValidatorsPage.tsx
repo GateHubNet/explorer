@@ -36,7 +36,7 @@ const TILE_LABELS = ["Validators seen, last 24 h", "On the default UNL", "Quorum
 type HeldPart = "countries" | "table";
 /** What the live row says of the part that holds the page: one note for each part, as MarketPairPage has. */
 const HELD_NOTES = {
-  countries: "Paused while you look at the map.",
+  countries: "Paused while you look at the map",
   table: "Paused while you look at the table",
 } as const satisfies Record<HeldPart, string>;
 
