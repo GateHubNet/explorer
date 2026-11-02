@@ -10,7 +10,7 @@ import { amendmentHref, amendmentsHref } from "../domain/amendments-params";
 import { fnv1a32, tokenOf } from "../domain/fnv";
 import { shortHash } from "../domain/format";
 import { formatDate } from "../domain/time-words";
-import { validatorHref, validatorsHref, type ValidatorsParams } from "../domain/validators-params";
+import { UNKNOWN_COUNTRY, validatorHref, validatorsHref, type ValidatorsParams } from "../domain/validators-params";
 import type { ShareData, Slot } from "../ui/charts/types";
 import type { NetworkInfo } from "../ui/networks";
 import type { Loaded } from "./account-view";
@@ -301,7 +301,7 @@ function summaryOf(net: NetworkInfo, s: ValidatorsSummary, rows: ReadonlyMap<str
 // ---- The list --------------------------------------------------------------------------------------------------------------------------------
 
 /** Whether the view is narrowed by more than its scope: the footer says "matches" and the card offers "Clear filters". */
-const hasFilter = (params: ValidatorsParams): boolean => params.publisher !== undefined || params.amendment !== undefined || params.q !== undefined;
+const hasFilter = (params: ValidatorsParams): boolean => params.publisher !== undefined || params.amendment !== undefined || params.country !== undefined || params.q !== undefined;
 
 /** The check a row must pass to be one that votes yes for the amendment `param` names: its ID from A when A has it, else `param` as given, matched against `yes[].id` and `yes[].name`. */
 function votesYesFor(param: string, amendments: readonly AmendmentRow[] | null): (row: ValidatorRow) => boolean {
@@ -309,9 +309,12 @@ function votesYesFor(param: string, amendments: readonly AmendmentRow[] | null):
   return (row) => (row.amendment_votes?.yes ?? []).some((yes) => (named !== undefined ? yes.id === named.id : yes.id === param || yes.name === param));
 }
 
-/** The rows the view keeps, in D1's order: the scope, then the publisher, the amendment and the search (D1's `q`: the lower-cased text in the domain or a key). */
+/**
+ * The rows the view keeps, in D1's order: the scope, then the publisher, the amendment, the country and the search (D1's `q`: the lower-cased text in the domain or a key). The country
+ * is the one the row's toml gives as its server country (D8); `unknown` keeps the rows whose toml gives none, which includes a row with no toml and one whose toml is `{}` (E13 spec 4.4).
+ */
 function filtered(rows: readonly ValidatorRow[], params: ValidatorsParams, amendments: readonly AmendmentRow[] | null): ValidatorRow[] {
-  const { publisher, amendment } = params;
+  const { publisher, amendment, country } = params;
   const q = params.q?.toLowerCase();
   const yes = amendment === undefined ? null : votesYesFor(amendment, amendments);
   return rows.filter(
@@ -319,6 +322,7 @@ function filtered(rows: readonly ValidatorRow[], params: ValidatorsParams, amend
       (params.scope === "all" || row.unl) &&
       (publisher === undefined || row.unl_lists.includes(publisher)) &&
       (yes === null || yes(row)) &&
+      (country === undefined || (country === UNKNOWN_COUNTRY ? row.toml?.server_country === undefined : row.toml?.server_country === country)) &&
       (q === undefined || [row.domain, row.validation_public_key, row.signing_key].some((text) => text?.toLowerCase().includes(q))),
   );
 }

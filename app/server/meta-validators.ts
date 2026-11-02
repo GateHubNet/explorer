@@ -11,16 +11,16 @@ import type { ValidatorsPageData } from "./validators-view";
 /**
  * The tags of `/{net}/validators` (validators spec 8). The default view (the UNL, no filter) is indexable, with a canonical URL on the origin of
  * the request and no image (a list that changes with every ledger would have a picture out of date at once). Every other view (the All scope, a
- * publisher, an amendment, a search) is `noindex, follow`, with no canonical URL and no Open Graph or card tags: one URL is the page, the rest are
+ * publisher, an amendment, a country, a search) is `noindex, follow`, with no canonical URL and no Open Graph or card tags: one URL is the page, the rest are
  * views of it. The description has no number of the data: the page is stored for seconds.
  */
 export function validatorsMeta(page: Pick<ValidatorsPageData, "params">, ctx: MetaContext): MetaDescriptor[] {
   const { network, origin } = ctx;
-  const { scope, publisher, amendment, q } = page.params;
+  const { scope, publisher, amendment, country, q } = page.params;
   const title = ["Validators", network.name, PRODUCT_NAME].join(" · ");
   const description = `The validators of ${network.name}: the default UNL and every validator seen in the last 24 hours, with their domains, software versions, agreement, and fee and amendment votes.`;
 
-  if (scope !== "unl" || publisher !== undefined || amendment !== undefined || q !== undefined) {
+  if (scope !== "unl" || publisher !== undefined || amendment !== undefined || country !== undefined || q !== undefined) {
     return [{ title }, { name: "description", content: description }, { name: "robots", content: "noindex, follow" }];
   }
   return sharing({ title, description, url: absolute(origin, `/${network.id}/validators`) });

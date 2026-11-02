@@ -171,6 +171,90 @@ describe("validatorsPage: the filters", () => {
   });
 });
 
+// ---- The country filter (E13 spec 4.4) -------------------------------------------------------------------------------------------------------
+
+/**
+ * The fleet with what D8 says of each row's toml: northpeak and shoreline are in DE (shoreline's owner is in FR), tidewater is in FR (its owner in DE), `nameless` was read and gave
+ * `{}`, `quiet` has no toml (not read yet), and a sixth validator's toml names only an owner country and a network. Only the server country places a row.
+ */
+function placedFleet(): ValidatorRow[] {
+  const [north, shore, tide, nameless, quiet] = fleet() as [ValidatorRow, ValidatorRow, ValidatorRow, ValidatorRow, ValidatorRow];
+  const sixth = validatorRowSample({ validation_public_key: KEY_FIFTH, domain: "sixth.example", unl: false, unl_lists: [], toml: { owner_country: "US", network: "main" } });
+  return [
+    { ...north, toml: { server_country: "DE" } },
+    { ...shore, toml: { server_country: "DE", owner_country: "FR" } },
+    { ...tide, toml: { server_country: "FR", owner_country: "DE" } },
+    { ...nameless, toml: {} },
+    quiet,
+    sixth,
+  ];
+}
+
+describe("validatorsPage: the country filter", () => {
+  const placed = ok(listOf(placedFleet()));
+  const keysFor = (params: ValidatorsParams, amendments: Input["amendments"] = ok(amendmentsSample())) => keysOf(build({ params, list: placed, amendments }));
+
+  it("keeps the rows whose toml gives that server country, with the scope", () => {
+    expect(keysFor({ scope: "unl", country: "DE" })).toEqual([KEY_NORTH, KEY_SHORE]);
+    expect(keysFor({ scope: "all", country: "DE" })).toEqual([KEY_NORTH, KEY_SHORE]);
+    expect(keysFor({ scope: "all", country: "FR" })).toEqual([KEY_TIDE]);
+    // tidewater is in FR and off the UNL: the scope still applies.
+    expect(keysFor({ scope: "unl", country: "FR" })).toEqual([]);
+    expect(keysFor({ scope: "all", country: "US" })).toEqual([]);
+  });
+
+  it("reads the server country and not the owner country", () => {
+    // shoreline's owner is in FR and tidewater's in DE, the sixth's in US: none of them is placed by it.
+    expect(keysFor({ scope: "all", country: "FR" })).not.toContain(KEY_SHORE);
+    expect(keysFor({ scope: "all", country: "DE" })).not.toContain(KEY_TIDE);
+    expect(keysFor({ scope: "all", country: "US" })).not.toContain(KEY_FIFTH);
+  });
+
+  it("keeps for unknown the rows with no server country: an absent toml, a toml of {} and a toml of other keys", () => {
+    expect(keysFor({ scope: "all", country: "unknown" })).toEqual([KEY_NAMELESS, KEY_QUIET, KEY_FIFTH]);
+    expect(keysFor({ scope: "unl", country: "unknown" })).toEqual([KEY_QUIET]);
+    // A list with no toml at all (an API without D8) is all unknown location.
+    expect(keysOf(build({ params: { scope: "all", country: "unknown" } }))).toEqual([KEY_NORTH, KEY_SHORE, KEY_TIDE, KEY_NAMELESS, KEY_QUIET]);
+    expect(keysOf(build({ params: { scope: "all", country: "DE" } }))).toEqual([]);
+  });
+
+  it("applies with the publisher, the amendment and the search, and keeps D1's order", () => {
+    expect(keysFor({ scope: "all", country: "DE", publisher: "unl.xrplf.org" })).toEqual([KEY_NORTH]);
+    expect(keysFor({ scope: "all", country: "DE", amendment: "XChainBridge" })).toEqual([KEY_NORTH, KEY_SHORE]);
+    expect(keysFor({ scope: "all", country: "DE", q: "SHORE" })).toEqual([KEY_SHORE]);
+    expect(keysFor({ scope: "all", country: "unknown", amendment: "DID" })).toEqual([KEY_NAMELESS]);
+    expect(keysFor({ scope: "all", country: "DE", publisher: "unl.xrplf.org", amendment: "XChainBridge", q: "shore" })).toEqual([]);
+    const backwards = [...placedFleet()].reverse();
+    expect(keysOf(build({ params: { scope: "all", country: "DE" }, list: ok(listOf(backwards)) }))).toEqual([KEY_SHORE, KEY_NORTH]);
+  });
+
+  it("does not change the counts of the UNL and All, which are of the whole list", () => {
+    expect(listPart(build({ params: { scope: "unl", country: "DE" }, list: placed })).counts).toEqual({ unl: 3, all: 6 });
+    expect(listPart(build({ params: { scope: "all", country: "unknown" }, list: placed })).counts).toEqual({ unl: 3, all: 6 });
+  });
+
+  it("counts country as a filter: the footer says matches, and Clear filters clears it", () => {
+    const footerOf = (params: ValidatorsParams) => listPart(build({ params, list: placed })).footer[0];
+    expect(footerOf({ scope: "all", country: "DE" })).toBe("2 matches");
+    expect(footerOf({ scope: "all", country: "FR" })).toBe("1 match");
+    expect(footerOf({ scope: "unl", country: "FR" })).toBe("0 matches");
+    expect(footerOf({ scope: "all", country: "unknown" })).toBe("3 matches");
+    expect(footerOf({ scope: "all" })).toBe("6 validators");
+    expect(listPart(build({ params: { scope: "unl", country: "FR" }, list: placed })).empty).toBe(true);
+    // The scope alone is no filter, a country is: the link is offered, and goes to the scope alone.
+    expect(build({ params: { scope: "unl" }, list: placed }).hrefs.clear).toBeNull();
+    expect(build({ params: { scope: "unl", country: "DE" }, list: placed }).hrefs.clear).toBe("/xrpl/validators");
+    expect(build({ params: { scope: "all", country: "DE", q: "x" }, list: placed }).hrefs.clear).toBe("/xrpl/validators?scope=all");
+  });
+
+  it("keeps the country in the links of the scopes", () => {
+    const { hrefs } = build({ params: { scope: "all", country: "DE" }, list: placed });
+    expect(hrefs.scope).toEqual({ unl: "/xrpl/validators?country=DE", all: "/xrpl/validators?scope=all&country=DE" });
+    expect(hrefs.action).toBe("/xrpl/validators");
+    expect(build({ params: { scope: "unl", country: "unknown", q: "x" }, list: placed }).hrefs.scope.all).toBe("/xrpl/validators?scope=all&country=unknown&q=x");
+  });
+});
+
 // ---- The intro, the notices and the filter options -------------------------------------------------------------------------------------------
 
 describe("validatorsPage: intro, notices and options", () => {

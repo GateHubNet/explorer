@@ -1,9 +1,14 @@
+import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { loader } from "../../app/routes/net.validators";
 import { CACHE_CLASSES, HOME_CALL_TTL_SECONDS, VALIDATORS_CALL_TTL_SECONDS } from "../../app/server/cache-class";
+import { createLoadContext, type Env } from "../../app/server/env";
 import xrplAmendments from "../fixtures/http/xrpl/data-api/network/amendments.json";
+import xrplList from "../fixtures/http/xrpl/data-api/network/validators@limit=1000&scope=all.json";
 import xrplSummary from "../fixtures/http/xrpl/data-api/network/validators/summary.json";
 import xahauAmendments from "../fixtures/http/xahau/data-api/network/amendments.json";
+import xahauList from "../fixtures/http/xahau/data-api/network/validators@limit=1000&scope=all.json";
 import { anchors, hrefs, pageClient, tableRows, textOf } from "../support/pages";
 import { mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 import { AMENDMENTS, LAST_VALIDATED, LIST, SUMMARY } from "../support/validators-calls";
@@ -229,5 +234,140 @@ describe("the page without JavaScript", () => {
     expect(hasField(xahau.html, "Listed by")).toBe(false);
     expect(xahau.html).not.toContain('name="publisher"');
     expect(hasField(xahau.html, "Votes yes for")).toBe(true);
+  });
+});
+
+// ---- The country parameter (E13 spec 2 and 4.4, Review Focus 1) --------------------------------------------------------------------------------
+
+/** The rows of a list as the country filter reads them: the key, whether it is on the UNL, and the server country of its toml (absent when the toml gives none or is absent). */
+type CountryRow = { validation_public_key: string; unl: boolean; toml?: { server_country?: string } };
+
+/** The keys of the rows of L in `country` (a code, or `unknown` for those whose toml gives none), in L's order, on the UNL only when `scope` is `unl`. */
+function keysIn(list: { validators: readonly CountryRow[] }, country: string, scope: "unl" | "all"): string[] {
+  return list.validators
+    .filter((row) => (scope === "all" || row.unl) && (country === "unknown" ? row.toml?.server_country === undefined : row.toml?.server_country === country))
+    .map((row) => row.validation_public_key);
+}
+
+/** The keys of the validators the table lists, in the page's order: the rows' name links. */
+const tableKeys = (html: string): string[] =>
+  anchors(html)
+    .filter((a) => a.attrs.includes("validators__name"))
+    .map((a) => decodeURIComponent(/href="\/[a-z]+\/validators\/([^"?]*)"/.exec(a.attrs)![1]!));
+
+describe("the country parameter", () => {
+  it.each([
+    // Review Focus 1: the Location of each is the one URL of the view.
+    ["?country=de", "?country=DE"],
+    ["?country=Unknown", "?country=unknown"],
+    ["?country=uk", ""],
+    ["?country=zz", ""],
+    ["?country=DE&country=FR", "?country=DE"],
+    ["?q=x&country=DE&scope=all", "?scope=all&country=DE&q=x"],
+  ])("is a pure redirect: %s is one 302 of class short to %j, with no call", async (query, to) => {
+    mock = mockUpstream("xrpl");
+    const lookups = subrequestLookups();
+    const response = await get(`/xrpl/validators${query}`);
+    await response.text();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`/xrpl/validators${to}`);
+    expect(response.headers.get("Cache-Control")).toBe("max-age=0");
+    // No call upstream and none asked of the subrequest cache: the country part needs no data.
+    expect(mock.requests).toEqual([]);
+    expect(lookups).toEqual([]);
+    expect(await storedAs(`/xrpl/validators${query}`)).toEqual({ cls: "short", ttl: 30 });
+  });
+
+  it("lists the validators of DE, and those of unknown location, with the footer saying matches", async () => {
+    mock = mockUpstream("xrpl");
+    for (const country of ["DE", "unknown"]) {
+      for (const scope of ["all", "unl"] as const) {
+        const path = `/xrpl/validators?${scope === "all" ? "scope=all&" : ""}country=${country}`;
+        const { html } = await page(path);
+        const expected = keysIn(xrplList, country, scope);
+        // The control: the view is not empty, so that "exactly them" says something.
+        expect(expected.length, path).toBeGreaterThan(0);
+        expect(tableKeys(html), path).toEqual(expected);
+        expect(textOf(html), path).toContain(`${expected.length} ${expected.length === 1 ? "match" : "matches"}`);
+      }
+    }
+    // The country decides: DE and unknown are not the same rows, and the rows of DE are not all of L.
+    expect(keysIn(xrplList, "DE", "all")).not.toEqual(keysIn(xrplList, "unknown", "all"));
+    expect(keysIn(xrplList, "DE", "all").length).toBeLessThan(xrplList.validators.length);
+  });
+
+  it("lists Xahau's validators of a country the same way", async () => {
+    mock = mockUpstream("xahau");
+    for (const country of ["FI", "unknown"]) {
+      const { html } = await page(`/xahau/validators?scope=all&country=${country}`);
+      const expected = keysIn(xahauList, country, "all");
+      expect(expected.length, country).toBeGreaterThan(0);
+      expect(tableKeys(html), country).toEqual(expected);
+    }
+  });
+
+  it("has an empty result for a code no row has, with E6's sentence", async () => {
+    mock = mockUpstream("xrpl");
+    const used = new Set(xrplList.validators.map((row: CountryRow) => row.toml?.server_country));
+    const unused = ["JP", "BR", "AR", "NZ", "ZA"].find((code) => !used.has(code));
+    expect(unused, "a code to ask for that no fixture row has").toBeDefined();
+    const { html } = await page(`/xrpl/validators?scope=all&country=${unused}`);
+    expect(tableKeys(html)).toEqual([]);
+    expect(textOf(html)).toContain("No validators match these filters.");
+    expect(textOf(html)).toContain("0 matches");
+  });
+
+  it("is noindex, follow on a country view, with no canonical link and no og:* tags, and the default view is none of that", async () => {
+    mock = mockUpstream("xrpl");
+    for (const path of ["/xrpl/validators?country=DE", "/xrpl/validators?scope=all&country=unknown"]) {
+      const { html } = await page(path);
+      expect(html, path).toMatch(/<meta name="robots" content="noindex, follow"\/?>/);
+      expect(html, path).not.toMatch(/<link rel="canonical"/);
+      expect(html, path).not.toMatch(/property="og:/);
+    }
+    const { html } = await page("/xrpl/validators");
+    expect(html).not.toMatch(/<meta name="robots"/);
+    expect(html).toMatch(/<link rel="canonical" href="https:\/\/explorer\.test\/xrpl\/validators"/);
+  });
+});
+
+describe("with VALIDATORS_MAP off (the route's loader, with a load context of its own)", () => {
+  const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
+
+  /** What the route's loader answers for `path` of XRPL while the switch is `map`. The worker project has it on; the redirect is made before any call. */
+  const loaded = (path: string, map: "on" | "off") =>
+    loader({
+      request: new Request(`https://explorer.test${path}`),
+      params: { net: "xrpl" },
+      context: createLoadContext({ ...(env as unknown as Env), VALIDATORS_MAP: map }, ctx),
+    } as never);
+
+  it("redirects ?country=DE to the view without it, with no call", async () => {
+    mock = mockUpstream("xrpl");
+    const lookups = subrequestLookups();
+    for (const [query, to] of [
+      ["?country=DE", ""],
+      ["?country=unknown", ""],
+      ["?scope=all&country=de&q=x", "?scope=all&q=x"],
+    ] as const) {
+      const response = (await loaded(`/xrpl/validators${query}`, "off")) as Response;
+      expect(response, query).toBeInstanceOf(Response);
+      expect(response.status, query).toBe(302);
+      expect(response.headers.get("Location"), query).toBe(`/xrpl/validators${to}`);
+      expect(response.headers.get("X-Cache-Class"), query).toBe("short");
+    }
+    expect(mock.requests).toEqual([]);
+    expect(lookups).toEqual([]);
+  });
+
+  it("keeps the country, tidied, with the switch on: the same request has another answer", async () => {
+    mock = mockUpstream("xrpl");
+    const on = (await loaded("/xrpl/validators?country=de", "on")) as Response;
+    expect(on.status).toBe(302);
+    expect(on.headers.get("Location")).toBe("/xrpl/validators?country=DE");
+    const off = (await loaded("/xrpl/validators?country=de", "off")) as Response;
+    expect(off.headers.get("Location")).toBe("/xrpl/validators");
+    expect(mock.requests).toEqual([]);
   });
 });

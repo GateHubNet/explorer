@@ -2,10 +2,11 @@ import { useEffect } from "react";
 import { redirect } from "react-router";
 
 import { queryOf } from "../domain/query-of";
-import { canonicalValidatorsParams, parseValidatorsParams, validatorsHref, type ValidatorsParams } from "../domain/validators-params";
+import { canonicalValidatorsParams, parseValidatorsParams, validatorsHref, withCountry, type ValidatorsParams } from "../domain/validators-params";
 import { anchorOrThrow, type Anchor } from "../server/anchor";
 import { HOME_CALL_TTL_SECONDS, VALIDATORS_CALL_TTL_SECONDS } from "../server/cache-class";
 import { clientsFor } from "../server/clients";
+import { COUNTRY_CODES } from "../server/countries";
 import { asOutage, byDeadline, CARD_DEADLINE_MS, partOf } from "../server/deadline";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
 import { getEnv, markDegraded } from "../server/env";
@@ -48,7 +49,7 @@ const scopeOf = (net: string, params: ValidatorsParams): string => validatorsHre
  * changes every ledger on it is shown coarsely, the rest changes with D1's 10 s directory, and an open tab asks again every 10 s (see `Validators`).
  *
  * - **`VALIDATORS` off** is the not-found page, a 404 of class `short`, for every view, before the query is read and before any call (spec 10).
- * - **One URL per view** (spec 1.4). The part of the canonical form that needs no data (`scope`, `q`, the order, defaults, empty values, repeats and other
+ * - **One URL per view** (spec 1.4). The part of the canonical form that needs no data (`scope`, `country`, `q`, the order, defaults, empty values, repeats and other
  *   parameters dropped) is checked first, and a query that is not exactly it is a 302 to the canonical URL, class `short`, with no call; the query is the
  *   request's own text (`queryOf`: React Router's `_routes` dropped, nothing decoded), so a `.data` request of a canonical view answers its data. A view
  *   that names a `publisher` or an `amendment` waits for S and A, which spell them, and the one 302 then carries both kinds of change.
@@ -68,7 +69,8 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 
   const search = queryOf(request.url);
   const asked = `/${net.id}/validators${search === "" ? "" : `?${search}`}`;
-  const pure = parseValidatorsParams(search);
+  // `country` is part of the pure rules, so a hand-made one (`de`, `Unknown`, `uk`, a second one, or any while `VALIDATORS_MAP` is off) is settled by the first, call-free 302.
+  const pure = withCountry(parseValidatorsParams(search), net.features.validatorsMap ? COUNTRY_CODES : null);
   if (pure.publisher === undefined && pure.amendment === undefined && validatorsHref(net.id, pure) !== asked) {
     return redirect(validatorsHref(net.id, pure), { status: 302, headers: cacheClassHeaders("short") });
   }

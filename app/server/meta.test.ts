@@ -856,6 +856,23 @@ describe("validatorsMeta", () => {
     expect(keys(list).sort()).toEqual(["description", "robots"]);
   });
 
+  // A country view (E13 spec 2 and 8) is a view of the page, whatever else the query holds: the UNL scope alone would be indexable, and the country is all that makes this not.
+  it("makes a country view noindex, follow without canonical or og", () => {
+    for (const params of [{ scope: "unl", country: "DE" }, { scope: "unl", country: "unknown" }, { scope: "all", country: "DE" }, { scope: "unl", country: "DE", q: "example" }] satisfies ValidatorsParams[]) {
+      for (const ctx of [XRPL, XAHAU]) {
+        const list = validatorsMeta(view(params), ctx);
+        const label = `${ctx.network.id} ${JSON.stringify(params)}`;
+        expect(content(list, "robots"), label).toBe("noindex, follow");
+        expect(tags(list).some((tag) => tag.tagName === "link"), label).toBe(false);
+        expect(keys(list).filter((key) => /^(og|twitter):/.test(key)), label).toEqual([]);
+        expect(keys(list).sort(), label).toEqual(["description", "robots"]);
+      }
+    }
+    // The default view beside it is still the indexable one.
+    expect(content(validatorsMeta(DEFAULT, XRPL), "robots")).toBeUndefined();
+    expect(link(validatorsMeta(DEFAULT, XRPL), "canonical")).toBe("https://explorer.test/xrpl/validators");
+  });
+
   it("takes the whole page's data as well as its params, since a route hands it the loader's answer", () => {
     const data = validatorsPage({ network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" }, params: { scope: "unl" }, summary: { state: "failed" }, list: { state: "failed" }, amendments: { state: "failed" } });
     expect(link(validatorsMeta(data, XRPL), "canonical")).toBe("https://explorer.test/xrpl/validators");

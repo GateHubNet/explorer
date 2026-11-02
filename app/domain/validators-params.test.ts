@@ -6,8 +6,10 @@ import {
   canonicalValidatorsParams,
   parseValidatorsParams,
   SEARCH_MAX,
+  UNKNOWN_COUNTRY,
   validatorHref,
   validatorsHref,
+  withCountry,
   type ValidatorsParams,
 } from "./validators-params";
 
@@ -118,6 +120,9 @@ describe("the canonical form of a validators query (the pure part)", () => {
       { scope: "all", publisher: "unl.xrplf.example", amendment: XCB_ID, q: "x" },
       { scope: "unl", amendment: "XChainBridge" },
       { scope: "unl", q: "😀".repeat(100) },
+      { scope: "unl", country: "DE" },
+      { scope: "all", country: "unknown", q: "x" },
+      { scope: "all", publisher: "unl.xrplf.example", amendment: XCB_ID, country: "XK", q: "x" },
     ];
     for (const params of views) {
       const href = validatorsHref("xrpl", params);
@@ -125,6 +130,120 @@ describe("the canonical form of a validators query (the pure part)", () => {
       // A canonical href is its own canonical form: the loader's redirect settles after one step.
       expect(validatorsHref("xrpl", parseValidatorsParams(searchOf(href)))).toBe(href);
     }
+  });
+});
+
+// ---- country (E13 spec 2): the pure rule, the order of the query, and the server's rule ---------------------------------------------------------
+
+describe("the country parameter (the pure part)", () => {
+  it.each([
+    ["?country=de", "DE"],
+    ["?country=DE", "DE"],
+    ["?country=dE", "DE"],
+    ["?country=xk", "XK"], // Kosovo: D8's 250th code, which is not ISO 3166-1
+    ["?country=unknown", "unknown"],
+    ["?country=UNKNOWN", "unknown"],
+    ["?country=Unknown", "unknown"],
+  ])("reads %s as %s", (search, country) => {
+    expect(parseValidatorsParams(search)).toStrictEqual({ scope: "unl", country });
+    expect(validatorsHref("xrpl", parseValidatorsParams(search))).toBe(`/xrpl/validators?country=${country}`);
+  });
+
+  it("names the unknown location once", () => {
+    expect(UNKNOWN_COUNTRY).toBe("unknown");
+  });
+
+  it.each([
+    ["three letters", "?country=deu"],
+    ["one letter", "?country=d"],
+    ["a digit", "?country=d3"],
+    ["two digits", "?country=12"],
+    ["nothing", "?country="],
+    ["a space before", "?country=%20de"],
+    ["a space after", "?country=de%20"],
+    ["a letter with an accent", "?country=d%C3%A9"],
+    ["an eszett, which is SS in upper case", "?country=%C3%9F"],
+    ["a dotless i", "?country=%C4%B1d"],
+    ["the long s", "?country=%C5%BFs"],
+    ["a word that is not unknown", "?country=unknow"],
+    ["unknown with a space", "?country=unknown%20"],
+    ["unknown with a letter more", "?country=unknowns"],
+  ])("drops %s", (_name, search) => {
+    expect(parseValidatorsParams(search)).toStrictEqual({ scope: "unl" });
+    expect(validatorsHref("xrpl", parseValidatorsParams(search))).toBe("/xrpl/validators");
+  });
+
+  it("reads the first of two countries, and drops the view's country when the first is none", () => {
+    expect(parseValidatorsParams("?country=de&country=fr").country).toBe("DE");
+    expect(parseValidatorsParams("?country=unknown&country=fr").country).toBe("unknown");
+    expect(parseValidatorsParams("?country=&country=fr")).toStrictEqual({ scope: "unl" });
+    expect(parseValidatorsParams("?country=deu&country=fr")).toStrictEqual({ scope: "unl" });
+  });
+
+  it("orders scope, publisher, amendment, country, q", () => {
+    const href = "/xrpl/validators?scope=all&publisher=vl.ripple.com&amendment=XChainBridge&country=DE&q=x";
+    expect(validatorsHref("xrpl", { scope: "all", publisher: "vl.ripple.com", amendment: "XChainBridge", country: "DE", q: "x" })).toBe(href);
+    expect(validatorsHref("xrpl", { q: "x", country: "DE", amendment: "XChainBridge", publisher: "vl.ripple.com", scope: "all" })).toBe(href);
+    expect(validatorsHref("xrpl", parseValidatorsParams("?q=x&country=de&amendment=XChainBridge&publisher=vl.ripple.com&scope=ALL"))).toBe(href);
+    // Country sits between the amendment and the search, and after the scope alone.
+    expect(validatorsHref("xrpl", { scope: "all", country: "DE" })).toBe("/xrpl/validators?scope=all&country=DE");
+    expect(validatorsHref("xrpl", { scope: "unl", country: "DE", q: "x" })).toBe("/xrpl/validators?country=DE&q=x");
+  });
+
+  it("applies the pure rule to the country it writes, as it does to the one it reads", () => {
+    expect(validatorsHref("xrpl", { scope: "unl", country: "de" })).toBe("/xrpl/validators?country=DE");
+    expect(validatorsHref("xrpl", { scope: "unl", country: "UNKNOWN" })).toBe("/xrpl/validators?country=unknown");
+    expect(validatorsHref("xrpl", { scope: "unl", country: "deu" })).toBe("/xrpl/validators");
+    expect(validatorsHref("xrpl", { scope: "unl", country: "" })).toBe("/xrpl/validators");
+  });
+});
+
+describe("withCountry (the server's rule)", () => {
+  const codes: ReadonlySet<string> = new Set(["DE", "FR", "US", "XK"]);
+
+  it("drops the country when the switch is off, whichever it is", () => {
+    for (const country of ["DE", UNKNOWN_COUNTRY, "ZZ"]) {
+      expect(withCountry({ scope: "all", country }, null)).toStrictEqual({ scope: "all" });
+    }
+    expect(withCountry({ scope: "all", publisher: "p", amendment: "A", country: "DE", q: "x" }, null)).toStrictEqual({ scope: "all", publisher: "p", amendment: "A", q: "x" });
+  });
+
+  it("drops a code that is not in the codes: UK and ZZ", () => {
+    expect(withCountry({ scope: "unl", country: "UK" }, codes)).toStrictEqual({ scope: "unl" });
+    expect(withCountry({ scope: "unl", country: "ZZ" }, codes)).toStrictEqual({ scope: "unl" });
+    // Not in the codes, though it is two letters of the table's alphabet: the codes are the whole rule.
+    expect(withCountry({ scope: "unl", country: "GB" }, new Set(["DE"]))).toStrictEqual({ scope: "unl" });
+  });
+
+  it("keeps a code in the codes, and unknown, with the codes empty too", () => {
+    expect(withCountry({ scope: "unl", country: "DE" }, codes)).toStrictEqual({ scope: "unl", country: "DE" });
+    expect(withCountry({ scope: "unl", country: "XK" }, codes)).toStrictEqual({ scope: "unl", country: "XK" });
+    expect(withCountry({ scope: "all", country: UNKNOWN_COUNTRY }, codes)).toStrictEqual({ scope: "all", country: "unknown" });
+    expect(withCountry({ scope: "all", country: UNKNOWN_COUNTRY }, new Set())).toStrictEqual({ scope: "all", country: "unknown" });
+  });
+
+  it("returns a view with no country as it came, and changes nothing of its input", () => {
+    const view: ValidatorsParams = { scope: "all", publisher: "p", q: "x" };
+    expect(withCountry(view, codes)).toStrictEqual(view);
+    expect(withCountry(view, null)).toStrictEqual(view);
+    const given: ValidatorsParams = { scope: "all", country: "ZZ", q: "x" };
+    withCountry(given, codes);
+    withCountry(given, null);
+    expect(given).toStrictEqual({ scope: "all", country: "ZZ", q: "x" });
+  });
+
+  // Review Focus 1: the hand-made query strings, from the request to the URL the loader's first, call-free 302 names.
+  it.each([
+    ["?country=de", codes, "/xrpl/validators?country=DE"],
+    ["?country=Unknown", codes, "/xrpl/validators?country=unknown"],
+    ["?country=uk", codes, "/xrpl/validators"],
+    ["?country=zz", codes, "/xrpl/validators"],
+    ["?country=DE&country=FR", codes, "/xrpl/validators?country=DE"],
+    ["?q=x&country=DE&scope=all", codes, "/xrpl/validators?scope=all&country=DE&q=x"],
+    ["?country=DE", null, "/xrpl/validators"],
+    ["?country=unknown&q=x", null, "/xrpl/validators?q=x"],
+  ])("settles %s to its one URL: %s", (search, switchCodes, href) => {
+    expect(validatorsHref("xrpl", withCountry(parseValidatorsParams(search), switchCodes))).toBe(href);
   });
 });
 
@@ -175,6 +294,17 @@ describe("canonicalValidatorsParams (the part that needs data)", () => {
       publisher: "vl.ripple.com",
       q: "north",
     });
+  });
+
+  it("keeps country as given, with the lists answered or not: it needs no data", () => {
+    expect(canonical("?country=de&q=%20x%20&scope=ALL")).toStrictEqual({ scope: "all", country: "DE", q: "x" });
+    expect(canonical("?country=UNKNOWN&publisher=VL.Ripple.com")).toStrictEqual({ scope: "unl", publisher: "vl.ripple.com", country: "unknown" });
+    expect(canonical("?country=deu")).toStrictEqual({ scope: "unl" });
+    const given = parseValidatorsParams("?country=de&publisher=VL.Ripple.com&amendment=xchainbridge");
+    expect(canonicalValidatorsParams(given, { publishers: null, amendments: null })).toEqual(given);
+    expect(canonicalValidatorsParams(given, { publishers: [], amendments: [] })).toStrictEqual({ scope: "unl", country: "DE" });
+    // The href the loader settles on writes it between the amendment and the search.
+    expect(validatorsHref("xrpl", canonical("?q=x&country=de&amendment=XChainBridge"))).toBe("/xrpl/validators?amendment=XChainBridge&country=DE&q=x");
   });
 
   it("keeps a parameter as given when its list is null", () => {
