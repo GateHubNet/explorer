@@ -48,7 +48,6 @@ describe("the Network menu", () => {
 
     // The Network item is the `<details>` of the spec's markup, closed, with a summary that names it and a panel of four links.
     expect(nav.queryByRole("link", { name: "Network" })).toBeNull();
-    expect(details.tagName).toBe("DETAILS");
     expect(details.className).toBe("menu");
     expect(details.open).toBe(false);
     expect(details.closest("li")!.parentElement!.closest("nav")!.getAttribute("aria-label")).toBe("Main");

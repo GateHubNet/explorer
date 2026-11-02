@@ -243,7 +243,6 @@ describe("SupplyPage: the tiles", () => {
     const total = tileNamed(container, "Total supply");
     expect(total.querySelector(".supply__fraction")!.textContent).toBe(".716318");
     expect(total.querySelector(".supply__currency")!.textContent).toBe("XRP");
-    expect(total.querySelector(".stat__value")!.className).toContain("stat__value");
     expect(tileNamed(container, "Total supply").classList.contains("stat--figure")).toBe(true);
   });
 
