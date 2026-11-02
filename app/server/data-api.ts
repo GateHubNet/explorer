@@ -681,7 +681,7 @@ type IssuedTokensQuery = { kind: "issued"; limit: number; minHolders?: number; q
 type MptTokensQuery = { kind: "mpt"; limit: number; q?: string; marker?: string };
 
 /** How many issuances one lookup may ask for: D9's limit. */
-const MPT_LOOKUP_MAX = 100;
+export const MPT_LOOKUP_MAX = 100;
 /** An issuance ID, in either case: D9 upper-cases the IDs of a lookup and answers each as it has it, so the client does that first (and `checkMptLookup` compares the upper-case text). */
 const MPT_LOOKUP_ID = /^[0-9A-Fa-f]{48}$/;
 

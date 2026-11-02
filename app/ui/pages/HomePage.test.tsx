@@ -4,8 +4,10 @@ import { renderToString } from "react-dom/server";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { renderUnderNetwork } from "../../../test/support/under-network";
 import { NO_NAMES } from "../../domain/names";
 import type { HomePageData } from "../../server/home-view";
+import { NO_FEATURES } from "../features";
 import type { LiveControls } from "../use-live-controls";
 import { HomePage } from "./HomePage";
 
@@ -85,6 +87,21 @@ describe("HomePage", () => {
     renderInRouter(<HomePage network={XRPL} data={data({ transactions: [mpt] })} />);
     const [row] = within(screen.getByRole("table", { name: "Latest transactions" })).getAllByRole("row").slice(1);
     expect(within(row!).getByText("2,500,000 units of MPT 0000012A…")).toBeTruthy();
+  });
+
+  it("links an MPT payment's amount to the issuance's page while MPT is on, in units still, and not while it is off", async () => {
+    const ID = "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8";
+    const mpt = { type: "Payment", hash: "DD".repeat(32), account: ALICE, amount: { mpt: ID, issuer: ALICE, units: "2500000" }, ok: true, code: "tesSUCCESS", date: 1792256470 };
+    const home = () => <HomePage network={XRPL} data={data({ transactions: [mpt] })} />;
+    renderUnderNetwork(home(), { ...NO_FEATURES, mpt: true }, { path: "/xrpl" });
+    const link = await screen.findByRole("link", { name: "0000012A…" });
+    expect(link.getAttribute("href")).toBe(`/xrpl/mpt/${ID}`);
+    expect(link.closest(".mptamount")?.textContent).toBe("2,500,000 units of MPT 0000012A…");
+    expect(link.closest(".mptamount")?.getAttribute("title")).toBe(`MPT ${ID} issued by ${ALICE}`);
+    cleanup();
+    renderUnderNetwork(home(), { ...NO_FEATURES, mpt: false }, { path: "/xrpl" });
+    await screen.findByRole("table", { name: "Latest transactions" });
+    expect(screen.queryByRole("link", { name: "0000012A…" })).toBeNull();
   });
 
   it("has the cards the header's links lead to, and a link to the ledger in each", () => {

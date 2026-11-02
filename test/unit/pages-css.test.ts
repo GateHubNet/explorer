@@ -681,6 +681,7 @@ describe("the classes of the ledger object pages' components (Task 5)", () => {
     ".permchip",
     ".permchip--granular",
     ".mptamount",
+    ".mptlink",
     ".objectlink",
     ".tokenlink",
   ];
@@ -695,7 +696,7 @@ describe("the classes of the ledger object pages' components (Task 5)", () => {
   });
 
   // The roots are the whole class, whatever follows them: nothing of another sheet starts with one of these names either (`.timeline-x`, `.states-y`), which would be the next collision.
-  it.each(["states", "timeline", "checkflow", "permchip", "mptamount"])("no stylesheet but components.css has a class that starts with .%s", (root) => {
+  it.each(["states", "timeline", "checkflow", "permchip", "mptamount", "mptlink"])("no stylesheet but components.css has a class that starts with .%s", (root) => {
     const started = new RegExp(`\\.${root}(?![\\w-])|\\.${root}[_-]`);
     for (const [file, css] of [["pages.css", pagesCss], ["charts.css", chartsCss], ["base.css", baseCss], ["tokens.css", tokensCss]] as const) {
       expect(started.test(css), `${file} has a class of ${root}`).toBe(false);
@@ -751,6 +752,31 @@ describe("the classes of the ledger object pages' components (Task 5)", () => {
       expect(Number.parseFloat(link["min-height"]!), selector).toBeGreaterThanOrEqual(24);
       expect(Number.parseFloat(link["min-width"]!), selector).toBeGreaterThanOrEqual(24);
     }
+  });
+
+  // E14: a reference to an MPT in words (MptLink) is a link in running words, as an object link is.
+  it("underlines a reference to an MPT that is a link in words, with an offset of 3 px", () => {
+    expect(rule(componentsCss, ".mptlink")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px" });
+  });
+
+  // E14: an MPT's currency in the balance changes has the issuance's link and the issuer's under it, and a flow step's MPT amount links under the account's link: each is a target of at least
+  // 24 px (WCAG 2.5.8), and the amount stands clear of the 44 px target of the account link above it.
+  it("makes the links of an MPT's currency cell and of a flow step's MPT amount targets of at least 24 px, the amount clear of the account link", () => {
+    for (const selector of [".cur--mpt a", ".flow__amount a"]) {
+      const link = rule(pagesCss, selector);
+      expect(link, selector).toMatchObject({ display: "inline-flex", "align-items": "center" });
+      expect(Number.parseFloat(link["min-height"]!), selector).toBeGreaterThanOrEqual(24);
+      expect(Number.parseFloat(link["min-width"]!), selector).toBeGreaterThanOrEqual(24);
+    }
+    // The account link's box reaches 12 px under its text (padding 12, margin -12) and the node's gap is 4 px: 8 px more clears it.
+    expect(rule(pagesCss, ".flow__node > a")).toMatchObject({ "padding-block": "12px", "margin-block": "-12px" });
+    expect(rule(pagesCss, ".flow__node")).toMatchObject({ gap: "4px" });
+    expect(rule(pagesCss, ".flow__node > .flow__amount:has(a)")).toMatchObject({ "margin-top": "8px" });
+  });
+
+  // E14: the ticker of the MPT a touched object is about is the issuer's text, as long as the issuer wrote it.
+  it("cuts the ticker beside a touched object's type with an ellipsis, before the account's link shrinks", () => {
+    expect(rule(pagesCss, ".objects__ticker")).toMatchObject({ "min-width": "0", overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" });
   });
 
   // E11: a token's code is a link in the words of a pair's and a pool's "USD issued by r…" and of the toml's currencies under "How we know", where a colour alone would not tell it (WCAG 1.4.1).

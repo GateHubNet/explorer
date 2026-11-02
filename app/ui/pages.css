@@ -493,6 +493,19 @@ a.example:hover {
   font-size: 16px;
 }
 
+/* An MPT's amount in a step links its issuance's page (MptAmount, while MPT is on), under the account link, whose 44 px target reaches 12 px under its text: the link is a target of at least
+   24 px (WCAG 2.5.8), and the amount stands 8 px lower, so that the two targets do not overlap. */
+.flow__amount a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  min-width: 24px;
+}
+
+.flow__node > .flow__amount:has(a) {
+  margin-top: 8px;
+}
+
 .flow__arrow {
   flex: 0 0 auto;
   display: flex;
@@ -534,6 +547,14 @@ a.example:hover {
 .cur__line {
   color: var(--faint);
   font-size: 12px;
+}
+
+/* An MPT's currency cell has two links, one over the other (the issuance's and the issuer's): each is a target of at least 24 px (WCAG 2.5.8), as the Tokens card's and the pool's lines are. */
+.cur--mpt a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  min-width: 24px;
 }
 
 .memo {
@@ -597,6 +618,14 @@ a.example:hover {
 /* The link of an object's type keeps its width: the account's link beside it is the one that shrinks. */
 .objects__type {
   flex: none;
+}
+
+/* The ticker of the MPT an object is about is the issuer's text, as long as the issuer wrote it: it shrinks, with an ellipsis, before the account's link does. */
+.objects__ticker {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .objects__more summary {

@@ -151,6 +151,16 @@ describe("transactionDescription", () => {
     expect(transactionDescription(payment(flow), XRPL.network)).toBe("Payment of 2,500,000 units of MPT 0000012A… from rJF2Xa…FQvg to rNYbL8…UKq5 · XRPL ledger 107,695,660");
   });
 
+  it("names an MPT's scaled value and ticker once the transaction page's lookup filled them, 'units' for an issuance with no ticker", () => {
+    const amount = { mpt: "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8", issuer: "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh", units: "2500000", value: "25000.00" };
+    const flowOf = (filled: typeof amount & { ticker?: string }): FlowStep[] => [
+      { role: "sender", account: SENDER, label: "Sender", amount: filled },
+      { role: "destination", account: RECEIVER, label: "Destination", amount: filled },
+    ];
+    expect(transactionDescription(payment(flowOf({ ...amount, ticker: "HTF" })), XRPL.network)).toBe("Payment of 25,000.00 HTF from rJF2Xa…FQvg to rNYbL8…UKq5 · XRPL ledger 107,695,660");
+    expect(transactionDescription(payment(flowOf(amount)), XRPL.network)).toBe("Payment of 25,000.00 units from rJF2Xa…FQvg to rNYbL8…UKq5 · XRPL ledger 107,695,660");
+  });
+
   it("writes a currency code as the page does", () => {
     const flow: FlowStep[] = [
       { role: "sender", account: SENDER, label: "Sender" },

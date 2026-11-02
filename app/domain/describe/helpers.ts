@@ -119,8 +119,12 @@ export function mptFlowAmount(raw: unknown): MptFlowAmount | undefined {
   return amount === undefined ? undefined : { mpt: amount.id, issuer: mptIssuerOf(amount.id), units: amount.units };
 }
 
-/** What `MptAmount` draws, as words for a sentence: "2,500,000 units of MPT 0000012A…" (raw units, no scale: E14 replaces them). */
-export const mptWords = ({ id, units }: { id: string; units: string }): string => `${formatAmount(units)} units of MPT ${id.slice(0, 8)}…`;
+/**
+ * What `MptAmount` draws, as words for a sentence: "1,240,000.00 HTF" once the lookup filled `value` (the units scaled; `ticker` is the issuance's, else "units"), else the raw
+ * "2,500,000 units of MPT 0000012A…" (a page that makes no lookup, an issuance answered bare, a scale above 19).
+ */
+export const mptWords = ({ id, units, value, ticker }: { id: string; units: string; value?: string; ticker?: string }): string =>
+  value === undefined ? `${formatAmount(units)} units of MPT ${id.slice(0, 8)}…` : `${formatAmount(value)} ${ticker ?? "units"}`;
 
 /** An MPT amount field as its segment, `undefined` for anything else. */
 function mptField(raw: unknown): Segment | undefined {

@@ -13,6 +13,8 @@ import { upstreamFailure, upstreamOutage } from "../server/loader-errors";
 import { logProblem } from "../server/logging";
 import { metaContext } from "../server/meta";
 import { transactionMeta } from "../server/meta-transaction";
+import { loadMptLookup } from "../server/mpt-load";
+import { mptAmountsOf } from "../server/mpt-view";
 import { collectAddresses, loadNames } from "../server/names-load";
 import { requireNetwork } from "../server/network-route";
 import { networkIdOfCtid, networkOf, type Network, type NetworkId } from "../server/networks";
@@ -25,6 +27,7 @@ import {
   transactionPage,
   txFromIndex,
   txFromNode,
+  withMpt,
   type BinaryRaw,
   type TransactionPageData,
 } from "../server/transaction-view";
@@ -78,6 +81,9 @@ function nameOf(context: Route.LoaderArgs["context"], id: NetworkId): NetworkNam
  *   the details, the changes and the objects, never of the raw JSON, the memos or the summary. A page of class `immutable` is then kept an hour, not a year
  *   (`NAMED_PAGE_TTL_SECONDS`, with `NAMES` on), so that a new name or label shows within about an hour. A names call that fails never fails the page: it shows
  *   the addresses and is served, not stored. The page from the node is named too. Titles, descriptions, cards and `plainText` keep short addresses (spec 7).
+ * - The MPT amounts the page draws are scaled by one lookup (E14, `finished`: `mptAmountsOf`, `loadMptLookup`, `withMpt`), made beside the names call while `MPT` is on and only for a page
+ *   that has an issuance ID. A page with an MPT amount left in units (the lookup answered its issuance bare, or not at all) is class `short`, never `immutable`; a lookup that fails is logged
+ *   and the page is served, not stored (`markDegraded`).
  */
 export async function loader({ request, params, context }: Route.LoaderArgs) {
   const network = requireNetwork(context, params);
@@ -141,10 +147,11 @@ async function transactionAnswer(context: Route.LoaderArgs["context"], network: 
       logProblem("the binary form of a transaction was not taken", binary.reason, request);
       form = { state: "failed" };
     }
-    const page = await named(transactionPage(source, { network, neighbours, binary: form }), api, network, context, request);
+    const { page, unresolved } = await finished(transactionPage(source, { network, neighbours, binary: form }), api, network, context, request);
     // Whole (also with the JSON the API serves for a type it cannot serialize, which is a lasting answer): for a year, or for an hour while it shows names
-    // (`NAMED_PAGE_TTL_SECONDS`). Without its binary form, which asking again may find, only for the short class's 30 s.
-    if (form.state === "failed") return cached(page, "short");
+    // (`NAMED_PAGE_TTL_SECONDS`). Without its binary form, which asking again may find, only for the short class's 30 s; and the same for a page with an MPT amount in units because the
+    // lookup failed or answered its issuance bare (never `immutable`: the units would be kept for a year, and the scale may be known in a minute).
+    if (form.state === "failed" || unresolved) return cached(page, "short");
     return cached(page, "immutable", network.features.names ? { ttl: NAMED_PAGE_TTL_SECONDS } : {});
   }
 
@@ -168,7 +175,7 @@ async function transactionAnswer(context: Route.LoaderArgs["context"], network: 
   } catch (err) {
     return upstreamOutage(err, what);
   }
-  const page = await named(transactionPage(source, { network, neighbours: null, binary: { state: "pending" } }), api, network, context, request);
+  const { page } = await finished(transactionPage(source, { network, neighbours: null, binary: { state: "pending" } }), api, network, context, request);
   return cached(page, "short", { ttl: FROM_NODE_TTL });
 }
 
@@ -192,17 +199,24 @@ function drawnAccounts(page: Omit<TransactionPageData, "names">): string[] {
   ];
 }
 
-/** The page with the names of the accounts it draws (`drawnAccounts`, never of the raw data): one call, which never fails the page. */
-async function named(
+/**
+ * The page with the names of the accounts it draws (`drawnAccounts`, never of the raw data) and its MPT amounts scaled (`withMpt`): one names call and one MPT lookup, side by side, neither of
+ * which fails the page. `unresolved` says whether an MPT amount stayed in units (`withMpt`).
+ */
+async function finished(
   page: Omit<TransactionPageData, "names">,
-  api: Pick<DataApi, "accountNames">,
+  api: Pick<DataApi, "accountNames" | "mptLookup">,
   network: Network,
   context: Route.LoaderArgs["context"],
   request: Request,
-): Promise<TransactionPageData> {
+): Promise<{ page: TransactionPageData; unresolved: boolean }> {
   const addresses = collectAddresses(drawnAccounts(page));
-  const { part } = await loadNames(api, addresses, { context, request, features: network.features });
-  return { ...page, names: part };
+  const [lookup, { part }] = await Promise.all([
+    loadMptLookup(api, mptAmountsOf(page), { context, request, features: network.features, net: network }),
+    loadNames(api, addresses, { context, request, features: network.features }),
+  ]);
+  const filled = withMpt(page, lookup);
+  return { page: { ...filled.page, names: part }, unresolved: filled.unresolved };
 }
 
 export function meta({ loaderData, matches, params }: Route.MetaArgs) {

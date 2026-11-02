@@ -322,7 +322,8 @@ test.describe("the pages", () => {
     await page.goto(pathOf("xrpl", "escrows", objectCase("xrpl", "escrow-mpt").id));
     const amount = rowValue(page, "Amount").locator(".mptamount");
     await expect(amount).toHaveText(/^[\d,]+ units of MPT [0-9A-F]{8}…$/);
-    await expect(amount).toHaveAttribute("title", /^[0-9A-F]{48}$/);
+    // Whole on hover: "MPT {ID}" and, once the issuer is known, " issued by {issuer}" (E14: MptAmount's title).
+    await expect(amount).toHaveAttribute("title", /^MPT [0-9A-F]{48}( issued by r\w+)?$/);
   });
 });
 

@@ -103,4 +103,6 @@ export type TouchedObject = {
   account?: string;
   /** An `MPToken` or an `MPTokenIssuance`: the ID of the issuance, in capitals. */
   mpt?: string;
+  /** Its issuance's ticker, which the Worker's lookup fills in (`resolveMpt`) after `objectsTouched` has made the entry. */
+  ticker?: string;
 };

@@ -276,8 +276,48 @@ describe("Sentence", () => {
     );
     expect(container.textContent).toBe("locked 2,500,000 units of MPT 0000012A… of MPT 0000012A….");
     expect(container.querySelectorAll(".mptamount")).toHaveLength(1);
-    expect(container.querySelector(".mptamount")!.getAttribute("title")).toBe(ID);
+    expect(container.querySelector(".mptamount")!.getAttribute("title")).toBe(`MPT ${ID} issued by ${issuer}`);
     expect(screen.queryAllByRole("link")).toEqual([]);
+  });
+
+  describe("an MPT, scaled and linked (E14)", () => {
+    const ID = "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8";
+    const issuer = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+    const filled: Segment[] = [
+      { t: "text", v: "sent " },
+      { t: "mpt", id: ID, issuer, units: "2500000", value: "25000.00", ticker: "HTF" },
+      { t: "text", v: " of " },
+      { t: "mpt", id: ID, issuer, ticker: "HTF" },
+      { t: "text", v: "." },
+    ];
+
+    it("draws the scaled value and the ticker, and a reference as its ticker, each a link to the issuance's page while MPT is on", async () => {
+      const { container } = renderUnderNetwork(<Sentence net="xrpl" segments={filled} />, { ...featuresOf(allSwitches("on")) });
+      await screen.findAllByRole("link");
+      expect(container.textContent).toBe("sent 25,000.00 HTF of HTF.");
+      expect(screen.getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+        ["HTF", `/xrpl/mpt/${ID}`],
+        ["HTF", `/xrpl/mpt/${ID}`],
+      ]);
+      expect(container.querySelector(".mptamount")!.getAttribute("title")).toBe(`MPT ${ID} issued by ${issuer}`);
+    });
+
+    it("draws the words without the issuance when the lookup did not answer: the units and the ID's start, and 'MPT 0000012A…' for a reference", async () => {
+      const bare: Segment[] = [{ t: "mpt", id: ID, issuer, units: "2500000" }, { t: "text", v: " of " }, { t: "mpt", id: ID, issuer }];
+      const { container } = renderUnderNetwork(<Sentence net="xahau" segments={bare} />, { ...featuresOf(allSwitches("on")) });
+      await screen.findAllByRole("link");
+      expect(container.textContent).toBe("2,500,000 units of MPT 0000012A… of MPT 0000012A…");
+      expect(screen.getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+        ["0000012A…", `/xahau/mpt/${ID}`],
+        ["MPT 0000012A…", `/xahau/mpt/${ID}`],
+      ]);
+    });
+
+    it("is text, with no link, while MPT is off, as before E14", async () => {
+      const { container } = renderUnderNetwork(<Sentence net="xrpl" segments={filled} />, { ...featuresOf(allSwitches("on")), mpt: false });
+      await waitFor(() => expect(container.textContent).toBe("sent 25,000.00 HTF of HTF."));
+      expect(screen.queryAllByRole("link")).toEqual([]);
+    });
   });
 
   it("formats an amount that arrives in exponent form", () => {
