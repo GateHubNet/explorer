@@ -622,7 +622,8 @@ describe("an NFT of the index (mode indexed)", () => {
       expect(text).toContain("Decoded from hex. Not fetched.");
       // Escaped, and never an attribute: no link of the page goes anywhere but the explorer, and nothing of it is an image or a script.
       expect(hrefs(html).filter((href) => !href.startsWith("/") && !href.startsWith("#")), uri).toEqual([]);
-      expect(html).not.toContain("<img");
+      // The header's logo is the page's only image (two, one for each theme: app/ui/logo/), and none comes from the URI.
+      expect((html.match(/<img\b[^>]*>/g) ?? []).filter((tag) => !tag.includes('class="hdr__logo ')), uri).toEqual([]);
       // (An element with a handler would start with a `<`; the URI's own `<` is `&lt;` in the page and `\u003c` in its data.)
       expect(html).not.toMatch(/<[^>]*\bon(error|click|load)=/i);
       expect(mock.requests.filter((request) => request.url.includes("example.com") || request.url.includes("ipfs"))).toEqual([]);
