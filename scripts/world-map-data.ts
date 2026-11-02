@@ -6,7 +6,8 @@
 //   Names are the CLDR English names as `new Intl.DisplayNames(["en"], { type: "region" }).of(code)` gives them under Node 24, with the short forms "Hong Kong", "Macao",
 //   "Palestine" and "Myanmar" for HK, MO, PS and MM. Points are, in this order of preference:
 //     1. the board's 55 hub points, the kit's (`BOARD_CODES`, in the kit's order);
-//     2. for ten codes the Factbook has no entry of its own for (AX, BQ, GF, GP, MQ, RE, YT) or only inside another's (PS, UM, SJ): the points the plan fixes;
+//     2. the points the plan fixes: for the seven codes the Factbook has no entry of its own for (AX, BQ, GF, GP, MQ, RE, YT), their territories' own coordinates; for PS, UM and
+//        SJ, which do have entries (West Bank, Wake Island, Svalbard), the plan's reading of those entries (UM's is 0.1 box unit from what its entry computes to);
 //     3. the World Factbook's coordinates as the factbook/factbook.json mirror holds them (CC0, commit 144d6977), the CIA's own pages having been withdrawn.
 //        The commit is 144d6977b2b01ac1cbd220de754c0a005616760b; the field is "Geographic coordinates" of an entry's "Geography". Each code is matched to the entry that names its
 //        country (the entry's own "Country name", short or long form): the mirror's file names are FIPS codes, not ISO ones (`gm` is Germany, `ni` Nigeria), so a file name
