@@ -10,8 +10,10 @@
 //     load, the chunk of the view that its `import()` names (`ANALYTICS_VIEW`), and the files that chunk imports statically, followed from file
 //     to file (each file once); or that `import()` or a file it reaches is not in the build;
 //   - a file of the build holds something that belongs to the Worker alone: the image renderer, the transaction parser's vocabulary,
-//     the binary codec or the QR encoder (they would weigh on every visitor, and the pages are drawn from data that is ready);
+//     the binary codec, the QR encoder or the country table (they would weigh on every visitor, and the pages are drawn from data that is ready);
 //   - `assets/` holds WebAssembly or a font that is not the pages' own WOFF2 (`.wasm`, `.ttf`, `.bin`: the image renderer's);
+//   - a script of the build holds the world map's dots (E13: they are the static file `assets/world-dots-<hash>.svg`, which the validators page draws with `<use>`, and the build has
+//     exactly one of it);
 //   - the build has no `_headers` rule that keeps the hashed assets in `assets/` for a year.
 //
 // What a page loads first is what the browser fetches before the page works: the entry, the root route, the `/:net` layout, the
@@ -22,6 +24,7 @@
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, posix, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
 /**
@@ -109,7 +112,33 @@ export const FORBIDDEN: readonly Forbidden[] = [
   { label: "ripple-binary", pattern: /ripple-binary/, sample: "ripple-binary-codec" },
   // `ECC_CODEWORDS_PER_BLOCK` in app/server/qr.ts: the number of error correction codewords of each version (index 0 unused).
   { label: "QR encoder tables", pattern: /-1,\s*10,\s*16,\s*26,\s*18,\s*24,\s*16,\s*18,\s*22,\s*22/, sample: "[-1,10,16,26,18,24,16,18,22,22]" },
+  // `COUNTRIES` in app/server/countries.ts (E13): the countries' names and points, 250 of them, which the view builders turn into text and percentages. Found by the longest name, which no other
+  // text of the app has; the dots of the map have their own check below.
+  { label: "country table", pattern: /South Georgia & South Sandwich/, sample: 'GS:{name:"South Georgia & South Sandwich Islands",x:397.2,y:368.1,order:200}' },
 ];
+
+/**
+ * The world map's dots as the build names the file: Vite's `?url` import of `app/ui/map/world-dots.svg` (far above the inline limit) is `assets/world-dots-<hash>.svg`. The map is
+ * drawn with `<use>` of this file, so that no byte of it is in any page's JavaScript or HTML; a build has exactly one.
+ */
+export const MAP_ASSET = /^assets\/world-dots-[\w-]+\.svg$/;
+
+/** How many characters of the dots' path are the needle: more than any other text of the build can share by chance. */
+const DOTS_NEEDLE_LENGTH = 32;
+
+/**
+ * The first 32 characters of the `d` attribute of the dots' path in `svg` (the generated `app/ui/map/world-dots.svg`): what no script of the build may hold. The attribute is found
+ * wherever it stands among the path's others.
+ */
+export function dotsNeedleOf(svg: string): string {
+  const d = /<path\b[^>]*?\sd="([^"]*)"/.exec(svg)?.[1];
+  if (d === undefined) throw new Error("the dots' svg has no path with a d attribute");
+  if (d.length < DOTS_NEEDLE_LENGTH) throw new Error(`the d attribute of the dots' path has ${d.length} characters, fewer than the ${DOTS_NEEDLE_LENGTH} of the needle`);
+  return d.slice(0, DOTS_NEEDLE_LENGTH);
+}
+
+/** The committed asset the build's copy is made from: beside the scripts, in the app. */
+const DOTS_FILE = fileURLToPath(new URL("../app/ui/map/world-dots.svg", import.meta.url));
 
 /** What is not text and is not read: a font or an image cannot hold a name by accident worth failing a build for. */
 const BINARY = /\.(woff2?|ttf|otf|ico|png|jpe?g|gif|webp|avif|wasm)$/i;
@@ -271,8 +300,11 @@ function viewOf(dir: string, page: PageReport, problems: string[]): ViewReport |
   return { name: ANALYTICS_VIEW.name, route: ANALYTICS_VIEW.from, budget, files, bytes, chunk };
 }
 
-/** Looks at the client build in `dir` (`build/client`) and says how heavy each page is and what is wrong. */
-export function checkBundle(dir: string): BundleReport {
+/**
+ * Looks at the client build in `dir` (`build/client`) and says how heavy each page is and what is wrong. `options.dotsNeedle` is what no script may hold of the world map's dots
+ * (`dotsNeedleOf`); by default it is read from the committed `app/ui/map/world-dots.svg`.
+ */
+export function checkBundle(dir: string, options: { dotsNeedle?: string } = {}): BundleReport {
   const problems: string[] = [];
   const pages: PageReport[] = [];
   const views: ViewReport[] = [];
@@ -324,6 +356,8 @@ export function checkBundle(dir: string): BundleReport {
   } catch {
     if (manifest) problems.push(`cannot list ${dir}`);
   }
+  // Read only when there is a build to look at: a directory that is no build has other problems to say.
+  const dotsNeedle = all.length > 0 ? (options.dotsNeedle ?? dotsNeedleOf(readFileSync(DOTS_FILE, "utf8"))) : "";
   for (const file of all) {
     if (WORKER_FILE.test(file)) problems.push(`${file} is WebAssembly or a font that is not the pages' WOFF2: the image renderer's, which belongs to the Worker alone`);
     if (BINARY.test(file)) continue;
@@ -331,9 +365,13 @@ export function checkBundle(dir: string): BundleReport {
     for (const forbidden of FORBIDDEN) {
       if (forbidden.pattern.test(text)) problems.push(`${file} holds ${forbidden.label}, which belongs to the Worker alone`);
     }
+    // The dots are the asset's, and a stylesheet may name it: a script is what must not hold them.
+    if (file.endsWith(".js") && text.includes(dotsNeedle)) problems.push(`${file} holds the world map's dots, which belong in assets/world-dots-*.svg alone`);
   }
 
   if (all.length > 0) {
+    const maps = all.filter((file) => MAP_ASSET.test(file)).length;
+    if (maps !== 1) problems.push(`the build has ${maps} assets/world-dots-*.svg files, not one`);
     let headers: string | undefined;
     try {
       headers = readFileSync(join(dir, "_headers"), "utf8");

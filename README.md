@@ -2794,16 +2794,28 @@ was reached (a link to it included): a gate that cannot tell whether it is being
   the account page's but its own chunk (`kitCopyProblems` in `scripts/analytics-kit-copy.ts`: that is a chunk it shares with another route; see
   "The analytics view's own copy of the kit" below);
 - any file of `build/client` that is text holds `workers-og`, `satori`, `resvg`, `yoga-wasm`, `Geist-Regular.bin`, `AffectedNodes`, `TransactionType`,
-  `FinalFields`, `ripple-binary` or the QR encoder's tables (the numbers of `ECC_CODEWORDS_PER_BLOCK` in `app/server/qr.ts`, which a minified bundle keeps
-  and its names it does not). These are what the Worker uses to read a transaction, draw an image and encode a QR code; the browser gets data. Fonts
+  `FinalFields`, `ripple-binary`, the QR encoder's tables (the numbers of `ECC_CODEWORDS_PER_BLOCK` in `app/server/qr.ts`, which a minified bundle keeps
+  and its names it does not) or the country table (E13: the longest name of `COUNTRIES` in `app/server/countries.ts`, `South Georgia & South Sandwich`). These are
+  what the Worker uses to read a transaction, draw an image, encode a QR code and turn a country's code into its name; the browser gets data. Fonts
   and images are not read;
 - `build/client/assets` holds a `.wasm`, `.ttf` or `.bin` file: WebAssembly, or a font that is not the pages' own WOFF2 (the image renderer's);
+- a `.js` file of `build/client` holds the world map's dots (E13): the first 32 characters of the `d` attribute of the path in `app/ui/map/world-dots.svg`
+  (`dotsNeedleOf`, read from the committed file, so a regenerated map is found too). The dots belong in `assets/world-dots-<hash>.svg` alone: it is a file the
+  validators page draws with `<use>`, and a script that held them would put 32 KB into the JavaScript of every page that loads it. The problem is
+  `assets/… holds the world map's dots, which belong in assets/world-dots-*.svg alone`. The svg itself and a stylesheet may name them;
+- the build does not have exactly one `assets/world-dots-*.svg` (`MAP_ASSET`): none, and the card's `<use>` points at a file that is not there, so that the
+  circles stand on a blank box; two, and the dots were copied somewhere they should not be;
 - `build/client/_headers` is missing or lacks the rule that keeps `/assets/*` for a year;
 - the root route does not import one `shell-*.js` chunk, or imports a `vendor-*.js` one, or the entry does not import that shell chunk
   (`shellManifestProblems` in `scripts/shell-chunks.ts`: see "One shell file" below);
 - the manifest or a file it names is missing.
 
 It prints a table (page, files, bytes, KB, `ok` or `OVER`, and the row's budget), the manifest's size and the problems.
+
+**The map's asset** (E13). `ValidatorsMapCard.tsx` imports `app/ui/map/world-dots.svg` with `?url`, so Vite writes it to `build/client/assets/world-dots-<hash>.svg` and the
+page has a URL string: 32,345 bytes, 6,664 at `gzip -9`, fetched by the browser where the card is drawn (the validators page, while `VALIDATORS_MAP` is on; nothing
+preloads it) and kept for a year with the other assets (`_headers`). It is in no page's figure of JavaScript above: the table does not count it, and the two problems above are what
+keep it out of the scripts. The figures of the pages that draw the map are in "The figures of E13".
 
 **The figures of E2** (gzip -9 bytes, each file once). *Before* is `c05ca58`, the commit E2 started from; *after* is the end of E2. The check counts the manifest since the commit that added the
 network page's end-to-end tests; the middle column is the figure without it, as the spec's target of 145,000 bytes and the earlier measurements are.

@@ -6,10 +6,15 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { ANALYTICS_VIEW, BUDGETS, checkBundle, FORBIDDEN, formatReport, headersRules, PAGES } from "./bundle-budget";
+import { ANALYTICS_VIEW, BUDGETS, checkBundle, dotsNeedleOf, FORBIDDEN, formatReport, headersRules, MAP_ASSET, PAGES } from "./bundle-budget";
 
 const LOOKUP = BUDGETS.lookup;
 const DASHBOARD = BUDGETS.dashboard;
+
+/** The first 32 characters of the dots' path in the fake builds' `world-dots` asset: what a script of the build may not hold (`dotsNeedleOf`). */
+const NEEDLE = "M1.0 1.0h0M2.0 2.0h0M3.0 3.0h0M4";
+const MAP_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 378"><path id="dots" d="${NEEDLE}.0 4.0h0M5.0 5.0h0" fill="none" stroke="currentColor"/></svg>`;
+const MAP_ASSET_PATH = "assets/world-dots-abc123.svg";
 
 // A fake client build: the files `react-router build` writes to build/client, with a manifest whose routes are the pages' and
 // whose chunks are bytes of no pattern (they do not compress, so a chunk's gzipped size is known to within a few bytes).
@@ -62,6 +67,8 @@ function fakeBuild(options: {
   headers?: string | null;
   extra?: Record<string, string | Buffer>;
   manifest?: boolean;
+  /** The map's asset, `assets/world-dots-abc123.svg`, which holds the needle (default: true). `false` leaves it out. */
+  map?: boolean;
   /**
    * The chunk every page loads (scripts/shell-chunks.ts): the root route and the entry import `shell`. `"vendor"` is the layout before R18:
    * the root route imports `vendor` and `shell`, the entry `vendor`.
@@ -106,6 +113,7 @@ function fakeBuild(options: {
     sizes.set(MANIFEST, gz(text));
   }
   if (options.headers !== null) writeFileSync(join(dir, "_headers"), options.headers ?? IMMUTABLE_HEADERS);
+  if (options.map !== false) writeFileSync(join(dir, MAP_ASSET_PATH), MAP_SVG);
   for (const [path, content] of Object.entries(options.extra ?? {})) {
     mkdirSync(dirname(join(dir, path)), { recursive: true });
     writeFileSync(join(dir, path), content);
@@ -587,10 +595,20 @@ describe("checkBundle: what must not be in the build", () => {
     expect(checkBundle(dir).problems).toHaveLength(1);
   });
 
-  it("forbids the renderer and its font, the transaction parser's vocabulary, the binary codec and the QR encoder's tables", () => {
+  it("forbids the renderer and its font, the transaction parser's vocabulary, the binary codec, the QR encoder's tables and the country table", () => {
     expect(FORBIDDEN.map((forbidden) => forbidden.label).sort()).toEqual(
-      ["AffectedNodes", "FinalFields", "Geist-Regular.bin", "QR encoder tables", "TransactionType", "resvg", "ripple-binary", "satori", "workers-og", "yoga-wasm"].sort(),
+      ["AffectedNodes", "FinalFields", "Geist-Regular.bin", "QR encoder tables", "TransactionType", "country table", "resvg", "ripple-binary", "satori", "workers-og", "yoga-wasm"].sort(),
     );
+  });
+
+  // The countries' names are in app/server/countries.ts, which the Worker alone imports (the loaders turn a code into a name; a page receives text): a name found in a file of the
+  // build is the table itself in the browser's bytes. The needle is a name that no other text of the app has, and it is found in the table's own source.
+  it("has a country-table needle that finds the table in its own source", () => {
+    const table = FORBIDDEN.find((forbidden) => forbidden.label === "country table")!;
+    const source = readFileSync(new URL("../app/server/countries.ts", import.meta.url), "utf8");
+    expect(table.pattern.test(source)).toBe(true);
+    expect(table.pattern.test('GS:{name:"South Georgia & South Sandwich Islands",x:397.2,y:368.1,order:200}')).toBe(true);
+    expect(table.pattern.test("South Georgia")).toBe(false);
   });
 
   it.each(["assets/yoga.wasm", "assets/resvg-AbC123.wasm", "assets/Geist-Regular.ttf", "assets/Geist-Regular-abc123.bin", "assets/FONT.TTF"])(
@@ -747,5 +765,81 @@ describe("the command", () => {
       expect(result.stdout).toMatch(/home\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
       expect(result.status).toBe(0);
     }, 30_000);
+  });
+});
+
+describe("checkBundle: the map's dots belong in their asset alone", () => {
+  /** The problems of a fake build, looking for the fake builds' needle unless the test says another. */
+  const problemsOf = (build: Parameters<typeof fakeBuild>[0], options: Parameters<typeof checkBundle>[1] = { dotsNeedle: NEEDLE }) => checkBundle(fakeBuild(build).dir, options).problems;
+
+  it("passes a build whose dots are in the asset and nowhere else", () => {
+    expect(problemsOf({ chunks: CHUNKS, routes: ROUTES })).toEqual([]);
+  });
+
+  it("fails a script that holds the dots, and names it", () => {
+    const problems = problemsOf({ chunks: [...CHUNKS, { name: "leak.js", text: `var dots="${NEEDLE}";` }], routes: ROUTES });
+    expect(problems).toEqual(["assets/leak.js holds the world map's dots, which belong in assets/world-dots-*.svg alone"]);
+  });
+
+  it("names every script that holds them, once each, and finds them inside a larger file", () => {
+    const text = (inside: string) => `${"x".repeat(5000)}${inside}${"y".repeat(5000)}`;
+    const problems = problemsOf({
+      chunks: [...CHUNKS, { name: "a.js", text: text(`${NEEDLE}${NEEDLE}`) }, { name: "b.js", text: text(NEEDLE) }],
+      routes: ROUTES,
+    });
+    expect(problems).toEqual([
+      "assets/a.js holds the world map's dots, which belong in assets/world-dots-*.svg alone",
+      "assets/b.js holds the world map's dots, which belong in assets/world-dots-*.svg alone",
+    ]);
+  });
+
+  it("takes the dots in the svg itself, and in a stylesheet", () => {
+    // The asset is the dots' place; a stylesheet is not a script (a `url()` of the asset is its business).
+    expect(problemsOf({ chunks: CHUNKS, routes: ROUTES, extra: { "assets/styles.css": `.map{--dots:"${NEEDLE}"}` } })).toEqual([]);
+  });
+
+  it("fails a build without the map's asset, and one with two", () => {
+    expect(problemsOf({ chunks: CHUNKS, routes: ROUTES, map: false })).toEqual(["the build has 0 assets/world-dots-*.svg files, not one"]);
+    expect(problemsOf({ chunks: CHUNKS, routes: ROUTES, extra: { "assets/world-dots-def456.svg": MAP_SVG } })).toEqual(["the build has 2 assets/world-dots-*.svg files, not one"]);
+  });
+
+  it("counts the files that are named as the build names the asset, and no other", () => {
+    expect(MAP_ASSET.test("assets/world-dots-abc123.svg")).toBe(true);
+    expect(MAP_ASSET.test("assets/world-dots-Dh3x_9aB-.svg")).toBe(true);
+    for (const name of ["assets/world-dots.svg", "assets/world-dots-abc123.svg.map", "assets/other/world-dots-abc123.svg", "world-dots-abc123.svg", "assets/world-dots-abc123.js", "assets/not-world-dots-abc123.svg"]) {
+      expect(MAP_ASSET.test(name), name).toBe(false);
+    }
+    // A file named otherwise is not an asset of the map: the build still has its one.
+    expect(problemsOf({ chunks: CHUNKS, routes: ROUTES, extra: { "assets/world-dots.svg": MAP_SVG } })).toEqual([]);
+  });
+
+  it("does not ask for the asset of a directory that is no build", () => {
+    // Only the problems of an empty directory: no manifest (and no second complaint about the map).
+    const dir = mkdtempSync(join(tmpdir(), "t15b-check-bundle-empty-"));
+    dirs.push(dir);
+    expect(checkBundle(dir, { dotsNeedle: NEEDLE }).problems.join("\n")).not.toMatch(/world-dots/);
+  });
+
+  it("reads the needle from the d attribute", () => {
+    expect(dotsNeedleOf(MAP_SVG)).toBe(NEEDLE);
+    expect(NEEDLE).toHaveLength(32);
+    // The attribute's place among the others does not matter, nor does a comment before the svg (the generated file has one).
+    expect(dotsNeedleOf(`<!-- Generated -->\n<svg><path fill="none" d="${NEEDLE}h0M9.0 9.0h0" id="dots"/></svg>`)).toBe(NEEDLE);
+    // Not the first 32 characters of the file: the d attribute's.
+    expect(dotsNeedleOf(MAP_SVG)).not.toBe(MAP_SVG.slice(0, 32));
+    expect(() => dotsNeedleOf("<svg><path id=\"dots\"/></svg>")).toThrow(/d attribute/);
+    expect(() => dotsNeedleOf('<svg><path d="M1 1h0"/></svg>')).toThrow(/32/);
+  });
+
+  it("reads the needle of the committed asset by default, and takes another in its options", () => {
+    const committed = dotsNeedleOf(readFileSync(new URL("../app/ui/map/world-dots.svg", import.meta.url), "utf8"));
+    expect(committed).toHaveLength(32);
+    const leak = (needle: string) => ({ chunks: [...CHUNKS, { name: "leak.js", text: `var dots="${needle}";` }], routes: ROUTES });
+    // With no options the committed file's: a script with its first 32 characters fails, and one with the fake builds' does not.
+    expect(checkBundle(fakeBuild(leak(committed)).dir).problems).toEqual(["assets/leak.js holds the world map's dots, which belong in assets/world-dots-*.svg alone"]);
+    expect(checkBundle(fakeBuild(leak(NEEDLE)).dir).problems).toEqual([]);
+    // With an option it is the option's, and not the committed file's.
+    expect(problemsOf(leak(committed))).toEqual([]);
+    expect(problemsOf(leak(NEEDLE))).toHaveLength(1);
   });
 });
