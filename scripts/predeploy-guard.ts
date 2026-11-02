@@ -10,6 +10,7 @@
 //  - a switch (app/ui/features.ts, README "Switches") is missing from the build's vars, is not exactly "on" or "off", or a var that is not a
 //    switch has the value "on" or "off" (a misspelt switch, such as `MARKET`: the page it should gate would be served as if it were off);
 //  - `AMM_PAGES` is "on" while `AMM_DATA` is not: the AMM pages are all AMM data, so (spec 10) the pages go on in an environment only once the data is on there;
+//  - `MPT` is "on" while `TOKENS` is not (E14): the MPT tab is a kind of the token list, and the MPT pages lead into the token pages;
 //  - the build is not for the environment asked for (or for none: the top level is local development);
 //  - the Worker would be served from workers.dev (`workers_dev`, `preview_urls`), where the Cache API does nothing;
 //  - the build is wired to the other environment, or to none (DEPLOYED, KNOWN_NODES; sandbox spec 4): its `ENVIRONMENT` is not the environment's
@@ -132,12 +133,16 @@ function switchProblems(vars: Record<string, unknown>, environment: string): str
 }
 
 /**
- * The reasons a combination of switches is wrong, each switch being fine on its own. `AMM_PAGES` on needs `AMM_DATA` on (spec 10): every AMM page reads
- * the data that switch gates, so pages on over data that is off would be served from an index the environment has not got. An `AMM_DATA` that is
- * missing or is not "on" counts as off (and has its reason from `switchProblems` as well, which comes first); an `AMM_PAGES` that is not exactly "on" is off.
+ * The reasons a combination of switches is wrong, each switch being fine on its own, in this order. `AMM_PAGES` on needs `AMM_DATA` on (spec 10): every AMM page reads
+ * the data that switch gates, so pages on over data that is off would be served from an index the environment has not got. `MPT` on needs `TOKENS` on (E14): the MPT
+ * tab is a kind of the token list, and the MPT pages' links and breadcrumbs lead into it. A switch that is missing or is not "on" counts as off (and has its reason from
+ * `switchProblems` as well, which comes first); `AMM_PAGES` and `MPT`, the two that need another, are refused only when they are exactly "on".
  */
 function crossSwitchProblems(vars: Record<string, unknown>): string[] {
-  return vars.AMM_PAGES === "on" && vars.AMM_DATA !== "on" ? ["AMM_PAGES is on but AMM_DATA is off: the AMM pages need the AMM data"] : [];
+  return [
+    ...(vars.AMM_PAGES === "on" && vars.AMM_DATA !== "on" ? ["AMM_PAGES is on but AMM_DATA is off: the AMM pages need the AMM data"] : []),
+    ...(vars.MPT === "on" && vars.TOKENS !== "on" ? ["MPT is on but TOKENS is off: the MPT pages need the token pages"] : []),
+  ];
 }
 
 /** `ENVIRONMENT` must be the name of the environment: it is what decides whether the pages show mainnets or testnets. */

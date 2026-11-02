@@ -342,6 +342,38 @@ describe("the VALIDATORS_MAP switch", () => {
   });
 });
 
+// MPT (E14): the MPT pages, the links to an issuance and the amounts' units and scale. A feature-level switch, appended after VALIDATORS_MAP: it is the 13th of the list, and sorts between MARKETS and NAMES in the cache generation.
+describe("the MPT switch", () => {
+  // Checked as a prefix of both lists, as VALIDATORS_MAP's is, so that a switch appended after it by a later plan leaves this test as it is.
+  it("is the switch after VALIDATORS_MAP, the 13th, and its feature is mpt", () => {
+    const order = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS", "AMM_PAGES", "NFTS", "NAMES", "LEDGER_OBJECTS", "DELEGATION", "TOKENS", "SUPPLY", "VALIDATORS_MAP", "MPT"];
+    expect(FEATURE_VARS.slice(0, 13)).toEqual(order);
+    expect(FEATURE_VARS.indexOf("MPT")).toBe(12);
+    expect(Object.keys(FEATURE_NAME).slice(0, 13)).toEqual(order);
+    expect(Object.keys(FEATURE_NAME).indexOf("MPT")).toBe(12);
+    expect(FEATURE_NAME.MPT).toBe("mpt");
+  });
+
+  it('is on only for "on"', () => {
+    expect(featuresOf({ MPT: "on" }).mpt).toBe(true);
+    for (const value of ["off", "ON", "On", "yes", undefined]) expect(featuresOf({ MPT: value }).mpt, String(value)).toBe(false);
+    expect(featuresOf({}).mpt).toBe(false);
+    expect(NO_FEATURES.mpt).toBe(false);
+  });
+
+  it("turns nothing else on, and nothing else turns it on, TOKENS included (the pre-deploy guard asks for TOKENS, the switch itself does not)", () => {
+    expect(featuresOf({ MPT: "on" })).toEqual({ ...NO_FEATURES, mpt: true });
+    expect(featuresOf({ TOKENS: "on" })).toEqual({ ...NO_FEATURES, tokens: true });
+    expect(featuresOf({ ...allSwitches("on"), MPT: "off" }).mpt).toBe(false);
+    expect(featuresOf({ ...allSwitches("on"), MPT: "off" }).tokens).toBe(true);
+    expect(featuresOf({ ...allSwitches("off"), MPT: "on" }).tokens).toBe(false);
+    expect(
+      featuresOf({ VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on", NFTS: "on", NAMES: "on", LEDGER_OBJECTS: "on", DELEGATION: "on", TOKENS: "on", SUPPLY: "on", VALIDATORS_MAP: "on" })
+        .mpt,
+    ).toBe(false);
+  });
+});
+
 describe("NO_FEATURES", () => {
   it("is frozen, so that a component cannot turn a feature on for everyone", () => {
     expect(Object.isFrozen(NO_FEATURES)).toBe(true);
