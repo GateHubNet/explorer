@@ -1,7 +1,7 @@
 // What a table row shows of a transaction (the ledger page's list, the home page's): pure, no I/O.
 
 import type { Native, TxJson, TxMeta } from "../parse/types";
-import { account, mptFlowAmount, parseAmount, seq } from "./helpers";
+import { account, deliveredMptAmount, mptFlowAmount, mptIssuerOf, parseAmount, parseMptAmount, seq } from "./helpers";
 import type { Description, FlowAmount, Segment } from "./types";
 
 /**
@@ -44,9 +44,11 @@ export function headlineAmount(tx: TxJson, meta: TxMeta, native: Native): FlowAm
   switch (tx.TransactionType) {
     case "Payment": {
       const intended = tx.DeliverMax ?? tx.Amount;
+      const intendedMpt = parseMptAmount(intended);
+      const delivered = intendedMpt && deliveredMptAmount(meta, intendedMpt.id);
       return (
         parseAmount(meta.delivered_amount, native) ??
-        mptFlowAmount(meta.delivered_amount ?? meta.DeliveredAmount) ??
+        (delivered && { mpt: delivered.id, issuer: mptIssuerOf(delivered.id), units: delivered.units }) ??
         parseAmount(intended, native) ??
         mptFlowAmount(intended)
       );

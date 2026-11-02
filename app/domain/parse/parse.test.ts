@@ -730,12 +730,25 @@ describe("the MPT amounts of a transaction", () => {
     const token = (holder: string, amount: string | undefined, over: Record<string, unknown> = {}) => ({ Account: holder, Flags: 0, ...(amount === undefined ? {} : { MPTAmount: amount }), MPTokenIssuanceID: ID, ...over });
     const mptOf = (t: TxJson, m: TxMeta) => brief(balanceChanges(t, m, "XRP").filter((change) => change.mpt));
 
+    const paying = (to: string, id = ID) => tx({ Destination: to, Amount: { mpt_issuance_id: id, value: "500" } });
+
     it("credits the Destination of a succeeded Payment from 0 when the node lists nothing before, and shows no change for the same node of a failed one", () => {
       const nodes = [node("ModifiedNode", "MPToken", token(HOLDER, "500"), {})];
-      expect(mptOf(tx({ Destination: HOLDER }), meta(nodes))).toEqual([[HOLDER, "500", "500"]]);
-      expect(mptOf(tx({ Destination: HOLDER }), meta(nodes, "tecPATH_PARTIAL"))).toEqual([]);
+      expect(mptOf(paying(HOLDER), meta(nodes))).toEqual([[HOLDER, "500", "500"]]);
+      expect(mptOf(paying(HOLDER), meta(nodes, "tecPATH_PARTIAL"))).toEqual([]);
       // A holder the payment does not credit is not credited by a node that lists nothing.
-      expect(mptOf(tx({ Destination: OTHER }), meta(nodes))).toEqual([]);
+      expect(mptOf(paying(OTHER), meta(nodes))).toEqual([]);
+    });
+
+    it("credits the holder of the issuance the transaction moves, not the same holder's token of another (D9's rule: the holder and the issuance)", () => {
+      const other = mptIdOf(299, ISSUER);
+      const nodes = [node("ModifiedNode", "MPToken", token(HOLDER, "500"), {}), node("ModifiedNode", "MPToken", token(HOLDER, "700", { MPTokenIssuanceID: other }), { Flags: 0 })];
+      // The payment is of `other`: its token is credited from 0 and the first, that lists nothing, is no change.
+      expect(brief(balanceChanges(paying(HOLDER, other), meta(nodes), "XRP").filter((change) => change.mpt))).toEqual([[HOLDER, "700", "700"]]);
+      // A payment whose Amount is not an MPT credits no one.
+      expect(mptOf(tx({ Destination: HOLDER, Amount: "10" }), meta(nodes))).toEqual([]);
+      // DeliverMax stands in for Amount.
+      expect(mptOf(tx({ Destination: HOLDER, DeliverMax: { mpt_issuance_id: ID.toLowerCase(), value: "500" } }), meta(nodes))).toEqual([[HOLDER, "500", "500"]]);
     });
 
     it("credits an EscrowFinish's destination, the one the escrow names, not whoever finished it", () => {
@@ -744,10 +757,39 @@ describe("the MPT amounts of a transaction", () => {
       expect(mptOf(tx({ TransactionType: "EscrowFinish", Owner: OTHER, OfferSequence: 1 }), meta(nodes))).toEqual([[HOLDER, "500", "500"]]);
     });
 
+    it("credits an escrow's holder only in the issuance the escrow holds", () => {
+      const other = mptIdOf(299, ISSUER);
+      const escrow = node("DeletedNode", "Escrow", { Account: OTHER, Destination: HOLDER, Amount: { mpt_issuance_id: other, value: "500" } });
+      const nodes = [node("ModifiedNode", "MPToken", token(HOLDER, "500"), {}), escrow];
+      expect(mptOf(tx({ TransactionType: "EscrowFinish", Owner: OTHER, OfferSequence: 1 }), meta(nodes))).toEqual([]);
+    });
+
     it("credits an EscrowCancel's owner, the escrow's account", () => {
       const escrow = node("DeletedNode", "Escrow", { Account: HOLDER, Destination: OTHER, Amount: { mpt_issuance_id: ID, value: "500" } });
       const nodes = [node("ModifiedNode", "MPToken", token(HOLDER, "500"), {}), escrow];
       expect(mptOf(tx({ TransactionType: "EscrowCancel", Owner: HOLDER, OfferSequence: 1 }), meta(nodes))).toEqual([[HOLDER, "500", "500"]]);
+    });
+
+    it.each([
+      ["Payment", () => paying(HOLDER), []],
+      [
+        "EscrowFinish",
+        () => tx({ TransactionType: "EscrowFinish", Owner: OTHER, OfferSequence: 1 }),
+        [node("DeletedNode", "Escrow", { Account: OTHER, Destination: HOLDER, Amount: { mpt_issuance_id: ID, value: "500" } })],
+      ],
+      [
+        "EscrowCancel",
+        () => tx({ TransactionType: "EscrowCancel", Owner: HOLDER, OfferSequence: 1 }),
+        [node("DeletedNode", "Escrow", { Account: HOLDER, Destination: OTHER, Amount: { mpt_issuance_id: ID, value: "500" } })],
+      ],
+    ])("credits the holder of a succeeded %s from 0 and shows no change of the same node when the result is a tec", (_type, transaction, escrow) => {
+      const nodes = [node("ModifiedNode", "MPToken", token(HOLDER, "500"), {}), ...escrow];
+      expect(mptOf(transaction(), meta(nodes))).toEqual([[HOLDER, "500", "500"]]);
+      expect(mptOf(transaction(), meta(nodes, "tecNO_PERMISSION"))).toEqual([]);
+    });
+
+    it("gives no entry for an MPToken whose Account is empty", () => {
+      expect(mptOf(paying(HOLDER), meta([node("ModifiedNode", "MPToken", token("", "500"), { MPTAmount: "1" })]))).toEqual([]);
     });
 
     it("takes a listed before as it is, and a created MPToken from 0", () => {

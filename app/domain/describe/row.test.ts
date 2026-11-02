@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { loadManifest, loadTx } from "../../../test/support/ledgers";
+import { MPT_FEE_PAYMENT_ISSUANCE } from "../../../test/support/mpt-case-rules";
 import type { TxJson, TxMeta } from "../parse/types";
 import { describe as describeTx, headlineAmount, rowSentence } from "./index";
 import { mptSegment } from "./helpers";
@@ -167,6 +168,17 @@ describe("an MPT payment's row", () => {
     expect(headlineAmount(tx, { ...bare, DeliveredAmount: { mpt_issuance_id: ID, value: "7" } }, "XRP")).toEqual({ mpt: ID, issuer: ISSUER, units: "7" });
     expect(headlineAmount(tx, bare, "XRP")).toEqual({ mpt: ID, issuer: ISSUER, units: "1" });
     expect(headlineAmount(tx, { ...meta, TransactionResult: "tecNO_AUTH", delivered_amount: undefined }, "XRP")).toEqual({ mpt: ID, issuer: ISSUER, units: "1" });
+  });
+
+  it("reads DeliveredAmount when delivered_amount is the node's 'unavailable', as the sentence does, and ignores a delivered amount of another issuance than the Amount's", () => {
+    const { tx, meta } = loadTx("xrpl-mpt", loadManifest("xrpl-mpt").cases.payment_transfer_fee!.hash);
+    const FEE_ID = MPT_FEE_PAYMENT_ISSUANCE;
+    const issuer = "rERShrtUSEXkrwtTpugPV4v8E787vpx1kb";
+    expect(headlineAmount(tx, { ...meta, delivered_amount: "unavailable", DeliveredAmount: { mpt_issuance_id: FEE_ID, value: "400000" } }, "XRP")).toEqual({ mpt: FEE_ID, issuer, units: "400000" });
+    for (const field of ["delivered_amount", "DeliveredAmount"]) {
+      const other = { ...meta, delivered_amount: undefined, DeliveredAmount: undefined, [field]: { mpt_issuance_id: ID, value: "400000" } };
+      expect(headlineAmount(tx, other, "XRP"), field).toEqual({ mpt: FEE_ID, issuer, units: "1000000" });
+    }
   });
 
   it("has the Amount of a clawback of an MPT, and of an issued token's with the sender as its issuer, as the sentence shows it", () => {

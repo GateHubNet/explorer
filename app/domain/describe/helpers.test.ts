@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { amountSegment, fieldValue, mptFlowAmount, mptIdOf, mptIssuerOf, mptSegment, parseAmount, parseMptAmount } from "./helpers";
+import { isMptIssuanceId } from "../mpt-id";
+import type { TxMeta } from "../parse/types";
+import { amountSegment, deliveredMptAmount, fieldValue, mptFlowAmount, mptIdOf, mptIssuerOf, mptSegment, parseAmount, parseMptAmount } from "./helpers";
 
 /** The issuer whose AccountID is 0x00…01, so that an ID's last byte is the one to look at. */
 const ACCOUNT_ONE = "rrrrrrrrrrrrrrrrrrrrBZbvji";
@@ -27,6 +29,12 @@ describe("mptIdOf and mptIssuerOf", () => {
     for (const id of ["", "0000012A", "0".repeat(47), "0".repeat(49), "G".repeat(48), `${"0".repeat(47)} `]) expect(() => mptIssuerOf(id), id).toThrow(RangeError);
   });
 
+  it("tests an ID's text in the one place parse/ and describe/ test it: 48 hex digits in either case, and only text", () => {
+    const id = mptIdOf(298, ISSUER);
+    expect([id, id.toLowerCase(), "0".repeat(48)].map(isMptIssuanceId)).toEqual([true, true, true]);
+    expect(["", "0".repeat(47), "0".repeat(49), "G".repeat(48), `${id} `, 12, undefined, null, { id }].map(isMptIssuanceId)).toEqual(Array(9).fill(false));
+  });
+
   it("is exported from helpers.ts, where the spec names it, and is the leaf's own function", async () => {
     const leaf = await import("../mpt-id");
     expect(mptIdOf).toBe(leaf.mptIdOf);
@@ -39,6 +47,31 @@ describe("an MPT's amount", () => {
   const ID = mptIdOf(298, ISSUER);
   const lower = ID.toLowerCase();
   const RAW = { mpt_issuance_id: lower, value: "2500000" };
+
+  describe("deliveredMptAmount", () => {
+    const meta = (over: Record<string, unknown>): TxMeta => ({ TransactionIndex: 0, TransactionResult: "tesSUCCESS", AffectedNodes: [], ...over });
+    const of = (value: string, id = ID) => ({ mpt_issuance_id: id, value });
+
+    it("gives delivered_amount first, else DeliveredAmount, with the ID in capitals", () => {
+      expect(deliveredMptAmount(meta({ delivered_amount: of("7", lower), DeliveredAmount: of("9") }), ID)).toEqual({ id: ID, units: "7" });
+      expect(deliveredMptAmount(meta({ DeliveredAmount: of("9") }), ID)).toEqual({ id: ID, units: "9" });
+      expect(deliveredMptAmount(meta({ delivered_amount: "unavailable", DeliveredAmount: of("9") }), lower)).toEqual({ id: ID, units: "9" });
+    });
+
+    it("gives none when the metadata has neither, or neither reads as an MPT amount", () => {
+      expect(deliveredMptAmount(meta({}), ID)).toBeUndefined();
+      expect(deliveredMptAmount(meta({ delivered_amount: "unavailable" }), ID)).toBeUndefined();
+      expect(deliveredMptAmount(meta({ delivered_amount: "1000000" }), ID)).toBeUndefined();
+      expect(deliveredMptAmount(meta({ delivered_amount: of("1.5") }), ID)).toBeUndefined();
+    });
+
+    it("refuses a delivered amount of another issuance, in either field", () => {
+      const other = mptIdOf(299, ISSUER);
+      expect(deliveredMptAmount(meta({ delivered_amount: of("7", other) }), ID)).toBeUndefined();
+      expect(deliveredMptAmount(meta({ DeliveredAmount: of("7", other) }), ID)).toBeUndefined();
+      expect(deliveredMptAmount(meta({ delivered_amount: of("7"), DeliveredAmount: of("7", other) }), ID)).toBeUndefined();
+    });
+  });
 
   describe("parseMptAmount", () => {
     it("gives the ID in capitals and the units of an object with a 48-hex mpt_issuance_id and an integer value", () => {

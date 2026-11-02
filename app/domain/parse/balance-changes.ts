@@ -1,6 +1,6 @@
 import BigNumber from "bignumber.js";
 import { parseBalanceChanges, parseFinalBalances } from "ripple-lib-transactionparser";
-import { mptIssuerOf } from "../mpt-id";
+import { isMptIssuanceId, mptIssuerOf } from "../mpt-id";
 import { mptIdOfNode, nodesOf, type Node } from "./objects";
 import type { BalanceChange, Native, TxJson, TxMeta } from "./types";
 
@@ -55,18 +55,32 @@ export function balanceChanges(tx: TxJson, meta: TxMeta, native: Native): Balanc
 /** An MPT's units: an integer in digits (the ledger writes its 64-bit amounts in base ten). */
 const UNITS = /^\d+$/;
 
+/** The issuance an amount field is of, in capitals: `mpt_issuance_id` of an MPT amount, `undefined` for anything else. */
+const issuanceOf = (amount: unknown): string | undefined => {
+  const id = typeof amount === "object" && amount !== null ? (amount as Record<string, unknown>).mpt_issuance_id : undefined;
+  return isMptIssuanceId(id) ? id.toUpperCase() : undefined;
+};
+
+/** A holder of an issuance, as one key. */
+const holdingKey = (holder: string, id: string): string => `${holder}\u0000${id}`;
+
 /**
- * The holders a succeeded transaction credits with an MPT, for a node whose metadata lists no "before" (an added field is never listed, so a first credit is a node with `PreviousFields`
- * present and empty): a Payment's `Destination`, the destination of the escrow an EscrowFinish deleted, the owner of the escrow an EscrowCancel deleted (D9 section 4.1's dated note).
+ * The holdings (a holder and an issuance) a succeeded transaction credits with an MPT, for a node whose metadata lists no "before" (an added field is never listed, so a first credit is a node
+ * with `PreviousFields` present and empty): a Payment's `Destination` and the issuance of its `Amount`, the destination of the escrow an EscrowFinish deleted and the owner of the escrow an
+ * EscrowCancel deleted, each with the issuance of that escrow's `Amount` (D9 section 4.1's dated note: a holder's other tokens are not credited by it).
  */
-function creditedHolders(tx: TxJson, meta: TxMeta, nodes: readonly Node[]): ReadonlySet<string> {
+function creditedHoldings(tx: TxJson, meta: TxMeta, nodes: readonly Node[]): ReadonlySet<string> {
   const credited = new Set<string>();
   if (meta.TransactionResult !== "tesSUCCESS") return credited;
-  if (tx.TransactionType === "Payment" && typeof tx.Destination === "string") credited.add(tx.Destination);
+  if (tx.TransactionType === "Payment") {
+    const id = issuanceOf(tx.Amount ?? tx.DeliverMax);
+    if (typeof tx.Destination === "string" && id !== undefined) credited.add(holdingKey(tx.Destination, id));
+  }
   if (tx.TransactionType === "EscrowFinish" || tx.TransactionType === "EscrowCancel") {
     for (const { change, type, fields } of nodes) {
       const who = tx.TransactionType === "EscrowFinish" ? fields.Destination : fields.Account;
-      if (change === "deleted" && type === "Escrow" && typeof who === "string") credited.add(who);
+      const id = issuanceOf(fields.Amount);
+      if (change === "deleted" && type === "Escrow" && typeof who === "string" && id !== undefined) credited.add(holdingKey(who, id));
     }
   }
   return credited;
@@ -80,27 +94,36 @@ function unitsOf(fields: Record<string, unknown>, name: string): BigNumber | und
 }
 
 /**
+ * An `MPToken` node's `MPTAmount` before the transaction: 0 for a created node, the listed value when the metadata lists one, else 0 for a holding the transaction credits (`credited`: an added
+ * field is not listed) and the final value (`after`) for any other, so that a node that only moved its flags or its `LockedAmount` is no change. `undefined` when the listed value is not units.
+ */
+function beforeOf({ change, previous }: Node, after: BigNumber | undefined, credited: boolean): BigNumber | undefined {
+  if (change === "created") return new BigNumber(0);
+  if ("MPTAmount" in previous) return unitsOf(previous, "MPTAmount");
+  return credited ? new BigNumber(0) : after;
+}
+
+/**
  * The MPT entries of a transaction, in the order of the metadata. An `MPToken` node whose `MPTAmount` changed is its holder's entry: `value` the change, `after` the new amount. An
  * `MPTokenIssuance` node whose `OutstandingAmount` is listed among the `PreviousFields` and changed is the issuer's entry, the change negated (what left the issuer's side), with no `after`.
  *
- * The "before" of `MPTAmount` is the listed value; a created node's is 0; an unlisted one is 0 for a holder the transaction credits (`creditedHolders`) and the final value for any other, so a
- * node that only moved its flags or its `LockedAmount` is no change. A field the final fields leave out is 0 (a holder that spent everything, a redemption, a clawback). A node whose ID or amounts
+ * The "before" of `MPTAmount` is `beforeOf`'s (the credit is of a holder and an issuance together, `creditedHoldings`). A field the final fields leave out is 0 (a holder that spent everything, a redemption, a clawback). A node whose ID or amounts
  * are not well formed gives no entry.
  */
 function mptChanges(tx: TxJson, meta: TxMeta): BalanceChange[] {
   const nodes = nodesOf(meta);
-  const credited = creditedHolders(tx, meta, nodes);
+  const credited = creditedHoldings(tx, meta, nodes);
   const changes: BalanceChange[] = [];
   for (const node of nodes) {
-    const { change, type, fields, previous } = node;
+    const { type, fields, previous } = node;
     const id = type === "MPToken" || type === "MPTokenIssuance" ? mptIdOfNode(node) : undefined;
     if (id === undefined) continue;
 
     if (type === "MPToken") {
       const holder = fields.Account;
       const after = unitsOf(fields, "MPTAmount");
-      const before = change === "created" ? new BigNumber(0) : "MPTAmount" in previous ? unitsOf(previous, "MPTAmount") : typeof holder === "string" && credited.has(holder) ? new BigNumber(0) : after;
-      if (typeof holder !== "string" || after === undefined || before === undefined || after.isEqualTo(before)) continue;
+      const before = beforeOf(node, after, typeof holder === "string" && credited.has(holdingKey(holder, id)));
+      if (typeof holder !== "string" || holder === "" || after === undefined || before === undefined || after.isEqualTo(before)) continue;
       changes.push({ account: holder, currency: id, issuer: mptIssuerOf(id), value: after.minus(before).toFixed(), after: after.toFixed(), mpt: true });
     } else if ("OutstandingAmount" in previous) {
       const issuer = fields.Issuer;

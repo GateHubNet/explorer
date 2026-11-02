@@ -1,4 +1,4 @@
-import { mptIdOf } from "../mpt-id";
+import { isMptIssuanceId, mptIdOf } from "../mpt-id";
 import type { AffectedNode, AffectedNodeBody, TouchedObject, TxMeta } from "./types";
 
 type Change = TouchedObject["change"];
@@ -37,14 +37,12 @@ export function nodesOf(meta: TxMeta): Node[] {
   return (meta.AffectedNodes ?? []).map(flatten);
 }
 
-const MPT_ID = /^[0-9A-Fa-f]{48}$/;
-
 /**
  * The issuance an `MPToken` or an `MPTokenIssuance` node is about, as its ID in capitals: an `MPToken` holds it (`MPTokenIssuanceID`), an `MPTokenIssuance` is made of it (`mptIdOf` of its
  * `Sequence` and `Issuer`). `undefined` for any other node, and for one whose fields make no ID: a ledger's text is not trusted to be well formed.
  */
 export function mptIdOfNode({ type, fields }: Pick<Node, "type" | "fields">): string | undefined {
-  if (type === "MPToken") return typeof fields.MPTokenIssuanceID === "string" && MPT_ID.test(fields.MPTokenIssuanceID) ? fields.MPTokenIssuanceID.toUpperCase() : undefined;
+  if (type === "MPToken") return isMptIssuanceId(fields.MPTokenIssuanceID) ? fields.MPTokenIssuanceID.toUpperCase() : undefined;
   if (type !== "MPTokenIssuance" || typeof fields.Sequence !== "number" || typeof fields.Issuer !== "string") return undefined;
   try {
     return mptIdOf(fields.Sequence, fields.Issuer);

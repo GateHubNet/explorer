@@ -2694,11 +2694,31 @@ describe("describe: MPT transactions", () => {
     });
 
     it("reads the delivered amount from DeliveredAmount when the metadata has no delivered_amount", () => {
-      const { tx, meta } = loadTx("xrpl-mpt", loadManifest("xrpl-mpt").cases.payment_mint.hash);
+      // The delivered 400000 is unlike the Amount (1000000): without the DeliveredAmount read the sentence would say "up to" the Amount, and no row would name what arrived.
+      const { tx, meta } = loadTx("xrpl-mpt", loadManifest("xrpl-mpt").cases.payment_transfer_fee.hash);
       const { delivered_amount, ...without } = meta;
-      const d = describeTx({ ...tx, Flags: 0x00020000 }, { ...without, DeliveredAmount: { mpt_issuance_id: MPT_MINT_ISSUANCE, value: "1" } }, { native: "XRP" });
-      expect(d.sentence).toContainEqual(mptSegment(MPT_MINT_ISSUANCE, "1"));
       expect(delivered_amount).toBeDefined();
+      const d = describeTx({ ...tx, Flags: 0x00020000 }, { ...without, DeliveredAmount: { mpt_issuance_id: FEE_ID, value: "400000" } }, { native: "XRP" });
+      expect(d.sentence).toContainEqual(mptSegment(FEE_ID, "400000"));
+      expect(d.sentence).not.toContainEqual(mptSegment(FEE_ID, "1000000"));
+      expect(textOf(d.sentence)).not.toContain("up to");
+      expect(rows(d)).toContainEqual(["Delivered", `400000 [mpt ${FEE_ID}]`]);
+      expect(d.flow?.at(-1)?.amount).toStrictEqual({ mpt: FEE_ID, issuer: "rERShrtUSEXkrwtTpugPV4v8E787vpx1kb", units: "400000" });
+    });
+
+    it("reads DeliveredAmount when delivered_amount is the node's 'unavailable'", () => {
+      const { tx, meta } = loadTx("xrpl-mpt", loadManifest("xrpl-mpt").cases.payment_transfer_fee.hash);
+      const d = describeTx({ ...tx, Flags: 0x00020000 }, { ...meta, delivered_amount: "unavailable", DeliveredAmount: { mpt_issuance_id: FEE_ID, value: "400000" } }, { native: "XRP" });
+      expect(d.sentence).toContainEqual(mptSegment(FEE_ID, "400000"));
+    });
+
+    it.each(["delivered_amount", "DeliveredAmount"])("does not take what %s says of another issuance than the Amount's as delivered", (field) => {
+      const { tx, meta } = loadTx("xrpl-mpt", loadManifest("xrpl-mpt").cases.payment_transfer_fee.hash);
+      const other = { mpt_issuance_id: MPT_MINT_ISSUANCE, value: "400000" };
+      const metadata = { ...meta, delivered_amount: undefined, DeliveredAmount: undefined, [field]: other };
+      const d = describeTx({ ...tx, Flags: 0x00020000 }, metadata, { native: "XRP" });
+      expect(textOf(d.sentence)).toBe(`${SENDER} sent up to 1000000 [mpt ${FEE_ID}] to ${RECEIVER}.`);
+      expect(rows(d).map(([label]) => label)).not.toContain("Delivered");
     });
 
     it("draws the flow from the sender to the destination, with the amount the destination got and none on the sender's side when a send max may have spent more", () => {

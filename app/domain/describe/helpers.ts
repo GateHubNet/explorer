@@ -2,7 +2,7 @@
 
 import BigNumber from "bignumber.js";
 import { dropsToNative, formatAmount, formatCurrency, formatUtc, shortHash } from "../format";
-import { mptIdOf, mptIssuerOf } from "../mpt-id";
+import { isMptIssuanceId, mptIdOf, mptIssuerOf } from "../mpt-id";
 import { kindOfType, ledgerId, type ObjectKind, type ObjectRefParts } from "../object-link";
 import { nodesOf } from "../parse/objects";
 import type { AmmHop, Asset, Native, TxJson, TxMeta } from "../parse/types";
@@ -87,8 +87,6 @@ export function parseAmount(raw: unknown, native: Native): CurrencyAmount | unde
 
 export const amountOf = (amount: CurrencyAmount): Segment => ({ t: "amount", ...amount });
 
-const MPT_ID = /^[0-9A-Fa-f]{48}$/;
-
 /**
  * An MPT's amount of a transaction field, `{ mpt_issuance_id, value }`: the ID in capitals and the units, when the ID is 48 hex digits and the value an integer in digits (what the ledger writes for
  * a 64-bit amount). `undefined` for anything else, so an object that only looks like one (a 40-digit ID, a value with a fraction) is shown as the unknown field it is.
@@ -96,7 +94,17 @@ const MPT_ID = /^[0-9A-Fa-f]{48}$/;
 export function parseMptAmount(raw: unknown): { id: string; units: string } | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
   const { mpt_issuance_id: id, value } = raw as Record<string, unknown>;
-  return typeof id === "string" && MPT_ID.test(id) && typeof value === "string" && DROPS.test(value) ? { id: id.toUpperCase(), units: value } : undefined;
+  return isMptIssuanceId(id) && typeof value === "string" && DROPS.test(value) ? { id: id.toUpperCase(), units: value } : undefined;
+}
+
+/**
+ * What an MPT payment delivered, from the metadata: the API's `delivered_amount` else the ledger's own `DeliveredAmount`, whichever reads as an MPT amount (the node's "unavailable" and a missing
+ * field read as none). `undefined` when neither does, and when a delivered amount is of another issuance than `id`, the payment's `Amount`: metadata that contradicts the transaction is not shown
+ * (D9's `mptPaymentIssuance` refuses such a payment the same way). The one reading the sentence (`payment.ts`) and the headline amount of a list row (`row.ts`) share.
+ */
+export function deliveredMptAmount(meta: TxMeta, id: string): { id: string; units: string } | undefined {
+  const read = [meta.delivered_amount, meta.DeliveredAmount].flatMap((raw) => parseMptAmount(raw) ?? []);
+  return read.length > 0 && read.every((delivered) => delivered.id === id.toUpperCase()) ? read[0] : undefined;
 }
 
 /** A segment for an MPT: an amount with `units`, a reference to the issuance without. The issuer is decoded from the ID, which must be 48 hex digits (`parseMptAmount` and the nodes `mptIdOfNode` reads give such IDs). */
@@ -238,7 +246,7 @@ const ADDRESS = /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/;
 export function fieldValue(name: string, value: unknown, native: Native): Segment[] {
   if (typeof value === "string") {
     if (AMOUNT_FIELDS.has(name) && DROPS.test(value)) return [amountSegment(value, native)];
-    if (name === "MPTokenIssuanceID" && MPT_ID.test(value)) return [mptSegment(value)];
+    if (name === "MPTokenIssuanceID" && isMptIssuanceId(value)) return [mptSegment(value)];
     if (ADDRESS.test(value)) return [account(value)];
     return [text(value === "" ? "(empty)" : value)];
   }

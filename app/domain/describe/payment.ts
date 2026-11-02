@@ -8,6 +8,7 @@ import {
   account,
   closingDetails,
   delegateOf,
+  deliveredMptAmount,
   detail,
   fieldDetail,
   mptIssuerOf,
@@ -73,7 +74,7 @@ function step(role: FlowStep["role"], who: unknown, label: string, amount?: Flow
  */
 function describeMptPayment({ tx, meta, native, ok, verb }: Input, rawAmount: unknown, intended: { id: string; units: string }): Summary {
   const partialFlag = typeof tx.Flags === "number" && (tx.Flags & TF_PARTIAL_PAYMENT) !== 0;
-  const delivered = ok ? (parseMptAmount(meta.delivered_amount) ?? parseMptAmount(meta.DeliveredAmount) ?? (partialFlag ? undefined : intended)) : undefined;
+  const delivered = ok ? (deliveredMptAmount(meta, intended.id) ?? (partialFlag ? undefined : intended)) : undefined;
   const issuing = mptIssuerOf(intended.id) === tx.Account;
 
   const amount = amountSegment(rawAmount, native);
