@@ -317,7 +317,8 @@ test.describe("a collection", () => {
     await page.waitForURL(`**${XRPL_FEATURED_PATH}`);
     await expect(heading(page)).toHaveText("Collection rLxc1b…rwMy · taxon 0");
     await expect(page).toHaveTitle("Collection rLxc1b…rwMy · taxon 0 · XRPL · explorer");
-    for (const stat of ["Supply", "Holders", "Sales", "Volume", "Average sale, 30 days", "Lowest sale, 30 days"]) await expect(page.getByText(stat, { exact: true }).first()).toBeVisible();
+    // In the page, not the header: the Network menu has a "Supply" item of its own.
+    for (const stat of ["Supply", "Holders", "Sales", "Volume", "Average sale, 30 days", "Lowest sale, 30 days"]) await expect(page.getByRole("main").getByText(stat, { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("slider").first()).toBeAttached();
     await expect(page.getByRole("group", { name: "Measure" }).getByRole("link", { name: "Volume" })).toHaveAttribute("aria-current", "true");
     const tags = await head(page);

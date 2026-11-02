@@ -198,6 +198,20 @@ const MORE: PageUnderTest[] = [
   { name: "search help", path: "/xrpl/search?q=", ready: async (page) => void (await expect(page.getByRole("main")).toBeVisible()) },
   // A text that is no token: with TOKENS on the help page ends in the link "Look for “RLUSD” among tokens →" (E11 spec 5.3), the one suggestion link of a not-found page; with it off, the help it was.
   { name: "search help offering the tokens", path: "/xrpl/search?q=RLUSD", ready: async (page) => void (await expect(page.getByRole("main")).toBeVisible()) },
+  // The Network menu open (E12): its panel over the page at a desktop's width, in the flow of the folded nav on a phone (the Menu button first), with the summary and the network page's item marked by
+  // `aria-current` and, where a switch is off, an item `aria-disabled`; the colours of its text in both themes are looked at here. The supply pages themselves are in supply-live.spec.ts (no spec of
+  // this project opens them: their answers are kept, README "The supply page").
+  {
+    name: "network, the Network menu open",
+    path: "/xrpl/network",
+    ready: networkReady,
+    act: async (page) => {
+      const menuButton = page.getByRole("button", { name: "Menu" });
+      if (await menuButton.isVisible()) await menuButton.click();
+      await page.locator('details[data-menu="network"] > summary').click();
+      await expect(page.locator(".menu__panel")).toBeVisible();
+    },
+  },
   // The network page in its other forms: a year in USD (weeks, another currency), the other network, every chart as a table, and a slider with
   // its tooltip. (The one with a card that could not be loaded needs the fixture server to fail a call: it is below.)
   { name: "network, a year in USD", path: "/xrpl/network?period=1y&in=usd", ready: networkReady },
