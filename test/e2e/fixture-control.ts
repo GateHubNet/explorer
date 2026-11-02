@@ -141,7 +141,7 @@ export function xahauSaltmarshPage(): Record<string, unknown> {
 // ---- The supply page's variants (E12) ----------------------------------------------------------------------------------------------------------------------------------
 
 /** What `supplyVariant` makes: the answers of D7 the supply page's tests need and the recordings lack. */
-export type SupplyVariantKind = "not-computed" | "route-missing" | "no-reserves" | "escrowed-incomplete" | "stale" | "minted-failing" | "wide-figures";
+export type SupplyVariantKind = "not-computed" | "route-missing" | "escrowed-incomplete" | "stale" | "minted-failing" | "wide-figures";
 
 /** XRPL's snapshot (`GET /v2/network/supply`) and Xahau's minted days of the page's 90-day window, as the fixture server names them. */
 const SUPPLY_CALL = "GET /v2/network/supply";
@@ -153,7 +153,6 @@ const XAHAU_MINTED_CALL = "xahau GET /v2/network/supply/minted?end=2026-10-17&in
  * the snapshot (`not-computed`, D7's 404 "supply not computed yet", and `route-missing`, a data API without D7: the framework's "Cannot GET") stand alone; `minted-failing` is Xahau's minted days
  * answering 503 and adds its own key, so it composes with the rest.
  *
- * - `no-reserves`: the snapshot without `reserves` (the tile is a dash that says so);
  * - `escrowed-incomplete`: the escrow history starts at ledger 99,413,505, in `escrowed` and in `circulating`, which is made of it;
  * - `stale`: the snapshot closed 5 hours before the newest recorded ledger (17:01:12 on Oct 17, so 12:01:12), at a ledger about as many before it: the warning says 5 hours;
  * - `wide-figures`: the AMM and reserves amounts 29 digits long, for the one check of a tile's and the bar's overflow at 375 px that the unit tests cannot make.
@@ -172,7 +171,6 @@ export function supplyVariant(kinds: SupplyVariantKind | readonly SupplyVariantK
   if (bodyKinds.length === 0) return overrides;
 
   const supply = recorded<NetworkSupply>("network/supply");
-  if (bodyKinds.includes("no-reserves")) delete supply.reserves;
   if (bodyKinds.includes("escrowed-incomplete")) {
     const coverage = { from_ledger_index: 99_413_505, complete: false };
     supply.escrowed = { ...supply.escrowed, coverage };
