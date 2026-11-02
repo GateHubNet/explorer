@@ -1,0 +1,15 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 99226369,
+    "complete": true
+  },
+  "count": 5,
+  "transfers": [
+    {"ledger_index":107715455,"tx_index":115,"tx_hash":"5E5F790F9A05B600D9D45F6373770B266143A3C03EF8CAD884AFBBC38FBF8F16","executed_time":"2026-10-17T10:21:12Z","tx_type":"Payment","kind":"payment","source":"r9kZpUGgkoKxgXCqPKBkSfWuqwgpccjCLw","destination":"rJX21BFfQoazpJHnR1XqAvbLckmsapaHJs","amount":"3000000000"},
+    {"ledger_index":107709455,"tx_index":8,"tx_hash":"B7F557B33E6D2395A4EE11590F331D795443016327513DD3F70B7CFA93A01B71","executed_time":"2026-10-17T03:41:12Z","tx_type":"Payment","kind":"payment","source":"rJX21BFfQoazpJHnR1XqAvbLckmsapaHJs","destination":"rnQJzB8voKLB4z5AA9M3dw3c27Cr1fSw8k","amount":"200000000"},
+    {"ledger_index":107703455,"tx_index":0,"tx_hash":"AE25F23488E3C569102481F250D14E7CE4819A6492D0E4184F22015C0BB298A1","executed_time":"2026-10-16T21:01:12Z","tx_type":"Payment","kind":"payment","source":"rfkuHBbXufkQ1ysMvAGx317xuLEcgCuMrT","destination":"rGmWURbLGwCrMKXRSVKVnUDv1EkiB8xoy7","amount":"40000000"},
+    {"ledger_index":107697455,"tx_index":63,"tx_hash":"C8B1F977DC0863072FFB458F3517BEDF0AA34613E148776E0836AB888572FD3E","executed_time":"2026-10-16T14:21:12Z","tx_type":"Payment","kind":"payment","source":"r3jvQGWZtpGnfcz4sDhRaeRpxxMP2qgaak","destination":"rMMLamYzffihLYFNdWMGyw7CMd4VBW1Lc9","amount":"1000000"},
+    {"ledger_index":107691455,"tx_index":112,"tx_hash":"8C3CCA992F64484C882268637BA2EA8E75E556761E6135CCD7D46202F25D33D6","executed_time":"2026-10-16T07:41:12Z","tx_type":"Payment","kind":"payment","source":"rGmWURbLGwCrMKXRSVKVnUDv1EkiB8xoy7","destination":"r9kZpUGgkoKxgXCqPKBkSfWuqwgpccjCLw","amount":"8000000"}
+  ]
+}

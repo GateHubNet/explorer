@@ -1,0 +1,43 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 99226369,
+    "complete": true
+  },
+  "issuance": {
+    "mpt_issuance_id": "056533FBD134390DB03F8D2B50A622C9C9063697920D2062",
+    "issuer": "rLnw8biDkQRX6wjL7eL1D3iNyR1f5ZgqJD",
+    "sequence": 90518523,
+    "ticker": "LKD",
+    "name": "Locked Notes",
+    "asset_scale": 2,
+    "maximum_amount": "400000000",
+    "outstanding_amount": "239999998",
+    "escrowed_amount": "0",
+    "locked_amount": "239999998",
+    "locked_holders": 5,
+    "holders": 5,
+    "transfer_fee": 0,
+    "flags": {
+      "locked": true,
+      "can_lock": true,
+      "require_auth": false,
+      "can_escrow": false,
+      "can_trade": false,
+      "can_transfer": true,
+      "can_clawback": false
+    },
+    "metadata": {
+      "ticker": "LKD",
+      "name": "Locked Notes",
+      "icon": "https://lockednotes.example/icon.png",
+      "asset_class": "other",
+      "issuer_name": "Locked Notes Ltd",
+      "uris": [{"uri":"https://lockednotes.example","category":"website","title":"Home"}]
+    },
+    "metadata_hex": "7B227469636B6572223A224C4B44222C226E616D65223A224C6F636B6564204E6F746573222C2269636F6E223A2268747470733A2F2F6C6F636B65646E6F7465732E6578616D706C652F69636F6E2E706E67222C2261737365745F636C617373223A226F74686572222C226973737565725F6E616D65223A224C6F636B6564204E6F746573204C7464222C2275726973223A5B7B22757269223A2268747470733A2F2F6C6F636B65646E6F7465732E6578616D706C65222C2263617465676F7279223A2277656273697465222C227469746C65223A22486F6D65227D5D7D",
+    "metadata_conforms": true,
+    "last_ledger": 107721455,
+    "destroyed": false
+  }
+}

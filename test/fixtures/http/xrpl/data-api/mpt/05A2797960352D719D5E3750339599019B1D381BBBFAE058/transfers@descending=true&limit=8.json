@@ -1,0 +1,17 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 99226369,
+    "complete": false
+  },
+  "count": 7,
+  "transfers": [
+    {"ledger_index":107719955,"tx_index":31,"tx_hash":"F617BA7B618F400453F8618DBAC193971F380F92B9F860B8ED0D2835EEF798B2","executed_time":"2026-10-17T15:21:12Z","tx_type":"EscrowFinish","kind":"escrow_finish","source":"r3WxGwftPAm16hP5Nn5CYomMys2iFTLedC","destination":"rNDbGpcJmkenHCL44uFPHVyapoJEyVkxEB","amount":"5000000","fee":"5000"},
+    {"ledger_index":107713955,"tx_index":67,"tx_hash":"6685C9852C2B05303E25968999B2D5A2D21591AA4AC0C30A877B72F00D1C5821","executed_time":"2026-10-17T08:41:12Z","tx_type":"EscrowCreate","kind":"escrow_create","source":"rFwApwjULk5g66jhNKdQn9LtbS8o7G3DM","destination":"rKtNKKqxjGRngURQzqy1zxFcFAA83Y1dWc","amount":"12000000"},
+    {"ledger_index":107704955,"tx_index":46,"tx_hash":"7F40BF5EC0C56B9D0FEFA5294BEB09E00AB2AD0D4FD21A29A773D93FE6640063","executed_time":"2026-10-16T22:41:12Z","tx_type":"EscrowCancel","kind":"escrow_cancel","source":"r3WxGwftPAm16hP5Nn5CYomMys2iFTLedC","amount":"3000000"},
+    {"ledger_index":107684955,"tx_index":71,"tx_hash":"9E35511B000738957FFDAD32B7414A099B9AE9FE79E461CED721B4CD3C367492","executed_time":"2026-10-16T00:27:52Z","tx_type":"EscrowCreate","kind":"escrow_create","source":"r3WxGwftPAm16hP5Nn5CYomMys2iFTLedC","destination":"rH5vyPQZhozy2X5WeBW2par3zGijAiAevY","amount":"84411120"},
+    {"ledger_index":107669955,"tx_index":4,"tx_hash":"D9E1CD9242AF5264DE7D60B2AD569BF578240052E341BD72BE46002D31AB24E8","executed_time":"2026-10-15T07:47:52Z","tx_type":"Payment","kind":"payment","source":"r9m62EkNsBVKVWGKrByJ1Tyc9Ezer5nWsy","destination":"r3WxGwftPAm16hP5Nn5CYomMys2iFTLedC","amount":"900000000"},
+    {"ledger_index":107654955,"tx_index":81,"tx_hash":"1145455729912169E4DE53CCA6E82380D423C668A05556F8E228B8B23B5EECA8","executed_time":"2026-10-14T15:07:52Z","tx_type":"Payment","kind":"payment","source":"r3WxGwftPAm16hP5Nn5CYomMys2iFTLedC","destination":"rBPMMjkrzGAWxDQMcnCmuxyvSR6X61x9Z","amount":"1500000","fee":"1500"},
+    {"ledger_index":107639955,"tx_index":116,"tx_hash":"9E81BA9ECC65A461BB186E2AE98500D919C255F0F22FE5F02D325CD845D2C88A","executed_time":"2026-10-13T22:27:52Z","tx_type":"Payment","kind":"payment","source":"rBPMMjkrzGAWxDQMcnCmuxyvSR6X61x9Z","destination":"r9m62EkNsBVKVWGKrByJ1Tyc9Ezer5nWsy","amount":"40000"}
+  ]
+}

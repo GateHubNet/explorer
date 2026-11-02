@@ -1,0 +1,18 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 99226369,
+    "complete": true
+  },
+  "count": 8,
+  "transfers": [
+    {"ledger_index":107272555,"tx_index":90,"tx_hash":"058E4BCAEA818F832DE81BAE42989C999609DB66B279AB3F872421F6B2A7E8F6","executed_time":"2026-09-26T22:14:32Z","tx_type":"Payment","kind":"payment","source":"r9XZ2LTvjbHvoxi9rwpgScz6zyxe4mJvD4","destination":"rBEERdzDHqDyYmfw2jqzyMNBZu31yzfg6q","amount":"3000000"},
+    {"ledger_index":107236555,"tx_index":111,"tx_hash":"E5331820224EA54726A290F6D41EB42ADA31FE25B7230A6D79BA205D5B90978F","executed_time":"2026-09-25T06:14:32Z","tx_type":"Payment","kind":"payment","source":"rBEERdzDHqDyYmfw2jqzyMNBZu31yzfg6q","destination":"rn4BZg8Y347aFYptfNFxwHw6zwhpKPiTCL","amount":"7500000"},
+    {"ledger_index":107200555,"tx_index":17,"tx_hash":"C34DCC5DCB750F58B347569C63CC1F778CB5E83D1351491C7EFF8BE91129324D","executed_time":"2026-09-23T14:14:32Z","tx_type":"Payment","kind":"payment","source":"rMJkkbCec5ai2SopvtivtogtAfNh7YW6Rq","destination":"r43YoYTxW3iZbtW6RCSzEgwfsXGGCrTrWo","amount":"45000","fee":"86"},
+    {"ledger_index":107164555,"tx_index":107,"tx_hash":"8A21D30657831FEDFF77D8A00550CCAA657AE3DA80E9141FD956F59936A990CC","executed_time":"2026-09-21T22:14:32Z","tx_type":"Payment","kind":"payment","source":"rMukRmDGvqrdrQ43aLrPWXvYdfuVVXpz7D","destination":"rwZtLwpVkMPjywwEiYXXQ3ufBrwwh6Bg2L","amount":"330000","fee":"633"},
+    {"ledger_index":107128555,"tx_index":96,"tx_hash":"11CE1B2ABDAF6DFCDDAA5E1823734FEE02EC7822AEAA560352495C74D02935A1","executed_time":"2026-09-20T06:14:32Z","tx_type":"Payment","kind":"payment","source":"rBEERdzDHqDyYmfw2jqzyMNBZu31yzfg6q","destination":"r3vae4L7QEUVMnNtFoVPpLk1f7Xaij81LQ","amount":"2200000"},
+    {"ledger_index":107092555,"tx_index":32,"tx_hash":"AA7F39B23B961CC97B20032D59341C37F630E7ADAC133E0B41B6F5388FED8BE4","executed_time":"2026-09-18T14:14:32Z","tx_type":"Payment","kind":"payment","source":"rPQDN1RrUaiKnCNi3oq5GeDJkh3Te6jdzB","destination":"rHpssqqiXwLNV4sMp4qbY2VMqQ59KbUsRD","amount":"18000","fee":"34"},
+    {"ledger_index":107056555,"tx_index":117,"tx_hash":"9EED907CB833F0ED096DB7893167C911F990861D411FE2418038A56E91788693","executed_time":"2026-09-16T22:14:32Z","tx_type":"Payment","kind":"payment","source":"rw4a8RimJYHquAtZPmbPB2L3c8b4siU1ZD","destination":"rBUimmmz4hkjjmFdcqjQPPMhwN8qwc4AoD","amount":"950000","fee":"1824"},
+    {"ledger_index":107020555,"tx_index":69,"tx_hash":"BE4E24FF2D015ABA4AC3EE505BC908E248B76B5B7D0867D271E9F9B2657E902E","executed_time":"2026-09-15T06:14:32Z","tx_type":"Payment","kind":"payment","source":"rBEERdzDHqDyYmfw2jqzyMNBZu31yzfg6q","destination":"rfqePg9dWrWeauFHL77wqZdAtXsukmp9Sb","amount":"1100000"}
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 99226369,
+    "complete": true
+  },
+  "count": 10,
+  "marker": "WyIyMzQ0MTEyMTA2MyIsInIzdmFlNEw3UUVVVk1uTnRGb1ZQcExrMWY3WGFpajgxTFEiXQ",
+  "holders": [
+    {"holder":"r9XZ2LTvjbHvoxi9rwpgScz6zyxe4mJvD4","amount":"45716724637","escrowed_amount":"0","locked":false,"authorized":true},
+    {"holder":"rw4a8RimJYHquAtZPmbPB2L3c8b4siU1ZD","amount":"40187403159","escrowed_amount":"0","locked":false,"authorized":true},
+    {"holder":"r43YoYTxW3iZbtW6RCSzEgwfsXGGCrTrWo","amount":"38065083362","escrowed_amount":"0","locked":true,"authorized":true},
+    {"holder":"rfqePg9dWrWeauFHL77wqZdAtXsukmp9Sb","amount":"33810680683","escrowed_amount":"0","locked":false,"authorized":true},
+    {"holder":"rMukRmDGvqrdrQ43aLrPWXvYdfuVVXpz7D","amount":"31872834999","escrowed_amount":"1250000","locked":false,"authorized":true},
+    {"holder":"rn4BZg8Y347aFYptfNFxwHw6zwhpKPiTCL","amount":"25822860533","escrowed_amount":"0","locked":false,"authorized":true},
+    {"holder":"rEnqwVpf5yCScLKtEGzfcopk22dSykJJ6H","amount":"24919548451","escrowed_amount":"0","locked":false,"authorized":true},
+    {"holder":"r9bpxyn5TvCw9T8wBaQY787TzpaVwPnq6t","amount":"24813084480","escrowed_amount":"0","locked":false,"authorized":true},
+    {"holder":"rh5xyRtrsFerhL8ZGvwRep7HgA4o93zjXu","amount":"23886883407","escrowed_amount":"0","locked":false,"authorized":true},
+    {"holder":"r3vae4L7QEUVMnNtFoVPpLk1f7Xaij81LQ","amount":"23441121063","escrowed_amount":"0","locked":false,"authorized":true}
+  ]
+}

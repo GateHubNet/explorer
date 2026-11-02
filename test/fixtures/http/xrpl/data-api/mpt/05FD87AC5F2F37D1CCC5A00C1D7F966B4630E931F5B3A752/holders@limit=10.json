@@ -1,0 +1,9 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 99226369,
+    "complete": true
+  },
+  "count": 0,
+  "holders": []
+}

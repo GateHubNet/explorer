@@ -811,3 +811,100 @@ describe("GET /v2/account_names, composed as D4 answers it", () => {
     expect(await jsonOf(await get("/v2/toml/northpeak.example/accounts"))).toEqual({ result: "error", message: "Cannot GET /v2/toml/northpeak.example/accounts" });
   });
 });
+
+describe("D9's MPT routes, as the mock answers them", () => {
+  const A = "03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80";
+  const B = "05AC2E9BD957F450A34D46B9F70983D04DB415D20EC3A1DF";
+  const C = "0663EACAC1E295FCE4BA9E9ECD5EC0E84C5089AEE6B00E65";
+  const SUMMARY_A = { mpt_issuance_id: A, issuer: "rBEERdzDHqDyYmfw2jqzyMNBZu31yzfg6q", asset_scale: 4, outstanding_amount: "1", holders: 1, transfer_fee: 0, flags: { locked: false }, destroyed: false };
+  const store = new Map<string, string>([
+    [`xrpl/data-api/mpt/${A}.json`, '{"result":"success","issuance":{"mpt_issuance_id":"' + A + '"}}'],
+    ["xrpl/data-api/mpt_lookup.json", JSON.stringify({ [A]: SUMMARY_A })],
+    [`xrpl/node/ledger_entry/mpt_issuance_${B}.json`, '{"result":{"index":"K","node":{"LedgerEntryType":"MPTokenIssuance"},"validated":true,"status":"success"}}'],
+  ]);
+  const bases: UpstreamBases = {
+    xrpl: { dataApi: "http://fixtures.test/xrpl", node: "http://fixtures.test/xrpl-node" },
+    xahau: { dataApi: "http://fixtures.test/xahau", node: "http://fixtures.test/xahau-node" },
+  };
+  const make = (overrides = {}) => createUpstream({ files: { read: async (path) => store.get(path) }, bases, primary: "xrpl", overrides });
+  const api = (upstream: ReturnType<typeof make>, path: string, net = "xrpl") => upstream.handle(new Request(`http://fixtures.test/${net}${path}`, { headers: { "X-API-Key": "k" } }));
+  const lookup = (upstream: ReturnType<typeof make>, ids: string, net = "xrpl") => api(upstream, `/v2/mpt?ids=${ids}`, net);
+
+  it("makes the subject of a ledger_entry asked by mpt_issuance `mpt_issuance_<ID>` in upper case, and names its file by it, with no other parameter in the name", () => {
+    const request = { mpt_issuance: B.toLowerCase(), ledger_index: "validated" };
+    expect(nodeSubject("ledger_entry", request)).toBe(`mpt_issuance_${B}`);
+    // The exact key keeps the parameter as it was asked (only a 64-digit hash is upper-cased there: the client asks for an ID in upper case), the subject's is the ID's.
+    expect(nodeKeys("ledger_entry", { ...request, mpt_issuance: B })).toEqual([`node ledger_entry ledger_index=validated&mpt_issuance=${B}`, `node ledger_entry mpt_issuance_${B}`]);
+    expect(nodeKeys("ledger_entry", request)[1]).toBe(`node ledger_entry mpt_issuance_${B}`);
+    expect(nodeFile("xrpl", "ledger_entry", request)).toBe(`xrpl/node/ledger_entry/mpt_issuance_${B}.json`);
+    // An entry asked by index keeps its own subject, and an ID that is no safe piece is no file.
+    expect(nodeSubject("ledger_entry", { index: URI_TOKEN, ledger_index: "validated" })).toBe(URI_TOKEN);
+    expect(nodeFile("xrpl", "ledger_entry", { mpt_issuance: "../../package" })).toBeUndefined();
+  });
+
+  it("answers an issuance from its file, and an issuance with none, with its holders and its transfers, 404 `issuance not found` (every ID is that on a network without MPT); an ID that is no 48 digits is a 400", async () => {
+    const upstream = make();
+    expect(await jsonOf(await api(upstream, `/v2/mpt/${A}`))).toMatchObject({ result: "success" });
+    for (const path of [`/v2/mpt/${B}`, `/v2/mpt/${B}/holders`, `/v2/mpt/${B}/transfers`]) {
+      const answer = await api(upstream, `${path}?limit=10`);
+      expect(answer!.status, path).toBe(404);
+      expect(await jsonOf(answer), path).toEqual({ result: "error", message: "issuance not found" });
+    }
+    expect((await api(upstream, `/v2/mpt/${A}`, "xahau"))!.status).toBe(404);
+    for (const path of ["/v2/mpt/xyz", `/v2/mpt/${A.slice(1)}`, `/v2/mpt/${A}0/holders`]) {
+      const answer = await api(upstream, path);
+      expect([answer!.status, (await jsonOf(answer)).message], path).toEqual([400, "invalid mpt issuance id"]);
+    }
+    // Nothing else is below an issuance.
+    expect(await jsonOf(await api(upstream, `/v2/mpt/${A}/history`))).toEqual({ result: "error", message: `Cannot GET /v2/mpt/${A}/history` });
+    // A `null` override is the same absent answer.
+    expect(await jsonOf(await api(make({ [`GET /v2/mpt/${A}`]: null }), `/v2/mpt/${A}`))).toEqual({ result: "error", message: "issuance not found" });
+  });
+
+  it("answers a ledger_entry by mpt_issuance from its file, and one with none with entryNotFound, at HTTP 200", async () => {
+    const upstream = make();
+    const ask = (id: string) => upstream.handle(new Request("http://fixtures.test/xrpl-node", { method: "POST", body: JSON.stringify({ method: "ledger_entry", params: [{ mpt_issuance: id, ledger_index: "validated" }] }) }));
+    expect((await jsonOf(await ask(B))).result).toMatchObject({ index: "K", validated: true, status: "success" });
+    const missing = await ask(C);
+    expect(missing!.status).toBe(200);
+    expect((await jsonOf(missing)).result).toMatchObject({ error: "entryNotFound", status: "error" });
+    // An override keyed by the subject wins, as for any node request.
+    const overridden = make({ [`node ledger_entry mpt_issuance_${C}`]: { index: "O", node: { LedgerEntryType: "MPTokenIssuance" }, validated: true, status: "success" } });
+    expect((await jsonOf(await overridden.handle(new Request("http://fixtures.test/xrpl-node", { method: "POST", body: JSON.stringify({ method: "ledger_entry", params: [{ mpt_issuance: C, ledger_index: "validated" }] }) })))).result.index).toBe("O");
+    expect(overridden.unusedOverrides()).toEqual([]);
+  });
+
+  it("answers `GET /v2/mpt?ids=` as D9 does: one entry for each ID in the order asked, a repeated one at each place, the network's summary or the ID alone, with the count and the IDs in upper case", async () => {
+    const upstream = make();
+    const answer = await lookup(upstream, `${B},${A.toLowerCase()},${C},${A}`);
+    expect(answer!.status).toBe(200);
+    const body = await jsonOf(answer);
+    expect(Object.keys(body)).toEqual(["result", "count", "issuances"]);
+    expect(body).toEqual({ result: "success", count: 4, issuances: [{ mpt_issuance_id: B }, SUMMARY_A, { mpt_issuance_id: C }, SUMMARY_A] });
+    // The table is the network's: Xahau has none, so every ID is the ID alone.
+    expect(await jsonOf(await lookup(upstream, A, "xahau"))).toEqual({ result: "success", count: 1, issuances: [{ mpt_issuance_id: A }] });
+  });
+
+  it("answers D9's three 400s of the lookup, in D9's order: ids missing or empty, more than 100 whatever they are, an element that is not 48 hex digits (an empty one too)", async () => {
+    const upstream = make();
+    const body = async (path: string) => [(await api(upstream, path))!.status, (await jsonOf(await api(upstream, path))).message];
+    expect(await body("/v2/mpt")).toEqual([400, "ids is required"]);
+    expect(await body("/v2/mpt?ids=")).toEqual([400, "ids is required"]);
+    expect(await body(`/v2/mpt?ids=${Array.from({ length: 101 }, () => "x").join(",")}`)).toEqual([400, "too many ids"]);
+    expect(await body(`/v2/mpt?ids=${Array.from({ length: 101 }, () => A).join(",")}`)).toEqual([400, "too many ids"]);
+    for (const ids of [`${A},xyz`, `${A},`, `,${A}`, `${A},${A}0`, `${A} `]) expect(await body(`/v2/mpt?ids=${encodeURIComponent(ids)}`), ids).toEqual([400, "invalid mpt issuance id"]);
+    // 100 is the limit.
+    expect((await api(upstream, `/v2/mpt?ids=${Array.from({ length: 100 }, () => A).join(",")}`))!.status).toBe(200);
+  });
+
+  it("takes an override of the exact request over the composition, and a `null` override is the route's absent answer: a missing route, as the lookup has no 404", async () => {
+    const exact = { result: "success", count: 1, issuances: [{ mpt_issuance_id: A, overridden: true }] };
+    const upstream = make({ [`GET /v2/mpt?ids=${A}`]: exact });
+    expect(await jsonOf(await lookup(upstream, A))).toEqual(exact);
+    expect(await jsonOf(await lookup(upstream, `${A},${B}`))).toMatchObject({ count: 2 });
+    expect(upstream.unusedOverrides()).toEqual([]);
+    expect(await jsonOf(await lookup(make({ [`GET /v2/mpt?ids=${A}`]: null }), A))).toEqual({ result: "error", message: "Cannot GET /v2/mpt" });
+    // The comma may be written escaped, as a client's URL writes it.
+    expect(await jsonOf(await lookup(make(), `${A}%2C${B}`))).toMatchObject({ count: 2 });
+  });
+});

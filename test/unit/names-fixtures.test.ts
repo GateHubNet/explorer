@@ -3,7 +3,7 @@ import { isValidClassicAddress } from "ripple-address-codec";
 import { describe, expect, it } from "vitest";
 
 // http-fixtures.ts first: the generators it joins (names-fixtures.ts among them) are loaded through it, as `pnpm fixtures:sync` loads them.
-import { HTTP, isAmmGenerated, isAnalyticsGenerated, isHandWritten, isMarketGenerated, isNftGenerated, isSynthetic, isValidatorsGenerated } from "../../scripts/http-fixtures";
+import { HTTP, isAmmGenerated, isAnalyticsGenerated, isHandWritten, isMarketGenerated, isMptGenerated, isNftGenerated, isSynthetic, isValidatorsGenerated } from "../../scripts/http-fixtures";
 import { deletedAccounts, FIXED_NAMES, isNamesGenerated, NAMES_SEEDED_MAX, NAMES_SOURCES, namesAnswers, namesFixtures, seededAddresses } from "../../scripts/names-fixtures";
 import { fnv1a32 } from "../../app/domain/fnv";
 import { collectAddresses } from "../../app/server/names-collect";
@@ -19,12 +19,16 @@ import { dataApiFile, type NetworkName } from "../support/upstream-core";
 const NETS: NetworkName[] = ["xrpl", "xahau"];
 type Json = Record<string, any>;
 
-/** Every file of a network on disk (paths below test/fixtures/http/), the names' own among them: the generator leaves those out itself. */
+/**
+ * Every file of a network on disk (paths below test/fixtures/http/), the names' own among them: the generator leaves those out itself. And the MPT pages' (E14, `isMptGenerated`), which it leaves out as well: the nine
+ * transactions and the tab's lists would add 16 addresses that are not seeded yet, and the cap (500) would cut 5 issuers of the token list (E14 ruling C4).
+ */
 function filesOf(net: NetworkName): Map<string, string> {
   const files = new Map<string, string>();
   for (const entry of readdirSync(new URL(`${net}/`, HTTP), { recursive: true, withFileTypes: true })) {
     if (!entry.isFile()) continue;
     const path = `${entry.parentPath.slice(HTTP.pathname.length)}/${entry.name}`.replace(/^\//, "");
+    if (isMptGenerated(path)) continue;
     files.set(path, readFileSync(new URL(path, HTTP), "utf8"));
   }
   return files;
@@ -246,7 +250,7 @@ describe.each(NETS)("the names of %s", (net) => {
     // issuers that were not among the 458 (RLUSD's, USD's and LIONS' were) and 11 holders of LIONS, the first token by path; on Xahau all of them fit (scripts/token-fixtures.ts).
     expect(seeded.length).toBe(net === "xrpl" ? NAMES_SEEDED_MAX : 280);
     // Every issuer of the token list is within the cap, whichever page shows it: the list's files come before the tokens' own (`NAMES_SOURCES`).
-    const listed = new Set(paths.filter((path) => path.startsWith("tokens@")).flatMap((path) => (JSON.parse(files[net].get(prefix + path)!) as { tokens: Array<{ issuer: string }> }).tokens.map(({ issuer }) => issuer)));
+    const listed = new Set(paths.filter((path) => path.startsWith("tokens@kind=issued")).flatMap((path) => (JSON.parse(files[net].get(prefix + path)!) as { tokens: Array<{ issuer: string }> }).tokens.map(({ issuer }) => issuer)));
     expect(listed.size).toBeGreaterThan(30);
     for (const issuer of listed) expect(fixed.has(issuer) || seeded.includes(issuer), issuer).toBe(true);
     // every entry is a fixed or a seeded address

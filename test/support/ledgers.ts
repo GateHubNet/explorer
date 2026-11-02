@@ -8,9 +8,10 @@ import type { TxJson, TxMeta } from "../../app/domain/parse/types";
 /**
  * `xrpl-extra` and `xahau-extra` hold the transaction types the other sets lack, recorded for the explorer's own
  * tests (see test/fixtures/PROVENANCE.md); `xrpl-nft` and `xahau-nft` are the NFT ledgers D3 recorded, one transaction per
- * case of their manifests; `xrpl-objects` and `xahau-objects` are the ledgers of escrows, checks, payment channels and delegations D5 recorded.
+ * case of their manifests; `xrpl-objects` and `xahau-objects` are the ledgers of escrows, checks, payment channels and delegations D5 recorded; `xrpl-mpt` is D9's 27 ledgers of MPT
+ * transactions, whose manifest names the 22 cases (`cases`, each a ledger, a hash and a note) and the D9 commit they were copied at (`source`).
  */
-export type FixtureSet = "xrpl" | "xrpl-amm" | "xahau" | "xrpl-extra" | "xahau-extra" | "xrpl-nft" | "xahau-nft" | "xrpl-objects" | "xahau-objects";
+export type FixtureSet = "xrpl" | "xrpl-amm" | "xahau" | "xrpl-extra" | "xahau-extra" | "xrpl-nft" | "xahau-nft" | "xrpl-objects" | "xahau-objects" | "xrpl-mpt";
 
 export type FixtureTx = {
   tx: TxJson;

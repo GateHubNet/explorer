@@ -1,0 +1,12 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 99226369,
+    "complete": true
+  },
+  "count": 2,
+  "transfers": [
+    {"ledger_index":107712455,"tx_index":114,"tx_hash":"512EC5962A0D886A6103F2A42C9865AE6D3F7BC49DFEAC5C055D953D208EB585","executed_time":"2026-10-17T07:01:12Z","tx_type":"Payment","kind":"payment","source":"rNfysRWBZk46kesMtkXvsyDhSizUnegjiL","destination":"r9gHkzVKwE3NcJzNZCYUpDHXXDqokhTEWr","amount":"4000"},
+    {"ledger_index":107705455,"tx_index":114,"tx_hash":"0C8A2EFD4FA0D45C859E788560A191A69C88711784F819CEF3EECB68492D2903","executed_time":"2026-10-16T23:14:32Z","tx_type":"Payment","kind":"payment","source":"r9gHkzVKwE3NcJzNZCYUpDHXXDqokhTEWr","destination":"rNfysRWBZk46kesMtkXvsyDhSizUnegjiL","amount":"4000"}
+  ]
+}

@@ -1,0 +1,240 @@
+{
+  "03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80": {
+    "mpt_issuance_id": "03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80",
+    "issuer": "rBEERdzDHqDyYmfw2jqzyMNBZu31yzfg6q",
+    "ticker": "XAU",
+    "name": "Tokenized Gold (XAU)",
+    "asset_scale": 4,
+    "maximum_amount": "1000000000000",
+    "outstanding_amount": "612344999968",
+    "holders": 63,
+    "transfer_fee": 192,
+    "flags": {
+      "locked": false,
+      "can_lock": true,
+      "require_auth": true,
+      "can_escrow": true,
+      "can_trade": true,
+      "can_transfer": true,
+      "can_clawback": true
+    },
+    "destroyed": false
+  },
+  "056533FBD134390DB03F8D2B50A622C9C9063697920D2062": {
+    "mpt_issuance_id": "056533FBD134390DB03F8D2B50A622C9C9063697920D2062",
+    "issuer": "rLnw8biDkQRX6wjL7eL1D3iNyR1f5ZgqJD",
+    "ticker": "LKD",
+    "name": "Locked Notes",
+    "asset_scale": 2,
+    "maximum_amount": "400000000",
+    "outstanding_amount": "239999998",
+    "holders": 5,
+    "transfer_fee": 0,
+    "flags": {
+      "locked": true,
+      "can_lock": true,
+      "require_auth": false,
+      "can_escrow": false,
+      "can_trade": false,
+      "can_transfer": true,
+      "can_clawback": false
+    },
+    "destroyed": false
+  },
+  "0598F6E09E30A809E63A1F02DE789586D2F4FDA9EF5200E3": {
+    "mpt_issuance_id": "0598F6E09E30A809E63A1F02DE789586D2F4FDA9EF5200E3",
+    "issuer": "rERShrtUSEXkrwtTpugPV4v8E787vpx1kb",
+    "asset_scale": 6,
+    "maximum_amount": "1000000000000000",
+    "outstanding_amount": "199999998994110",
+    "holders": 41,
+    "transfer_fee": 589,
+    "flags": {
+      "locked": false,
+      "can_lock": false,
+      "require_auth": false,
+      "can_escrow": false,
+      "can_trade": false,
+      "can_transfer": true,
+      "can_clawback": false
+    },
+    "destroyed": false
+  },
+  "05A2797960352D719D5E3750339599019B1D381BBBFAE058": {
+    "mpt_issuance_id": "05A2797960352D719D5E3750339599019B1D381BBBFAE058",
+    "issuer": "r9m62EkNsBVKVWGKrByJ1Tyc9Ezer5nWsy",
+    "ticker": "HTF",
+    "name": "Harborline Treasury Fund",
+    "asset_scale": 2,
+    "maximum_amount": "5000000000",
+    "outstanding_amount": "1820451117",
+    "holders": 8,
+    "transfer_fee": 100,
+    "flags": {
+      "locked": false,
+      "can_lock": true,
+      "require_auth": true,
+      "can_escrow": true,
+      "can_trade": true,
+      "can_transfer": true,
+      "can_clawback": true
+    },
+    "destroyed": false
+  },
+  "05AC2E9BD957F450A34D46B9F70983D04DB415D20EC3A1DF": {
+    "mpt_issuance_id": "05AC2E9BD957F450A34D46B9F70983D04DB415D20EC3A1DF",
+    "issuer": "rLFUzo23kPsxeMfJ8FPixizEREUhNVf66g",
+    "ticker": "XDRAGO",
+    "name": "XDRAGO",
+    "asset_scale": 1,
+    "maximum_amount": "100000000000",
+    "outstanding_amount": "64999999996",
+    "holders": 7,
+    "transfer_fee": 5000,
+    "flags": {
+      "locked": false,
+      "can_lock": false,
+      "require_auth": false,
+      "can_escrow": true,
+      "can_trade": true,
+      "can_transfer": true,
+      "can_clawback": false
+    },
+    "destroyed": false
+  },
+  "05FD87AC5F2F37D1CCC5A00C1D7F966B4630E931F5B3A752": {
+    "mpt_issuance_id": "05FD87AC5F2F37D1CCC5A00C1D7F966B4630E931F5B3A752",
+    "issuer": "r9gHkzVKwE3NcJzNZCYUpDHXXDqokhTEWr",
+    "ticker": "OLDG",
+    "name": "Old Gilt Note",
+    "asset_scale": 2,
+    "outstanding_amount": "0",
+    "holders": 0,
+    "transfer_fee": 0,
+    "flags": {
+      "locked": false,
+      "can_lock": false,
+      "require_auth": false,
+      "can_escrow": false,
+      "can_trade": false,
+      "can_transfer": true,
+      "can_clawback": false
+    },
+    "destroyed": true
+  },
+  "06317180FEDED5FDB0AD570C07A3C70FB8C73C6D01EBB3D9": {
+    "mpt_issuance_id": "06317180FEDED5FDB0AD570C07A3C70FB8C73C6D01EBB3D9",
+    "issuer": "rQNd2dFddgwqEvgm1CcKy9mgwwrD68kSDD",
+    "asset_scale": 3,
+    "maximum_amount": "90000000000",
+    "outstanding_amount": "11999997",
+    "holders": 5,
+    "transfer_fee": 250,
+    "flags": {
+      "locked": false,
+      "can_lock": true,
+      "require_auth": false,
+      "can_escrow": false,
+      "can_trade": true,
+      "can_transfer": true,
+      "can_clawback": false
+    },
+    "destroyed": false
+  },
+  "063CE265100CDE164FCDC230295289E54EC83FB8069F8190": {
+    "mpt_issuance_id": "063CE265100CDE164FCDC230295289E54EC83FB8069F8190",
+    "issuer": "rpT1N3rPrYBhMUEvdnC6ZS8tBUVsqMQE3t",
+    "asset_scale": 0,
+    "outstanding_amount": "149998",
+    "holders": 4,
+    "transfer_fee": 0,
+    "flags": {
+      "locked": false,
+      "can_lock": false,
+      "require_auth": false,
+      "can_escrow": false,
+      "can_trade": true,
+      "can_transfer": true,
+      "can_clawback": false
+    },
+    "destroyed": false
+  },
+  "064566B45FFD9F400BCAB0E855C8E6B21ED11C5418D3970F": {
+    "mpt_issuance_id": "064566B45FFD9F400BCAB0E855C8E6B21ED11C5418D3970F",
+    "issuer": "r9kZpUGgkoKxgXCqPKBkSfWuqwgpccjCLw",
+    "ticker": "mixd",
+    "name": "Nxwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+    "asset_scale": 6,
+    "maximum_amount": "5000000000000",
+    "outstanding_amount": "8999999997",
+    "holders": 6,
+    "transfer_fee": 0,
+    "flags": {
+      "locked": false,
+      "can_lock": true,
+      "require_auth": true,
+      "can_escrow": false,
+      "can_trade": false,
+      "can_transfer": true,
+      "can_clawback": false
+    },
+    "destroyed": false
+  },
+  "064E273A6D15D1F5614B4D4E3183F835BCD62E7F6FD9FFD8": {
+    "mpt_issuance_id": "064E273A6D15D1F5614B4D4E3183F835BCD62E7F6FD9FFD8",
+    "issuer": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+    "ticker": "USDPEND",
+    "name": "SUBSCRIPTION_CASH Receipt - SGBENJI",
+    "asset_scale": 0,
+    "outstanding_amount": "1",
+    "holders": 1,
+    "transfer_fee": 0,
+    "flags": {
+      "locked": false,
+      "can_lock": false,
+      "require_auth": true,
+      "can_escrow": false,
+      "can_trade": false,
+      "can_transfer": true,
+      "can_clawback": true
+    },
+    "destroyed": false
+  },
+  "0663EACAC1E295FCE4BA9E9ECD5EC0E84C5089AEE6B00E65": {
+    "mpt_issuance_id": "0663EACAC1E295FCE4BA9E9ECD5EC0E84C5089AEE6B00E65",
+    "issuer": "rJgwiVNzEEgtXngyi4bhSVkVLhWWu7UqfS",
+    "asset_scale": 0,
+    "outstanding_amount": "86000000",
+    "holders": 6,
+    "transfer_fee": 0,
+    "flags": {
+      "locked": false,
+      "can_lock": true,
+      "require_auth": true,
+      "can_escrow": false,
+      "can_trade": false,
+      "can_transfer": true,
+      "can_clawback": true
+    },
+    "destroyed": false
+  },
+  "0663EB64E8DDA74A98C6C70B740E67C7A2D1509EE78C163A": {
+    "mpt_issuance_id": "0663EB64E8DDA74A98C6C70B740E67C7A2D1509EE78C163A",
+    "issuer": "r4NHJEz1w7iXckeExjmFG1RxEcFDgBFgN8",
+    "asset_scale": 2,
+    "maximum_amount": "1000000000000",
+    "outstanding_amount": "954219",
+    "holders": 5,
+    "transfer_fee": 0,
+    "flags": {
+      "locked": false,
+      "can_lock": false,
+      "require_auth": false,
+      "can_escrow": true,
+      "can_trade": false,
+      "can_transfer": true,
+      "can_clawback": true
+    },
+    "destroyed": false
+  }
+}

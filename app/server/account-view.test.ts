@@ -65,7 +65,12 @@ const FAILED: Loaded<never> = { state: "failed" };
 const created = (net: "xrpl" | "xahau", address: string): AccountData => read(`${net}/data-api/accounts/${address}.json`).account_data;
 const balancesOf = (net: "xrpl" | "xahau", address: string): BalancesResponse => read(`${net}/data-api/accounts/${address}/balances.json`);
 const infoOf = (net: "xrpl" | "xahau", address: string): AccountInfo => read(`${net}/node/account_info/${address}.json`).result;
-const objectsOf = (net: "xrpl" | "xahau", address: string): AccountObjects => read(`${net}/node/account_objects/${address}.json`).result;
+// The objects of E10's tests: the active account's `account_objects` carry E14's MPT entries after them (two `MPToken` and an `MPTokenIssuance`, test/fixtures/PROVENANCE.md, "MPT answers"), which the account
+// page draws as of the MPT page's task (its `OWNED_LABELS`, its Tokens card), and the tests of that task read them in.
+const objectsOf = (net: "xrpl" | "xahau", address: string): AccountObjects => {
+  const result: AccountObjects = read(`${net}/node/account_objects/${address}.json`).result;
+  return { ...result, account_objects: result.account_objects.filter((object) => !/^MPToken/.test(object.LedgerEntryType)) };
+};
 const stateOf = (net: "xrpl" | "xahau"): ServerState => read(`${net}/node/server_state.json`).result.state;
 const list = <K extends string>(net: "xrpl" | "xahau", address: string, kind: string, key: K, marker?: string) =>
   read(`${net}/data-api/accounts/${address}/${kind}@descending=true&limit=20${marker ? `&marker=${marker}` : ""}.json`)[key];
@@ -1105,7 +1110,10 @@ describe("the lists of the tabs", () => {
     const first = paymentsList(read(`xrpl/data-api/accounts/${XRPL}/payments@descending=true&limit=20.json`), ctx());
     expect(first).toMatchObject({ tab: "payments", csvHref: `/xrpl/account/${XRPL}/payments.csv`, paging: { olderHref: `/xrpl/account/${XRPL}?tab=payments&marker=WzEwNzYzNjY3Myw3OF0` } });
     const second = paymentsList(read(`xrpl/data-api/accounts/${XRPL}/payments@descending=true&limit=20&marker=WzEwNzYzNjY3Myw3OF0.json`), ctx({ marker: "WzEwNzYzNjY3Myw3OF0" }));
-    expect(second).toMatchObject({ csvHref: `/xrpl/account/${XRPL}/payments.csv`, paging: { newerHref: `/xrpl/account/${XRPL}?tab=payments`, olderHref: null } });
+    // The second page goes on to E14's third (the one MPT payment older than it), by the marker of its last row.
+    expect(second).toMatchObject({ csvHref: `/xrpl/account/${XRPL}/payments.csv`, paging: { newerHref: `/xrpl/account/${XRPL}?tab=payments`, olderHref: `/xrpl/account/${XRPL}?tab=payments&marker=WzEwMjE4NjI0Myw2M10&back=WzEwNzYzNjY3Myw3OF0` } });
+    const third = paymentsList(read(`xrpl/data-api/accounts/${XRPL}/payments@descending=true&limit=20&marker=WzEwMjE4NjI0Myw2M10.json`), ctx({ marker: "WzEwMjE4NjI0Myw2M10" }));
+    expect(third).toMatchObject({ csvHref: `/xrpl/account/${XRPL}/payments.csv`, paging: { olderHref: null } });
   });
 
   it("pages the trades, and says so when there are none", () => {

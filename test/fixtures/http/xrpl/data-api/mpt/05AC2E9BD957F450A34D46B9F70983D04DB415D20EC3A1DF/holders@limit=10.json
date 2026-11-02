@@ -1,0 +1,17 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 99226369,
+    "complete": true
+  },
+  "count": 7,
+  "holders": [
+    {"holder":"rsjUhrFQeMpHpbCkzJzr2jm9rMyD5xMz5Z","amount":"12116693510","escrowed_amount":"0","locked":false,"authorized":true},
+    {"holder":"rN1BiDVsXMqBP3WZjmuEqXovhKSFU51QVa","amount":"11596398203","escrowed_amount":"0","locked":false,"authorized":true},
+    {"holder":"rfFWTE3NbCByofCCeCeFp9wU5wCMKyUCM3","amount":"11077516042","escrowed_amount":"0","locked":false,"authorized":true},
+    {"holder":"rN2aVvdRq1K6MmFyUxT7R8GjsvTh58z1m7","amount":"8346025199","escrowed_amount":"0","locked":false,"authorized":true},
+    {"holder":"rB2qh2GephTALUH1KfrBurWz5iU6b9GTmM","amount":"8060098994","escrowed_amount":"0","locked":false,"authorized":true},
+    {"holder":"rhsJbm4ede5yxyoJgAb4rYVukALeHYwLXU","amount":"7980613866","escrowed_amount":"0","locked":false,"authorized":true},
+    {"holder":"rLkq6HgJzZuBKGfdb5sRzRoMTPKWs8mPod","amount":"5822654182","escrowed_amount":"0","locked":false,"authorized":true}
+  ]
+}

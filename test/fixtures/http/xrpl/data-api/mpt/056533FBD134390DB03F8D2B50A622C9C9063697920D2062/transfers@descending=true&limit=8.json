@@ -1,0 +1,14 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 99226369,
+    "complete": true
+  },
+  "count": 4,
+  "transfers": [
+    {"ledger_index":107716455,"tx_index":30,"tx_hash":"4B61CDA22E985289C5D603339A09E9438C8085DC4D103CF47A1BDD7BB5CBEEDD","executed_time":"2026-10-17T11:27:52Z","tx_type":"MPTokenIssuanceSet","kind":"lock","source":"rLnw8biDkQRX6wjL7eL1D3iNyR1f5ZgqJD","amount":"239999998"},
+    {"ledger_index":107712455,"tx_index":83,"tx_hash":"A9321FA22B6FD21EAA0E3264D8035BF21E1F23DC215A91C5B3E0DE91A57FA919","executed_time":"2026-10-17T07:01:12Z","tx_type":"Payment","kind":"payment","source":"rLnw8biDkQRX6wjL7eL1D3iNyR1f5ZgqJD","destination":"rfFgB2jMbjnbc1RgVvHrkfpxjJUPgCzQNY","amount":"60000000"},
+    {"ledger_index":107708455,"tx_index":49,"tx_hash":"D62B5735F85E71BCA03EE3C90CDF3FC5E3C9849433351971622E781624B1234B","executed_time":"2026-10-17T02:34:32Z","tx_type":"Payment","kind":"payment","source":"rfFgB2jMbjnbc1RgVvHrkfpxjJUPgCzQNY","destination":"rDqmW7XTQF5gvxwmvvTGajfZSGmN4uQx9E","amount":"20000000"},
+    {"ledger_index":107704455,"tx_index":67,"tx_hash":"1CCAA089FF2E1AB6BDC7EBEC15D7023539C63A823E5351B7FC07539DADE7E194","executed_time":"2026-10-16T22:07:52Z","tx_type":"Payment","kind":"payment","source":"rLJxAWw4GzX37W6p4bvnzwJ87HuqUGGbLX","destination":"rfMN31xwp9QVvXqa3Dc19oGUdi5hoL16BB","amount":"400000"}
+  ]
+}
