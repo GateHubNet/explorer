@@ -310,6 +310,38 @@ describe("the SUPPLY switch", () => {
   });
 });
 
+// VALIDATORS_MAP (E13): the validators page's countries card, Country filter and place under a row, and the validator page's toml card. A feature-level switch, on top of VALIDATORS.
+describe("the VALIDATORS_MAP switch", () => {
+  // Its place is the twelfth, after E12's. Checked as a prefix of both lists, as SUPPLY's is, so that a switch appended after it by a later plan leaves this test as it is.
+  it("is the switch after SUPPLY, and its feature is validatorsMap", () => {
+    const order = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS", "AMM_PAGES", "NFTS", "NAMES", "LEDGER_OBJECTS", "DELEGATION", "TOKENS", "SUPPLY", "VALIDATORS_MAP"];
+    expect(FEATURE_VARS.slice(0, 12)).toEqual(order);
+    expect(FEATURE_VARS.indexOf("VALIDATORS_MAP")).toBe(11);
+    expect(Object.keys(FEATURE_NAME).slice(0, 12)).toEqual(order);
+    expect(Object.keys(FEATURE_NAME).indexOf("VALIDATORS_MAP")).toBe(11);
+    expect(FEATURE_NAME.VALIDATORS_MAP).toBe("validatorsMap");
+  });
+
+  it('is on only for "on"', () => {
+    expect(featuresOf({ VALIDATORS_MAP: "on" }).validatorsMap).toBe(true);
+    for (const value of ["off", "ON", "On", "yes", undefined]) expect(featuresOf({ VALIDATORS_MAP: value }).validatorsMap, String(value)).toBe(false);
+    expect(featuresOf({}).validatorsMap).toBe(false);
+    expect(NO_FEATURES.validatorsMap).toBe(false);
+  });
+
+  it("turns nothing else on, and nothing else turns it on, VALIDATORS included", () => {
+    expect(featuresOf({ VALIDATORS_MAP: "on" })).toEqual({ ...NO_FEATURES, validatorsMap: true });
+    expect(featuresOf({ VALIDATORS: "on" })).toEqual({ ...NO_FEATURES, validators: true });
+    expect(featuresOf({ ...allSwitches("on"), VALIDATORS_MAP: "off" }).validatorsMap).toBe(false);
+    expect(featuresOf({ ...allSwitches("on"), VALIDATORS_MAP: "off" }).validators).toBe(true);
+    expect(featuresOf({ ...allSwitches("off"), VALIDATORS_MAP: "on" }).validators).toBe(false);
+    expect(
+      featuresOf({ VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on", NFTS: "on", NAMES: "on", LEDGER_OBJECTS: "on", DELEGATION: "on", TOKENS: "on", SUPPLY: "on" })
+        .validatorsMap,
+    ).toBe(false);
+  });
+});
+
 describe("NO_FEATURES", () => {
   it("is frozen, so that a component cannot turn a feature on for everyone", () => {
     expect(Object.isFrozen(NO_FEATURES)).toBe(true);

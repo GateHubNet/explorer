@@ -5,7 +5,7 @@
 // A new switch is appended LAST to `FEATURE_VARS` and to `FEATURE_NAME`, and gets its field in `Env` (app/server/env.ts), an entry in
 // every block of wrangler.jsonc and in `TOP_LEVEL_SWITCHES` of vitest.config.ts, and a row in the README.
 
-export const FEATURE_VARS = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS", "AMM_PAGES", "NFTS", "NAMES", "LEDGER_OBJECTS", "DELEGATION", "TOKENS", "SUPPLY"] as const;
+export const FEATURE_VARS = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS", "AMM_PAGES", "NFTS", "NAMES", "LEDGER_OBJECTS", "DELEGATION", "TOKENS", "SUPPLY", "VALIDATORS_MAP"] as const;
 export type FeatureVar = (typeof FEATURE_VARS)[number];
 
 /** The name each variable has in `Features`, which components and view builders read. */
@@ -21,6 +21,7 @@ export const FEATURE_NAME = {
   DELEGATION: "delegation",
   TOKENS: "tokens",
   SUPPLY: "supply",
+  VALIDATORS_MAP: "validatorsMap",
 } as const satisfies Record<FeatureVar, string>;
 export type Feature = (typeof FEATURE_NAME)[FeatureVar];
 export type Features = Readonly<Record<Feature, boolean>>;

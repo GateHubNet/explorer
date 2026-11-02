@@ -15,7 +15,7 @@
  * `vars` and `ratelimits` are not inherited, so each environment repeats them, `ENVIRONMENT` and the switches among them.
  * `ENVIRONMENT` is "development", "sandbox" or "production": it decides whether the pages show mainnets or testnets. The XRPL node of a deployed
  * environment must be a Clio (a rippled answers `nft_info` with `unknownCmd`).
- * `VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS`, `AMM_PAGES`, `NFTS`, `NAMES`, `LEDGER_OBJECTS`, `DELEGATION`, `TOKENS` and `SUPPLY` are the switches (app/ui/features.ts, README "Switches"): "on" or "off", in every block. The top level is
+ * `VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS`, `AMM_PAGES`, `NFTS`, `NAMES`, `LEDGER_OBJECTS`, `DELEGATION`, `TOKENS`, `SUPPLY` and `VALIDATORS_MAP` are the switches (app/ui/features.ts, README "Switches"): "on" or "off", in every block. The top level is
  * what local development and the tests run, so a switch is "on" there from the moment the code it gates is built (`VALIDATORS` since the
  * validators pages were); `sandbox` and `production` are "off" until their data API serves what the switch needs. Set
  * one by a commit and a deploy, never in the Cloudflare dashboard: the next deploy would undo it. The predeploy guard refuses a build
@@ -58,7 +58,8 @@
 		"LEDGER_OBJECTS": "on",
 		"DELEGATION": "on",
 		"TOKENS": "on",
-		"SUPPLY": "on"
+		"SUPPLY": "on",
+		"VALIDATORS_MAP": "on"
 	},
 	"ratelimits": [
 		{
@@ -89,7 +90,8 @@
 				"LEDGER_OBJECTS": "off",
 				"DELEGATION": "off",
 				"TOKENS": "off",
-				"SUPPLY": "off"
+				"SUPPLY": "off",
+				"VALIDATORS_MAP": "off"
 			},
 			"ratelimits": [
 				{
@@ -120,7 +122,8 @@
 				"LEDGER_OBJECTS": "off",
 				"DELEGATION": "off",
 				"TOKENS": "off",
-				"SUPPLY": "off"
+				"SUPPLY": "off",
+				"VALIDATORS_MAP": "off"
 			},
 			"ratelimits": [
 				{

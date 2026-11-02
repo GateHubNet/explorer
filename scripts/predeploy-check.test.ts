@@ -649,6 +649,60 @@ describe("deployProblems", () => {
       });
     });
 
+    // VALIDATORS_MAP (E13): the validators map, the Country filter and the toml card. A sandbox or production build must say it, and say it right. It needs no other switch: with VALIDATORS off there
+    // is no validators page for it to show on, so on over VALIDATORS off is harmless and the guard has no rule for the pair (README "Switches").
+    describe("VALIDATORS_MAP", () => {
+      it("passes a build whose VALIDATORS_MAP is off or on, and the passing configs carry it, off", () => {
+        expect((good("sandbox").vars as Config).VALIDATORS_MAP).toBe("off");
+        expect((good("production").vars as Config).VALIDATORS_MAP).toBe("off");
+        expect(deployProblems(good("sandbox"), "sandbox")).toEqual([]);
+        expect(deployProblems(good("production"), "production")).toEqual([]);
+        expect(deployProblems(withVars({ VALIDATORS_MAP: "on" }), "sandbox")).toEqual([]);
+        expect(deployProblems(withVars({ VALIDATORS_MAP: "off" }, "production"), "production")).toEqual([]);
+        expect(deployProblems(withVars({ VALIDATORS_MAP: "on" }, "production"), "production")).toEqual([]);
+      });
+
+      it("refuses a build without VALIDATORS_MAP, and names it", () => {
+        for (const env of ["sandbox", "production"] as const) {
+          const vars = { ...(good(env).vars as Config) };
+          delete vars.VALIDATORS_MAP;
+          const problems = deployProblems(good(env, { vars }), env);
+          expect(problems, env).toHaveLength(1);
+          expect(problems[0]).toContain("VALIDATORS_MAP is not set");
+          expect(problems[0]).toContain('"on" or "off"');
+        }
+      });
+
+      it('refuses VALIDATORS_MAP: "yes", and names it', () => {
+        for (const env of ["sandbox", "production"] as const) {
+          const problems = deployProblems(withVars({ VALIDATORS_MAP: "yes" }, env), env);
+          expect(problems, env).toHaveLength(1);
+          expect(problems[0]).toContain("VALIDATORS_MAP");
+          expect(problems[0]).toContain('"yes"');
+          expect(problems[0]).toContain('not exactly "on" or "off"');
+        }
+      });
+
+      it('refuses a misspelt VALIDATOR_MAP: "on" as a var that is not a switch, naming VALIDATORS_MAP among the switches', () => {
+        for (const env of ["sandbox", "production"] as const) {
+          const problems = deployProblems(withVars({ VALIDATOR_MAP: "on" }, env), env);
+          expect(problems, env).toHaveLength(1);
+          expect(problems[0]).toContain("VALIDATOR_MAP is");
+          expect(problems[0]).toContain("not a switch");
+          expect(problems[0]).toContain("VALIDATORS_MAP");
+          expect(problems[0]).toContain(`the switches are ${FEATURE_VARS.join(", ")}`);
+          expect(problems[0]).toContain("a misspelt one?");
+        }
+      });
+
+      it("depends on no other switch, VALIDATORS included: on over every other switch off is accepted, and so is off over every other switch on", () => {
+        for (const env of ["sandbox", "production"] as const) {
+          expect(deployProblems(withVars({ ...allSwitches("off"), VALIDATORS_MAP: "on" }, env), env), env).toEqual([]);
+          expect(deployProblems(withVars({ ...allSwitches("on"), VALIDATORS_MAP: "off" }, env), env), env).toEqual([]);
+        }
+      });
+    });
+
     it("lets a var that is not a switch have any other value", () => {
       expect(deployProblems(withVars({ SENTRY_DSN: "", SOMETHING: "ON", OTHER: 3, YES: "yes" }), "sandbox")).toEqual([]);
     });
@@ -1234,5 +1288,14 @@ describe("the deploy scripts and wrangler.jsonc", () => {
     expect(vars().SUPPLY).toBe("on");
     expect(vars("sandbox").SUPPLY).toBe("off");
     expect(vars("production").SUPPLY).toBe("off");
+  });
+
+  // VALIDATORS_MAP (README "Switches"): on in development and the tests (the top level), off in sandbox and production until that environment's data API serves D8 on both networks and
+  // `syncer_validators_toml_fields_total{outcome="read"}` has grown there (E13 spec 6). A flip is a commit, so it is read from the file.
+  it("has VALIDATORS_MAP on at the top level and off in sandbox and production", () => {
+    const vars = (env?: string) => unstable_readConfig({ config: join(project, "wrangler.jsonc"), env }).vars as Record<string, unknown>;
+    expect(vars().VALIDATORS_MAP).toBe("on");
+    expect(vars("sandbox").VALIDATORS_MAP).toBe("off");
+    expect(vars("production").VALIDATORS_MAP).toBe("off");
   });
 });
