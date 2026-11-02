@@ -224,6 +224,23 @@ test.describe("what the menu marks", () => {
       await expect(item(page, "Validators")).not.toHaveAttribute("aria-current", /./);
     });
 
+    test("choosing the page you are on closes the panel and puts focus on the summary, in the same document (Amendments: the supply page is never opened here)", async ({ page }) => {
+      await page.goto("/xrpl/amendments");
+      await hydrated(page);
+      await markDocument(page);
+      await summary(page).click();
+      await open(page);
+      await expect(item(page, "Amendments")).toHaveAttribute("aria-current", "page");
+
+      // No navigation follows, so nothing but the menu's own rule can close the panel; focus was on a link that is hidden now.
+      await item(page, "Amendments").click();
+      await closed(page);
+      await expect(summary(page)).toBeFocused();
+      expect(new URL(page.url()).pathname).toBe("/xrpl/amendments");
+      expect(await sameDocument(page)).toBe(true);
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText("Amendments");
+    });
+
     test("the validators list is the page under any query, and a validator's page is a page under it", async ({ page }) => {
       const validator = await listedValidator(page, "any", "/xrpl/validators?scope=all");
       await expect(summary(page)).toHaveAttribute("aria-current", "true");

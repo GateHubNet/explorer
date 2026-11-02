@@ -10,6 +10,9 @@ import { useLocation } from "react-router";
  * - **focus leaving**, a `focusout` whose `relatedTarget` is an element outside it: it closes. A window blur has no `relatedTarget` (`null`), and leaves the menu as it was;
  * - **a navigation**, a change of the location's pathname or search: it closes, so that the panel does not stay over the new page. The first run is the page as the server drew it,
  *   not a navigation: a visitor who opened the menu before the page was live keeps it open;
+ * - **a link chosen in the panel**, a click on an `a` inside it: it closes, and the click goes on to follow the link. This goes beyond spec 2.4 (the final review's finding 4): choosing the
+ *   page you are on is no navigation, so the rule above leaves the panel open, and to the visitor the click did nothing. On such a link (`aria-current="page"`) focus also goes to the summary,
+ *   since the panel closes with focus on a link that is hidden now and no navigation follows to take it out of there; on any other link the page that follows starts focus over;
  * - **opening one menu closes the others** (`details[data-menu]`).
  *
  * Hovering opens nothing. Its own file, so that the shell imports nothing else (the budget of the network page, supply spec 13: it moves into Header.tsx if that page goes over).
@@ -38,6 +41,12 @@ export function useDisclosureMenu(ref: RefObject<HTMLDetailsElement | null>): vo
       const next = event.relatedTarget;
       if (details.open && next instanceof Node && !details.contains(next)) details.open = false;
     };
+    const onClick = (event: MouseEvent) => {
+      const link = event.target instanceof Element ? event.target.closest("a") : null;
+      if (!link || !details.contains(link)) return;
+      details.open = false;
+      if (link.getAttribute("aria-current") === "page") details.querySelector("summary")?.focus();
+    };
     const onToggle = () => {
       if (!details.open) return;
       for (const other of document.querySelectorAll<HTMLDetailsElement>("details[data-menu][open]")) {
@@ -50,11 +59,13 @@ export function useDisclosureMenu(ref: RefObject<HTMLDetailsElement | null>): vo
 
     details.addEventListener("keydown", onKeyDown);
     details.addEventListener("focusout", onFocusOut);
+    details.addEventListener("click", onClick);
     details.addEventListener("toggle", onToggle);
     document.addEventListener("pointerdown", onPointerDown);
     return () => {
       details.removeEventListener("keydown", onKeyDown);
       details.removeEventListener("focusout", onFocusOut);
+      details.removeEventListener("click", onClick);
       details.removeEventListener("toggle", onToggle);
       document.removeEventListener("pointerdown", onPointerDown);
     };

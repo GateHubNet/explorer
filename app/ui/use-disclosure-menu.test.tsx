@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useDisclosureMenu } from "./use-disclosure-menu";
 
 // The behaviour a header menu has once the page is live (supply spec 2.4): the `<details>` already opens and closes by itself, and works without any of this. The hook adds what a
-// disclosure does not do alone: Escape, a pointer outside, focus leaving, a navigation, and one open menu at a time.
+// disclosure does not do alone: Escape, a pointer outside, focus leaving, a navigation, a link chosen in the panel (beyond spec 2.4: the final review's finding 4) and one open menu at a time.
 
 afterEach(() => {
   cleanup();
@@ -162,6 +162,42 @@ describe("useDisclosureMenu", () => {
     fireEvent.click(summaryOf());
     await act(() => router.navigate("/xrpl/supply?x=1#top"));
     expect(menu().open).toBe(true);
+  });
+
+  it("choosing a link in the panel closes it, and the link still goes where it goes", () => {
+    mount();
+    fireEvent.click(summaryOf());
+    const link = screen.getByRole("link", { name: "network second" });
+    act(() => link.focus());
+
+    // `fireEvent` answers whether the click was left alone: a link that is followed is not prevented.
+    expect(fireEvent.click(link)).toBe(true);
+    expect(menu().open).toBe(false);
+    // Focus is not moved: the link is on its way to a new page, where focus starts over.
+    expect(document.activeElement).not.toBe(summaryOf());
+  });
+
+  it("choosing the link of the page you are on closes it too, and focus goes to the summary, since no navigation follows to take it out of a panel that is hidden now", () => {
+    mount();
+    fireEvent.click(summaryOf());
+    const link = screen.getByRole("link", { name: "network first" });
+    link.setAttribute("aria-current", "page");
+    act(() => link.focus());
+
+    expect(fireEvent.click(link)).toBe(true);
+    expect(menu().open).toBe(false);
+    expect(document.activeElement).toBe(summaryOf());
+  });
+
+  it("a click elsewhere in the panel leaves it open", () => {
+    mount();
+    fireEvent.click(summaryOf());
+    fireEvent.click(menu().querySelector("ul")!);
+    fireEvent.click(menu().querySelector("li")!);
+    expect(menu().open).toBe(true);
+    // The summary still toggles it: a click on it is not a link chosen.
+    fireEvent.click(summaryOf());
+    expect(menu().open).toBe(false);
   });
 
   it("keeps a menu the visitor opened before the page was live", () => {
