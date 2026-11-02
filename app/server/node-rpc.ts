@@ -18,14 +18,18 @@
 //
 // The ledger-object pages (E10) read an object the index lacks, or has not caught up with, with the same `ledger_entry` by its id (`ledgerEntry`): the entry as the node wrote it,
 // whatever its type. `ledgerEntry` and `uriToken` make the one request, so they share one cache entry, which holds the checked entry; `uriToken` reads its fields from it.
+//
+// The MPT page (E14) reads an issuance the index lacks, or has not caught up with, with `ledger_entry` by `mpt_issuance` (its ID): `mptIssuance`, whose answer must be validated, an `MPTokenIssuance`
+// and the issuance asked for (its `Issuer` and `Sequence` make the ID).
 
 import BigNumber from "bignumber.js";
 import { isValidClassicAddress } from "ripple-address-codec";
 
 import { sameAsset, type Asset } from "../domain/asset";
 import { dropsToNative } from "../domain/format";
+import { mptIdOf } from "../domain/mpt-id";
 import type { TxJson, TxMeta } from "../domain/parse/types";
-import type { NodeAmount, NodeNftInfo, NodeNftOffer, NodeNftOffers, NodeUriToken } from "./api-types";
+import type { NodeAmount, NodeMptIssuance, NodeNftInfo, NodeNftOffer, NodeNftOffers, NodeUriToken } from "./api-types";
 import type { CacheClass, SubrequestCache } from "./cache-class";
 import { logProblem } from "./logging";
 import type { Network } from "./networks";
@@ -34,7 +38,7 @@ import { clip, NODE_TIMEOUT_MS, retryAfterOf, UpstreamError, withDeadline } from
 export { UpstreamError } from "./upstream";
 export type { UpstreamErrorKind } from "./upstream";
 // The node's types that api-types.ts holds (see there): `NodeAmount`, which this file always had, and the NFT readers' answers.
-export type { NodeAmount, NodeNftInfo, NodeNftOffer, NodeNftOffers, NodeUriToken } from "./api-types";
+export type { NodeAmount, NodeMptIssuance, NodeNftInfo, NodeNftOffer, NodeNftOffers, NodeUriToken } from "./api-types";
 
 /** Seconds from the unix epoch to the Ripple epoch, 2000-01-01 00:00:00 UTC. */
 export const RIPPLE_EPOCH_OFFSET = 946_684_800;
@@ -278,6 +282,12 @@ export interface NodeRpc {
    * `LedgerEntryType` is `server`. Class `live`. The request is `uriToken`'s, so the two share one cache entry.
    */
   ledgerEntry(id: string): Promise<LedgerEntry>;
+  /**
+   * An MPT issuance by its ID (any case; `ledger_entry` with `mpt_issuance`) on the newest validated ledger: the `MPTokenIssuance` as the node wrote it (a field at its default is not there; the
+   * amounts are base-10 text) and the ledger it was read at. `not_found` for `entryNotFound`, `bad_request` for `invalidParams` and the node's other malformed-request codes. An answer that does not
+   * say `validated: true`, whose entry is no `MPTokenIssuance` or is another issuance (its `Issuer` and `Sequence` do not make the ID asked for), or that has no `ledger_index`, is `server`. Class `live`.
+   */
+  mptIssuance(id: string): Promise<{ node: NodeMptIssuance; ledger_index: number }>;
 }
 
 // ---- Reading the node's answers ------------------------------------------------------------------------------------
@@ -833,6 +843,31 @@ function toLedgerEntry(what: string, asked: string, result: Json): LedgerEntry {
   return { node: node as LedgerObject, index: asked, ledger_index: integerField(what, result, "ledger_index", 0) };
 }
 
+/** An amount of an MPT as the ledger writes it: the integer units as base-10 text, 1 to 19 digits (a signed 64-bit value). */
+const MPT_AMOUNT = /^\d{1,19}$/;
+
+/**
+ * An MPT issuance from `ledger_entry` by `mpt_issuance` (`asked`, in upper case): validated, an `MPTokenIssuance` whose `Issuer` and `Sequence` make the ID asked for, the fields it has of the right
+ * kind (a default is not there: `AssetScale`, `TransferFee`, the amounts), and the ledger it was read at. The node is returned as it wrote it.
+ */
+function toMptIssuance(what: string, asked: string, result: Json): { node: NodeMptIssuance; ledger_index: number } {
+  requireValidatedAnswer(what, result, true);
+  const node = objectField(what, result, "node");
+  if (node.LedgerEntryType !== "MPTokenIssuance") throw malformed(what, `the entry is a ${clip(String(node.LedgerEntryType))}, not an MPTokenIssuance`);
+  const issuer = accountField(what, node, "Issuer", "the issuance's");
+  const sequence = integerField(what, node, "Sequence", 0, UINT32_MAX);
+  if (mptIdOf(sequence, issuer) !== asked) throw malformed(what, '"Issuer" and "Sequence" are not the issuance asked for');
+  integerField(what, node, "Flags", 0, UINT32_MAX);
+  if (node.AssetScale !== undefined) integerField(what, node, "AssetScale", 0, 255);
+  if (node.TransferFee !== undefined) integerField(what, node, "TransferFee", 0, 50_000);
+  for (const key of ["MaximumAmount", "OutstandingAmount", "LockedAmount"]) {
+    const amount = node[key];
+    if (amount !== undefined && (typeof amount !== "string" || !MPT_AMOUNT.test(amount))) throw malformed(what, `"${key}" is not an amount of 1 to 19 digits`);
+  }
+  if (node.MPTokenMetadata !== undefined) hexField(what, node, "MPTokenMetadata");
+  return { node: node as unknown as NodeMptIssuance, ledger_index: integerField(what, result, "ledger_index", 0) };
+}
+
 /**
  * A URIToken from the entry at its `index`. The entry at an id may be of any type (`index` is any entry's key): one that is not a `URIToken` is no such NFT, `not_found`, and is
  * told before its fields are read (an account root has none of them). Exported for the search (resolve.ts), whose one `ledger_entry` read answers the URIToken question and the object
@@ -1032,5 +1067,12 @@ export function createNodeRpc(net: Network, cache: SubrequestCache): NodeRpc {
     // A URIToken and an object of E10 are the same request, so one cache entry holding the checked entry: `uriToken` reads its fields from it.
     uriToken: async (id) => toUriToken("node ledger_entry", net.native, await entryAt(id)),
     ledgerEntry: async (id) => entryAt(id),
+    // An issuance is asked for in upper case, as an ID is everywhere, and the answer must be for it. Its own request, so its own cache entry; `entryNotFound` is the one code that is no issuance.
+    mptIssuance: async (id) => {
+      const asked = id.toUpperCase();
+      return call("ledger_entry", { mpt_issuance: asked, ledger_index: "validated" }, "live", (what, result) => toMptIssuance(what, asked, result), undefined, {
+        notFound: ENTRY_NOT_FOUND,
+      });
+    },
   };
 }

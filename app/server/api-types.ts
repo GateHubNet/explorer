@@ -225,6 +225,8 @@ export interface Payment {
   tx_hash: string;
   /** The fee, whole units of the native currency. */
   transaction_cost: string;
+  /** Only on an MPT payment (D9): its `currency` is this ID, its amounts are integer units, and this is the last key. */
+  mpt_issuance_id?: string;
 }
 
 // ---- Exchanges: GET /v2/accounts/{address}/exchanges --------------------------------------------------------------
@@ -2014,6 +2016,138 @@ export interface TokenTransfersResponse {
   transfers: TokenTransfer[];
 }
 
+// ---- MPT: GET /v2/mpt/{issuanceId}, …/holders, …/transfers, GET /v2/mpt?ids=, GET /v2/tokens?kind=mpt -------------------------------------------------------------------------
+//
+// D9 (data-api `feat/explorer-data-2`, pinned at `c9a2fc0ffd41b3ad7e5b78fbb73b220f38700f30`; its spec's section 7, `docs/api-reference.md` "MPT"), written by hand, the keys in its order; a key it marks `?`
+// is left out of an answer when it has no value (`null` is never served), so those keys are optional here and every other key is there. `mpt-shape.ts` makes that true. The facts of D9:
+//   - an issuance ID is 48 upper-case hex digits: the issuance's `Sequence` as 4 bytes, then the issuer's AccountID. An amount (`maximum_amount`, `outstanding_amount`, `escrowed_amount`,
+//     `locked_amount`, a holder's `amount`, a transfer's `amount` and `fee`) is the ledger's integer units as text, whatever `asset_scale` says; showing it scaled is the page's business;
+//   - `transfer_fee` is in 1/100,000 (0 to 50,000), `asset_scale` the ledger's 0 to 255;
+//   - `metadata` is what D9 decoded of the issuer's XLS-89 text (long key names, wrong types dropped) and is there only when it decoded; `metadata_hex` and `metadata_conforms` are there when the
+//     issuance has any. All of it is the issuer's word, unchecked;
+//   - a lookup (`?ids=`) has no `coverage` and answers each ID asked, in the order asked: an ID it has no state for is the ID alone;
+//   - a holders page and a transfers page do not say which issuance they are of: their URL does.
+
+/** What an issuance's `Flags` say, as D9 names them: `locked` is `lsfMPTLocked` (every balance is), the others are the `lsfMPT…` abilities. */
+export type MptFlags = {
+  locked: boolean;
+  can_lock: boolean;
+  require_auth: boolean;
+  can_escrow: boolean;
+  can_trade: boolean;
+  can_transfer: boolean;
+  can_clawback: boolean;
+};
+
+/** What D9 decoded of an issuance's `MPTokenMetadata` (XLS-89, lenient): text, each cut to 1,024 characters, and the issuer's own. A key the metadata does not have is left out. */
+export type MptMetadata = {
+  ticker?: string;
+  name?: string;
+  desc?: string;
+  icon?: string;
+  asset_class?: string;
+  asset_subclass?: string;
+  issuer_name?: string;
+  uris?: { uri: string; category?: string; title?: string }[];
+  additional_info?: unknown;
+};
+
+/** One issuance (`GET /v2/mpt/{issuanceId}`). Amounts are integer units as text; `created_*` are there when the creation is inside the coverage. A destroyed issuance is served. */
+export type MptIssuance = {
+  mpt_issuance_id: string;
+  issuer: string;
+  sequence: number;
+  ticker?: string;
+  name?: string;
+  asset_scale: number;
+  maximum_amount?: string;
+  outstanding_amount: string;
+  escrowed_amount: string;
+  locked_amount: string;
+  locked_holders: number;
+  holders: number;
+  transfer_fee: number;
+  flags: MptFlags;
+  metadata?: MptMetadata;
+  metadata_hex?: string;
+  metadata_conforms?: boolean;
+  created_ledger?: number;
+  created_time?: string;
+  created_tx_hash?: string;
+  last_ledger: number;
+  destroyed: boolean;
+};
+
+/** `GET /v2/mpt/{issuanceId}`. */
+export type MptIssuanceAnswer = { coverage: Coverage; issuance: MptIssuance };
+
+/** A holder of an issuance: `amount` is what it can move, `escrowed_amount` what it has in escrow (the two count together), `locked` that the balance cannot move. */
+export type MptHolder = { holder: string; amount: string; escrowed_amount: string; locked: boolean; authorized: boolean };
+
+/** `GET /v2/mpt/{issuanceId}/holders`: the largest balance first. */
+export type MptHoldersPage = { coverage: Coverage; count: number; marker?: string; holders: MptHolder[] };
+
+/** What a transfer row is: a payment, a clawback, a lock or an unlock of one balance (or of every balance: no destination), or an escrow's create, finish or cancel. */
+export type MptTransferKind = "payment" | "clawback" | "lock" | "unlock" | "escrow_create" | "escrow_finish" | "escrow_cancel";
+
+/** A transfer of an issuance; `source` and `destination` are left out where there is none, `fee` (the transfer fee burned) unless it is above 0. */
+export type MptTransfer = {
+  ledger_index: number;
+  tx_index: number;
+  tx_hash: string;
+  executed_time: string;
+  tx_type: string;
+  kind: MptTransferKind;
+  source?: string;
+  destination?: string;
+  amount: string;
+  fee?: string;
+};
+
+/** `GET /v2/mpt/{issuanceId}/transfers`. */
+export type MptTransfersPage = { coverage: Coverage; count: number; marker?: string; transfers: MptTransfer[] };
+
+/** What `?ids=` says of an issuance it knows. */
+export type MptSummary = {
+  mpt_issuance_id: string;
+  issuer: string;
+  ticker?: string;
+  name?: string;
+  asset_scale: number;
+  maximum_amount?: string;
+  outstanding_amount: string;
+  holders: number;
+  transfer_fee: number;
+  flags: MptFlags;
+  destroyed: boolean;
+};
+
+/** `GET /v2/mpt?ids=`: one entry for each ID asked, in the order asked; an ID the index has no state for is the ID alone. */
+export type MptLookup = { count: number; issuances: (MptSummary | { mpt_issuance_id: string })[] };
+
+/** A row of `GET /v2/tokens?kind=mpt`: the summary without `destroyed` (a destroyed issuance is not listed), ranked by holders, with its transfers of the last 24 hours. */
+export type MptTokenRow = Omit<MptSummary, "destroyed"> & { rank: number; transfers_24h: number };
+
+/** What describes the whole kind, whatever the filters. */
+export type MptTokensTotals = { issuances: number; holders: number; transfers_24h: number };
+
+/**
+ * `GET /v2/tokens?kind=mpt`. `totals` and `total` are left out before the first generation exists: D9 answers `{ result, coverage, kind, count: 0, tokens: [] }` then, as D6 does
+ * for the issued list, and a page draws "—" for each figure and no pager.
+ */
+export type MptTokensPage = {
+  coverage: Coverage;
+  kind: "mpt";
+  ledger_index?: number;
+  close_time?: string;
+  totals?: MptTokensTotals;
+  total?: number;
+  total_below?: number;
+  count: number;
+  marker?: string;
+  tokens: MptTokenRow[];
+};
+
 // ---- Supply: GET /v2/network/supply, GET /v2/network/supply/minted -----------------------------------------------------------------------------------------------------
 //
 // D7 (data-api `feat/explorer-data-2`, pinned at `31e97efaa1a6e098435b666e8893c79a0c4bee66`; the section "Network" of its docs/api-reference.md, `GET /v2/network/supply` and
@@ -2152,3 +2286,20 @@ export interface NodeUriToken {
   Amount?: NodeAmount;
   Destination?: string;
 }
+
+/**
+ * An `MPTokenIssuance` ledger entry (`ledger_entry` with `mpt_issuance`) as the node writes it: a field at its default is left out (`AssetScale`, `TransferFee`, `OutstandingAmount` and
+ * `LockedAmount` are not there when 0, a `MaximumAmount` when there is no maximum); the amounts are base-10 text and `MPTokenMetadata` is hex.
+ */
+export type NodeMptIssuance = {
+  LedgerEntryType: "MPTokenIssuance";
+  Issuer: string;
+  Sequence: number;
+  Flags: number;
+  AssetScale?: number;
+  MaximumAmount?: string;
+  OutstandingAmount?: string;
+  LockedAmount?: string;
+  TransferFee?: number;
+  MPTokenMetadata?: string;
+};

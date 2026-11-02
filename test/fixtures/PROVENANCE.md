@@ -1035,3 +1035,20 @@ recordings show none). No operator is implied: the names are fictional and the d
 key orders on the objects before serialization, the fixed cases, the tomls of the verified domains, the seeded addresses and their shares, the deleted accounts, and the line
 count of `account_names.json`; `test/unit/upstream-core.test.ts` checks the mock's composition of the names batch and its three 400s. `scripts/http-fixtures.test.ts` fails when a
 file is not what the generator writes. `isNamesGenerated` names the files, and they have a budget of their own in `test/unit/http-fixtures.test.ts` (128 KiB a network).
+
+## The API description: `api/openapi.yaml` and `app/server/openapi.d.ts`, synced from D9 (E14)
+
+Not a fixture, and written here because the sync is a copy from the data API's repository that the explorer pins, as the ledgers above are. `pnpm api:sync` copies a data API checkout's `docs/openapi.yaml` and
+generates `app/server/openapi.d.ts` from it; E14 syncs from D9's pin and not from the branch tip, which holds routes of later work (the rule of every plan since E11, and E14 Ruling C1):
+
+| | Repository, ref | Commit | For |
+|---|---|---|---|
+| `docs/openapi.yaml` | `data-api`, `feat/explorer-data-2` | `c9a2fc0ffd41b3ad7e5b78fbb73b220f38700f30` (`PIN` of E14, read with `git show c9a2fc0ffd41b3ad7e5b78fbb73b220f38700f30:docs/openapi.yaml` into a scratch `docs/`, then `DATA_API_REPO=<scratch> pnpm api:sync`) | `api/openapi.yaml`, byte for byte, and `app/server/openapi.d.ts` generated from it |
+
+The sync adds to E13's (D8's, `cbd6c51`) document: the five paths `/v2/accounts/{address}/mpt` (51 lines), `/v2/mpt`, `/v2/mpt/{issuanceId}`, `/v2/mpt/{issuanceId}/holders` and `/v2/mpt/{issuanceId}/transfers`
+(168 lines for the four), so that the 99 `/v2` paths (and `/liveliness/healthz`) become 104; and the description edits that name MPT in five paths the document already had: the payments (`/v2/payments`
+and `/v2/payments/{currency}`: an MPT payment has the issuance ID as its `currency` and `mpt_issuance_id` as its last key), the balance changes of an account and their analytics (the MPT balances, and
+`clawback` among the change types) and `kind=mpt` of the tokens. The document has no response schemas (`components.schemas` is `{}`, as before), so no schema comes with the paths: the types of the MPT answers
+are written by hand in `app/server/api-types.ts`. 340 lines of diff in `api/openapi.yaml` (285 added, 55 removed) and 255 in `app/server/openapi.d.ts` (245 added, 10 removed). No block moves, no path is lost and nothing of D8
+is removed: `/v2/network/validators/countries` is still there. The explorer's client calls four of the five new paths (`PATHS` in `app/server/data-api.ts`; not the account's `/mpt`, which no page asks for)
+and sends `kind=mpt` to `/v2/tokens`.

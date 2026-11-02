@@ -42,6 +42,7 @@
     "app/domain/asset.ts",
     "app/domain/market-pair.ts",
     "app/domain/market-params.ts",
+    "app/domain/mpt-id.ts",
     "app/domain/nft-id.ts",
     "app/domain/object-status.ts",
     "app/domain/paging.ts",

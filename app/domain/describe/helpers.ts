@@ -7,6 +7,9 @@ import { nodesOf } from "../parse/objects";
 import type { AmmHop, Asset, Native, TxJson, TxMeta } from "../parse/types";
 import type { Detail, FlowAmount, Handler, HandlerMap, Segment } from "./types";
 
+// The two functions of an MPT issuance ID live in a leaf (`../mpt-id.ts`), so that `parse/objects.ts` (which this file imports, and the Node type-check project lists) can use them without a cycle, and are exported from here, as the spec names them.
+export { mptIdOf, mptIssuerOf } from "../mpt-id";
+
 // --- Segments ------------------------------------------------------------------------------------------------------
 
 export const text = (v: string): Segment => ({ t: "text", v });
