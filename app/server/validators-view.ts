@@ -389,11 +389,14 @@ function footerOf(net: NetworkInfo, shown: number, hasFilter: boolean, summary: 
 /**
  * The sentence for a view of the UNL whose chosen country has validators, all of them off it (spec 4.4): "No validator in Germany is on the default UNL." and the link to the same
  * view in All, "Show the 3 in All". Only for a code (`unknown` is no country: its view keeps E6's "No validators match these filters."), and `n` counts the rows All would show
- * with the other filters kept, so the link never promises rows it does not show; at 0 there is no sentence (plan ruling C13).
+ * with the other filters kept, so the link never promises rows it does not show; at 0 there is no sentence (plan ruling C13). The sentence is a fact about the country, so it also
+ * needs that no row of the whole list in that country is on the UNL: when a search, a publisher or an amendment only hides the ones it has, the view says E6's "No validators match
+ * these filters." instead.
  */
 function unlEmptyOf(net: string, params: ValidatorsParams, all: readonly ValidatorRow[], amendments: readonly AmendmentRow[] | null) {
   const { country } = params;
   if (params.scope !== "unl" || country === undefined || country === UNKNOWN_COUNTRY) return null;
+  if (all.some((row) => row.unl && row.toml?.server_country === country)) return null;
   const n = filtered(all, { ...params, scope: "all" }, amendments).length;
   if (n === 0) return null;
   return { text: `No validator in ${countryName(country)} is on the default UNL.`, link: { text: `Show the ${count(n)} in All`, href: validatorsHref(net, { ...params, scope: "all" }) } };

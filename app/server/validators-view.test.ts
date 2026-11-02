@@ -347,6 +347,19 @@ describe("validatorsPage: the countries card's data", () => {
     expect(unlEmptyOf({ scope: "unl", country: "FR", q: "northpeak" })).toBeNull();
     expect(unlEmptyOf({ scope: "unl", country: "FR" }, { features: { validatorsMap: false } })).toBeNull();
   });
+
+  it("gives E6's sentence, not the UNL one, when another filter hides the UNL validators the country has", () => {
+    // DE has two on the UNL. Tidewater and `nameless` are moved to DE too, off it: a search or an amendment that only they meet keeps nothing of the UNL view, but DE is not without UNL validators.
+    const fleetInDe = placedFleet().map((row) => (row.validation_public_key === KEY_TIDE || row.validation_public_key === KEY_NAMELESS ? { ...row, toml: { server_country: "DE" } } : row));
+    const unlOf = (params: ValidatorsParams) => listPart(build({ features: MAP_ON, list: ok(listOf(fleetInDe)), params }));
+    for (const params of [{ scope: "unl", country: "DE", q: "tidewater" }, { scope: "unl", country: "DE", amendment: "DID" }] satisfies ValidatorsParams[]) {
+      const list = unlOf(params);
+      expect(list.empty).toBe(true);
+      expect(list.unlEmpty).toBeNull();
+      // All finds one validator, so the old sentence offered "Show the 1 in All" while it denied the UNL validators Germany has.
+      expect(unlOf({ ...params, scope: "all" }).rows).toHaveLength(1);
+    }
+  });
 });
 
 // ---- The intro, the notices and the filter options -------------------------------------------------------------------------------------------
