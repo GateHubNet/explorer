@@ -68,7 +68,8 @@ const scopeOf = (net: string, key: string): string => `${net}/validators/${key}`
  *   ledger index or close time is not a number (`anchorOrThrow`) is a 503 too, whatever D answered: no anchor can be worked out from it.
  * - **A part that failed is told in its place** (spec 4.4): the view builder gives VV, S and A each their own `failed` state, the failure is logged and the
  *   request is degraded, so that the page is served and not stored.
- * - **One names call** (display names spec 1 and 5), after the five and the page is built: the accounts the page draws, which are the accounts line's (`drawnAccounts`: the accounts a
+ * - **The toml card** (E13 spec 5) is made from D alone, while `VALIDATORS_MAP` is on: no call of its own, and the same five calls either way.
+ * - **One names call** (display names spec 1 and 5), after the five and the page is built: the accounts the page draws, which are the accounts line's or the card's (`drawnAccounts`: the accounts a
  *   verified domain lists), asked for with the failure hold too. A names call that fails or is late never fails the page: the accounts are short addresses, the request is degraded
  *   (served, not stored), and an open page keeps the names it shows (`mergeValidatorBeat`). The title and the description say no account.
  * - **A page of older validations** (spec 4.5) asks for D and VV with the marker only, and no hold (it does not poll), and names nothing: it draws no account. A marker VV refuses (a 400)
@@ -151,6 +152,7 @@ async function livePage(context: Route.LoaderArgs["context"], request: Request, 
     summary: partOf(summary),
     amendments: partOf(amendments),
     anchor,
+    features: net.features,
   });
   const { part: names } = await loadNames(api, collectAddresses(drawnAccounts(view)), { context, request, features: net.features, holdFailure: true });
 

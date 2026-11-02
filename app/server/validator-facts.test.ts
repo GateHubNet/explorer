@@ -10,6 +10,7 @@ import {
   unlTagWords as domainUnlTagWords,
 } from "../domain/publishers";
 import { joinAnd as domainJoinAnd } from "../domain/time-words";
+import { featuresOf, NO_FEATURES } from "../ui/features";
 import type { AmendmentRow, DomainVerification } from "./api-types";
 import {
   accountLinks,
@@ -35,9 +36,12 @@ import {
   scoreValue,
   shareText,
   statusWord,
+  tomlCurrencyHref,
   tomlFileOf,
   tomlLink,
+  tomlNetworkName,
   unixOf,
+  unlHostOf,
   unlIntro,
   unlTagWords,
   valueOf,
@@ -377,6 +381,96 @@ describe("tomlLink", () => {
     // The check compares text, and a domain with a path in it would make the "own domain" address a different host's.
     expect(tomlLink(verified("https://a.example/x/.well-known/xrp-ledger.toml"), "a.example/x", "rippled")).toBeNull();
     expect(tomlLink(verified("https://a.example@evil.example/.well-known/xrp-ledger.toml"), "a.example@evil.example", "rippled")).toBeNull();
+  });
+});
+
+describe("tomlNetworkName", () => {
+  it.each([
+    ["main", "rippled", "XRPL mainnet", "mainnet"],
+    ["mainnet", "rippled", "XRPL mainnet", "mainnet"],
+    ["testnet", "rippled", "XRPL Testnet", "testnet"],
+    ["devnet", "rippled", "XRPL Devnet", "devnet"],
+    ["main", "xahaud", "Xahau mainnet", "mainnet"],
+    ["mainnet", "xahaud", "Xahau mainnet", "mainnet"],
+    ["xahau", "xahaud", "Xahau mainnet", "mainnet"],
+    ["21337", "xahaud", "Xahau mainnet", "mainnet"],
+    ["testnet", "xahaud", "Xahau Testnet", "testnet"],
+    ["21338", "xahaud", "Xahau Testnet", "testnet"],
+  ] as const)("names %s on %s %s (%s)", (value, software, name, kind) => {
+    expect(tomlNetworkName(value, software)).toEqual({ name, kind });
+  });
+
+  it.each(["MAIN", "Mainnet", "TestNet", "DEVNET"])("compares %s in lower case", (value) => {
+    expect(tomlNetworkName(value, "rippled")).not.toBeNull();
+  });
+
+  it("compares Xahau's values in lower case too", () => {
+    expect(tomlNetworkName("XAHAU", "xahaud")).toEqual({ name: "Xahau mainnet", kind: "mainnet" });
+    expect(tomlNetworkName("Testnet", "xahaud")).toEqual({ name: "Xahau Testnet", kind: "testnet" });
+  });
+
+  it.each([
+    ["foo", "rippled"],
+    ["21337", "rippled"],
+    ["21338", "rippled"],
+    ["xahau", "rippled"],
+    ["devnet", "xahaud"],
+    ["foo", "xahaud"],
+    ["", "rippled"],
+    [" main", "rippled"],
+  ] as const)("has no name for %j on %s", (value, software) => {
+    expect(tomlNetworkName(value, software)).toBeNull();
+  });
+});
+
+describe("unlHostOf", () => {
+  it("is the host of an https URL", () => {
+    expect(unlHostOf("https://vl.ripple.com/x")).toBe("vl.ripple.com");
+    expect(unlHostOf("https://vl.xahau.org")).toBe("vl.xahau.org");
+    expect(unlHostOf("https://vl.example:8443/list")).toBe("vl.example:8443");
+  });
+
+  it.each(["not a url", "", "vl.ripple.com", "mailto:a@b", "http://x.example", "ftp://x.example", "javascript:alert(1)", "https://"])("is null for %j", (unl) => {
+    expect(unlHostOf(unl)).toBeNull();
+  });
+});
+
+describe("tomlCurrencyHref", () => {
+  const ISSUER = "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De";
+  const TOKENS_ON = featuresOf({ TOKENS: "on" });
+  const XRPL = { native: "XRP" } as const;
+  const LP = "03AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+
+  it("leads to the token's page with TOKENS on, only through tokenLink", () => {
+    expect(tomlCurrencyHref("xrpl", { code: "USD", issuer: ISSUER }, XRPL, TOKENS_ON)).toBe(`/xrpl/token/USD.${ISSUER}`);
+    expect(tomlCurrencyHref("xahau", { code: "EVR", issuer: ISSUER }, { native: "XAH" }, TOKENS_ON)).toBe(`/xahau/token/EVR.${ISSUER}`);
+  });
+
+  it("leads nowhere while TOKENS is off", () => {
+    expect(tomlCurrencyHref("xrpl", { code: "USD", issuer: ISSUER }, XRPL, NO_FEATURES)).toBeNull();
+    expect(tomlCurrencyHref("xrpl", { code: "USD", issuer: ISSUER }, XRPL, featuresOf({ AMM_PAGES: "on" }))).toBeNull();
+  });
+
+  it("links a 40-hex code the way the token page names it", () => {
+    const hex = "524C555344000000000000000000000000000000";
+    expect(tomlCurrencyHref("xrpl", { code: hex, issuer: ISSUER }, XRPL, TOKENS_ON)).toBe(`/xrpl/token/RLUSD.${ISSUER}`);
+  });
+
+  it("leads nowhere without an issuer, for the native code, and for an LP token", () => {
+    expect(tomlCurrencyHref("xrpl", { code: "EUR" }, XRPL, TOKENS_ON)).toBeNull();
+    expect(tomlCurrencyHref("xrpl", { code: "XRP", issuer: ISSUER }, XRPL, TOKENS_ON)).toBeNull();
+    expect(tomlCurrencyHref("xrpl", { code: LP, issuer: ISSUER }, XRPL, TOKENS_ON)).toBeNull();
+    expect(tomlCurrencyHref("xrpl", { code: LP, issuer: ISSUER }, XRPL, featuresOf({ TOKENS: "on", AMM_PAGES: "on" }))).toBeNull();
+  });
+
+  it("leads nowhere for an issuer that is no address, or a code the token page would not read", () => {
+    expect(tomlCurrencyHref("xrpl", { code: "USD", issuer: "rNotAnAddress" }, XRPL, TOKENS_ON)).toBeNull();
+    expect(tomlCurrencyHref("xrpl", { code: "US", issuer: ISSUER }, XRPL, TOKENS_ON)).toBeNull();
+    expect(tomlCurrencyHref("xrpl", { code: "", issuer: ISSUER }, XRPL, TOKENS_ON)).toBeNull();
+  });
+
+  it("writes the link of the token the code reads as, not the code as the toml spelled it", () => {
+    expect(tomlCurrencyHref("xrpl", { code: "usd", issuer: ISSUER }, XRPL, TOKENS_ON)).toBe(`/xrpl/token/USD.${ISSUER}`);
   });
 });
 

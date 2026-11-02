@@ -33,6 +33,7 @@ import type { LivePairData, OlderPairData, PairPageData } from "../server/pair-v
 import { validatorHistoryPage, validatorPage, type ValidatorHistoryData, type ValidatorLiveData } from "../server/validator-view";
 import { validatorsPage, type ValidatorsPageData } from "../server/validators-view";
 import type { Environment } from "./environment";
+import { NO_FEATURES } from "./features";
 import type { BarListData, CandleData, TimeSeriesData } from "./charts/types";
 import * as home from "../routes/net._index";
 import * as amendment from "../routes/net.amendments.$name";
@@ -1509,6 +1510,7 @@ function validatorAt(index: number, over: Partial<ValidatorData> = {}, build = "
       summary: ok(summarySample()),
       amendments: ok(amendmentsSample()),
       anchor: { lastValidated: index, closeTime: 1792252452 + index },
+      features: NO_FEATURES,
     }),
     anchor: { lastValidated: index, closeTime: 1792252452 + index },
     build,

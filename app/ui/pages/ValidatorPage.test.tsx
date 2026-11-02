@@ -12,6 +12,7 @@ import type { Loaded } from "../../server/account-view";
 import type { Anchor } from "../../server/anchor";
 import type { UnlPublisher, ValidatorDetail, ValidatorValidationsPage } from "../../server/api-types";
 import { validatorHistoryPage, validatorPage, type ValidatorHistoryData, type ValidatorLiveData } from "../../server/validator-view";
+import { NO_FEATURES } from "../features";
 import { NamesProvider } from "../names";
 import type { NetworkInfo } from "../networks";
 import type { LiveControls } from "../use-live-controls";
@@ -59,6 +60,7 @@ function build(over: Partial<Input> = {}, names: NamesPart = NO_NAMES): Validato
       summary: ok(summarySample()),
       amendments: ok(amendmentsSample()),
       anchor: ANCHOR,
+      features: NO_FEATURES,
       ...over,
     }),
     names,

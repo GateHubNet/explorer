@@ -4,6 +4,7 @@ import { amendmentsSample, SAMPLE_KEYS, summarySample, validationsSample, valida
 import { NAMES_OFF, NO_NAMES, type NamesPart, type NameView } from "../../domain/names";
 import type { Loaded } from "../../server/account-view";
 import { validatorPage } from "../../server/validator-view";
+import { NO_FEATURES } from "../features";
 import type { NetworkInfo } from "../networks";
 import { mergeValidatorBeat, VALIDATOR_PARTS, type ValidatorLoaderData } from "./validator-beat";
 
@@ -36,6 +37,7 @@ function live(index: number, names: NamesPart, over: Partial<Parameters<typeof v
       summary: ok(summarySample()),
       amendments: ok(amendmentsSample()),
       anchor: { lastValidated: index, closeTime: 1792252452 + index },
+      features: NO_FEATURES,
       ...over,
     }),
     names,

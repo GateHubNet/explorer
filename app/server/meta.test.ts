@@ -887,7 +887,7 @@ describe("validatorMeta", () => {
   const NET: NetworkInfo = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" };
   const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
   const live = (validator = validatorDetailSample(), network = NET): ValidatorLiveData => ({
-    ...validatorPage({ network, validator, recent: { state: "failed" }, summary: { state: "failed" }, amendments: { state: "failed" }, anchor: { lastValidated: 107748183, closeTime: 1792252452 } }),
+    ...validatorPage({ network, validator, recent: { state: "failed" }, summary: { state: "failed" }, amendments: { state: "failed" }, anchor: { lastValidated: 107748183, closeTime: 1792252452 }, features: NO_FEATURES }),
     names: NO_NAMES,
   });
   const KEY = SAMPLE_KEYS[0];

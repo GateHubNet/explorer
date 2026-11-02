@@ -2,7 +2,7 @@
 // three agreement tiles with the 30-day chart and its table, the fee votes, the amendment votes, and the recent validations with their paging; and the view of the older
 // validations behind a `?marker=`, which holds the identity and the validations alone. `validatorPage` and `validatorHistoryPage` are pure: no I/O, no clock (the anchor is
 // the chain's time, passed in), no `Intl`. Every text is made from D1's exact strings (validator-facts.ts: `bignumber.js`), and the counts become text with `count`, so no
-// float reaches a string of the page.
+// float reaches a string of the page. A verified domain's toml card (`tomlCardOf`, E13 spec 5) is made from D alone, behind the switch VALIDATORS_MAP.
 //
 // D (the validator) decides the page and is always there. Each of VV (the recent validations), S (the summary) and A (the amendments) stands or fails on its own: a part
 // that did not load is `{ state: "failed" }` (a `missing` answer is the same to this page), and the page then says less, never something else:
@@ -16,13 +16,14 @@ import BigNumber from "bignumber.js";
 import { amendmentSegment } from "../domain/amendment-ref";
 import { amendmentHref } from "../domain/amendments-params";
 import { tokenOf } from "../domain/fnv";
-import { formatUtcDay, shortHash, utcMoment } from "../domain/format";
+import { formatCurrency, formatUtcDay, shortHash, utcMoment } from "../domain/format";
 import type { NamesPart } from "../domain/names";
 import { trailPaging, type Paging } from "../domain/paging";
 import { formatDate } from "../domain/time-words";
 import { validatorHref } from "../domain/validators-params";
 import { utcDayOf } from "../domain/window";
 import type { TimeSeriesData } from "../ui/charts/types";
+import type { Features } from "../ui/features";
 import type { NetworkInfo } from "../ui/networks";
 import type { Loaded } from "./account-view";
 import type { Anchor } from "./anchor";
@@ -35,13 +36,19 @@ import {
   DASH,
   dropsText,
   feesNotCompared,
+  joinAnd,
   ledgerLink,
   ledgersText,
   nativeText,
   publisherLabel,
   scoreText,
   scoreValue,
+  tomlCurrencyHref,
+  tomlFileOf,
+  tomlLink,
+  tomlNetworkName,
   unixOf,
+  unlHostOf,
   unlTagWords,
   valueOf,
   verificationNote,
@@ -50,6 +57,7 @@ import {
   type DomainStatusKind,
   type TextPart,
 } from "./validator-facts";
+import { countryName } from "./validator-map-view";
 
 /** A ledger named by the number it shows, `#107,748,095`, with the path of its page. */
 export type LedgerLink = ReturnType<typeof ledgerLink>;
@@ -99,6 +107,26 @@ export interface ValidationRowView {
   validatedShort?: string;
 }
 
+/**
+ * The toml card (E13 spec 5.1, 5.2): what a verified domain's toml says of its validator, as text and hrefs made once. `facts` is `null` while D8 has not read the file (D's row has
+ * no `toml`); a fact the file does not give is left out, Server country excepted. A fact's `mono` is that its value's last part is set in mono (the network's value, the UNL's host).
+ */
+export interface TomlCardView {
+  /** `From northpeak.example's toml`. */
+  title: string;
+  /** `xrp-ledger.toml` or `xahau.toml`. */
+  file: string;
+  /** The file's address when it is the domain's own (`tomlLink`); `null` otherwise, and the link is not drawn. */
+  href: string | null;
+  /** The two things the domain was verified both ways by. */
+  checks: TextPart[][];
+  facts: { label: string; value: TextPart[]; sub: TextPart[] | null; mono: boolean }[] | null;
+  /** The accounts the domain lists (`domain_verification.accounts`, with or without the toml read): `listed` is the count the toml says, `more` what is above the addresses shown. */
+  accounts: { listed: string; addresses: string[]; more: string | null } | null;
+  /** The toml's currencies, each a link to its token page where there is one. */
+  currencies: { items: { text: string; href: string | null }[]; more: string | null } | null;
+}
+
 export interface ValidatorLiveData {
   kind: "live";
   network: NetworkInfo;
@@ -121,6 +149,8 @@ export interface ValidatorLiveData {
     /** The accounts a verified domain lists, each a link; `null` when there is no line to draw. */
     accounts: { address: string; href: string }[] | null;
   };
+  /** What a verified domain's toml says (E13 spec 5); `null` with the switch off, without a domain and for a domain that did not verify. While it is there the page's grid does not draw the accounts line: it is the card's. */
+  toml: TomlCardView | null;
   agreement: {
     /** Agreement, 1 h, 24 h and 30 days. `incomplete` is the window's: the page adds the status under the figure. */
     tiles: { label: string; value: string; sub: string; incomplete: boolean }[];
@@ -232,6 +262,66 @@ function gridOf(network: NetworkInfo, validator: ValidatorDetail): ValidatorLive
     lastSeenFallback: Number.isNaN(lastSeen) ? null : { at: lastSeen, ledger: validator.current_index === undefined ? null : ledgerLink(network.id, validator.current_index) },
     // D1 serves the accounts for a TOML that verified only; an address goes into a link, so nothing an unverified domain says is linked.
     accounts: verification?.status === "verified" ? accountLinks(network.id, verification.accounts) : null,
+  };
+}
+
+// ---- The toml card (E13 spec 5) -----------------------------------------------------------------------------------------------------------------
+
+/** `count` of how many a list says it holds above the ones shown, as the sentence that ends it; `null` when nothing is above. */
+const moreOf = (listed: number | undefined, shown: number): string | null => (listed !== undefined && listed > shown ? `and ${count(listed - shown)} more` : null);
+
+/** The facts of a toml that was read, in the card's order: each only when the file gives it, but Server country, which says why a location is unknown. */
+function tomlFactsOf(network: NetworkInfo, toml: NonNullable<ValidatorDetail["toml"]>): NonNullable<TomlCardView["facts"]> {
+  const facts: NonNullable<TomlCardView["facts"]> = [];
+  if (toml.owner_country !== undefined) facts.push({ label: "Owner country", value: [countryName(toml.owner_country)], sub: null, mono: false });
+  facts.push(
+    toml.server_country !== undefined
+      ? { label: "Server country", value: [countryName(toml.server_country)], sub: null, mono: false }
+      : { label: "Server country", value: ["Not given"], sub: ["so its location is unknown"], mono: false },
+  );
+  if (toml.network !== undefined) {
+    const named = tomlNetworkName(toml.network, network.software);
+    const sub = named === null ? null : [named.kind === network.kind ? named.name : `${named.name}, not this network`];
+    facts.push({ label: "Network", value: [toml.network], sub, mono: true });
+  }
+  const host = toml.unl === undefined ? null : unlHostOf(toml.unl);
+  if (host !== null) facts.push({ label: "On a UNL, says the toml", value: ["Yes · ", host], sub: ["its own claim; UNL membership above is from the lists"], mono: true });
+  if (toml.principals !== undefined && toml.principals.length > 0) facts.push({ label: "Principals", value: [joinAnd(toml.principals)], sub: null, mono: false });
+  if (toml.modified !== undefined) facts.push({ label: "Last modified", value: [formatDate(toml.modified)], sub: ["from [METADATA]"], mono: false });
+  return facts;
+}
+
+/**
+ * The toml card of a validator page (spec 5.2). `null` with the switch off, for a validator without a domain and for a domain that is not verified: the card says what a *verified*
+ * file says. The head and the two checks and the accounts the domain lists are D1's and always there; the facts and the currencies are D8's, and wait for it to have read the file
+ * (`toml` absent: `facts` is `null`).
+ */
+export function tomlCardOf(input: { network: NetworkInfo; validator: ValidatorDetail; features: Features }): TomlCardView | null {
+  const { network, validator, features } = input;
+  const domain = domainOf(validator);
+  const verification = validator.domain_verification;
+  if (!features.validatorsMap || domain === undefined || verification?.status !== "verified") return null;
+  const file = tomlFileOf(network.software);
+  const { toml } = validator;
+  const addresses = accountLinks(network.id, verification.accounts)?.map((link) => link.address) ?? null;
+  const currencies = toml?.currencies ?? [];
+  return {
+    title: `From ${domain}'s toml`,
+    file,
+    href: tomlLink(verification, domain, network.software),
+    checks: [
+      ["The validator's manifest names ", domain, "."],
+      ["The [[VALIDATORS]] list in ", domain, `'s ${file} includes this master key.`],
+    ],
+    facts: toml === undefined ? null : tomlFactsOf(network, toml),
+    accounts: addresses === null ? null : { listed: `${count(toml?.accounts_listed ?? addresses.length)} listed:`, addresses, more: moreOf(toml?.accounts_listed, addresses.length) },
+    currencies:
+      currencies.length === 0
+        ? null
+        : {
+            items: currencies.map((entry) => ({ text: formatCurrency(entry.code), href: tomlCurrencyHref(network.id, entry, network, features) })),
+            more: moreOf(toml?.currencies_listed, currencies.length),
+          },
   };
 }
 
@@ -409,8 +499,10 @@ export function validatorPage(input: {
   summary: Loaded<ValidatorsSummary>;
   amendments: Loaded<AmendmentsList>;
   anchor: Anchor;
+  /** The switches: the toml card is made only while `validatorsMap`, and its currencies link only while `tokens`. */
+  features: Features;
 }): Omit<ValidatorLiveData, "names"> {
-  const { network, validator, anchor } = input;
+  const { network, validator, anchor, features } = input;
   const key = validator.validation_public_key;
   const identity = identityOf(network, validator);
   const recent = valueOf(input.recent);
@@ -423,6 +515,7 @@ export function validatorPage(input: {
     key,
     identity,
     grid: gridOf(network, validator),
+    toml: tomlCardOf({ network, validator, features }),
     agreement: {
       tiles: [tileOf("Agreement, 1 h", validator.agreement_1h), tileOf("Agreement, 24 h", validator.agreement_24h), tileOf("Agreement, 30 days", validator.agreement_30d)],
       ...dailyOf(validator.daily_agreement, anchor),

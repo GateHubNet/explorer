@@ -12,11 +12,12 @@ import {
 } from "../../test/support/d1-samples";
 import { tokenOf } from "../domain/fnv";
 import { shortHash } from "../domain/format";
+import { featuresOf, NO_FEATURES } from "../ui/features";
 import type { NetworkInfo } from "../ui/networks";
 import type { Loaded } from "./account-view";
 import type { Anchor } from "./anchor";
-import type { DomainVerification, UnlPublisher, ValidatorDetail, ValidatorsSummary, ValidatorValidation, ValidatorValidationsPage } from "./api-types";
-import { agreementAxisStart, drawnAccounts, validatorHistoryPage, validatorPage, type ValidatorLiveData } from "./validator-view";
+import type { DomainVerification, UnlPublisher, ValidatorDetail, ValidatorsSummary, ValidatorTomlDetail, ValidatorValidation, ValidatorValidationsPage } from "./api-types";
+import { agreementAxisStart, drawnAccounts, tomlCardOf, validatorHistoryPage, validatorPage, type ValidatorLiveData } from "./validator-view";
 
 // ---- The world of the tests ------------------------------------------------------------------------------------------------------------------
 
@@ -58,6 +59,7 @@ function build(over: Partial<Input> = {}): Omit<ValidatorLiveData, "names"> {
     summary: ok(summarySample()),
     amendments: ok(amendmentsSample()),
     anchor: ANCHOR,
+    features: NO_FEATURES,
     ...over,
   });
 }
@@ -768,5 +770,222 @@ describe("validatorPage: the whole page", () => {
       build({ validator: neverSeen() }),
     ];
     for (const data of pages) expect(JSON.stringify(data)).not.toMatch(/\d\.\d{5,}/);
+  });
+});
+
+// ---- The toml card (E13 spec 5) ------------------------------------------------------------------------------------------------------------------
+
+describe("tomlCardOf", () => {
+  const ON = featuresOf({ VALIDATORS_MAP: "on" });
+  const TOKENS_ON = featuresOf({ VALIDATORS_MAP: "on", TOKENS: "on" });
+  const OWN_TOML = "https://northpeak.example/.well-known/xrp-ledger.toml";
+  const ISSUER = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh";
+  const OTHER = "rPEPPER7kfTD9w2To4CQk6UCfuHM9c6GDY";
+  const NOT_READ = ["Server country"];
+
+  type CardInput = Parameters<typeof tomlCardOf>[0];
+  /** The card of `northpeak.example` (verified, listing one account) with `toml` as D8 gives it: absent, or what `toml` says. */
+  const cardOf = (toml: ValidatorTomlDetail | undefined, over: Partial<CardInput> = {}) =>
+    tomlCardOf({ network: XRPL, validator: validatorDetailSample(toml === undefined ? {} : { toml }), features: ON, ...over });
+  /** The facts of the card, label to value text and sub text. */
+  const factsOf = (toml: ValidatorTomlDetail, over: Partial<CardInput> = {}) =>
+    cardOf(toml, over)!.facts!.map((fact) => ({ label: fact.label, value: fact.value.join(""), sub: fact.sub?.join("") ?? null, mono: fact.mono }));
+
+  it("is null with the switch off, without a domain, and for an unverified or pending domain", () => {
+    const verified = validatorDetailSample({ toml: {} });
+    expect(tomlCardOf({ network: XRPL, validator: verified, features: NO_FEATURES })).toBeNull();
+    expect(tomlCardOf({ network: XRPL, validator: verified, features: featuresOf({ VALIDATORS: "on", TOKENS: "on" }) })).toBeNull();
+    expect(tomlCardOf({ network: XRPL, validator: verified, features: ON })).not.toBeNull();
+    expect(tomlCardOf({ network: XRPL, validator: without(verified, "domain"), features: ON })).toBeNull();
+    expect(tomlCardOf({ network: XRPL, validator: { ...verified, domain: "" }, features: ON })).toBeNull();
+    // A validator whose domain was never checked has no verification: no card.
+    expect(tomlCardOf({ network: XRPL, validator: without(verified, "domain_verification"), features: ON })).toBeNull();
+    for (const verification of [
+      { status: "unverified", reason: "not_listed", toml_url: OWN_TOML, checked: "2026-10-19T19:15:52.489Z" },
+      { status: "pending", toml_url: OWN_TOML },
+    ] satisfies DomainVerification[]) {
+      expect(tomlCardOf({ network: XRPL, validator: { ...verified, domain_verification: verification }, features: ON })).toBeNull();
+    }
+  });
+
+  it("draws the head, the checks and the accounts, and says nothing more, while not read", () => {
+    expect(cardOf(undefined)).toEqual({
+      title: "From northpeak.example's toml",
+      file: "xrp-ledger.toml",
+      href: OWN_TOML,
+      checks: [
+        ["The validator's manifest names ", "northpeak.example", "."],
+        ["The [[VALIDATORS]] list in ", "northpeak.example", "'s xrp-ledger.toml includes this master key."],
+      ],
+      facts: null,
+      accounts: { listed: "1 listed:", addresses: [ISSUER], more: null },
+      currencies: null,
+    });
+  });
+
+  it("is Xahau's on Xahau: its file in the title's line, the checks and the link", () => {
+    const toml_url = "https://northpeak.example/.well-known/xahau.toml";
+    const card = tomlCardOf({
+      network: XAHAU,
+      validator: validatorDetailSample({ domain_verification: { status: "verified", toml_url, checked: "2026-10-19T19:15:52.489Z", accounts: [ISSUER] } }),
+      features: ON,
+    })!;
+    expect(card.file).toBe("xahau.toml");
+    expect(card.href).toBe(toml_url);
+    expect(card.checks[1]).toEqual(["The [[VALIDATORS]] list in ", "northpeak.example", "'s xahau.toml includes this master key."]);
+  });
+
+  it("draws Server country Not given alone for {}", () => {
+    expect(cardOf({})!.facts).toEqual([{ label: "Server country", value: ["Not given"], sub: ["so its location is unknown"], mono: false }]);
+    // An owner country alone does not say where the server is.
+    expect(factsOf({ owner_country: "DE" })).toEqual([
+      { label: "Owner country", value: "Germany", sub: null, mono: false },
+      { label: "Server country", value: "Not given", sub: "so its location is unknown", mono: false },
+    ]);
+  });
+
+  it("draws every fact of a full toml, in order, with its words", () => {
+    const full: ValidatorTomlDetail = {
+      owner_country: "DE",
+      server_country: "NL",
+      network: "main",
+      unl: "https://vl.ripple.com/x",
+      principals: ["Mara Lindqvist", "Tomas Okafor"],
+      modified: "2026-10-02T00:00:00Z",
+    };
+    expect(factsOf(full)).toEqual([
+      { label: "Owner country", value: "Germany", sub: null, mono: false },
+      { label: "Server country", value: "Netherlands", sub: null, mono: false },
+      { label: "Network", value: "main", sub: "XRPL mainnet", mono: true },
+      { label: "On a UNL, says the toml", value: "Yes · vl.ripple.com", sub: "its own claim; UNL membership above is from the lists", mono: true },
+      { label: "Principals", value: "Mara Lindqvist and Tomas Okafor", sub: null, mono: false },
+      { label: "Last modified", value: "Oct 2, 2026", sub: "from [METADATA]", mono: false },
+    ]);
+    // The UNL's value is two parts, the last of which is the mono one (ruling R9).
+    expect(cardOf(full)!.facts!.find((fact) => fact.label === "On a UNL, says the toml")!.value).toEqual(["Yes · ", "vl.ripple.com"]);
+  });
+
+  it("draws a fact only when the toml gives it", () => {
+    expect(factsOf({ server_country: "US" }).map((fact) => fact.label)).toEqual(["Server country"]);
+    expect(factsOf({ server_country: "US", network: "main" }).map((fact) => fact.label)).toEqual(["Server country", "Network"]);
+    expect(factsOf({ principals: [], server_country: "US" }).map((fact) => fact.label)).toEqual(NOT_READ);
+    expect(factsOf({ principals: ["Mara Lindqvist"], modified: "2026-10-02T00:00:00Z" }).map((fact) => fact.label)).toEqual(["Server country", "Principals", "Last modified"]);
+    expect(factsOf({ principals: ["A", "B", "C"], server_country: "US" }).at(-1)!.value).toBe("A, B and C");
+  });
+
+  it("names a country it has no name for by its code", () => {
+    expect(factsOf({ owner_country: "ZZ", server_country: "XK" })).toEqual([
+      { label: "Owner country", value: "ZZ", sub: null, mono: false },
+      { label: "Server country", value: "Kosovo", sub: null, mono: false },
+    ]);
+  });
+
+  describe("the network the file names", () => {
+    const networkOf = (value: string, over: Partial<CardInput> = {}) => factsOf({ server_country: "US", network: value }, over).find((fact) => fact.label === "Network")!;
+
+    it("names another network's value, and says not this network on mainnet", () => {
+      expect(networkOf("testnet")).toEqual({ label: "Network", value: "testnet", sub: "XRPL Testnet, not this network", mono: true });
+      expect(networkOf("devnet").sub).toBe("XRPL Devnet, not this network");
+      expect(networkOf("main").sub).toBe("XRPL mainnet");
+      expect(networkOf("mainnet").sub).toBe("XRPL mainnet");
+    });
+
+    it("does not say not this network in the sandbox for the testnet's own value", () => {
+      const testnet = { network: { ...XRPL, kind: "testnet" as const, name: "XRPL Testnet" } };
+      expect(networkOf("testnet", testnet).sub).toBe("XRPL Testnet");
+      // ... and still says it of a mainnet's value.
+      expect(networkOf("main", testnet).sub).toBe("XRPL mainnet, not this network");
+      expect(networkOf("21337", { network: XAHAU_TESTNET }).sub).toBe("Xahau mainnet, not this network");
+      expect(networkOf("21338", { network: XAHAU_TESTNET }).sub).toBe("Xahau Testnet");
+    });
+
+    it("reads Xahau's values on Xahau", () => {
+      expect(networkOf("21337", { network: XAHAU }).sub).toBe("Xahau mainnet");
+      expect(networkOf("xahau", { network: XAHAU }).sub).toBe("Xahau mainnet");
+      expect(networkOf("21338", { network: XAHAU }).sub).toBe("Xahau Testnet, not this network");
+      // Xahau's ID is no XRPL value.
+      expect(networkOf("21337").sub).toBeNull();
+    });
+
+    it("shows a value it has no name for as written, with no sub", () => {
+      expect(networkOf("foo")).toEqual({ label: "Network", value: "foo", sub: null, mono: true });
+    });
+  });
+
+  it("leaves out an unl that does not parse, or is not an https address", () => {
+    for (const unl of ["not a url", "http://vl.example", "mailto:a@b"]) {
+      expect(factsOf({ server_country: "US", unl }).map((fact) => fact.label)).toEqual(["Server country"]);
+    }
+  });
+
+  it("says and N more for accounts and currencies", () => {
+    const card = cardOf({ accounts_listed: 1234, currencies: [{ code: "EUR" }, { code: "USD" }], currencies_listed: 12 })!;
+    expect(card.accounts).toEqual({ listed: "1,234 listed:", addresses: [ISSUER], more: "and 1,233 more" });
+    expect(card.currencies).toEqual({ items: [{ text: "EUR", href: null }, { text: "USD", href: null }], more: "and 10 more" });
+    // Nothing above the ones shown: no sentence, and a count below them (the toml store's and D1's check differ) says none.
+    const level = cardOf({ accounts_listed: 1, currencies: [{ code: "EUR" }], currencies_listed: 1 })!;
+    expect([level.accounts!.more, level.currencies!.more]).toEqual([null, null]);
+    const below = cardOf({ accounts_listed: 0, currencies: [{ code: "EUR" }, { code: "USD" }], currencies_listed: 1 })!;
+    expect([below.accounts!.more, below.currencies!.more]).toEqual([null, null]);
+    // Without a count the shown ones are all there are.
+    expect(cardOf({ currencies: [{ code: "EUR" }] })!.currencies!.more).toBeNull();
+  });
+
+  it("lists the accounts that can be linked, in D's order, and none for a domain that lists none", () => {
+    const listing = (accounts: string[] | undefined) =>
+      cardOf({}, { validator: validatorDetailSample({ toml: {}, domain_verification: { status: "verified", toml_url: OWN_TOML, accounts } }) })!.accounts;
+    expect(listing([OTHER, "not an address", ISSUER])).toEqual({ listed: "2 listed:", addresses: [OTHER, ISSUER], more: null });
+    expect(listing(["not an address"])).toBeNull();
+    expect(listing([])).toBeNull();
+    expect(listing(undefined)).toBeNull();
+  });
+
+  it("draws the currencies in D's order as formatCurrency shows them, none when the toml names none", () => {
+    const nothing = cardOf({ server_country: "US" })!;
+    expect(nothing.currencies).toBeNull();
+    const card = cardOf({ currencies: [{ code: "USD", issuer: ISSUER }, { code: "524C555344000000000000000000000000000000", issuer: ISSUER }, { code: "EUR" }, { code: "BEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEF" }] })!;
+    expect(card.currencies!.items.map((item) => item.text)).toEqual(["USD", "RLUSD", "EUR", "BEEFBEEF…"]);
+  });
+
+  it("links a currency only through tokenLink", () => {
+    const toml: ValidatorTomlDetail = {
+      currencies: [
+        { code: "USD", issuer: ISSUER },
+        { code: "524C555344000000000000000000000000000000", issuer: ISSUER },
+        { code: "EUR" },
+        { code: "03AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", issuer: ISSUER },
+        { code: "USD", issuer: "rNotAnAddress" },
+      ],
+    };
+    // With TOKENS on: the token pages of the entries with an issuer that reads; an LP token is none of D6's and an issuer that is no address leads nowhere.
+    expect(cardOf(toml, { features: TOKENS_ON })!.currencies!.items.map((item) => item.href)).toEqual([`/xrpl/token/USD.${ISSUER}`, `/xrpl/token/RLUSD.${ISSUER}`, null, null, null]);
+    // With it off the codes are text, whatever else is on.
+    expect(cardOf(toml, { features: ON })!.currencies!.items.map((item) => item.href)).toEqual([null, null, null, null, null]);
+  });
+
+  it("links the toml only by tomlLink", () => {
+    const withUrl = (toml_url: string) => validatorDetailSample({ toml: {}, domain_verification: { status: "verified", toml_url, accounts: [ISSUER] } });
+    expect(tomlCardOf({ network: XRPL, validator: withUrl(OWN_TOML), features: ON })!.href).toBe(OWN_TOML);
+    // Another domain's file, another file, an address with a port, a query, or http: the card is there, its link is not.
+    for (const url of ["https://other.example/.well-known/xrp-ledger.toml", "https://northpeak.example/.well-known/xahau.toml", "https://northpeak.example:8443/.well-known/xrp-ledger.toml", `${OWN_TOML}?x=1`, OWN_TOML.replace("https", "http")]) {
+      const card = tomlCardOf({ network: XRPL, validator: withUrl(url), features: ON })!;
+      expect(card.href, url).toBeNull();
+      expect(card.title).toBe("From northpeak.example's toml");
+    }
+  });
+});
+
+describe("validatorPage: the toml card", () => {
+  it("is the card of the switch, and null with it off", () => {
+    const full = validatorDetailSample({ toml: { server_country: "NL" } });
+    expect(build({ validator: full }).toml).toBeNull();
+    expect(build({ validator: full, features: featuresOf({ VALIDATORS_MAP: "on" }) }).toml?.title).toBe("From northpeak.example's toml");
+  });
+
+  it("keeps the grid's accounts, which the loader names, with or without the card", () => {
+    const on = build({ features: featuresOf({ VALIDATORS_MAP: "on" }) });
+    expect(on.grid.accounts).toEqual(build().grid.accounts);
+    expect(drawnAccounts(on)).toEqual(drawnAccounts(build()));
+    expect(on.toml!.accounts!.addresses).toEqual(drawnAccounts(on));
   });
 });

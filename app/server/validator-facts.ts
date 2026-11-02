@@ -9,7 +9,9 @@ import { isValidClassicAddress } from "ripple-address-codec";
 import { formatAmount, formatUtcDay, utcMoment } from "../domain/format";
 import { LOCAL_PUBLISHER } from "../domain/publishers";
 import { formatDateTime, joinAnd } from "../domain/time-words";
+import { parseTokenPath, tokenLink } from "../domain/token-params";
 import type { MeterData } from "../ui/charts/types";
+import type { Features } from "../ui/features";
 import type { NetworkInfo } from "../ui/networks";
 import type { Loaded } from "./account-view";
 import type { AmendmentRow, DomainVerification } from "./api-types";
@@ -206,6 +208,64 @@ const HOST_NAME = /^[A-Za-z0-9.-]+$/;
 export function tomlLink(dv: DomainVerification | undefined, domain: string | undefined, software: Network["software"]): string | null {
   if (dv?.status !== "verified" || domain === undefined || !HOST_NAME.test(domain)) return null;
   return dv.toml_url === `https://${domain}/.well-known/${tomlFileOf(software)}` ? dv.toml_url : null;
+}
+
+// ---- What a validator's toml says (E13 spec 5.2) -----------------------------------------------------------------------------------------------
+
+/** The kinds of network a toml's `network` can name; a page's own network is `mainnet` or, in the sandbox, `testnet`. */
+export type TomlNetworkKind = "mainnet" | "testnet" | "devnet";
+
+type TomlNetworkName = { name: string; kind: TomlNetworkKind };
+
+const XRPL_MAINNET: TomlNetworkName = { name: "XRPL mainnet", kind: "mainnet" };
+const XAHAU_MAINNET: TomlNetworkName = { name: "Xahau mainnet", kind: "mainnet" };
+const XAHAU_TESTNET: TomlNetworkName = { name: "Xahau Testnet", kind: "testnet" };
+
+/** The values of D4's `tomlNetworkNames` by the software that reads them (the file's claim, lower case as D8 serves it). A value of one network's is no name on the other's. */
+const TOML_NETWORKS: Record<Network["software"], ReadonlyMap<string, TomlNetworkName>> = {
+  rippled: new Map([
+    ["main", XRPL_MAINNET],
+    ["mainnet", XRPL_MAINNET],
+    ["testnet", { name: "XRPL Testnet", kind: "testnet" }],
+    ["devnet", { name: "XRPL Devnet", kind: "devnet" }],
+  ]),
+  xahaud: new Map([
+    ["main", XAHAU_MAINNET],
+    ["mainnet", XAHAU_MAINNET],
+    ["xahau", XAHAU_MAINNET],
+    ["21337", XAHAU_MAINNET],
+    ["testnet", XAHAU_TESTNET],
+    ["21338", XAHAU_TESTNET],
+  ]),
+};
+
+/**
+ * The name of a toml's `network` value, compared in lower case (spec 5.2): rippled `main` and `mainnet` are XRPL mainnet, `testnet` XRPL Testnet, `devnet` XRPL Devnet; xahaud `main`,
+ * `mainnet`, `xahau` and `21337` are Xahau mainnet, `testnet` and `21338` Xahau Testnet. Anything else has no name (`null`) and is shown as written.
+ */
+export function tomlNetworkName(value: string, software: Network["software"]): TomlNetworkName | null {
+  return TOML_NETWORKS[software].get(value.toLowerCase()) ?? null;
+}
+
+/** The host of a toml's `unl` (E13 ruling C9: D8's rule, an https URL with a host); `null` for anything else. The value is text, never a link. */
+export function unlHostOf(unl: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(unl);
+  } catch {
+    return null;
+  }
+  return url.protocol === "https:" && url.host !== "" ? url.host : null;
+}
+
+/**
+ * Where a toml currency's code leads: with an issuer, the page `tokenLink` writes for the token `parseTokenPath` reads (the token page while TOKENS is on). `null` without an issuer, for any
+ * other kind of path (an LP token, the native code, a code it does not read), and while TOKENS is off: the code stays text.
+ */
+export function tomlCurrencyHref(net: string, entry: { code: string; issuer?: string }, network: Pick<NetworkInfo, "native">, features: Features): string | null {
+  if (entry.issuer === undefined) return null;
+  const path = parseTokenPath(network, `${entry.code}.${entry.issuer}`);
+  return path.kind === "token" ? tokenLink(net, path.asset, features) : null;
 }
 
 const XLS_PATH = "/XRPLF/XRPL-Standards/";
