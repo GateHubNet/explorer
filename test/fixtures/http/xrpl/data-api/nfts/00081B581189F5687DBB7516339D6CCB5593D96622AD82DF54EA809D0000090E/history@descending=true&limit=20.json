@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 107874617
+  },
+  "events": [
+    {"account":"rnHeqy9a1MxQJEYbGBXYNDosZRU7qySsAV","amount":"37","currency":"XRP","event":"offer_create","event_index":0,"executed_time":"2026-10-24T20:42:30Z","expiration":"2026-11-23T20:42:20Z","is_sell_offer":false,"issuer":"rpbjkoncKiv1LkPWShzZksqYPzKXmUhTW7","kind":"nftoken","ledger_index":107878775,"nft_id":"00081B581189F5687DBB7516339D6CCB5593D96622AD82DF54EA809D0000090E","offer_id":"128760CDBACC980B9313126B2A5F68B576DF0A8EAD969318D7C25522A7D1565F","serial":2318,"taxon":52,"tx_hash":"751E371B9A995269932B3BB241A084A972B31B9318C8D01268FCD9667D9F25F0","tx_index":15,"tx_type":"NFTokenCreateOffer"}
+  ],
+  "result": "success"
+}

@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "heron-6dec.example",
+    "toml_url": "https://heron-6dec.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rnUZLiiECEPhaQVDf4CARLsL1xfDJpNPcw",
+        "desc": "Heron Holdings"
+      }
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 26540187,
+    "complete": false
+  },
+  "ledger_index": 26596843,
+  "close_time": "2026-10-17T17:47:11Z",
+  "supply": "16304750.021496",
+  "count": 10,
+  "marker": "WzY0MDQ0NC4wNTg5MjYsInJmU0JGeE4xc1lmQUVVWmJkaXBzRk10SGk0TldxbWNMclYiXQ",
+  "holders": [
+    {"rank":1,"holder":"rDripFkNyrKz7XUEWKCa18aTeGQ9mi7afj","balance":"1500000","share":"0.091998","limit":"12000000","frozen":false,"authorized":false},
+    {"rank":2,"holder":"rE8CnkPE7KY3MFurBUSEZdm8aFrehqUsWy","balance":"1466545.113932","share":"0.089946","limit":"11732361","frozen":false,"authorized":false},
+    {"rank":3,"holder":"r9ExCERsWUhaCux4WUkEK94NUyYYgjqGpF","balance":"1245265.752263","share":"0.076374","limit":"3735798","frozen":false,"authorized":false},
+    {"rank":4,"holder":"rMeptdfr3sFxDEGGsjcvn4ecg2qDFB8xNr","balance":"1186743.911614","share":"0.072785","limit":"3560232","frozen":false,"authorized":false},
+    {"rank":5,"holder":"r9EgDxL2rzD3A3JCGCvYBCBmnkrzB532tw","balance":"1100660.949157","share":"0.067506","limit":"9905949","frozen":false,"authorized":false},
+    {"rank":6,"holder":"rPz2f5V2DfdsouuRjkDYutaTPZ6nMH9Kib","balance":"1044504.893272","share":"0.064061","limit":"4178020","frozen":false,"authorized":false},
+    {"rank":7,"holder":"rsQetKPsnr8xTbiCSsk3cWKGXJJUXFBk87","balance":"997133.228774","share":"0.061156","limit":"4985667","frozen":false,"authorized":false},
+    {"rank":8,"holder":"r3NN1JxnHL9m673QCswsgHmjb9KTgBdU7T","balance":"871487.983111","share":"0.053450","limit":"6971904","frozen":false,"authorized":false},
+    {"rank":9,"holder":"rEPqtud2htaMBnZJ6pHNRiAgxiGy7cip19","balance":"748183.112245","share":"0.045887","limit":"5237282","frozen":false,"authorized":false},
+    {"rank":10,"holder":"rfSBFxN1sYfAEUZbdipsFMtHi4NWqmcLrV","balance":"640444.058926","share":"0.039280","limit":"5123553","frozen":false,"authorized":false}
+  ]
+}

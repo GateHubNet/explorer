@@ -1,0 +1,49 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 93663334,
+    "complete": false
+  },
+  "ledger_index": 107721455,
+  "close_time": "2026-10-17T17:01:12Z",
+  "token": {
+    "currency": "524C555344000000000000000000000000000000",
+    "code": "RLUSD",
+    "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+    "holders": 96,
+    "trust_lines": 127,
+    "supply": "21898528.59363",
+    "price": "0.40742598",
+    "price_change": "-9.34",
+    "price_time": "2026-10-17T14:50:12Z",
+    "native_volume": "7307.43",
+    "trades": 503,
+    "domain": "ripple.com",
+    "toml_url": "https://ripple.com/.well-known/xrp-ledger.toml",
+    "listed": true,
+    "toml": {
+      "name": "Ripple USD",
+      "desc": "A US dollar stablecoin",
+      "icon": "https://ripple.com/assets/rlusd.svg",
+      "symbol": "RLUSD",
+      "display_decimals": 2,
+      "asset_class": "Fiat-backed stablecoin",
+      "asset_subclass": "USD",
+      "attestation": "https://ripple.com/attestations/rlusd-2026-09.pdf"
+    },
+    "issuer_settings": {
+      "transfer_fee": "0",
+      "global_freeze": false,
+      "no_freeze": false,
+      "allow_trust_line_clawback": true,
+      "require_auth": false,
+      "default_ripple": true
+    },
+    "markets": [
+      {"counter_currency":"XRP","count":36,"volume":"6828","counter_volume":"2799.48","native_volume":"2799.48","last":"0.40742598","change":"-9.34","last_time":"2026-10-17T14:50:12Z","amm_pool":true},
+      {"counter_currency":"5553444300000000000000000000000000000000","counter_issuer":"rGm7WCVp9gb4jZHWTEtGUr4dd74z2XuWhE","count":272,"volume":"5685","counter_volume":"5683.863","native_volume":"2330.85","last":"1.0039989","change":"-14.46","last_time":"2026-10-17T09:10:08Z","amm_pool":true},
+      {"counter_currency":"USD","counter_issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","count":195,"volume":"5310","counter_volume":"5312.124","native_volume":"2177.1","last":"1.0096287","change":"10.33","last_time":"2026-10-16T20:48:54Z","amm_pool":false}
+    ],
+    "last_ledger": 107721455
+  }
+}

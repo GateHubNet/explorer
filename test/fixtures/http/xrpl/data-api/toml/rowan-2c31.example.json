@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "rowan-2c31.example",
+    "toml_url": "https://rowan-2c31.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rfv3Z8pqTzWdB6L6EV6bRpgsUGeSfCjS1N",
+        "desc": "Rowan Exchange"
+      }
+    ]
+  }
+}

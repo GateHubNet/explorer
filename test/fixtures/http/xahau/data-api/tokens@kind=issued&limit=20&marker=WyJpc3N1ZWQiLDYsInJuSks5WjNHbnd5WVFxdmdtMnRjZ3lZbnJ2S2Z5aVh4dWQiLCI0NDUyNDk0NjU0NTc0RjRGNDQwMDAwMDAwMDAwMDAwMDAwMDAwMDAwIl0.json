@@ -1,0 +1,40 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 26540187,
+    "complete": false
+  },
+  "kind": "issued",
+  "ledger_index": 26596843,
+  "close_time": "2026-10-17T17:47:11Z",
+  "totals": {
+    "tokens": 100,
+    "tokens_with_10_holders": 60,
+    "holders": 1350,
+    "native_volume": "15359117.971"
+  },
+  "total": 100,
+  "count": 20,
+  "tokens": [
+    {"rank":81,"currency":"MYR","code":"MYR","issuer":"rs8NMYddaNhcWKt69NoqxWeKiGeDM3BiA8","holders":6,"trust_lines":9,"supply":"1082.17","price":"4.0734187","price_change":"2.82","price_time":"2026-10-17T16:22:51Z","native_volume":"412469.028","trades":1,"listed":false},
+    {"rank":82,"currency":"AED","code":"AED","issuer":"rBY1ZgWyPe6zzvW4BQCJbN6RFr4jScF1nm","holders":5,"trust_lines":10,"supply":"598.66","native_volume":"0","trades":0,"domain":"harbourgate-24e4.example","listed":false},
+    {"rank":83,"currency":"5855534400000000000000000000000000000000","code":"XUSD","issuer":"rGTh9HvZaZ5ApoGT7GP5RF4S1iW2FXBSMQ","holders":5,"trust_lines":6,"supply":"1282.9","price":"4.7898111","price_change":"6.84","price_time":"2026-10-17T14:25:25Z","native_volume":"384412.281","trades":212,"domain":"ashgrove-2f97.example","listed":false},
+    {"rank":84,"currency":"USD","code":"USD","issuer":"rQanawDCiaMkk9mPhaXvwR1VYKbJ2wqSMu","holders":5,"trust_lines":9,"supply":"1294.01","native_volume":"0","trades":0,"domain":"willowmere-1ea9.example","listed":false},
+    {"rank":85,"currency":"44555354434F494E000000000000000000000000","code":"DUSTCOIN","issuer":"raCGQ8ab7SRZGnSdt6g2ZQ326WR3TDkrLC","holders":5,"trust_lines":9,"supply":"3779.29","price":"2.6092795","price_change":"11.97","price_time":"2026-10-16T21:50:27Z","native_volume":"277956.885","trades":177,"listed":false},
+    {"rank":86,"currency":"4845415448455200000000000000000000000000","code":"HEATHER","issuer":"rDGoec6WXzTHJ4RKw6jYnqypyQTzvs8eeU","holders":4,"trust_lines":8,"supply":"1684.19","price":"1.5252759","price_change":"-0.64","price_time":"2026-10-17T01:00:06Z","native_volume":"104336.371","trades":329,"domain":"lanternway-e249.example","listed":true,"name":"Marlow HEATHER"},
+    {"rank":87,"currency":"46554E4749000000000000000000000000000000","code":"FUNGI","issuer":"rEcaU7AfFfuc3NTH5vgWUbUQ3eg7U3kZby","holders":4,"trust_lines":8,"supply":"2606.5","price":"0.70158826","price_time":"2026-09-25T17:47:11Z","native_volume":"0","trades":0,"domain":"northpeak-9c93.example","listed":true,"name":"Ashgrove FUNGI"},
+    {"rank":88,"currency":"SAR","code":"SAR","issuer":"r3mK7swXX8oGLFbQfhmakjf3nHTzwhnC6d","holders":3,"trust_lines":7,"supply":"1998.72","price":"4.2691033","price_change":"-4.02","price_time":"2026-10-17T03:20:22Z","native_volume":"497347.91","trades":353,"domain":"stonebridge-d350.example","listed":false},
+    {"rank":89,"currency":"PHP","code":"PHP","issuer":"rE1DQXQRUJaiJD9cacF5RjPPn1Gb2J6LDo","holders":3,"trust_lines":3,"supply":"2443.92","price":"0.00099715852","price_change":"-2.49","price_time":"2026-10-16T19:50:26Z","native_volume":"302308.586","trades":393,"domain":"riverstone-e06e.example","listed":true,"name":"Bluewave PHP"},
+    {"rank":90,"currency":"504542424C450000000000000000000000000000","code":"PEBBLE","issuer":"rHMJ5FpWWNZjk2FJQmY2pM1kp7BGwuoZTk","holders":3,"trust_lines":8,"supply":"2541.36","price":"0.74235614","price_time":"2026-09-20T17:47:11Z","native_volume":"0","trades":0,"domain":"saltmarsh-8165.example","listed":true,"name":"Kestrel PEBBLE"},
+    {"rank":91,"currency":"4D4F535359000000000000000000000000000000","code":"MOSSY","issuer":"rQfeysYwYH32qxZPyb3b9BQcw2PKTggBNR","holders":3,"trust_lines":4,"supply":"2492.96","price":"0.017040375","price_change":"-9.84","price_time":"2026-10-16T23:15:55Z","native_volume":"306705.011","trades":178,"listed":false},
+    {"rank":92,"currency":"53414E4442414E4B000000000000000000000000","code":"SANDBANK","issuer":"rQrnVH8BaKYxsgaetxb46H5qTcMais4cX6","holders":3,"trust_lines":7,"supply":"600.95","price":"0.46763761","price_change":"-8.63","price_time":"2026-10-17T17:12:55Z","native_volume":"270211.479","trades":71,"listed":false},
+    {"rank":93,"currency":"GHS","code":"GHS","issuer":"rfbynNi3VarQcz1n4bRaJjAN6DRzQvhaBi","holders":3,"trust_lines":4,"supply":"267.41","native_volume":"0","trades":0,"domain":"tidewater-8110.example","listed":true,"name":"Lanternway GHS"},
+    {"rank":94,"currency":"ILS","code":"ILS","issuer":"rhV1yiuaVsniE766dnf7vJRe9p8VkJ6nKk","holders":3,"trust_lines":4,"supply":"1739.13","price":"0.24598676","price_change":"-12.79","price_time":"2026-10-16T22:14:02Z","native_volume":"298756.108","trades":342,"listed":false},
+    {"rank":95,"currency":"PEN","code":"PEN","issuer":"r911dcMWyRK8jZKMY6XSfWadDgXf2BYEDN","holders":2,"trust_lines":7,"supply":"1127.62","price":"0.0026128885","price_time":"2026-09-29T17:47:11Z","native_volume":"0","trades":0,"domain":"fernhill-95f6.example","listed":false},
+    {"rank":96,"currency":"NGN","code":"NGN","issuer":"rMPWkSySgU2yb3RWzT64pgBfQTo1afCzgS","holders":2,"trust_lines":4,"supply":"1763.48","price":"1.9323797","price_change":"-3.36","price_time":"2026-10-17T04:07:17Z","native_volume":"463003.55","trades":117,"domain":"kestrel-7af2.example","listed":false},
+    {"rank":97,"currency":"EGP","code":"EGP","issuer":"rJDF4WtRiXCB1sKSa9i6RbKuZvHSmRTZLg","holders":1,"trust_lines":6,"supply":"340.92","price":"2.5611051","price_change":"-8.03","price_time":"2026-10-16T23:03:19Z","native_volume":"249506.943","trades":258,"domain":"ashgrove-357a.example","listed":false},
+    {"rank":98,"currency":"KES","code":"KES","issuer":"rLboQY4CCxjKc7Ygu9fFCapXqjpSimPfF1","holders":1,"trust_lines":3,"supply":"393.98","native_volume":"0","trades":0,"listed":false},
+    {"rank":99,"currency":"425241434B454E00000000000000000000000000","code":"BRACKEN","issuer":"rnXpDf5RkF9MMjTDqx9M5RhtotFD9fr9wg","holders":1,"trust_lines":4,"supply":"219.22","price":"4.5189336","price_time":"2026-10-05T17:47:11Z","native_volume":"0","trades":0,"listed":false},
+    {"rank":100,"currency":"534852494D500000000000000000000000000000","code":"SHRIMP","issuer":"rKzuDWuyh9Entg8rBxxZMM8PiRgJdw2aUi","holders":0,"trust_lines":1,"supply":"0","native_volume":"0","trades":0,"listed":false}
+  ]
+}

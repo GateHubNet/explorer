@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Escrow</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.xp{--bg:#F5F6F8;--surface:#FFFFFF;--sunken:#EEF0F3;--border:#E1E4E9;--border-strong:#CDD2D9;--fg:#0F1217;--muted:#4F5864;--faint:#646D7A;--link:var(--accent);--ok:#17733F;--ok-bg:#E3F3E9;--bad:#B42318;--bad-bg:#FCEBE9;--grid:#EEF0F3;--axis:#CDD2D9;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s-other:#A7AEB8;--amb:#8A4B00;--amb-bg:#FCEFD9;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.xp.dark{--bg:#0B0E12;--surface:#12161C;--sunken:#181D24;--border:#232A33;--border-strong:#323B46;--fg:#E7EBF0;--muted:#A3ACB9;--faint:#8D97A5;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--ok:#5BD08F;--ok-bg:#10281B;--bad:#F28B80;--bad-bg:#30161A;--grid:#1D232B;--axis:#323B46;--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s-other:#58616C;--amb:#F2B65A;--amb-bg:#2E2210}
+.xp a{color:var(--link);text-decoration:none}
+.xp a:hover{text-decoration:underline}
+.xp button,.xp input,.xp select{font:inherit;color:inherit}
+.xp :focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{border:0;background:transparent;padding:6px 12px;border-radius:7px;display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:500;color:var(--muted);min-height:32px;white-space:nowrap;position:relative}
+.seg::after{content:'';position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.seg.on{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--border)}
+.segs{display:flex;padding:3px;background:var(--sunken);border:1px solid var(--border);border-radius:9px}
+.nav{padding:8px 10px;border-radius:7px;color:var(--muted)!important;font-weight:500;display:inline-flex;align-items:center}
+.nav:hover{background:var(--sunken);text-decoration:none!important;color:var(--fg)!important}
+.nav.cur{color:var(--fg)!important;background:var(--sunken)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.src{font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--faint)}
+.tip{position:absolute;z-index:3;top:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 28px -14px rgba(0,0,0,.4);padding:10px 12px;font-size:12px;min-width:180px;pointer-events:none;display:flex;flex-direction:column;gap:4px}
+.tip b{font-weight:600;font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;padding:3px 10px;border-radius:999px;white-space:nowrap}
+.pd{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.ok{color:var(--ok);background:var(--ok-bg)}
+.info{color:var(--fg);background:color-mix(in srgb,var(--accent) 12%,var(--surface))}
+.info .pd{background:var(--link)}
+.neu{color:var(--fg);background:var(--sunken);box-shadow:inset 0 0 0 1px var(--border)}
+.neu .pd{background:var(--faint)}
+.amb{color:var(--amb);background:var(--amb-bg)}
+.type{font-size:12px;font-weight:500;padding:1px 7px;border-radius:5px;background:var(--sunken);border:1px solid var(--border);color:var(--fg);white-space:nowrap}
+.type.ghost{background:transparent;border-style:dashed;color:var(--muted)}
+.amt{font-family:'Geist Mono',ui-monospace,monospace;font-weight:500;font-variant-numeric:tabular-nums}
+.pos{color:var(--ok)}
+.copy{border:0;background:transparent;color:var(--faint);cursor:pointer;padding:4px;border-radius:5px;vertical-align:middle;min-width:30px;min-height:30px;position:relative}
+.copy::after{content:'';position:absolute;inset:-4px}
+.copy:hover{color:var(--fg);background:var(--sunken)}
+.kv{display:grid;grid-template-columns:190px minmax(0,1fr);gap:4px 16px;padding:11px 0;border-top:1px solid var(--border);align-items:baseline}
+.kv dt{color:var(--faint);font-size:13px}
+.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.fld{display:block;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--faint);margin-top:1px}
+.hint{display:block;font-size:12.5px;color:var(--faint);margin-top:3px;max-width:640px}
+.none{color:var(--faint)}
+.who{display:flex;flex-direction:column;gap:1px;min-width:0;align-items:flex-start}
+.addr{font-size:12px;color:var(--faint)}
+.acct{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:100%}
+.acct>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct .mono{font-size:12.5px}
+.unv{font-size:11px;color:var(--muted);border:1px dashed var(--border-strong);border-radius:5px;padding:0 5px;white-space:nowrap}
+.ent{padding:0 9px;border-radius:7px;background:var(--sunken);border:1px solid var(--border);color:var(--fg)!important;vertical-align:baseline;line-height:1.6}
+a.ent:hover{border-color:var(--border-strong);text-decoration:none!important}
+.stc{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:6px 10px;min-height:44px;cursor:pointer;flex:1 1 150px;min-width:0}
+.stc:hover{border-color:var(--border-strong)}
+.stc.on{border-color:var(--link);box-shadow:inset 0 0 0 1px var(--link)}
+.stn{font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.stc.on .stn{color:var(--link)}
+.stm{font-size:11.5px;color:var(--muted);line-height:1.35}
+.banner{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:12px;background:var(--sunken);border:1px solid var(--border-strong)}
+.tl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:18px}
+.ev{display:grid;grid-template-columns:14px minmax(0,1fr);gap:12px;position:relative}
+.ev:not(:last-child)::before{content:'';position:absolute;left:6px;top:21px;bottom:-15px;width:2px;background:var(--border)}
+.evdot{width:14px;height:14px;border-radius:50%;margin-top:3px;box-sizing:border-box}
+.bseg{position:absolute;top:0;bottom:0;border:0;padding:0;cursor:default}
+.bseg::after{content:'';position:absolute;left:0;right:0;top:-10px;bottom:-10px}
+.bseg:first-child{border-radius:4px 0 0 4px}
+.bseg:last-child{border-radius:0 4px 4px 0}
+.bseg.dim{opacity:.4}
+.bseg:focus-visible{outline:2px solid var(--link);outline-offset:-2px}
+@media (max-width:640px){.kv{grid-template-columns:1fr}}
+.menu{position:relative;display:inline-flex}.menu>summary{list-style:none;cursor:pointer}.menu>summary::-webkit-details-marker{display:none}.menu-panel{position:absolute;z-index:20;top:calc(100% + 6px);left:0;min-width:230px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px -16px rgba(0,0,0,.35);padding:6px;display:flex;flex-direction:column;gap:2px}.menu-panel a{display:flex;align-items:center;min-height:36px;padding:0 10px;border-radius:7px;color:var(--fg)!important;font-weight:500}.menu-panel a:hover{background:var(--sunken);text-decoration:none!important}.menu-panel a[aria-current="page"]{background:var(--sunken)}
+.mk{position:absolute;top:18px;height:20px;width:2px;margin-left:-1px;border-radius:1px;background:var(--fg);pointer-events:none}
+.mkl{position:absolute;top:0;font-size:11.5px;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+.bl{position:absolute;top:6px;display:flex;flex-direction:column;font-size:11px;line-height:1.3;color:var(--faint);white-space:nowrap;font-variant-numeric:tabular-nums}
+.bl b{color:var(--muted);font-weight:600}
+</style>
+</helmet>
+<div class="xp {{themeClass}}" style="--accent: {{accentNow}};">
+
+<header style="background: var(--surface); border-bottom: 1px solid var(--border);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 12px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: var(--fg);" aria-label="Explorer home">
+      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" style="fill: var(--accent)"></rect><path d="M8 10h7M8 14h12M8 18h9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"></path></svg>
+      <span style="font-weight: 650; font-size: 17px; letter-spacing: -0.01em;">explorer</span>
+    </a>
+    <div role="group" aria-label="Network" class="segs">
+      <button type="button" class="seg {{xrplCls}}" aria-pressed="{{isXrpl}}" onClick="{{pickXrpl}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xrplDot}};"></span>XRPL</button>
+      <button type="button" class="seg {{xahauCls}}" aria-pressed="{{isXahau}}" onClick="{{pickXahau}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xahauDot}};"></span>Xahau</button>
+    </div>
+    <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 2px; align-items: center;">
+      <a class="nav" href="Ledger.dc.html">Ledgers</a>
+      <a class="nav" href="Transaction.dc.html">Transactions</a>
+      <a class="nav cur" href="Account.dc.html" aria-current="page">Accounts</a>
+      <a class="nav" href="Tokens.dc.html">Tokens</a>
+      <details class="menu">
+        <summary class="nav">Network<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 4px;"><path d="m6 9 6 6 6-6"></path></svg></summary>
+        <div class="menu-panel">
+          <a href="Network.dc.html">Overview</a>
+          <a href="Validators.dc.html">Validators</a>
+          <a href="Nodes.dc.html">Nodes</a>
+          <a href="Amendments.dc.html">Amendments</a>
+          <a href="Supply.dc.html">Supply &amp; distribution</a>
+        </div>
+      </details>
+      <a class="nav" href="Markets.dc.html">Markets</a>
+      <a class="nav" href="Amm.dc.html">AMM</a>
+      <a class="nav" href="Nfts.dc.html">NFTs</a>
+    </nav>
+    <form role="search" style="flex: 1 1 240px; display: flex; align-items: center; gap: 8px; background: var(--sunken); border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; min-height: 40px;">
+      <label for="hdr-q" class="sr">Search</label>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint); flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <input id="hdr-q" type="search" placeholder="Address, hash, ledger or CTID" style="flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px;">
+    </form>
+  </div>
+</header>
+
+<main style="max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; display: flex; flex-direction: column; gap: 18px;">
+
+  <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--faint); display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+    <a href="Main.dc.html">{{netName}}</a><span aria-hidden="true">/</span><span>Accounts</span><span aria-hidden="true">/</span><sc-if value="{{own.verified}}" hint-placeholder-val="{{true}}"><a class="acct" href="Account.dc.html" title="{{own.title}}"><span>{{own.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></a></sc-if><sc-if value="{{own.curated}}" hint-placeholder-val="{{false}}"><a class="acct" href="Account.dc.html" title="{{own.title}}"><span>{{own.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></a></sc-if><sc-if value="{{own.unverified}}" hint-placeholder-val="{{false}}"><a class="acct" href="Account.dc.html" title="{{own.title}}"><span>{{own.label}}</span><span class="unv">not verified</span></a></sc-if><sc-if value="{{own.plain}}" hint-placeholder-val="{{false}}"><a class="acct" href="Account.dc.html" title="{{own.title}}"><span class="mono">{{own.short}}</span></a></sc-if><span aria-hidden="true">/</span><span aria-current="page" style="color: var(--muted);">Escrow</span>
+  </nav>
+
+  <section aria-labelledby="states-title" style="border: 1px dashed var(--border-strong); border-radius: 12px; padding: 10px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+    <div style="display: flex; flex-direction: column; flex: 0 0 auto; padding: 0 8px 0 2px;">
+      <span id="states-title" style="font-size: 13px; font-weight: 600;">States</span>
+      <span style="font-size: 11.5px; color: var(--faint);">Mock only · the objectState tweak</span>
+    </div>
+    <sc-for list="{{states}}" as="s" hint-placeholder-count="4">
+      <button type="button" class="stc {{s.cls}}" aria-pressed="{{s.on}}" onClick="{{s.pick}}"><span class="stn">{{s.name}}<sc-if value="{{s.on}}" hint-placeholder-val="{{false}}"><span style="font-size: 11px; font-weight: 500;">· shown</span></sc-if></span><span class="stm">{{s.meaning}}</span></button>
+    </sc-for>
+  </section>
+
+  <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px;">
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;">
+      <h1 style="margin: 0; font-size: 30px; letter-spacing: -0.02em; font-weight: 650;">Escrow</h1>
+      <span class="pill {{pill.cls}}"><span class="pd" aria-hidden="true"></span>{{pill.text}}</span>
+      <span class="num" style="font-size: 13px; color: var(--faint);">Created {{createdAt}} · {{createdRel}}</span>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+      <a href="Escrows.dc.html" style="font-size: 13px; font-weight: 500;">All escrows →</a>
+      <span class="src">/v2/escrows/{id}</span>
+    </div>
+  </div>
+
+  <sc-if value="{{removed}}" hint-placeholder-val="{{false}}">
+    <div role="note" class="banner">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 2px; color: var(--muted);"><rect x="3" y="4" width="18" height="5" rx="1"></rect><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"></path></svg>
+      <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+        <span style="font-weight: 600;">Removed from the ledger in ledger <a class="mono num" href="Ledger.dc.html">#{{rm.ledger}}</a> by <a class="mono" href="Transaction.dc.html">{{rm.type}} {{rm.hash}}</a></span>
+        <span style="font-size: 13px; color: var(--muted);">{{rm.when}} This page shows it from history: its last state before it was removed.</span>
+      </div>
+    </div>
+  </sc-if>
+
+  <section class="card" aria-labelledby="sum-title" style="border-radius: 14px; padding: 22px 22px 18px; display: flex; flex-direction: column; gap: 16px;">
+    <h2 id="sum-title" class="sr">Summary</h2>
+    <p style="margin: 0; font-size: 19px; line-height: 1.9; letter-spacing: -0.005em;"><sc-if value="{{own.verified}}" hint-placeholder-val="{{true}}"><a class="acct ent" href="Account.dc.html" title="{{own.title}}"><span>{{own.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></a></sc-if><sc-if value="{{own.curated}}" hint-placeholder-val="{{false}}"><a class="acct ent" href="Account.dc.html" title="{{own.title}}"><span>{{own.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></a></sc-if><sc-if value="{{own.unverified}}" hint-placeholder-val="{{false}}"><a class="acct ent" href="Account.dc.html" title="{{own.title}}"><span>{{own.label}}</span><span class="unv">not verified</span></a></sc-if><sc-if value="{{own.plain}}" hint-placeholder-val="{{false}}"><a class="acct ent" href="Account.dc.html" title="{{own.title}}"><span class="mono">{{own.short}}</span></a></sc-if> locked <span class="amt">{{amount}}</span> for <sc-if value="{{dst.verified}}" hint-placeholder-val="{{true}}"><a class="acct ent" href="Account.dc.html" title="{{dst.title}}"><span>{{dst.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></a></sc-if><sc-if value="{{dst.curated}}" hint-placeholder-val="{{false}}"><a class="acct ent" href="Account.dc.html" title="{{dst.title}}"><span>{{dst.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></a></sc-if><sc-if value="{{dst.unverified}}" hint-placeholder-val="{{false}}"><a class="acct ent" href="Account.dc.html" title="{{dst.title}}"><span>{{dst.label}}</span><span class="unv">not verified</span></a></sc-if><sc-if value="{{dst.plain}}" hint-placeholder-val="{{false}}"><a class="acct ent" href="Account.dc.html" title="{{dst.title}}"><span class="mono">{{dst.short}}</span></a></sc-if> on {{createdDay}}.</p>
+    <div style="display: flex; flex-direction: column; gap: 4px; max-width: 880px;">
+      <span style="font-size: 16px; font-weight: 600;">{{status}}</span>
+      <span style="color: var(--muted);">{{statusSub}}</span>
+    </div>
+    <div role="group" aria-label="When the escrow can be finished or cancelled" style="display: flex; flex-direction: column; gap: 6px; padding-top: 4px;" onMouseLeave="{{leave}}">
+      <div class="legend"><sc-for list="{{win}}" as="w" hint-placeholder-count="3"><span><span class="sw" style="background: {{w.color}};"></span>{{w.name}}</span></sc-for></div>
+      <div style="position: relative; padding-top: 22px;">
+        <span class="mkl" style="left: {{mk.left}}; transform: {{mk.tf}};" aria-hidden="true">{{mk.label}}</span>
+        <div style="position: relative; height: 12px; border-radius: 4px; background: var(--sunken);">
+          <sc-for list="{{win}}" as="w" hint-placeholder-count="3"><button type="button" class="bseg {{w.cls}}" aria-label="{{w.aria}}" onMouseEnter="{{w.enter}}" onFocus="{{w.enter}}" onBlur="{{leave}}" style="left: {{w.left}}; width: {{w.width}}; background: {{w.color}};"></button></sc-for>
+        </div>
+        <span class="mk" style="left: {{mk.left}};" aria-hidden="true"></span>
+        <div style="position: relative; height: 36px;" aria-hidden="true">
+          <sc-for list="{{bounds}}" as="b" hint-placeholder-count="3"><span class="bl" style="left: {{b.pos}}; transform: {{b.tf}};"><b>{{b.name}}</b>{{b.date}}</span></sc-for>
+        </div>
+        <sc-if value="{{wtip.show}}" hint-placeholder-val="{{false}}">
+          <div class="tip" style="left: {{wtip.left}}; top: 42px; transform: {{wtip.tf}};">
+            <span><span class="sw" style="background: {{wtip.color}};"></span><b>{{wtip.name}}</b></span>
+            <span style="color: var(--muted);">{{wtip.range}}</span>
+            <span style="color: var(--faint);">{{wtip.dur}}</span>
+          </div>
+        </sc-if>
+      </div>
+      <span class="sr">{{markSr}}</span>
+    </div>
+  </section>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+    <section class="card" aria-labelledby="det-title" style="flex: 999 1 640px; min-width: 0; padding: 16px 20px 0;">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px;">
+        <h2 id="det-title" style="margin: 0; font-size: 15px; font-weight: 600;">Details</h2>
+        <span class="src">/v2/escrows/{id}</span>
+      </div>
+      <dl style="margin: 0;">
+        <div class="kv"><dt>Escrow ID<span class="fld">ledger object ID</span></dt><dd><span class="mono" style="font-size: 13px;">{{id}}</span><button type="button" class="copy" aria-label="Copy escrow ID"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h8"></path></svg></button></dd></div>
+        <div class="kv"><dt>Owner<span class="fld">source</span></dt><dd class="who"><sc-if value="{{own.verified}}" hint-placeholder-val="{{true}}"><a class="acct" href="Account.dc.html" title="{{own.title}}"><span>{{own.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></a></sc-if><sc-if value="{{own.curated}}" hint-placeholder-val="{{false}}"><a class="acct" href="Account.dc.html" title="{{own.title}}"><span>{{own.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></a></sc-if><sc-if value="{{own.unverified}}" hint-placeholder-val="{{false}}"><a class="acct" href="Account.dc.html" title="{{own.title}}"><span>{{own.label}}</span><span class="unv">not verified</span></a></sc-if><sc-if value="{{own.plain}}" hint-placeholder-val="{{false}}"><a class="acct" href="Account.dc.html" title="{{own.title}}"><span class="mono">{{own.short}}</span></a></sc-if><span class="mono addr">{{own.address}}</span></dd></div>
+        <div class="kv"><dt>Destination</dt><dd class="who"><sc-if value="{{dst.verified}}" hint-placeholder-val="{{true}}"><a class="acct" href="Account.dc.html" title="{{dst.title}}"><span>{{dst.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></a></sc-if><sc-if value="{{dst.curated}}" hint-placeholder-val="{{false}}"><a class="acct" href="Account.dc.html" title="{{dst.title}}"><span>{{dst.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></a></sc-if><sc-if value="{{dst.unverified}}" hint-placeholder-val="{{false}}"><a class="acct" href="Account.dc.html" title="{{dst.title}}"><span>{{dst.label}}</span><span class="unv">not verified</span></a></sc-if><sc-if value="{{dst.plain}}" hint-placeholder-val="{{false}}"><a class="acct" href="Account.dc.html" title="{{dst.title}}"><span class="mono">{{dst.short}}</span></a></sc-if><span class="mono addr">{{dst.address}}</span></dd></div>
+        <div class="kv"><dt>Amount</dt><dd><span class="amt">{{amount}}</span></dd></div>
+        <div class="kv"><dt>Can be finished after<span class="fld">FinishAfter</span></dt><dd><span class="num">{{fa}}</span> <span style="color: var(--faint);">· {{faRel}}</span><span class="hint">The earliest time anyone can send an EscrowFinish.</span></dd></div>
+        <div class="kv"><dt>Can be cancelled after<span class="fld">CancelAfter</span></dt><dd><span class="num">{{ca}}</span> <span style="color: var(--faint);">· {{caRel}}</span><span class="hint">From this time it can no longer be finished, only cancelled.</span></dd></div>
+        <div class="kv"><dt>Condition</dt><dd>
+          <sc-if value="{{hasCond}}" hint-placeholder-val="{{true}}"><span class="mono" style="font-size: 12.5px;">{{cond}}</span><button type="button" class="copy" aria-label="Copy condition"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h8"></path></svg></button><span class="hint">{{condHint}}</span></sc-if>
+          <sc-if value="{{noCond}}" hint-placeholder-val="{{false}}"><span class="none">None</span><span class="hint">Time-based only: no secret is needed to finish it.</span></sc-if>
+        </dd></div>
+        <sc-if value="{{showFul}}" hint-placeholder-val="{{false}}">
+          <div class="kv"><dt>Fulfillment</dt><dd><span class="mono" style="font-size: 12.5px;">{{ful}}</span><button type="button" class="copy" aria-label="Copy fulfillment"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h8"></path></svg></button><span class="hint">The secret that matches the condition, revealed by the EscrowFinish.</span></dd></div>
+        </sc-if>
+        <div class="kv"><dt>Destination tag</dt><dd class="{{dtagCls}}">{{dtag}}</dd></div>
+        <div class="kv"><dt>Source tag</dt><dd class="{{stagCls}}">{{stag}}</dd></div>
+        <div class="kv"><dt>Owner reserve</dt><dd><span class="amt">0.2 {{cur}}</span><span class="hint">{{reserveNote}}</span></dd></div>
+      </dl>
+      <p style="margin: 0; padding: 10px 0 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--faint);">{{readNote}}</p>
+    </section>
+
+    <section class="card" aria-labelledby="hist-title" style="flex: 1 1 320px; min-width: 0; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="hist-title" style="margin: 0; font-size: 15px; font-weight: 600;">History</h2>
+        <span class="src">/v2/escrows/{id}</span>
+      </div>
+      <ol class="tl">
+        <sc-for list="{{events}}" as="e" hint-placeholder-count="3">
+          <li class="ev">
+            <span class="evdot" aria-hidden="true" style="background: {{e.bg}}; border: 2px {{e.bs}} {{e.bc}};"></span>
+            <span style="display: flex; flex-direction: column; gap: 3px; min-width: 0;">
+              <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;"><span class="{{e.tagCls}}">{{e.type}}</span><span style="font-weight: 600;">{{e.title}}</span></span>
+              <span class="num" style="font-size: 12.5px; color: var(--muted);">{{e.when}}</span>
+              <span style="font-size: 13px;">{{e.what}}</span>
+              <sc-if value="{{e.tx}}" hint-placeholder-val="{{true}}">
+                <span style="font-size: 12.5px; color: var(--faint); display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; min-width: 0;">by <sc-if value="{{e.by.verified}}" hint-placeholder-val="{{true}}"><a class="acct" href="Account.dc.html" title="{{e.by.title}}"><span>{{e.by.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></a></sc-if><sc-if value="{{e.by.curated}}" hint-placeholder-val="{{false}}"><a class="acct" href="Account.dc.html" title="{{e.by.title}}"><span>{{e.by.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></a></sc-if><sc-if value="{{e.by.unverified}}" hint-placeholder-val="{{false}}"><a class="acct" href="Account.dc.html" title="{{e.by.title}}"><span>{{e.by.label}}</span><span class="unv">not verified</span></a></sc-if><sc-if value="{{e.by.plain}}" hint-placeholder-val="{{false}}"><a class="acct" href="Account.dc.html" title="{{e.by.title}}"><span class="mono">{{e.by.short}}</span></a></sc-if></span>
+                <span style="font-size: 12.5px; color: var(--faint);"><a class="mono" href="Transaction.dc.html" aria-label="{{e.aria}}">{{e.hash}}</a> · ledger <a class="mono num" href="Ledger.dc.html">#{{e.ledger}}</a></span>
+              </sc-if>
+            </span>
+          </li>
+        </sc-for>
+      </ol>
+      <span style="font-size: 12px; color: var(--faint); border-top: 1px solid var(--border); padding-top: 10px;">Oldest first. Filled dots are transactions; dashed ones are what can still happen.</span>
+    </section>
+  </div>
+</main>
+
+<footer style="border-top: 1px solid var(--border); background: var(--surface);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 22px 20px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--faint);">
+    <span>explorer · by GateHub</span>
+    <span>History from validated ledgers. Balances and account state read live from the network.</span>
+    <span style="display: flex; gap: 16px;"><a href="#">API</a><a href="#">Status</a><a href="#">Privacy</a></span>
+  </div>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"accent":{"editor":"color","options":["#2F5BEA","#0F766E","#6D28D9","#111827"],"default":"#2F5BEA","section":"Network colors"},"xahauAccent":{"editor":"color","options":["#B45309","#C2410C","#A16207"],"default":"#B45309","section":"Network colors"},"objectState":{"editor":"enum","options":["pending","canFinish","canCancel","finished","cancelled"],"default":"pending","section":"Page"},"$preview":{"width":1440,"height":1600}}'>
+class Component extends DCLogic {
+  state = { net: 'xrpl', pick: '', pickFrom: '', hv: '' };
+
+  renderVals() {
+    const SEEDX = 7311, SEEDH = 8422;
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const accent = this.props.accent ?? '#2F5BEA';
+    const xahauAccent = this.props.xahauAccent ?? '#B45309';
+    const st = this.state;
+    const x = st.net === 'xrpl';
+    const cur = x ? 'XRP' : 'XAH';
+    const fmt = (n) => n.toLocaleString('en-US');
+    const fmt2 = (n) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const seedRng = (s) => () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    // One seed per account and network, as AccountNames uses, so an account has the same address on every page.
+    const addrOf = (s) => { const R = seedRng(s); const n = 24 + Math.floor(R() * 11); let a = 'r'; for (let i = 0; i < n; i++) a += B58[Math.floor(R() * 58)]; return a; };
+    const pre = { verified: 'Verified name · ', curated: 'Named by GateHub · ', unverified: 'Domain not verified · ', plain: '' };
+    const acct = (kind, label, seed) => {
+      const address = addrOf(seed + (x ? 0 : 1000));
+      const short = address.slice(0, 5) + '…' + address.slice(-4);
+      return { address, short, label: label || short, verified: kind === 'verified', curated: kind === 'curated', unverified: kind === 'unverified', plain: kind === 'plain', title: pre[kind] + address };
+    };
+    const NOBODY = { address: '', short: '', label: '', verified: false, curated: false, unverified: false, plain: false, title: '' };
+    const R = seedRng(x ? SEEDX : SEEDH);
+    const hex = (n) => { let s = ''; for (let i = 0; i < n; i++) s += '0123456789ABCDEF'[Math.floor(R() * 16)]; return s; };
+    const cut = (h) => h.slice(0, 6) + '…' + h.slice(-4);
+    const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const p2 = (n) => String(n).padStart(2, '0');
+    const dUTC = (ms, sec) => { const d = new Date(ms); return d.getUTCDate() + ' ' + MON[d.getUTCMonth()] + ' ' + d.getUTCFullYear() + ' ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + (sec ? ':' + p2(d.getUTCSeconds()) : '') + ' UTC'; };
+    const dDay = (ms) => { const d = new Date(ms); return d.getUTCDate() + ' ' + MON[d.getUTCMonth()] + ' ' + d.getUTCFullYear(); };
+    const dShort = (ms) => { const d = new Date(ms); return d.getUTCDate() + ' ' + MON[d.getUTCMonth()] + ' ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()); };
+    const L0 = x ? 107695660 : 17482913, T0 = Date.UTC(2026, 9, 17, 15, 42, 51);
+    const ledgerAt = (ms) => fmt(L0 + Math.round((ms - T0) / (x ? 3910 : 3970)));
+    const DAY = 864e5, HR = 36e5, MIN = 6e4;
+    const span = (ms) => { const a = Math.abs(ms) / 1000; if (a < 3600) { const m = Math.max(1, Math.round(a / 60)); return m + ' min'; } if (a < 86400) { const h = Math.round(a / 3600); return h + (h === 1 ? ' hour' : ' hours'); } if (a < 86400 * 60) { const d = Math.round(a / 86400); return d + (d === 1 ? ' day' : ' days'); } const mo = Math.round(a / 86400 / 30.44); return mo + ' months'; };
+    const tipTf = (l) => l < 18 ? 'translateX(-8px)' : l > 82 ? 'translateX(calc(-100% + 8px))' : 'translateX(-50%)';
+    const lblTf = (l) => l < 6 ? 'none' : l > 94 ? 'translateX(-100%)' : 'translateX(-50%)';
+    const pickState = (order, fallback) => {
+      const propS = order.indexOf(this.props.objectState) >= 0 ? this.props.objectState : fallback;
+      return { propS, S: st.pick && st.pickFrom === propS && order.indexOf(st.pick) >= 0 ? st.pick : propS };
+    };
+    // The escrow the account on Account.dc.html owns (its Objects tab links here): that account, to Copperfield Payments.
+    const ownAddr = 'rJF2XanJQGFLS5ZUdcqEzwJcTJ7aFfQvg';
+    const own = Object.assign(acct('plain', '', 1603), { address: ownAddr, short: ownAddr.slice(0, 5) + '…' + ownAddr.slice(-4), label: ownAddr.slice(0, 5) + '…' + ownAddr.slice(-4), title: ownAddr });
+    const dst = acct('verified', 'Copperfield Payments', 1401);
+    const id = hex(64);
+    const cond = 'A0258020' + hex(64) + '810120';
+    const ful = 'A0228020' + hex(64);
+    const hCreate = hex(64), hFinish = hex(64), hCancel = hex(64);
+    const D = x
+      ? { amount: 1000, created: Date.UTC(2026, 9, 15, 8, 44, 19), fa: Date.UTC(2026, 11, 1, 0, 0, 0), ca: Date.UTC(2027, 0, 1, 0, 0, 0), cond: true, dtag: '30418', stag: '' }
+      : { amount: 1000, created: Date.UTC(2026, 9, 15, 8, 44, 19), fa: Date.UTC(2026, 11, 1, 0, 0, 0), ca: Date.UTC(2027, 0, 1, 0, 0, 0), cond: false, dtag: '', stag: '2207' };
+
+    const ORDER = ['pending', 'canFinish', 'canCancel', 'finished', 'cancelled'];
+    const { propS, S } = pickState(ORDER, 'pending');
+    const finAt = D.fa + DAY + 20 * HR + 14 * MIN + 9000;
+    const canAt = D.ca + DAY + 22 * HR + 6 * MIN + 51000;
+    const now = { pending: Date.UTC(2026, 9, 24, 9, 30, 0), canFinish: D.fa + 11 * DAY + 3 * HR, canCancel: D.ca + 3 * DAY + 2 * HR, finished: finAt + 9 * DAY, cancelled: canAt + 2 * DAY }[S];
+    const rel = (ms) => ms >= now ? 'in ' + span(ms - now) : span(now - ms) + ' ago';
+    const txEv = (type, title, at, hash, by, what, color) => ({ type, tagCls: 'type', title, when: dUTC(at, true) + ' · ' + rel(at), what, tx: true, by: Object.assign({}, by), hash: cut(hash), aria: type + ' transaction ' + cut(hash), ledger: ledgerAt(at), bg: color, bs: 'solid', bc: color });
+    const markEv = (type, title, at, what) => ({ type, tagCls: 'type ghost', title, when: dUTC(at) + ' · ' + rel(at), what, tx: false, by: Object.assign({}, NOBODY), hash: '', aria: '', ledger: '', bg: 'var(--surface)', bs: 'solid', bc: 'var(--muted)' });
+    const nextEv = (type, title, when, what) => ({ type, tagCls: 'type ghost', title, when, what, tx: false, by: Object.assign({}, NOBODY), hash: '', aria: '', ledger: '', bg: 'transparent', bs: 'dashed', bc: 'var(--border-strong)' });
+
+    const amount = fmt(D.amount) + ' ' + cur;
+    const faT = dUTC(D.fa), caT = dUTC(D.ca);
+    const who = D.cond ? 'anyone with the fulfillment' : 'anyone';
+    const removed = S === 'finished' || S === 'cancelled';
+    const endAt = S === 'finished' ? finAt : S === 'cancelled' ? canAt : 0;
+
+    const NAMES = {
+      pending: ['Pending', 'Locked: FinishAfter has not passed yet.'],
+      canFinish: ['Can be finished', 'FinishAfter has passed: ' + who + ' can finish it.'],
+      canCancel: ['Can be cancelled', 'CancelAfter has passed: anyone can cancel it.'],
+      finished: ['Finished', 'Paid to the destination, then removed.'],
+      cancelled: ['Cancelled', 'Returned to the owner, then removed.']
+    };
+    const states = ORDER.map((k) => ({ name: NAMES[k][0], meaning: NAMES[k][1], on: k === S, cls: k === S ? 'on' : '', pick: () => this.setState({ pick: k, pickFrom: propS, hv: '' }) }));
+
+    const ST = {
+      pending: ['Can be finished by ' + who + ' after ' + faT, 'That is ' + rel(D.fa) + '. Until then the ' + amount + ' stay locked. From ' + caT + ' it can no longer be finished, only cancelled.', 'info'],
+      canFinish: ['Can be finished by ' + who + ' until ' + caT, 'FinishAfter passed ' + rel(D.fa) + '. An EscrowFinish sends the ' + amount + ' to the destination. CancelAfter is ' + rel(D.ca) + '; from then it can only be cancelled.', 'ok'],
+      canCancel: ['Can be cancelled: CancelAfter has passed', 'CancelAfter passed ' + rel(D.ca) + ', so it can no longer be finished. Anyone can send an EscrowCancel to return the ' + amount + ' to the owner.', 'amb'],
+      finished: ['Finished: ' + amount + ' delivered to the destination', 'Finished on ' + dUTC(finAt) + ', ' + rel(finAt) + (D.cond ? ', by an EscrowFinish that carried the fulfillment.' : ', by an EscrowFinish.'), 'ok'],
+      cancelled: ['Cancelled: ' + amount + ' returned to the owner', 'Cancelled on ' + dUTC(canAt) + ', ' + rel(canAt) + ', after CancelAfter had passed. It was never finished.', 'neu']
+    }[S];
+
+    // Time windows: created → FinishAfter → CancelAfter → open end.
+    const tEnd = D.ca + (D.ca - D.created) * 0.22;
+    const pos = (ms) => Math.max(0, Math.min(100, (ms - D.created) / (tEnd - D.created) * 100));
+    const W = [['locked', 'Pending', D.created, D.fa, 'var(--s-other)'], ['finish', 'Can be finished', D.fa, D.ca, 'var(--ok)'], ['cancel', 'Can be cancelled', D.ca, 0, 'var(--s4)']];
+    const win = W.map((w) => {
+      const a = pos(w[2]), b = w[3] ? pos(w[3]) : 100;
+      const range = w[3] ? dUTC(w[2]) + ' to ' + dUTC(w[3]) : 'From ' + dUTC(w[2]) + ', with no end';
+      return {
+        id: w[0], name: w[1], color: w[4], left: a.toFixed(2) + '%', width: 'calc(' + (b - a).toFixed(2) + '% - ' + (w[3] ? 2 : 0) + 'px)',
+        cls: (st.hv && st.hv !== w[0]) || (endAt && w[2] > endAt) ? 'dim' : '',
+        aria: w[1] + ': ' + range, mid: (a + b) / 2, range, dur: w[3] ? span(w[3] - w[2]) : 'Until someone cancels it',
+        enter: () => this.setState({ hv: w[0] })
+      };
+    });
+    const hw = win.find((w) => w.id === st.hv);
+    const wtip = hw ? { show: true, left: hw.mid.toFixed(2) + '%', tf: tipTf(hw.mid), name: hw.name, color: hw.color, range: hw.range, dur: hw.dur } : { show: false, left: '0%', tf: '', name: '', color: '', range: '', dur: '' };
+    const bounds = [['Created', D.created], ['FinishAfter', D.fa], ['CancelAfter', D.ca]].map((b) => ({ name: b[0], date: dShort(b[1]), pos: pos(b[1]).toFixed(2) + '%', tf: lblTf(pos(b[1])) }));
+    const mAt = endAt || now;
+    const mLabel = (S === 'finished' ? 'Finished · ' : S === 'cancelled' ? 'Cancelled · ' : 'Now · ') + dShort(mAt);
+    const mk = { left: pos(mAt).toFixed(2) + '%', tf: lblTf(pos(mAt)), label: mLabel };
+
+    const rm = S === 'finished'
+      ? { ledger: ledgerAt(finAt), type: 'EscrowFinish', hash: cut(hFinish), when: 'Finished on ' + dUTC(finAt, true) + ', ' + rel(finAt) + '; the ' + amount + ' went to the destination.' }
+      : { ledger: ledgerAt(canAt), type: 'EscrowCancel', hash: cut(hCancel), when: 'Cancelled on ' + dUTC(canAt, true) + ', ' + rel(canAt) + '; the ' + amount + ' went back to the owner.' };
+
+    const events = [txEv('EscrowCreate', 'Created', D.created, hCreate, own, 'Locked ' + amount + (D.cond ? ' behind a condition' : '') + ' for the destination.', 'var(--accent)')];
+    const finishWho = D.cond ? 'Anyone with the fulfillment' : 'Anyone';
+    if (S === 'pending') {
+      events.push(nextEv('EscrowFinish', 'Not finished yet', 'From ' + faT + ' · ' + rel(D.fa), finishWho + ' can send it then.'));
+      events.push(nextEv('EscrowCancel', 'Not cancelled', 'From ' + caT + ' · ' + rel(D.ca), 'Anyone can send it then, if it has not been finished.'));
+    }
+    if (S === 'canFinish') {
+      events.push(markEv('FinishAfter', 'Passed', D.fa, 'From here it can be finished.'));
+      events.push(nextEv('EscrowFinish', 'Not finished yet', 'Until ' + caT + ' · ' + rel(D.ca), finishWho + ' can send it now.'));
+      events.push(nextEv('EscrowCancel', 'Not cancelled', 'From ' + caT + ' · ' + rel(D.ca), 'Anyone can send it then, if it has not been finished.'));
+    }
+    if (S === 'canCancel' || S === 'cancelled') {
+      events.push(markEv('FinishAfter', 'Passed', D.fa, 'From here it could be finished, but no one did.'));
+      events.push(markEv('CancelAfter', 'Passed', D.ca, 'From here it can no longer be finished.'));
+    }
+    if (S === 'canCancel') events.push(nextEv('EscrowCancel', 'Not cancelled yet', 'Since ' + caT + ' · ' + rel(D.ca), 'Anyone can send it now; the ' + amount + ' go back to the owner.'));
+    if (S === 'finished') {
+      events.push(markEv('FinishAfter', 'Passed', D.fa, 'From here it could be finished.'));
+      events.push(txEv('EscrowFinish', 'Finished', finAt, hFinish, dst, 'Sent ' + amount + ' to the destination' + (D.cond ? ' with the fulfillment' : '') + ', and removed the escrow.', 'var(--ok)'));
+    }
+    if (S === 'cancelled') events.push(txEv('EscrowCancel', 'Cancelled', canAt, hCancel, own, 'Returned ' + amount + ' to the owner and removed the escrow.', 'var(--muted)'));
+
+    const condHint = 'A PREIMAGE-SHA-256 crypto-condition: only the fulfillment, the secret whose SHA-256 hash it holds, can finish the escrow. ' +
+      (S === 'finished' ? 'The EscrowFinish revealed it, below.' : S === 'cancelled' ? 'It was cancelled, so the fulfillment was never revealed.' : 'The fulfillment shows here once the escrow is finished.');
+
+    return {
+      themeClass: dark ? 'dark' : '',
+      accentNow: x ? accent : xahauAccent,
+      xrplDot: accent, xahauDot: xahauAccent,
+      isXrpl: x, isXahau: !x,
+      xrplCls: x ? 'on' : '', xahauCls: x ? '' : 'on',
+      pickXrpl: () => this.setState({ net: 'xrpl', hv: '' }),
+      pickXahau: () => this.setState({ net: 'xahau', hv: '' }),
+      netName: x ? 'XRPL' : 'Xahau', cur,
+      states, removed, rm,
+      own, dst, id, amount,
+      pill: { cls: ST[2], text: NAMES[S][0] },
+      createdAt: dUTC(D.created, true), createdRel: rel(D.created), createdDay: dDay(D.created),
+      status: ST[0], statusSub: ST[1],
+      win, wtip, bounds, mk, leave: () => this.setState({ hv: '' }),
+      markSr: mLabel + '. FinishAfter ' + faT + ', CancelAfter ' + caT + '.',
+      fa: faT, faRel: rel(D.fa), ca: caT, caRel: rel(D.ca),
+      hasCond: D.cond, noCond: !D.cond, cond, condHint, showFul: S === 'finished' && D.cond, ful,
+      dtag: D.dtag || 'None', dtagCls: D.dtag ? 'mono num' : 'none',
+      stag: D.stag || 'None', stagCls: D.stag ? 'mono num' : 'none',
+      reserveNote: removed ? 'Released to the owner when the escrow was removed.' : 'Held from the owner’s balance while the escrow exists; released when it is finished or cancelled.',
+      readNote: removed ? 'From history: the escrow’s last state, before ledger #' + rm.ledger + ' removed it.' : 'Read live at ledger #' + ledgerAt(now) + ', ' + dUTC(now) + '.',
+      events
+    };
+  }
+}
+</script>
+</body>
+</html>

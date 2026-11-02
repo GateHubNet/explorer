@@ -1,0 +1,12 @@
+{
+  "count": 2,
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 107874617
+  },
+  "events": [
+    {"account":"rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV","amount":"0","currency":"XRP","destination":"rfin4yze7ZEygheDjknACfNFHYCLG43W7R","event":"offer_create","event_index":1,"executed_time":"2026-10-25T04:52:11Z","expiration":"2026-11-08T04:52:07Z","is_sell_offer":true,"issuer":"rGxWAWXg8okZh29ojBRvEMpN5peQRV16Xu","kind":"nftoken","ledger_index":107886233,"nft_id":"00181F40AF09C1D4B4D1E8031467F3508DFFADABEA73255F1E56588D0655EBF3","offer_id":"1FDFCE6B2203B5E1B239DA3DCC5DFE32F6276BA051E72BB7EF66C2C8267D2665","serial":106294259,"taxon":3,"tx_hash":"A07F52AF9B187622E92322EFC3A282A964EAD04A8B15EA790D8D9FAABF169197","tx_index":91,"tx_type":"NFTokenMint"},
+    {"account":"rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV","event":"mint","event_index":0,"executed_time":"2026-10-25T04:52:11Z","issuer":"rGxWAWXg8okZh29ojBRvEMpN5peQRV16Xu","kind":"nftoken","ledger_index":107886233,"nft_id":"00181F40AF09C1D4B4D1E8031467F3508DFFADABEA73255F1E56588D0655EBF3","serial":106294259,"taxon":3,"to":"rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV","tx_hash":"A07F52AF9B187622E92322EFC3A282A964EAD04A8B15EA790D8D9FAABF169197","tx_index":91,"tx_type":"NFTokenMint","uri":"697066733A2F2F6261667962656964676C3335666C3662723635336D6C77707A326C6E6F64336E68727976366434796567717435677A6A68703369707262347665792F34342E6A736F6E"}
+  ],
+  "result": "success"
+}

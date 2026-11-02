@@ -145,6 +145,22 @@ describe("ShareBar as the Worker prints it and the browser takes it over", () =>
     for (const seg of container.querySelectorAll(".share__seg")) expect(seg.closest('[aria-hidden="true"]')).not.toBeNull();
     expect(container.querySelectorAll('[role="img"]')).toHaveLength(1);
   });
+
+  it("ends the summary with the page's own sentence where it has no table, and keeps the one for a card with a table where it gives none", async () => {
+    const { container } = await serverThenHydrated(<ShareBar title={TITLE} data={shares()} tableHint="Every value is listed under the bar." />);
+    expect(container.querySelector('[role="img"]')!.getAttribute("aria-label")).toBe(
+      "Validator software versions. UNL: largest 3.4.1, 34%. All: largest 3.4.1, 34%. Every value is listed under the bar.",
+    );
+    cleanup();
+    const plain = render(<ShareBar title={TITLE} data={shares()} />);
+    expect(plain.container.querySelector('[role="img"]')!.getAttribute("aria-label")).toMatch(/ Choose Table for every value\.$/);
+  });
+
+  it("has no sentence of the table in the summary of a bar with nothing to draw, whatever the hint", () => {
+    const none: ShareData = { rows: [], token: "n" };
+    const { container } = render(<ShareBar title={TITLE} data={none} tableHint="Every value is listed under the bar." />);
+    expect(container.querySelector('[role="img"]')!.getAttribute("aria-label")).toBe("Validator software versions: No data.");
+  });
 });
 
 describe("ShareBar's unit, the word after a row's total (the validators page: \"35 validators\")", () => {
@@ -483,6 +499,12 @@ describe("ShareBar, memoised on the token (spec 2.9)", () => {
     expect(container.querySelector('[role="img"]')!.getAttribute("aria-label")).toMatch(/^Amendment votes\./);
   });
 
+  it("is part of what the bar is memoised on: another closing sentence draws again", () => {
+    const { container, rerender } = render(<ShareBar title={TITLE} data={shares()} />);
+    rerender(<ShareBar title={TITLE} data={shares()} tableHint="Every value is listed under the bar." />);
+    expect(container.querySelector('[role="img"]')!.getAttribute("aria-label")).toMatch(/ Every value is listed under the bar\.$/);
+  });
+
   it("keeps the cursor in range when new data has fewer segments than the one it was on", async () => {
     const { container, rerender } = render(<ShareBar title={TITLE} data={shares()} />);
     fireEvent.keyDown(slider(container), { key: "End" });
@@ -490,5 +512,121 @@ describe("ShareBar, memoised on the token (spec 2.9)", () => {
     rerender(<ShareBar title={TITLE} data={{ ...other, token: "s3" }} />);
     expect(slider(container).getAttribute("aria-valuenow")).toBe("0");
     expect(slider(container).getAttribute("aria-valuetext")).toBe("UNL: 3.4.1, 20 of 20 (100%)");
+  });
+});
+
+// The compact form (the supply page's bar, E12): one row of 40 px with no name column and no % axis, a name and a caption under a segment of 18% or more, the amount with its unit and a
+// share text of the page's own in the tooltip and the slider, and a summary that says every segment, so that it offers no table.
+
+const SUPPLY: ShareData = {
+  rows: [
+    {
+      id: "supply",
+      label: "Supply",
+      total: "100000000000",
+      segments: [
+        { id: "burned", label: "Burned", slot: 2, value: "14687625.283682", caption: "14.69M XRP · 0.0%", share: "0.015% of the 100 billion XRP" },
+        { id: "escrowed", label: "Escrowed", slot: 3, value: "35212847105.402318", caption: "35.21B XRP · 35.2%", share: "35.21% of the 100 billion XRP" },
+        { id: "circulating", label: "Circulating supply", slot: 1, value: "64772465269.314", caption: "64.77B XRP · 64.8%", share: "64.77% of the 100 billion XRP" },
+      ],
+    },
+  ],
+  unit: "XRP",
+  token: "c1",
+};
+const SUPPLY_TITLE = "Where the 100 billion XRP are";
+const root = (container: HTMLElement) => container.querySelector<HTMLElement>(".share")!;
+const bare = (data: ShareData): ShareData => ({
+  ...data,
+  unit: undefined,
+  rows: data.rows.map((row) => ({ ...row, segments: row.segments.map(({ caption: _caption, share: _share, ...segment }) => segment) })),
+});
+
+describe("ShareBar compact", () => {
+  it("draws one row with no name column and no axis, in a class of its own", async () => {
+    const { container, errors } = await serverThenHydrated(<ShareBar compact title={SUPPLY_TITLE} data={SUPPLY} />);
+    expect(root(container).classList.contains("share--compact")).toBe(true);
+    expect(rowEls(container)).toHaveLength(1);
+    expect(container.querySelector(".share__name")).toBeNull();
+    expect(container.querySelector(".share__row--axis")).toBeNull();
+    expect(container.querySelector(".share__axis")).toBeNull();
+    expect(segs(rowEls(container)[0]!).map((seg) => seg.style.width)).toEqual(["0.015%", "35.213%", "64.772%"]);
+    expect(segs(rowEls(container)[0]!).map((seg) => seg.getAttribute("data-slot"))).toEqual(["2", "3", "1"]);
+    expect(errors).toEqual([]);
+  });
+
+  it("is the form it was: without compact there is a name column and an axis, and a caption or a share is not read", async () => {
+    const { container } = await serverThenHydrated(<ShareBar title={SUPPLY_TITLE} data={SUPPLY} />);
+    expect(root(container).classList.contains("share--compact")).toBe(false);
+    expect(container.querySelector(".share__name")).not.toBeNull();
+    expect(container.querySelector(".share__axis")).not.toBeNull();
+    expect(texts(labelsOf(rowEls(container)[0]!))).toEqual(["Escrowed 35%", "Circulating supply 65%"]);
+    expect(slider(container).getAttribute("aria-valuetext")).toBe("Supply: Burned, 14,687,625.283682 of 100,000,000,000 (<1%)");
+  });
+
+  it("puts a labelled segment's name and its caption on two lines under it, and none under a segment of less than 18%", async () => {
+    const { container, errors } = await serverThenHydrated(<ShareBar compact title={SUPPLY_TITLE} data={SUPPLY} />);
+    const labels = labelsOf(rowEls(container)[0]!);
+    expect(labels.map((label) => label.querySelector("b")!.textContent)).toEqual(["Escrowed", "Circulating supply"]);
+    expect(labels.map((label) => label.querySelector(".share__caption")!.textContent)).toEqual(["35.21B XRP · 35.2%", "64.77B XRP · 64.8%"]);
+    expect(labels.map((label) => [label.style.left, label.style.width])).toEqual([
+      ["0.015%", "35.213%"],
+      ["35.228%", "64.772%"],
+    ]);
+    expect(labels[0]!.closest('[aria-hidden="true"]')).not.toBeNull();
+    expect(errors).toEqual([]);
+  });
+
+  it("says the share under a name when a segment has no caption", () => {
+    const { container } = render(<ShareBar compact title={SUPPLY_TITLE} data={bare(SUPPLY)} />);
+    expect(labelsOf(rowEls(container)[0]!).map((label) => label.querySelector(".share__caption")!.textContent)).toEqual(["35%", "65%"]);
+  });
+
+  it("says the amount with its unit and then the share text in the slider and the tooltip, with no row label", async () => {
+    const { container, errors } = await serverThenHydrated(<ShareBar compact title={SUPPLY_TITLE} data={SUPPLY} />);
+    const control = slider(container);
+    expect(control.getAttribute("aria-valuetext")).toBe("Burned, 14,687,625.283682 XRP (0.015% of the 100 billion XRP)");
+    fireEvent.keyDown(control, { key: "ArrowRight" });
+    expect(control.getAttribute("aria-valuetext")).toBe("Escrowed, 35,212,847,105.402318 XRP (35.21% of the 100 billion XRP)");
+    expect(lines(tip(container)!)).toEqual(["Escrowed", "35,212,847,105.402318 XRP 35.21% of the 100 billion XRP"]);
+    expect(tip(container)!.querySelector(".plot__tip-key")!.getAttribute("data-slot")).toBe("3");
+    expect(rowEls(container)[0]!.contains(tip(container))).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
+  it("says a plain amount and the whole percent where the data has no unit and no share text", () => {
+    const { container } = render(<ShareBar compact title={SUPPLY_TITLE} data={bare(SUPPLY)} />);
+    fireEvent.keyDown(slider(container), { key: "End" });
+    expect(slider(container).getAttribute("aria-valuetext")).toBe("Circulating supply, 64,772,465,269.314 (65%)");
+    expect(lines(tip(container)!)).toEqual(["Circulating supply", "64,772,465,269.314 65%"]);
+  });
+
+  it("names every drawn segment with its amount, unit and share in the summary, and offers no table", () => {
+    const { container } = render(<ShareBar compact title={SUPPLY_TITLE} data={SUPPLY} tableHint="Never said." />);
+    expect(container.querySelector('[role="img"]')!.getAttribute("aria-label")).toBe(
+      "Where the 100 billion XRP are: Burned 14,687,625.283682 XRP (0.015% of the 100 billion XRP); Escrowed 35,212,847,105.402318 XRP (35.21% of the 100 billion XRP); Circulating supply 64,772,465,269.314 XRP (64.77% of the 100 billion XRP)",
+    );
+    expect(container.querySelector('[role="img"]')!.getAttribute("aria-label")).not.toMatch(/Table/);
+  });
+
+  it("leaves out of the summary a segment that is not drawn, and says 'No data' when none is", () => {
+    const none: ShareData = { ...SUPPLY, rows: [{ ...SUPPLY.rows[0]!, segments: SUPPLY.rows[0]!.segments.map((segment) => ({ ...segment, value: "0" })) }] };
+    const { container } = render(<ShareBar compact title={SUPPLY_TITLE} data={none} />);
+    expect(container.querySelector('[role="img"]')!.getAttribute("aria-label")).toBe("Where the 100 billion XRP are: No data.");
+    cleanup();
+    const one: ShareData = { ...SUPPLY, rows: [{ ...SUPPLY.rows[0]!, segments: SUPPLY.rows[0]!.segments.map((segment, i) => (i === 0 ? { ...segment, value: "0" } : segment)) }] };
+    const shown = render(<ShareBar compact title={SUPPLY_TITLE} data={one} />);
+    expect(shown.container.querySelector('[role="img"]')!.getAttribute("aria-label")).toMatch(/^Where the 100 billion XRP are: Escrowed [^;]+; Circulating supply [^;]+$/);
+  });
+
+  it("is part of what the bar is memoised on: compact or not draws again", () => {
+    const { container, rerender } = render(<ShareBar title={SUPPLY_TITLE} data={SUPPLY} />);
+    expect(root(container).classList.contains("share--compact")).toBe(false);
+    rerender(<ShareBar compact title={SUPPLY_TITLE} data={SUPPLY} />);
+    expect(root(container).classList.contains("share--compact")).toBe(true);
+  });
+
+  it("is drawn by shareLegend as the three swatches, in the order of the segments", () => {
+    expect(shareLegend(SUPPLY).map((item) => [item.label, item.slot])).toEqual([["Burned", 2], ["Escrowed", 3], ["Circulating supply", 1]]);
   });
 });

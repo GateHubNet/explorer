@@ -1,0 +1,12 @@
+{
+  "count": 2,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 107874617
+  },
+  "offers": [
+    {"amount":"82.91","created_ledger":107878781,"created_time":"2026-10-24T20:42:50Z","created_tx_hash":"01FAB409E96DA14DAE45FDF141AAB6C1AB34A484A5E44F9AF70B72B9D3C7A40A","currency":"XRP","destination":"rpx9JThQ2y37FaGeeJP7PXDUVEXY3PHZSC","expiration":"2026-10-24T21:42:50Z","is_sell_offer":false,"offer_id":"3FE3402696254328E9E62893C60159B4A9EC4558374370D34DEC68D7AC8F05BE","owner":"rMAfQ4RNeD6YZZz42hBqskmoAsdxpPUu7W"},
+    {"amount":"119.52","created_ledger":107878781,"created_time":"2026-10-24T20:42:50Z","created_tx_hash":"7CD8D07F5B9CE37BAD314E729D3C36A612656E25BFF50CFEB4FF15EDF8B167E5","currency":"XRP","destination":"rpx9JThQ2y37FaGeeJP7PXDUVEXY3PHZSC","expiration":"2027-11-29T04:52:11Z","is_sell_offer":false,"offer_id":"01A5F9A093244694780B4EDB21426AEAF2B21C08CC23710C3CB3CC9E207BEEFA","owner":"rL4291gLvDTTKocuAp76UaxjKpkmE2LySr"}
+  ],
+  "result": "success"
+}

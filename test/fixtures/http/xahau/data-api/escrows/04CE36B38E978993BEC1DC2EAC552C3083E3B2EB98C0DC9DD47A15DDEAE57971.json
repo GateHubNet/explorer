@@ -1,0 +1,32 @@
+{
+  "close_time": "2026-10-09T12:49:32Z",
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 8852809
+  },
+  "escrow": {
+    "account": "rNyv2vcKQiR3UqsFBrjWR2MpjACJDFhcJT",
+    "amount": {
+      "currency": "CLV",
+      "issuer": "rK8rYUs6gFH4QJ9JS814EF9112gKuYZZT",
+      "value": "80875"
+    },
+    "cancel_after": "2035-02-28T15:00:00Z",
+    "created": {
+      "ledger_index": 25229443,
+      "time": "2026-08-21T16:32:42Z",
+      "tx_hash": "D09B8B9BF75C0A991CBEF6B2C47480DCA7460F43E50AD9C5AC522D56513F3086"
+    },
+    "destination": "rNyv2vcKQiR3UqsFBrjWR2MpjACJDFhcJT",
+    "escrow_id": "04CE36B38E978993BEC1DC2EAC552C3083E3B2EB98C0DC9DD47A15DDEAE57971",
+    "finish_after": "2032-01-01T17:00:00Z",
+    "sequence": 758570558,
+    "status": "pending",
+    "transfer_rate": 1000000000
+  },
+  "history": [
+    {"account":"rNyv2vcKQiR3UqsFBrjWR2MpjACJDFhcJT","amount":{"currency":"CLV","issuer":"rK8rYUs6gFH4QJ9JS814EF9112gKuYZZT","value":"80875"},"event":"create","ledger_index":25229443,"result":"tesSUCCESS","time":"2026-08-21T16:32:42Z","tx_hash":"D09B8B9BF75C0A991CBEF6B2C47480DCA7460F43E50AD9C5AC522D56513F3086","tx_type":"EscrowCreate"}
+  ],
+  "ledger_index": 26399329,
+  "result": "success"
+}

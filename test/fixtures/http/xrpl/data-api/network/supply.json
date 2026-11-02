@@ -1,0 +1,45 @@
+{
+  "result": "success",
+  "ledger_index": 107720688,
+  "close_time": "2026-10-17T16:11:02Z",
+  "computed_at": "2026-10-17T16:12:49Z",
+  "currency": "XRP",
+  "total": "99985312374.716318",
+  "burned": {
+    "amount": "14687625.283682"
+  },
+  "escrowed": {
+    "amount": "35212847105.402318",
+    "escrows": 12879,
+    "coverage": {
+      "from_ledger_index": 28685313,
+      "complete": true
+    }
+  },
+  "circulating": {
+    "amount": "64772465269.314",
+    "coverage": {
+      "from_ledger_index": 28685313,
+      "complete": true
+    }
+  },
+  "amm": {
+    "amount": "46218377.402915",
+    "pools": 14594,
+    "coverage": {
+      "from_ledger_index": 28685313,
+      "complete": true
+    }
+  },
+  "reserves": {
+    "amount": "9810004",
+    "accounts": 6410280,
+    "owner_count": 16998620,
+    "base": "1",
+    "increment": "0.2",
+    "coverage": {
+      "from_ledger_index": 28685313,
+      "complete": false
+    }
+  }
+}

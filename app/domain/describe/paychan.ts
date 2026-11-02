@@ -2,14 +2,18 @@
 
 import BigNumber from "bignumber.js";
 import { dropsToNative, shortHash } from "../format";
+import { ledgerId } from "../object-link";
 import { nodesOf } from "../parse/objects";
 import {
   account,
   amountOf,
   amountSegment,
   closingDetails,
+  createdDetail,
   detail,
   fieldDetail,
+  objectFieldDetail,
+  objectSegment,
   parseAmount,
   plural,
   rippleTime,
@@ -17,22 +21,25 @@ import {
   wholeNumber,
   type FlagTable,
 } from "./helpers";
-import type { Detail, FlowAmount, HandlerMap, Input, Summary } from "./types";
+import type { Detail, FlowAmount, HandlerMap, Input, Segment, Summary } from "./types";
 
-/** "channel 3F9A21…B7C4", the channel being named by its ID, or just "a channel". */
-function channelOf(tx: Input["tx"]): string {
+/** "channel 3F9A21…B7C4", the channel being named by its ID, which links to its page, or just "a channel". */
+function channelOf(tx: Input["tx"]): Segment | string {
+  const id = ledgerId(tx.Channel);
+  if (id !== undefined) return objectSegment("payment-channel", { id }, `channel ${shortHash(id)}`);
   return typeof tx.Channel === "string" ? `channel ${shortHash(tx.Channel)}` : "a channel";
 }
 
 // --- PaymentChannelCreate ------------------------------------------------------------------------------------------
 
-function describeCreate({ tx, native, verb }: Input): Summary {
+function describeCreate({ tx, meta, native, verb }: Input): Summary {
   const amount = amountSegment(tx.Amount, native);
   const delay = wholeNumber(tx.SettleDelay);
   return {
     title: "Payment channel",
     predicate: seq(`${verb("opened", "open")} a payment channel to `, account(tx.Destination), " with ", amount),
     details: [
+      ...createdDetail(meta, "PayChannel", "Channel"),
       detail("Amount", amount),
       detail("Destination", account(tx.Destination)),
       ...fieldDetail(tx, "DestinationTag", "Destination tag"),
@@ -50,9 +57,9 @@ function describeFund({ tx, native, verb }: Input): Summary {
   const amount = amountSegment(tx.Amount, native);
   return {
     title: "Payment channel funding",
-    predicate: seq(`${verb("added", "add")} `, amount, ` to ${channelOf(tx)}`),
+    predicate: seq(`${verb("added", "add")} `, amount, " to ", channelOf(tx)),
     details: [
-      ...fieldDetail(tx, "Channel", "Channel"),
+      ...objectFieldDetail(tx, "Channel", "Channel", "payment-channel"),
       detail("Amount", amount),
       ...(tx.Expiration !== undefined ? [detail("Expires", rippleTime(tx.Expiration))] : []),
       ...closingDetails(tx, []),
@@ -102,17 +109,18 @@ function describeClaim(input: Input): Summary {
     ? seq(
         `${verb("claimed", "claim")} `,
         amountOf(claimed),
-        ` from ${channel}`,
+        " from ",
+        channel,
         close ? ` and ${verb("closed", "close")} it` : "",
       )
     : close
-      ? seq(`${verb("closed", "close")} ${channel}`)
+      ? seq(`${verb("closed", "close")} `, channel)
       : renew
-        ? seq(`${verb("renewed", "renew")} ${channel}`)
-        : seq(`${verb("updated", "update")} ${channel}`);
+        ? seq(`${verb("renewed", "renew")} `, channel)
+        : seq(`${verb("updated", "update")} `, channel);
 
   const details: Detail[] = [
-    ...fieldDetail(tx, "Channel", "Channel"),
+    ...objectFieldDetail(tx, "Channel", "Channel", "payment-channel"),
     ...(tx.Balance !== undefined ? [detail("Total claimed", amountSegment(tx.Balance, native))] : []),
     ...(tx.Amount !== undefined ? [detail("Authorised amount", amountSegment(tx.Amount, native))] : []),
     ...fieldDetail(tx, "PublicKey", "Public key"),

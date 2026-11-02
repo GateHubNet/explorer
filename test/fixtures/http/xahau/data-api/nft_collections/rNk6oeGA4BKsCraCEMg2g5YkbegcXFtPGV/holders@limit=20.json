@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "holders": [
+    {"held":1,"owner":"r9fT9gsDG4Zyodz9E2U6RG4Z3e4RD7tBa"}
+  ],
+  "result": "success"
+}

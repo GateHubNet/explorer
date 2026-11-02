@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "result": "success",
+  "rows": [
+    {"components":[{"amount":"4519.06","converted_amount":"4519.06","count":1,"issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.0000000"},{"amount":"572.99","converted_amount":"572.99","count":4,"issuer":"rEe4SQBPUguAFyoASCSAH8oyN5JAgQkX5N","rate":"1.0000000"}],"count":5,"end_time":"2026-10-17T17:47:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-10-16T17:47:00Z","total":"5092.05"}
+  ]
+}

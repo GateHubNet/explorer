@@ -7,16 +7,23 @@ import BigNumber from "bignumber.js";
 import { isValidClassicAddress } from "ripple-address-codec";
 
 import { formatAmount, formatUtcDay, utcMoment } from "../domain/format";
-import { formatDateTime } from "../domain/time-words";
+import { LOCAL_PUBLISHER } from "../domain/publishers";
+import { formatDateTime, joinAnd } from "../domain/time-words";
+import { parseTokenPath, tokenLink } from "../domain/token-params";
 import type { MeterData } from "../ui/charts/types";
+import type { Features } from "../ui/features";
+import type { NetworkInfo } from "../ui/networks";
 import type { Loaded } from "./account-view";
 import type { AmendmentRow, DomainVerification } from "./api-types";
 import type { Network } from "./networks";
+import { tomlFileOf, UNVERIFIED, unverifiedSentence } from "./toml-words";
 
-// `joinAnd` and `statusWord` are words the status marks (browser files) need too, so they live in the domain files a browser file may import (`joinAnd` in time-words.ts, apart from format.ts, which
-// the shell chunk holds; `statusWord` in amendments-params.ts); they are the interface of this file as well.
+// `joinAnd`, `statusWord` and the words for the lists of a UNL (`LOCAL_PUBLISHER`, `publisherLabel`, `listedByText`, `onListsText`, `unlTagWords`) are words browser files need too (the status marks; the tags of a validator's page; the amendment page), so they live
+// in the domain files a browser file may import (`joinAnd` in join-and.ts, which time-words.ts re-exports, apart from format.ts, which the shell chunk holds; `statusWord` in amendments-params.ts; the publishers' words in publishers.ts);
+// they are the interface of this file as well. `tomlFileOf` is toml-words.ts's now (the account page's header says the same sentences), and is re-exported here.
 export { statusWord } from "../domain/amendments-params";
-export { joinAnd } from "../domain/time-words";
+export { listedByText, LOCAL_PUBLISHER, onListsText, publisherLabel, unlTagWords } from "../domain/publishers";
+export { joinAnd, tomlFileOf };
 
 /** What a figure that is not there reads as. */
 export const DASH = "—";
@@ -33,6 +40,22 @@ export type TextPart =
   | string
   | { text: string; href: string; external?: "plain" | "nofollow"; mono?: boolean }
   | { countdown: { at: number; fallback: string; past: string; approx?: boolean; lead?: string } };
+
+// ---- The lists of the default UNL (sandbox 7.6) --------------------------------------------------------------------------------------------------
+
+/**
+ * The intro's first sentence: whom the default UNL is the list of, and where it comes from. On a mainnet the software trusts the list out of the box; on a testnet the nodes of the
+ * network trust it. `publisherIds` are S's: the publishers are named (`, published by A and B`), and the fixed list `local` is not a publisher but the nodes' own configuration
+ * (`, fixed in their configuration`, or `, published by A and fixed in their configuration` beside others). No ids (S did not load, or lists none): no source.
+ */
+export function unlIntro(network: Pick<NetworkInfo, "kind" | "name" | "software">, publisherIds: readonly string[]): string {
+  const published = publisherIds.filter((id) => id !== LOCAL_PUBLISHER);
+  const fixed = published.length < publisherIds.length;
+  const publishedBy = published.length > 0 ? `, published by ${joinAnd(published)}` : "";
+  const source = !fixed ? publishedBy : published.length > 0 ? `${publishedBy} and fixed in their configuration` : ", fixed in their configuration";
+  const trusted = network.kind === "mainnet" ? `${network.software} trusts out of the box` : `the nodes of ${network.name} trust`;
+  return `The default UNL is the list of validators ${trusted}${source}.`;
+}
 
 // ---- Times -------------------------------------------------------------------------------------------------------------------------------------
 
@@ -175,11 +198,6 @@ export function ledgerLink(net: string, index: number): { text: string; href: st
   return { text: `#${count(index)}`, href: `/${net}/ledger/${index}` };
 }
 
-/** The file a validator's domain publishes on the network whose software this is. */
-export function tomlFileOf(software: Network["software"]): "xrp-ledger.toml" | "xahau.toml" {
-  return software === "xahaud" ? "xahau.toml" : "xrp-ledger.toml";
-}
-
 /** What a host name is made of. A domain with anything else (a path, an `@`, a port) would make the address below another host's. */
 const HOST_NAME = /^[A-Za-z0-9.-]+$/;
 
@@ -190,6 +208,64 @@ const HOST_NAME = /^[A-Za-z0-9.-]+$/;
 export function tomlLink(dv: DomainVerification | undefined, domain: string | undefined, software: Network["software"]): string | null {
   if (dv?.status !== "verified" || domain === undefined || !HOST_NAME.test(domain)) return null;
   return dv.toml_url === `https://${domain}/.well-known/${tomlFileOf(software)}` ? dv.toml_url : null;
+}
+
+// ---- What a validator's toml says (E13 spec 5.2) -----------------------------------------------------------------------------------------------
+
+/** The kinds of network a toml's `network` can name; a page's own network is `mainnet` or, in the sandbox, `testnet`. */
+export type TomlNetworkKind = "mainnet" | "testnet" | "devnet";
+
+type TomlNetworkName = { name: string; kind: TomlNetworkKind };
+
+const XRPL_MAINNET: TomlNetworkName = { name: "XRPL mainnet", kind: "mainnet" };
+const XAHAU_MAINNET: TomlNetworkName = { name: "Xahau mainnet", kind: "mainnet" };
+const XAHAU_TESTNET: TomlNetworkName = { name: "Xahau Testnet", kind: "testnet" };
+
+/** The values of D4's `tomlNetworkNames` by the software that reads them (the file's claim, lower case as D8 serves it). A value of one network's is no name on the other's. */
+const TOML_NETWORKS: Record<Network["software"], ReadonlyMap<string, TomlNetworkName>> = {
+  rippled: new Map([
+    ["main", XRPL_MAINNET],
+    ["mainnet", XRPL_MAINNET],
+    ["testnet", { name: "XRPL Testnet", kind: "testnet" }],
+    ["devnet", { name: "XRPL Devnet", kind: "devnet" }],
+  ]),
+  xahaud: new Map([
+    ["main", XAHAU_MAINNET],
+    ["mainnet", XAHAU_MAINNET],
+    ["xahau", XAHAU_MAINNET],
+    ["21337", XAHAU_MAINNET],
+    ["testnet", XAHAU_TESTNET],
+    ["21338", XAHAU_TESTNET],
+  ]),
+};
+
+/**
+ * The name of a toml's `network` value, compared in lower case (spec 5.2): rippled `main` and `mainnet` are XRPL mainnet, `testnet` XRPL Testnet, `devnet` XRPL Devnet; xahaud `main`,
+ * `mainnet`, `xahau` and `21337` are Xahau mainnet, `testnet` and `21338` Xahau Testnet. Anything else has no name (`null`) and is shown as written.
+ */
+export function tomlNetworkName(value: string, software: Network["software"]): TomlNetworkName | null {
+  return TOML_NETWORKS[software].get(value.toLowerCase()) ?? null;
+}
+
+/** The host of a toml's `unl` (E13 ruling C9: D8's rule, an https URL with a host); `null` for anything else. The value is text, never a link. */
+export function unlHostOf(unl: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(unl);
+  } catch {
+    return null;
+  }
+  return url.protocol === "https:" && url.host !== "" ? url.host : null;
+}
+
+/**
+ * Where a toml currency's code leads: with an issuer, the page `tokenLink` writes for the token `parseTokenPath` reads (the token page while TOKENS is on). `null` without an issuer, for any
+ * other kind of path (an LP token, the native code, a code it does not read), and while TOKENS is off: the code stays text.
+ */
+export function tomlCurrencyHref(net: string, entry: { code: string; issuer?: string }, network: Pick<NetworkInfo, "native">, features: Features): string | null {
+  if (entry.issuer === undefined) return null;
+  const path = parseTokenPath(network, `${entry.code}.${entry.issuer}`);
+  return path.kind === "token" ? tokenLink(net, path.asset, features) : null;
 }
 
 const XLS_PATH = "/XRPLF/XRPL-Standards/";
@@ -227,39 +303,6 @@ export function accountLinks(net: string, accounts: readonly string[] | undefine
 // ---- The verification note (4.2) ---------------------------------------------------------------------------------------------------------------
 
 export type DomainStatusKind = DomainVerification["status"];
-
-const UNVERIFIED = "The domain could not be verified.";
-
-/** The sentence of an `unverified` domain: its `reason`, which D1 sets for that status only. A reason this file does not know (a newer D1), or one that lacks what its sentence needs, reads `UNVERIFIED`. */
-function unverifiedSentence(dv: DomainVerification, domain: string, file: string): string {
-  switch (dv.reason) {
-    case "not_listed":
-      return `The ${file} at ${domain} does not list this master key.`;
-    case "toml_invalid":
-      return `The ${file} at ${domain} could not be read as TOML.`;
-    case "too_large":
-      return `The ${file} at ${domain} is larger than 256 KiB.`;
-    case "http_status":
-      return dv.status_code === undefined ? UNVERIFIED : `${domain} answered HTTP ${dv.status_code} for its ${file}.`;
-    case "dns_error":
-      return `${domain} could not be reached (the DNS lookup failed). The data API tries again within the hour.`;
-    case "connect_error":
-      return `${domain} could not be reached (the connection failed). The data API tries again within the hour.`;
-    case "tls_error":
-      return `${domain} could not be reached (TLS failed). The data API tries again within the hour.`;
-    case "timeout":
-      return `${domain} could not be reached (it timed out). The data API tries again within the hour.`;
-    case "redirect_rejected":
-    case "blocked_address":
-      return `${domain} sent the request where the data API does not follow.`;
-    case "domain_invalid":
-      return "The manifest's domain is not a valid domain name.";
-    case "manifest_unverified":
-      return "The manifest that names this domain could not be verified.";
-    default:
-      return UNVERIFIED;
-  }
-}
 
 /**
  * The note under a validator's name that says what its domain's check found (4.2), as parts: the file name of a verified domain is a link (`external: "nofollow"`) when

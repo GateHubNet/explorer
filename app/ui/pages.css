@@ -406,6 +406,33 @@ a.example:hover {
   letter-spacing: -0.005em;
 }
 
+/* A line under the sentence (a DelegateSet's: the new list replaces the old one), in the board's small muted words. */
+.summary__note {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* The "Sent by" row of a transaction a delegate sent: the delegate on a line of its own, and under it what that means, with the link to the delegation, in the
+   board's small muted words. */
+.sentby {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.sentby__why {
+  color: var(--muted);
+  font-size: 12.5px;
+  text-wrap: pretty;
+}
+
+/* The link in its words is told from them by more than its colour (WCAG 1.4.1, axe's link-in-text-block): in dark it is 1.01:1 against them. */
+.sentby__why a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* Where the money went: boxes joined by arrows. The way through (a pool, an offer) is set apart by a tint that is not plain
    --sunken: the account link in it is the accent, kept clear of AA by the same blend as a hovered row (transaction-css.test.ts). */
 .flow {
@@ -475,22 +502,23 @@ a.example:hover {
   color: var(--faint);
 }
 
-/* An account in the balance changes, with what it was in the transaction. */
-.acct {
+/* An account in the balance changes, with what it was in the transaction. Not `.acct`: that is the named AccountLink's (components.css), which this sheet, imported after it, would
+   override at equal specificity. */
+.change-acct {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
 
-.acct > a {
+.change-acct > a {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.acct .type {
+.change-acct .type {
   flex: none;
   font-size: 11px;
 }
@@ -564,6 +592,11 @@ a.example:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The link of an object's type keeps its width: the account's link beside it is the one that shrinks. */
+.objects__type {
+  flex: none;
 }
 
 .objects__more summary {
@@ -714,6 +747,13 @@ a.example:hover {
 
 .account-id__meta .amt.plain {
   font-weight: 400;
+}
+
+/* The date's link sits in a sentence of muted text, which an account's domain lengthens: it is told from the words around it by more than its colour
+   (WCAG 1.4.1, axe link-in-text-block). */
+.account-id__meta > a.num {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .identicon {
@@ -874,6 +914,15 @@ a.example:hover {
   font-size: 12px;
 }
 
+/* A token whose code is a link has two links, one under the other, in its row: each is a target of at least 24 px (WCAG 2.5.8; axe's target-size), for two links under 24 px high, stacked,
+   leave less than 24 px between their centres. */
+.token--linked .token__name a {
+  display: inline-flex;
+  align-items: center;
+  min-width: 24px;
+  min-height: 24px;
+}
+
 /* A balance is read as a whole: it keeps its line, and the name beside it gives way. */
 .token > .amt {
   flex: none;
@@ -1022,9 +1071,99 @@ a.example:hover {
   overflow-wrap: anywhere;
 }
 
-.object__tx {
+/* The end of a row, as the board has it: where the object leads (its page, the account's NFTs, the delegation) as a button, over the transaction that last changed it. The link under the
+   button is 24 px high, so the two targets do not crowd each other (WCAG 2.5.8), and 44 px (spec 8) on touch screens and phones, where it stands alone. */
+.object__end {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
   margin-left: auto;
+}
+
+.object__tx {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   font-size: 13px;
+}
+
+@media (pointer: coarse), (max-width: 720px) {
+  .object__tx {
+    min-height: 44px;
+  }
+}
+
+/* Delegation: the account's Delegation tab (ledger object pages spec 6.1, the board's layout). The intro and its legend side by side while there is room, the legend under the words on a
+   phone; the two lists each under a line, with a head (the title over what it lists), their tables the page's own, and the notes under a table. */
+.delegation__intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 24px;
+  padding: 14px 16px;
+}
+
+.delegation__intro > p {
+  flex: 1 1 560px;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.delegation__legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.delegation__key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.delegation__section {
+  border-top: 1px solid var(--border);
+}
+
+.delegation__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px 10px;
+}
+
+.delegation__sub {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* The chips of a delegation and how many of ten they are: the cell grows to hold them on as many lines as they need, with room above and below. */
+.delegation__perms {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 0;
+}
+
+.delegation__count {
+  margin-left: 4px;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.delegation__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 16px 14px;
+  color: var(--faint);
+  font-size: 12.5px;
 }
 
 /* ---------------------------------------------------------------------------------------------------------------
@@ -1353,12 +1492,13 @@ a.markets__pair:hover .markets__name {
   font-weight: 600;
 }
 
+/* The issuers wrap, at their separators first, and are never cut: a labelled issuer's mark follows it, the counter's last, and an ellipsis would hide it first (display
+   names decision 12; a labelled issuer and its mark are one unit that does not break, `.issued-marked`, components.css). As the AMM list's `.amm__detail`. */
 .markets__issuers {
-  overflow: hidden;
   color: var(--faint);
   font-size: 11.5px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* The change: a triangle (a picture) and the signed text, in --muted: more is neither good nor bad. */
@@ -1927,12 +2067,12 @@ a.markets__pair:hover .markets__name {
   font-weight: 600;
 }
 
+/* Wrapped and never cut, as the markets' issuers are: an ellipsis would hide a labelled issuer's mark first. */
 .analytics__issuers {
-  overflow: hidden;
   color: var(--faint);
   font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* ---------------------------------------------------------------------------------------------------------------
@@ -1980,7 +2120,8 @@ a.markets__pair:hover .markets__name {
     padding-inline: 12px;
   }
 
-  .object__tx {
+  .object__end {
+    align-items: flex-start;
     margin-left: 0;
   }
 
@@ -2250,6 +2391,11 @@ a.markets__pair:hover .markets__name {
   font-size: 11.5px;
 }
 
+/* The country after the short key, which is mono: the place is a name, in the page's own face. */
+.validators__place {
+  font-family: var(--font-sans);
+}
+
 .validators__version {
   display: flex;
   flex-wrap: wrap;
@@ -2346,6 +2492,235 @@ a.markets__pair:hover .markets__name {
 @media (max-width: 640px) {
   .validators__title {
     font-size: 24px;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   The countries card (ValidatorsMapCard.tsx; E13): the title, a dot-grid world map with a circle for each country that has a validator, and the countries table beside it, with
+   the legend, the chip of the validators whose location is unknown and the attribution under them. The card is a container: its width, not the screen's, says when the circles
+   shrink and the tooltip goes (a phone's map is the table's companion). Every circle is a link and so is every name in the table; the tooltip is a hint for the pointer and focus, with
+   the same words as the circle's `aria-label`. */
+
+.vmapcard {
+  container-type: inline-size;
+}
+
+.vmapcard__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* The chosen country's name is the visitor's own choice of a table row, and a long one (`South Georgia & South Sandwich Islands`) breaks in its place. */
+.vmapcard__chosen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 12px;
+  min-width: 0;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.vmapcard__chosen strong {
+  color: var(--fg);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.vmapcard__chosen a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.vmapcard__failed {
+  padding: 16px;
+}
+
+/* The map wraps over the table when the card is narrower than both (400 px for the table, 420 for the map and the gap and padding between). */
+.vmapcard__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px;
+}
+
+.vmapcard__map {
+  flex: 2 1 420px;
+  min-width: 0;
+}
+
+.vmapcard__table {
+  flex: 1 1 400px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* The dots: the box is reserved before the file arrives, so nothing moves, and the circles stand on a blank box without it. */
+.vmap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1000 / 378;
+}
+
+.vmap__dots {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  color: var(--border-strong);
+}
+
+/* A circle: a round 1.5 px border in the accent over a quarter of it, as wide as the count says (`--d`), centred on its point. The transparent ring around it is a bigger target (6 px on
+   every side) and takes nothing of the map's looks. */
+.vmap__circle {
+  position: absolute;
+  box-sizing: border-box;
+  width: var(--d);
+  height: var(--d);
+  transform: translate(-50%, -50%);
+  border: 1.5px solid var(--accent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.vmap__circle::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+}
+
+.vmap__circle.is-current {
+  box-shadow: 0 0 0 2.5px var(--fg);
+}
+
+/* The circle of the row the pointer is on, or the one that has the pointer or focus: a ring, and raised over the others. */
+.vmap__circle.is-highlighted {
+  z-index: 2;
+  box-shadow: 0 0 0 2px var(--fg);
+}
+
+.vmap__circle.is-dim {
+  opacity: 0.35;
+}
+
+/* The hint beside a circle: placed by `tipTransform`, never in the server's HTML, and out of the way of the pointer. */
+.vmap__tip {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: max-content;
+  max-width: 220px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.vmap__tip strong {
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.vmap__hint {
+  color: var(--faint);
+}
+
+/* In a card narrower than 560 px the circles are 0.6 of their size, at least 8 px, and the tooltip is not drawn: its words are the circle's `aria-label` and the table's row. */
+@container (width < 560px) {
+  .vmap__circle {
+    width: max(8px, calc(var(--d) * 0.6));
+    height: max(8px, calc(var(--d) * 0.6));
+  }
+
+  .vmap__tip {
+    display: none;
+  }
+}
+
+/* The table: a name is a link of at least 24 px (WCAG 2.5.8) and breaks inside its track; the row of the highlighted circle is `--sunken`, the chosen one's has the accent wash. */
+.vmapcard__country {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  overflow-wrap: anywhere;
+}
+
+.vmapcard__table .table__row.is-current:not(.table__head) {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.vmapcard__table .table__row.is-highlighted:not(.table__head) {
+  background: var(--sunken);
+}
+
+.vmapcard__share {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* The kit's meter fills the box it is in (its own classes are charts.css's). */
+.vmapcard__bar {
+  flex: 1 1 36px;
+  min-width: 36px;
+}
+
+/* The legend, the chip, E6's sentence about the first 1,000 validators, and the attribution. */
+.vmapcard__foot {
+  row-gap: 8px;
+}
+
+.vmapcard__swatch {
+  flex: none;
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--accent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.vmapcard__limited {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.vmapcard__attribution {
+  margin: 0;
+  padding: 0 16px 14px;
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
+.vmapcard__attribution code {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+}
+
+@media (pointer: coarse), (max-width: 720px) {
+  .vmapcard__chosen a {
+    min-height: 44px;
   }
 }
 
@@ -2462,11 +2837,116 @@ a.markets__pair:hover .markets__name {
   font-size: 13px;
 }
 
-/* An account the domain lists: a link of at least 24 px (WCAG 2.5.8). */
-.validator__account {
+/* The accounts the domain lists, each an AccountLink (a name with its mark, or the short address): the wrapper takes no box of its own, so that the links are the flex
+   items of the fact's value, as the bare links were; each is a link of at least 24 px (WCAG 2.5.8). */
+.validator__accounts {
+  display: contents;
+}
+
+.validator__accounts a {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
+}
+
+/* The toml card of a verified domain (E13 spec 5.1): the head is the other cards' (`validator__cardhead`); under it the two checks and the facts, and under a rule the lists. Everything the
+   file says is the domain's own text, up to a 200-character host and a 100-character principal (E13 C8), so every value breaks inside its box. */
+.validator__tomlbody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.validator__verified {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.validator__checks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.validator__checks li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.validator__tick {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+/* The facts: as many columns as fit at 170 px (spec 5.1), one on a phone. */
+.validator__tomlgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr));
+  gap: 16px 24px;
+}
+
+.validator__tomlgrid .validator__value {
+  overflow-wrap: anywhere;
+}
+
+.validator__tomlgrid .validator__sub {
+  overflow-wrap: anywhere;
+}
+
+.validator__tomlnote {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.validator__tomllists {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.validator__tomllist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.validator__tomlitems {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+/* Each account and each currency that leads somewhere is a link of at least 24 px (WCAG 2.5.8); a code breaks anywhere, a 40-digit one included. */
+.validator__tomlitems a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  overflow-wrap: anywhere;
+}
+
+.validator__code {
+  overflow-wrap: anywhere;
+}
+
+.validator__tomlcount {
+  color: var(--muted);
 }
 
 /* Two cards side by side, under each other on a phone. */
@@ -3603,6 +4083,15 @@ a.markets__pair:hover .markets__name {
   min-width: 0;
 }
 
+/* The links of a fact (the code of an issuer's line that leads to its token page, the issuer's account after it, the pool's account, the creator) are targets of at least 24 px (WCAG 2.5.8; axe's
+   target-size): on a phone an issuer's line wraps and its account link sits under the code's. */
+.amm-pool__fact a {
+  display: inline-flex;
+  align-items: center;
+  min-width: 24px;
+  min-height: 24px;
+}
+
 .amm-pool__lp {
   font-size: 12px;
 }
@@ -3796,5 +4285,1543 @@ a.markets__pair:hover .markets__name {
 
   .amm-pool__fields {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   NFTs: /{net}/nfts and /{net}/nfts/sales (the board's layout: one column of rows, the tables scrolling sideways inside their cards on a phone). The classes of the chart
+   kit (charts.css) are never defined here, the source line's included; the glyph is the components' `.nft-glyph`, the mode of a sale their `.tag`. */
+
+.nfts {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.nfts__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nfts__title {
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.nfts__intro {
+  max-width: 760px;
+  color: var(--muted);
+}
+
+/* The period's links, with what the period sets beside them (under them when there is no room). */
+.nfts__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+}
+
+.nfts__hint {
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
+/* The tiles, then the totals' SectionError under them. */
+.nfts__totals {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* The sales volume beside the top collections: the volume takes the room, the list is at least 300 px; they fold into one column on a phone. A card and the coverage note under
+   it are one block, the card taking the height the block has (the pair is as high as the taller of the two). */
+.nfts__pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 18px;
+}
+
+.nfts__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.nfts__wide {
+  flex: 999 1 520px;
+}
+
+.nfts__side {
+  flex: 1 1 340px;
+}
+
+.nfts__grow {
+  flex: 1 1 auto;
+}
+
+.nfts__empty {
+  color: var(--muted);
+}
+
+/* A card that failed to load, and the notes under a table: the card's own padding. */
+.nfts__failed {
+  padding: 16px;
+}
+
+.nfts__foot {
+  align-items: flex-start;
+}
+
+.nfts__notes {
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+
+/* The tables: rows of 58 px, the header row 40 px, 8 px above and below a row's content so that a row a long figure wraps in does not touch its borders. A figure longer than
+   its track wraps inside its cell (the cells inherit it from the scroll region) and never widens the table. */
+.nfts__table {
+  overflow-wrap: anywhere;
+}
+
+.nfts__table .table__row {
+  min-height: 58px;
+  padding-block: 8px;
+}
+
+.nfts__table .table__head {
+  min-height: 40px;
+}
+
+/* A link in a cell is at least 24 px high (WCAG 2.5.8), with its words on one line where they fit. */
+.nfts__table a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+.nfts__time {
+  display: flex;
+  flex-direction: column;
+}
+
+.nfts__age {
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.nfts__nft,
+.nfts__coll {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.nfts__ids,
+.nfts__names {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.nfts__short,
+.nfts__under {
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+
+.nfts__collection {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.nfts__issuer {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.nfts__price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.nfts__converted {
+  font-size: 11.5px;
+}
+
+/* The two accounts and the arrow between them, on one line while they fit. The cell is the containing block of the visually hidden "to" (`.sr` is absolute): without it the
+   word is placed against the page, past the edge of a phone, and widens the page though the table scrolls inside its card. */
+.nfts__who {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  font-size: 12.5px;
+}
+
+/* A sort header is a link in the colour of the header row, the current sort's in the text colour, with its arrow after it. */
+.nfts__table .table__head a.nfts__sort {
+  gap: 4px;
+  min-height: 32px;
+  color: inherit;
+  font-weight: inherit;
+}
+
+.nfts__table .table__head a.nfts__sort.is-current {
+  color: var(--fg);
+}
+
+/* The issuer form: the field and its button on one line, the message of an issuer that is no address on a line of its own under them. */
+.nfts__filter {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.nfts__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.nfts__field {
+  display: flex;
+  flex: 1 1 240px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 420px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--sunken);
+}
+
+/* An issuer that is no address: the field's border says it with the message, which is tied to the field (`aria-describedby`). */
+.nfts__field.is-invalid {
+  border-color: var(--bad);
+}
+
+/* The ring is the field's: the input inside it has none of its own. */
+.nfts__field:focus-within {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.nfts__icon {
+  flex: none;
+  color: var(--faint);
+}
+
+.nfts__input {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+}
+
+.nfts__input::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+.nfts__submit {
+  min-height: 44px;
+}
+
+.nfts__error {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: 6px;
+  color: var(--bad);
+  font-size: 13px;
+}
+
+.nfts__error svg {
+  flex: none;
+}
+
+/* The pagers of the NFT pages have 44 px buttons, as the form's button is (the kit's are 36 px on a desktop). */
+.nfts .pager .btn,
+.nfts__foot > .btn {
+  min-height: 44px;
+}
+
+/* Touch targets: 44 px (spec 8) on touch screens and phones. */
+@media (pointer: coarse), (max-width: 720px) {
+  .nfts__table .table__head a.nfts__sort {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  .nfts__title {
+    font-size: 24px;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   An NFT collection: /{net}/nfts/{issuer}[/{taxon}]. The page is a `.nfts` page (its column of rows, its tables, its form, its 44 px pagers); these are the header card, the owner
+   form's label and checkbox, the flags and the tabs' head. */
+
+/* The copy button's house target size (the board's is 30 px). */
+.nft-coll .copy {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* The header card: the large glyph beside the name and the facts. */
+.nft-coll__card {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 20px 22px;
+}
+
+.nft-coll__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.nft-coll__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.nft-coll__title {
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+/* The issuer in full, the taxon and the mints: they wrap, inside an address on a phone, never past the card. */
+.nft-coll__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 22px;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.nft-coll__fact {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 4px;
+  min-width: 0;
+}
+
+/* A link in a fact is at least 24 px high (WCAG 2.5.8). */
+.nft-coll__fact a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+/* The six stats: three to a row (two on a phone), so that the last row is not left with one tile; a figure longer than its tile wraps in it. */
+.nft-coll__stats .stat-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.nft-coll__stats .stat__value {
+  overflow-wrap: anywhere;
+}
+
+/* The tabs, then the tab's source line at the end of the row (under them when there is no room); a page behind a marker has the source line alone. */
+.nft-coll__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.nft-coll__tabs:not(:has(.tabs)) {
+  padding-block: 12px;
+}
+
+.nft-coll__tabs .tabs {
+  padding: 0;
+  border-bottom: 0;
+}
+
+/* The owner form: its label is seen, and the checkbox's label is its target, 44 px high. */
+.nft-coll__label {
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.nft-coll__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.nft-coll__check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.nft-coll__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.nft-coll__back a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 500;
+}
+
+@media (max-width: 720px) {
+  .nft-coll__stats .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .nft-coll__card {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .nft-coll__title {
+    font-size: 22px;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   An NFT: /{net}/nft/{ID}. The page is a `.nfts` page (its column of rows, its tables, its pagers); these are the header card with the "No preview" box, the owner and sale facts, the
+   details' values (a URI as a code, the flags' marks), the id's bytes and the history's bar with its link. */
+
+/* The copy button's house target size (the board's is 30 px). */
+.nft-page .copy {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* The header card: the "No preview" box beside the name and the facts; above them on a phone. */
+.nft-page__card {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 20px 22px;
+}
+
+.nft-page__preview {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 168px;
+  min-height: 168px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--sunken);
+  box-shadow: inset 0 0 0 1px var(--border);
+  text-align: center;
+}
+
+.nft-page__preview-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nft-page__preview-note {
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.nft-page__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.nft-page__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.nft-page__title {
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+/* The collection line and the id: the id in full wraps inside a phone, never past the card. */
+.nft-page__line,
+.nft-page__id {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.nft-page__id {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 4px;
+}
+
+/* The collection's link sits in a line of muted text: it is set apart by more than its colour (WCAG 1.4.1, axe link-in-text-block). */
+.nft-page__line a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The owner and the last sale, one under the other; a label and its value on a line while they fit. */
+.nft-page__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.nft-page__facts > div {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 2px 12px;
+  align-items: baseline;
+}
+
+.nft-page__facts dt {
+  color: var(--faint);
+}
+
+.nft-page__facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A link in a fact is at least 24 px high (WCAG 2.5.8). */
+.nft-page__facts a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+.nft-page__sale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+
+/* A faint line after a value: the URI's "Decoded from hex", where an owner was read from. */
+.nft-page__note {
+  display: block;
+  font-size: 12.5px;
+}
+
+/* The details and the id's card (the board's): side by side while there is room for 520 and 420 px, one under the other when there is not, each able to shrink so that a phone
+   has no sideways scroll. */
+.nft-page__pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  min-width: 0;
+}
+
+.nft-page__details {
+  flex: 1 1 520px;
+  min-width: 0;
+}
+
+.nft-page__idcard {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+/* The URI is text in a code; a long one wraps inside its card. */
+.nft-page__uri {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+/* The flags: a mark (a picture) and the flag's name, in a row that wraps. */
+.nft-page__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nft-page__flags li {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.nft-page__flags [aria-hidden="true"] {
+  color: var(--muted);
+}
+
+/* The bytes of the id a field is read from, before what they say. */
+.nft-page__hex {
+  margin-right: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.nft-page__idnote {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+/* The Accounts cell is the containing block of the visually hidden "to" (`.sr` is absolute): without it the word is placed against the page, past the edge of a phone. */
+.nft-page__who {
+  position: relative;
+  font-size: 12.5px;
+}
+
+.nft-page__expires {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+}
+
+/* The history's bar: the link that shows or hides the offer events, a 44 px target. */
+.nft-page__bar {
+  display: flex;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.nft-page__toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.nft-page__back a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .nft-page__card {
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .nft-page__preview {
+    width: 100%;
+    min-height: 0;
+  }
+
+  .nft-page__title {
+    font-size: 22px;
+  }
+
+  .nft-page__facts > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Ledger object pages (E10: an escrow, a check, a payment channel; LedgerObjectFrame.tsx and the board Escrow.dc.html): the breadcrumb, the title row, the banners and the states
+   strip, one under another, then Details and History side by side while each has 400 px, one under the other on a phone. */
+
+.object-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.object-page__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.object-page__title {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.object-page__titleline {
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+/* The links inside words: the title line's ledger and transaction, the removed banner's, and the issuer of a token's amount where it is its address (`AccountLink` without a name is
+   mono). They are told from the words around them by more than their colour (WCAG 1.4.1, axe's link-in-text-block). A named issuer underlines its name already (components.css):
+   no second line under it. */
+.object-page__titleline a,
+.object-page__removed a,
+.object-page__issuer a.mono {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.object-page__removed,
+.object-page__removed-note {
+  margin: 0;
+}
+
+/* A ledger or a hash is one word: on a phone it goes to the next line whole, never cut at its ellipsis (the banner, a notice, breaks anywhere). */
+.object-page__titleline a,
+.object-page__removed a {
+  white-space: nowrap;
+}
+
+.object-page__removed {
+  font-weight: 600;
+}
+
+.object-page__removed-note {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.object-page__cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.object-page__col {
+  flex: 1 1 400px;
+  min-width: 0;
+}
+
+/* The Details card: the summary, the status in a headline and the words under it, the type's figure (the escrow's window bar, whose tooltip opens over the lines above it, inside
+   the card), the rows and the as-of note. */
+.object-page__summary {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.object-page__status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.object-page__status p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.object-page__status .object-page__headline {
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* The age of a date in a status line, the browser's alone: in brackets once it has words, nothing on the server's page. */
+.object-page__age:not(:empty)::before {
+  content: " (";
+}
+
+.object-page__age:not(:empty)::after {
+  content: ")";
+}
+
+.object-page__figure {
+  margin-bottom: 8px;
+}
+
+.object-page__hint,
+.object-page__issuer {
+  display: block;
+  margin-top: 3px;
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
+.object-page__hint {
+  max-width: 640px;
+}
+
+.object-page__asof {
+  margin: 12px 0 0;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+/* The check's flow of three boxes (CheckPage.tsx), in the Details card, which is half the page where there is room for two: where the boxes do not fit in a row with their arrows (200 px each
+   at least, `.flow__node`), they stand one under another with the arrows between them pointing down, as on a phone (the rule above that turns `.flow__arrow`, a width of the screen's), and
+   not two in a row with an arrow that points at nothing. The card, not the screen, says when: a container query. */
+.object-page__flow {
+  container-type: inline-size;
+  margin-bottom: 8px;
+}
+
+@container (width < 720px) {
+  .object-page__flow .flow__arrow {
+    width: 100%;
+  }
+
+  .object-page__flow .flow__arrow > svg {
+    transform: rotate(90deg);
+  }
+}
+
+/* A payment channel's deposit (PaymentChannelPage.tsx; the PayChannel board): the legend, the share bar and, under it, what each part is worth and its share of the deposit, side by side
+   while there is room and one under the other when there is not; then the paragraph on claims. */
+.object-page__deposit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.object-page__shares {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.object-page__share {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  min-width: 0;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.object-page__share-name,
+.object-page__share-of {
+  color: var(--faint);
+}
+
+.object-page__share-amount {
+  color: var(--fg);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.object-page__claims {
+  margin: 0 0 14px;
+  max-width: 640px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .object-page__title {
+    font-size: 22px;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Tokens: /{net}/tokens (E11; the Tokens board's layout: one column of rows, the table scrolling sideways inside its card on a phone). The classes of the chart kit (charts.css) are never
+   defined here, the source line's included; the coin is the AMM list's `.amm__coin`, the kind tabs the components' `.seglinks`, the toml mark their `.st st--ok`. */
+
+.tokens {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.tokens__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tokens__title {
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.tokens__intro {
+  max-width: 760px;
+  color: var(--muted);
+}
+
+/* The kind tabs (and the note of a disabled one) with the source line after them, under them when there is no room. */
+.tokens__kinds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+/* The filters: the search form and Show all on one line while they fit, each 44 px high. */
+.tokens__filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tokens__form {
+  display: flex;
+  flex: 1 1 420px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+
+.tokens__label {
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.tokens__field {
+  display: flex;
+  flex: 1 1 240px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 420px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--sunken);
+}
+
+/* A search that was too long: the field's border says it with the message, which is tied to the field (`aria-describedby`). */
+.tokens__field.is-invalid {
+  border-color: var(--bad);
+}
+
+/* The ring is the field's: the input inside it has none of its own. */
+.tokens__field:focus-within {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.tokens__icon {
+  flex: none;
+  color: var(--faint);
+}
+
+.tokens__input {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+}
+
+.tokens__input::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+.tokens__submit,
+.tokens__all {
+  min-height: 44px;
+}
+
+.tokens__error {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: 6px;
+  color: var(--bad);
+  font-size: 13px;
+}
+
+.tokens__error svg {
+  flex: none;
+}
+
+/* The table: rows of 58 px, the header row 40 px, 8 px above and below a row's content so that a row a long name wraps in does not touch its borders. A figure longer than its track wraps
+   inside its cell and never widens the table. The scroll region is a containing block, so that the visually hidden words of a cell (`.sr`, absolute) stay inside it and do not widen the
+   page. */
+.tokens__table {
+  position: relative;
+  overflow-wrap: anywhere;
+}
+
+.tokens__table .table__row {
+  min-height: 58px;
+  padding-block: 8px;
+}
+
+.tokens__table .table__head {
+  min-height: 40px;
+}
+
+/* A link in a cell is at least 24 px high (WCAG 2.5.8). */
+.tokens__table a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+.tokens__rank {
+  font-size: 12px;
+}
+
+/* The token: its coin, then the code with the toml's name under it; the whole cell is the link (or the text, for a code with no page). */
+.tokens__token {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--fg);
+}
+
+/* `.tokens__table a` above is more specific than `.tokens__token` and would make the link inline-flex, a box that sizes to its content: a long toml name would never meet the cell's edge, and its ellipsis would never clip. The link is a block the cell bounds. */
+.tokens__table a.tokens__token {
+  display: flex;
+}
+
+.tokens__names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.tokens__code {
+  font-weight: 600;
+}
+
+.tokens__name {
+  color: var(--muted);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokens__foot {
+  align-items: flex-start;
+}
+
+.tokens__notes {
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+
+/* The link to the matches among the tokens with fewer holders sits inside the note's sentence: told from the words around it by more than its colour (WCAG 1.4.1, axe's link-in-text-block),
+   and 24 px high as a link in a cell is. */
+.tokens__more {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The pager of the list has 44 px buttons, as the form's are (the kit's are 36 px on a desktop). */
+.tokens .pager .btn {
+  min-height: 44px;
+}
+
+@media (max-width: 640px) {
+  .tokens__title {
+    font-size: 24px;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Token: /{net}/token/{token} (E11; the Token board's layout: the header card, the figures, the toml and the settings in a pair, the markets and the pools in a pair, then the holders and the
+   transfers). The root is the list's `.tokens` as well, for its column, its tables (`.tokens__table`), its foots and its 44 px pager. The kit's classes are the kit's: this sheet sets only where
+   they sit. Every text of the issuer's (a name, a domain, a toml's field) can be long and is of any characters, so it wraps anywhere inside its box. */
+
+.token-page {
+  overflow-wrap: anywhere;
+}
+
+/* The house target size for the page's buttons (the board's are 36 px): the copy button, the issuer's account, the toml file, All pools, All holders, the way back. */
+.token-page .btn {
+  min-height: 44px;
+}
+
+.token-page__card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 22px;
+}
+
+.token-page__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 18px;
+}
+
+/* The board's large coin: 44 px. */
+.token-page__coin .amm__coin {
+  width: 44px;
+  height: 44px;
+  font-size: 12px;
+}
+
+.token-page__titles {
+  display: flex;
+  flex: 1 1 420px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.token-page__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.token-page__title {
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.token-page__code {
+  font-size: 12px;
+}
+
+/* "Issued by" and the issuer's link: told from the words by more than its colour (WCAG 1.4.1, axe's link-in-text-block). */
+.token-page__issuer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 6px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.token-page__issuer a,
+.token-page__lede a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.token-page__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* The buttons that open another site show the icon beside their words. */
+.token-page__buttons a .extlink__icon {
+  margin-inline-start: 6px;
+}
+
+.token-page__figures {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* A supply is exact to its last decimal ("21,898,528.59363"): at the figure style's 24 px it does not fit a tile of 200 px on a line, and wraps its last digit. */
+.token-page__figures .stat__value {
+  font-size: 20px;
+}
+
+/* The pairs of cards: side by side while there is room for both, one under the other when there is not, each able to shrink so that a phone has no sideways scroll. */
+.token-page__pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.token-page__pair > .card {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+.token-page__lede {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.token-page__caption {
+  margin: 0 0 4px;
+  font-size: 12.5px;
+}
+
+.token-page__note {
+  color: var(--muted);
+}
+
+.token-page__failed {
+  padding: 16px;
+}
+
+/* The toml's list: a value of any length wraps; the hex of the code is in mono with its sentence under it. */
+.token-page__toml .kv dd {
+  min-width: 0;
+}
+
+.token-page__hex {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.token-page__hex .mono {
+  font-size: 12.5px;
+}
+
+.token-page__hex .faint {
+  font-size: 12px;
+}
+
+/* The issuer's settings: an icon, then the name with its pill and the sentence under them. */
+.token-page__settings {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.token-setting {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.token-setting:first-child {
+  border-top: 0;
+}
+
+.token-setting__icon {
+  flex: none;
+  padding-top: 2px;
+  color: var(--faint);
+}
+
+.token-setting__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.token-setting__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.token-setting__sentence {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* A pair of the markets table: its name, then the counter's issuer under it. */
+.token-page__pair-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.token-page__pairname {
+  font-weight: 600;
+}
+
+.token-page__by {
+  font-size: 12px;
+}
+
+/* A pool: its coins, then the pair, one link. */
+.token-page__poolname {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.token-page__holder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+/* The statuses of a holder's line on the holders' page (Frozen, Authorized): side by side while they fit. */
+.token-page__statuses {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  min-width: 0;
+}
+
+.token-page__share {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.token-page__meter {
+  flex: 1 1 80px;
+  max-width: 160px;
+}
+
+.token-page__amount {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px 8px;
+}
+
+.token-page__back {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .token-page__title {
+    font-size: 22px;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Supply: /{net}/supply (spec 5): the heading with the snapshot it is a picture of, the bar of where the currency is with its figures under it,
+   and the cards of days. The classes of the chart kit and of the tile (the card, the compact share bar, `.stat__formula`) are the kit's and are
+   not defined here; this sheet places them. The page is a column of cards that folds to the width of a phone with nothing to scroll sideways. */
+
+.supply {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* The heading at the left and the snapshot line at its right, on the heading's last line; the line goes under the heading when the two do not fit, and on a phone always. */
+.supply__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.supply__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.supply__title {
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.supply__intro {
+  max-width: 760px;
+  color: var(--muted);
+}
+
+.supply__snapshot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: right;
+}
+
+/* The ledger is a link inside a sentence: its colour alone would not tell it from the words around it (axe: link-in-text-block). */
+.supply__snapshot a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.supply__text {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* The bar, its burned line over it and its bracket under it share one column, so that the bracket's percent is a share of the bar's own width. */
+.supply__scale {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* The sliver of burned XRP is told in words over the bar: a 2 px rule in the burned slot's colour at its left (a border, not text: no text wears a series colour). */
+.supply__burned {
+  padding: 0 0 6px 8px;
+  border-left: 2px solid var(--series-2);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.supply__burned b,
+.supply__part-text b {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* The bracket of circulating: from where its segment starts (the page gives the margin in percent) to the end of the bar, the words centred under it. */
+.supply__part {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.supply__bracket {
+  align-self: stretch;
+  height: 8px;
+  border: 1px solid var(--border-strong);
+  border-top: 0;
+  border-radius: 0 0 4px 4px;
+}
+
+.supply__part-text {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* The exact figure of a tile, the fraction in the muted colour so that the whole reads first and the currency after both. A figure of 25 characters at 24 px is wider than a tile on a phone
+   (about 300 px): it breaks anywhere rather than run out of the tile. */
+.supply__figure {
+  overflow-wrap: anywhere;
+}
+
+.supply__fraction {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.supply__currency {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* What is under a tile's figure, one line each: the formula, the definition, the sub line and the coverage note. */
+.supply__notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* The minted card and the note of its days' coverage, which stands under the card (a paragraph is not drawn inside the card's note paragraphs). */
+.supply__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .supply__head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .supply__snapshot {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .supply__title {
+    font-size: 24px;
   }
 }

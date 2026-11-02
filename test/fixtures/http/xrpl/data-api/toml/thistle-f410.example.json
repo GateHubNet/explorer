@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "thistle-f410.example",
+    "toml_url": "https://thistle-f410.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rhEypxvxNXMdMTd3GXpb6gTN1jvb4h3nef",
+        "desc": "Thistle Treasury"
+      }
+    ]
+  }
+}

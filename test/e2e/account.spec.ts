@@ -1,6 +1,6 @@
 import { featuresOff } from "../../scripts/e2e-env";
 import { LIVE, XRPL_ACCOUNT } from "./fixtures";
-import { expect, hydrated, test } from "./support";
+import { expect, hydrated, reactOwns, test } from "./support";
 
 const FEATURES_OFF = featuresOff(process.env);
 
@@ -56,6 +56,8 @@ test.describe("the account page", () => {
     const pagination = page.getByRole("navigation", { name: "Pagination" });
     await expect(pagination.getByRole("link", { name: "Newer" })).toHaveCount(0);
 
+    // The list is the lazy panels' chunk's: its links are the router's once React has hydrated them (`reactOwns`).
+    await reactOwns(pagination.getByRole("link", { name: "Older" }));
     await pagination.getByRole("link", { name: "Older" }).click();
     await page.waitForURL(/\/xrpl\/account\/[^?]+\?marker=[\w-]+$/);
     await expect(rowsOf(page, "Transactions")).toHaveCount(3); // the last two transactions and the header
@@ -74,10 +76,42 @@ test.describe("the account page", () => {
     test.skip(LIVE, HAND_WRITTEN);
     await page.goto(`/xrpl/account/${XRPL_ACCOUNT}?tab=payments`);
     await hydrated(page);
-    await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" }).click();
+    const older = page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" });
+    await reactOwns(older);
+    await older.click();
     await page.waitForURL(/\?tab=payments&marker=[\w-]+$/);
     await expect(rowsOf(page, "Payments")).toHaveCount(2);
     await expect(page.getByRole("navigation", { name: "Account activity" }).getByRole("link", { name: "Payments" })).toHaveAttribute("aria-current", "page");
+  });
+
+  // The list of the Objects tab and of a page behind a marker is not a promise: it is drawn in the document's shell, and the page hydrates once the list
+  // panels' chunk is in (`lazyChunk`, AccountPage.tsx). Each is opened as a document by a browser that has not loaded the chunk; the fixture fails the test
+  // on a console error (a hydration mismatch among them), and a link the router handles shows that the page works.
+  test("hydrates the Objects tab and a page behind a marker opened as documents, cold, and their links then navigate in the page", async ({ page, contextFor }) => {
+    test.skip(LIVE, HAND_WRITTEN);
+    const sameDocument = (on: import("@playwright/test").Page) => on.evaluate(() => (window as unknown as { sameDocument?: boolean }).sameDocument === true);
+
+    await page.goto(`/xrpl/account/${XRPL_ACCOUNT}?tab=objects`);
+    await hydrated(page);
+    await page.evaluate(() => Object.assign(window, { sameDocument: true }));
+    await page.getByRole("navigation", { name: "Account activity" }).getByRole("link", { name: "Transactions" }).click();
+    await page.waitForURL(`**/xrpl/account/${XRPL_ACCOUNT}`);
+    await expect(rowsOf(page, "Transactions")).toHaveCount(5);
+    expect(await sameDocument(page)).toBe(true);
+
+    // The page behind the first page's Older, in a browser of its own (nothing of the build in its cache).
+    const older = await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" }).getAttribute("href");
+    const cold = await (await contextFor()).newPage();
+    await cold.goto(older!);
+    await hydrated(cold);
+    await expect(rowsOf(cold, "Transactions")).toHaveCount(3);
+    await cold.evaluate(() => Object.assign(window, { sameDocument: true }));
+    const newer = cold.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Newer" });
+    await reactOwns(newer);
+    await newer.click();
+    await cold.waitForURL(`**/xrpl/account/${XRPL_ACCOUNT}`);
+    await expect(rowsOf(cold, "Transactions")).toHaveCount(5);
+    expect(await sameDocument(cold)).toBe(true);
   });
 
   test("shows the balance, the token and the reserve read from the node", async ({ page }) => {
@@ -85,6 +119,6 @@ test.describe("the account page", () => {
     await page.goto(`/xrpl/account/${XRPL_ACCOUNT}`);
     await expect(page.getByRole("region", { name: "Account" })).toContainText(/XRP balance\s*10\.001625/);
     await expect(page.getByRole("region", { name: "Tokens" })).toContainText("LIONS");
-    await expect(page.getByRole("region", { name: "Account" })).toContainText("Reserve 1.2 XRP = 1 base + 1 object × 0.2");
+    await expect(page.getByRole("region", { name: "Account" })).toContainText("Reserve 1.8 XRP = 1 base + 4 objects × 0.2");
   });
 });

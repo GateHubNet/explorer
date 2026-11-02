@@ -1,0 +1,25 @@
+{
+  "result": "success",
+  "transaction": {
+    "date": "2024-11-23T10:16:31+00:00",
+    "hash": "D1B7A0AD6C6DA3551F97F1C63E4035DABC7C58AE21F9F758090C588B824973BA",
+    "ledger_index": 10090323,
+    "meta": {
+      "AffectedNodes": [{"DeletedNode":{"FinalFields":{"Account":"rD74dUPRFNfgnY2NzrxxYRXN4BrfGSN6Mv","Amount":"13370000000","Destination":"rPicqzcyoxw22XBrFCMAcFXYU2boeqYjm6","DestinationNode":"0","FinishAfter":783730800,"Flags":0,"OwnerNode":"0","PreviousTxnID":"17FD57E52356E1A26385AF263E653465949F10B98D773B9DFDC98B075763ADA4","PreviousTxnLgrSeq":8942030,"TransferRate":1000000000},"LedgerEntryType":"Escrow","LedgerIndex":"10C5F525E3D07CAC9CD2BF3F53367653504B7D8A54451E311F5B38E70442457F"}},{"ModifiedNode":{"FinalFields":{"Account":"r223rsyz1cfqPbjmiX6oYu1hFgNwCkWZH","AccountIndex":"1","Balance":"493233538","Flags":0,"OwnerCount":20,"Sequence":751991174},"LedgerEntryType":"AccountRoot","LedgerIndex":"1F8413A032002246D339E5CDE05FC08369F549BB4BAD6C6CE1FF9B43170857AE","PreviousFields":{"Balance":"493233550","Sequence":751991173}}},{"ModifiedNode":{"FinalFields":{"Account":"rD74dUPRFNfgnY2NzrxxYRXN4BrfGSN6Mv","AccountTxnID":"4BCE102E56976EEEE44ACFA2CFC0ECC87A50F3687AACC8FDCD7C3B900A47FE24","Balance":"156423834808167","Domain":"7872706C2D6C6162732E636F6D","Flags":2164326400,"OwnerCount":47,"RegularKey":"rhNj18Cjgqxangkw11H3XqtaKWrXGVTKjy","RewardAccumulator":"a9128dd1ff6","RewardLgrFirst":10015630,"RewardLgrLast":10089907,"RewardTime":785397241,"Sequence":751983769},"LedgerEntryType":"AccountRoot","LedgerIndex":"227791D4667E09F9E546791DC8FA2A80C850ECD7997686B1B54E30006E299A20","PreviousFields":{"OwnerCount":48}}},{"ModifiedNode":{"FinalFields":{"Flags":0,"Owner":"rPicqzcyoxw22XBrFCMAcFXYU2boeqYjm6","RootIndex":"5B5AE938D2ED5200B8E381AC39953A3A2E849E34748E5B9FD5333FB216C23CCA"},"LedgerEntryType":"DirectoryNode","LedgerIndex":"5B5AE938D2ED5200B8E381AC39953A3A2E849E34748E5B9FD5333FB216C23CCA"}},{"ModifiedNode":{"FinalFields":{"Account":"rPicqzcyoxw22XBrFCMAcFXYU2boeqYjm6","AccountIndex":"2a","Balance":"2013369999978","Flags":65536,"OwnerCount":0,"RegularKey":"r223rsyz1cfqPbjmiX6oYu1hFgNwCkWZH","Sequence":752072924},"LedgerEntryType":"AccountRoot","LedgerIndex":"BA8CF59C433EAFE077AD2415A4EDC46D03D040BB76901D19ACFC45CE190C7F1B","PreviousFields":{"Balance":"1999999999978"}}},{"ModifiedNode":{"FinalFields":{"Flags":0,"IndexNext":"1","IndexPrevious":"1","Owner":"rD74dUPRFNfgnY2NzrxxYRXN4BrfGSN6Mv","RootIndex":"FAD549BF3515B80E0BA66BD4C78506F410769A21B131D813FBD0C1004923FFE1"},"LedgerEntryType":"DirectoryNode","LedgerIndex":"FAD549BF3515B80E0BA66BD4C78506F410769A21B131D813FBD0C1004923FFE1"}}],
+      "TransactionIndex": 56,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "tx": {
+      "Account": "r223rsyz1cfqPbjmiX6oYu1hFgNwCkWZH",
+      "EscrowID": "10C5F525E3D07CAC9CD2BF3F53367653504B7D8A54451E311F5B38E70442457F",
+      "Fee": "12",
+      "LastLedgerSequence": 10090341,
+      "NetworkID": 21337,
+      "Owner": "rPicqzcyoxw22XBrFCMAcFXYU2boeqYjm6",
+      "Sequence": 751991173,
+      "SigningPubKey": "027762ED27368AC47EC67F719994CA1DC80D064626E3D16F56A562A902CEF1ABAD",
+      "TransactionType": "EscrowFinish",
+      "TxnSignature": "3045022100AA33AECF3A878C8DC0A0CC00E3CEDBE6594784A81548C55EA9A830721EFD2D4902204BACD15EC0E1E8C793D1772E7C73B6F0170D7DD58CE66C18B6B0D2C9A1849F80"
+    }
+  }
+}

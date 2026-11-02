@@ -61,8 +61,8 @@ export type Asset = { currency: string; issuer?: string };
  * `value` and `after` are exact decimal strings in whole units (never exponent notation); `value` is signed.
  * For an issued currency the entry is one side of a trust line, so `issuer` is the other side of that line:
  * the issuer in the entry of a holder, and the holder in the entry of the issuer, whose `value` is the
- * opposite of what the holder's moved. A sender's native `value` is the whole change of its balance, so it
- * includes the transaction fee.
+ * opposite of what the holder's moved. A native `value` is the whole change of the balance, so the fee payer's
+ * includes the transaction fee: the sender's, or the delegate's on a transaction a delegate sent.
  */
 export type BalanceChange = Asset & {
   account: string;

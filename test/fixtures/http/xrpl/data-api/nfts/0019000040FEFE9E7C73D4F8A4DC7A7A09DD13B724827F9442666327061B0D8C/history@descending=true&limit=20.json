@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 107874617
+  },
+  "events": [
+    {"account":"ravC5cZreMZuKEWSrpra5nkWnfzPmrabec","event":"burn","event_index":0,"executed_time":"2026-10-25T02:00:52Z","from":"ravC5cZreMZuKEWSrpra5nkWnfzPmrabec","issuer":"ravC5cZreMZuKEWSrpra5nkWnfzPmrabec","kind":"nftoken","ledger_index":107883610,"nft_id":"0019000040FEFE9E7C73D4F8A4DC7A7A09DD13B724827F9442666327061B0D8C","serial":102436236,"taxon":0,"tx_hash":"12FE6B5DF2CC2E269A188BACDFCA9A71BC5483A6AB5CACF254569E375569D7A1","tx_index":65,"tx_type":"NFTokenBurn"}
+  ],
+  "result": "success"
+}

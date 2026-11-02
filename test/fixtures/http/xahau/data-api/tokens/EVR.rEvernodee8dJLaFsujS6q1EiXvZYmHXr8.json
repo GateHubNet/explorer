@@ -1,0 +1,45 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 26540187,
+    "complete": false
+  },
+  "ledger_index": 26596843,
+  "close_time": "2026-10-17T17:47:11Z",
+  "token": {
+    "currency": "EVR",
+    "code": "EVR",
+    "issuer": "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8",
+    "holders": 88,
+    "trust_lines": 100,
+    "supply": "16304750.021496",
+    "price": "0.12045842",
+    "price_change": "-13.69",
+    "price_time": "2026-10-17T00:43:05Z",
+    "native_volume": "2208.12",
+    "trades": 205,
+    "domain": "evernode.org",
+    "toml_url": "https://evernode.org/.well-known/xahau.toml",
+    "listed": true,
+    "toml": {
+      "name": "Evernode",
+      "desc": "The native token of Evernode",
+      "icon": "ipfs://evernode/evr.png",
+      "symbol": "EVR",
+      "display_decimals": 6
+    },
+    "issuer_settings": {
+      "transfer_fee": "0",
+      "global_freeze": false,
+      "no_freeze": false,
+      "allow_trust_line_clawback": false,
+      "require_auth": false,
+      "default_ripple": true
+    },
+    "markets": [
+      {"counter_currency":"XAH","count":87,"volume":"18401","counter_volume":"2208.12","native_volume":"2208.12","last":"0.12045842","change":"-13.69","last_time":"2026-10-17T00:43:05Z","amm_pool":false},
+      {"counter_currency":"NOD","counter_issuer":"rsU3Rid6exHofd2D5xjewTJSYJe5QfKUiJ","count":118,"volume":"506","counter_volume":"1771","last":"3.5052559","change":"-10.06","last_time":"2026-10-16T20:28:11Z","amm_pool":false}
+    ],
+    "last_ledger": 26596843
+  }
+}

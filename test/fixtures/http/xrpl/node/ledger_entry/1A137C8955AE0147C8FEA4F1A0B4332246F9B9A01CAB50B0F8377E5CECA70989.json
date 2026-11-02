@@ -1,0 +1,26 @@
+{
+  "result": {
+    "index": "1A137C8955AE0147C8FEA4F1A0B4332246F9B9A01CAB50B0F8377E5CECA70989",
+    "ledger_hash": "CD362D14BCEACBF65B9BFDE226CD393FC1F930FC814F21269935D7FA6DD5A697",
+    "ledger_index": 107972102,
+    "node": {
+      "Account": "rsQYjimpnfyYuebLYDhkCfaMExqESap8jL",
+      "Amount": {"currency":"5852504C00000000000000000000000000000000","issuer":"rUNuVgEcbL5Po5RKGnq8DP1KukY6RkTSyz","value":"3285"},
+      "CancelAfter": 839949409,
+      "Condition": "A02580204978E4663E982249BEDB35177780880DA9494BCBD6B70AE3BF63CC9E02BF5B50810100",
+      "Destination": "rGx17ATvpfTLho7tUayedW8ZYNDtSzaYLL",
+      "DestinationNode": "0",
+      "FinishAfter": 839949394,
+      "Flags": 0,
+      "IssuerNode": "2",
+      "LedgerEntryType": "Escrow",
+      "OwnerNode": "2",
+      "PreviousTxnID": "19B5C1BFD2B35F1F9C04CF55321DBE9D4B7553496AD77A328383FA3FF09D996F",
+      "PreviousTxnLgrSeq": 106268539,
+      "Sequence": 106272047,
+      "index": "1A137C8955AE0147C8FEA4F1A0B4332246F9B9A01CAB50B0F8377E5CECA70989"
+    },
+    "status": "success",
+    "validated": true
+  }
+}

@@ -5,6 +5,7 @@ import { loader } from "../../app/routes/net.amm.$pool";
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration, createLoadContext, type Env } from "../../app/server/env";
 import usdPool from "../fixtures/http/xrpl/node/amm_info/rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am.json";
+import { withoutNames } from "../support/names";
 import { anchors, elementText, pageClient, tableRows, textOf } from "../support/pages";
 import { cold, keptFor, storedEntries } from "../support/subrequest-miss";
 import { dataApiError, mockUpstream, nodeError, statusesOf, type UpstreamMock } from "../support/upstream";
@@ -51,7 +52,8 @@ afterAll(() => {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const unavailable = () => dataApiError(503, "unavailable");
-const keysOf = (requests: UpstreamMock["requests"]) => requests.map((request) => request.key);
+/** The keys of the calls of a render but its names call (a spec about the other calls: the names are amm-pool-names.spec.ts's). */
+const keysOf = (requests: UpstreamMock["requests"]) => withoutNames(requests).map((request) => request.key);
 
 /** Whether the edge cache holds a copy of `path` now (for after the answer has been read; waits a moment for a store that is not wanted). */
 async function isStored(path: string) {

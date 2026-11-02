@@ -93,6 +93,15 @@
   "result": "success",
   "server_version": "1745992596280311808",
   "signing_key": "n9LMCWEZo4nWgDC8PXgX7FpShhoxVcGjYU6K7rDfRZQLCX3wCiBq",
+  "toml": {
+    "fetched": "2026-10-17T16:16:11.965Z",
+    "owner_country": "FR",
+    "principals": [
+      "North Peak Ops"
+    ],
+    "server_country": "SE",
+    "unl": "https://vl.ripple.com"
+  },
   "unl": true,
   "unl_lists": [
     "unl.xrplf.org",

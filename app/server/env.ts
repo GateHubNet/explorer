@@ -1,5 +1,6 @@
 import { createContext, RouterContextProvider } from "react-router";
 
+import { environmentOf } from "../ui/environment";
 import { FEATURE_VARS } from "../ui/features";
 import type { SubrequestCache } from "./cache-class";
 import { createDegradedMark, createSubrequestCache, type DegradedMark } from "./edge-cache";
@@ -8,10 +9,12 @@ import { createDegradedMark, createSubrequestCache, type DegradedMark } from "./
  * What the Worker is configured with: `vars` and `ratelimits` of wrangler.jsonc, the two secrets
  * (`.dev.vars` locally) and `BUILD_ID`, which vite.config.ts adds to the vars of every build.
  *
- * `VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS` and `AMM_PAGES` are the switches (app/ui/features.ts lists them, README "Switches" says what each gates): each is "on"
+ * `VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS`, `AMM_PAGES`, `NFTS`, `NAMES`, `LEDGER_OBJECTS`, `DELEGATION`, `TOKENS`, `SUPPLY` and `VALIDATORS_MAP` are the switches (app/ui/features.ts lists them, README "Switches" says what each gates): each is "on"
  * or "off" in every environment of wrangler.jsonc, and the predeploy guard refuses a build where one is anything else.
  */
 export interface Env {
+  /** Which environment this Worker is: "development" is the top level of wrangler.jsonc (local development and the tests), the others are the deployed blocks. */
+  ENVIRONMENT: "development" | "sandbox" | "production";
   XRPL_DATA_API_URL: string;
   XAHAU_DATA_API_URL: string;
   XRPL_NODE_URL: string;
@@ -24,20 +27,30 @@ export interface Env {
   MARKETS: "on" | "off";
   ACCOUNT_ANALYTICS: "on" | "off";
   AMM_PAGES: "on" | "off";
+  NFTS: "on" | "off";
+  NAMES: "on" | "off";
+  LEDGER_OBJECTS: "on" | "off";
+  DELEGATION: "on" | "off";
+  TOKENS: "on" | "off";
+  SUPPLY: "on" | "off";
+  VALIDATORS_MAP: "on" | "off";
   VISITOR_LIMITER: RateLimit;
 }
 
 const SORTED_SWITCHES = [...FEATURE_VARS].sort();
 
 /**
- * What the edge cache keys every page, image and `.data` URL with (`edgeCacheKey` in edge-cache.ts): `BUILD_ID`, a colon, and every
- * switch as `NAME=value`, sorted by name and joined by commas (`3f2a9c1:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off`). A deploy with another commit or
- * another switch value therefore never serves a copy stored under the old one. The subrequest cache keeps `BUILD_ID` alone: it holds
- * upstream data, which no switch changes. (edge-cache.ts and this file import each other; neither uses the other's exports until a
+ * What the edge cache keys every page, image and `.data` URL with (`edgeCacheKey` in edge-cache.ts): `BUILD_ID`, the environment, and every
+ * switch as `NAME=value`, sorted by name and joined by commas, the three parts after colons (`3f2a9c1:sandbox:ACCOUNT_ANALYTICS=off,AMM_DATA=off,AMM_PAGES=off,DELEGATION=off,LEDGER_OBJECTS=off,MARKETS=off,NAMES=off,NFTS=off,SUPPLY=off,TOKENS=off,VALIDATORS=off,VALIDATORS_MAP=off`).
+ * A deploy with another commit or another switch value therefore never serves a copy stored under the old one, and nor does a Worker that moves
+ * to another environment: the environment changes what a page says (the networks' names and facts), as a switch does. The environment is
+ * `environmentOf(ENVIRONMENT)`, so a value that is none of the three keys as "development", the environment it shows. The subrequest cache
+ * keeps `BUILD_ID` alone: it holds upstream data, which neither a switch nor the environment changes (its keys hold the upstream's URL, which
+ * differs between the environments). (edge-cache.ts and this file import each other; neither uses the other's exports until a
  * request is served, so the cycle is harmless. Keep it that way.)
  */
 export function cacheGeneration(env: Env): string {
-  return `${env.BUILD_ID}:${SORTED_SWITCHES.map((name) => `${name}=${env[name]}`).join(",")}`;
+  return `${env.BUILD_ID}:${environmentOf(env.ENVIRONMENT)}:${SORTED_SWITCHES.map((name) => `${name}=${env[name]}`).join(",")}`;
 }
 
 // `import { env } from "cloudflare:workers"` (the tests use it) is typed with the generated

@@ -89,6 +89,12 @@
   "result": "success",
   "server_version": "1745992618040362935",
   "signing_key": "n9KfZcwLEeC7i4v9WB1Mwt27vBGDfSyxGRdHWRSV7758AYhjd4nM",
+  "toml": {
+    "network": "main",
+    "owner_country": "NL",
+    "server_country": "NL",
+    "unl": "https://vl.xahau.org"
+  },
   "unl": true,
   "unl_lists": [
     "vl.xahau.org"

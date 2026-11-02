@@ -17,10 +17,17 @@ const SERVER_ONLY = (from: string) => /(^|\/)server(\/|$)/.test(from) || /ripple
 describe("the files of the validators pages that run in the browser", () => {
   it.each([
     "ui/pages/ValidatorsPage.tsx",
+    // The countries card draws text and percentages the view builder made: the country table (app/server/countries.ts) is the Worker's.
+    "ui/pages/ValidatorsMapCard.tsx",
     "ui/pages/ValidatorPage.tsx",
+    // The toml card draws text and hrefs the view builder made: validator-view.ts (the Worker's) and the country table behind it are never imported.
+    "ui/pages/ValidatorTomlCard.tsx",
     "ui/pages/AmendmentsPage.tsx",
     "ui/pages/AmendmentPage.tsx",
     "ui/components/StatusMarks.tsx",
+    // StatusMarks.tsx exports these from files of their own (the account page imports them without the rest): DomainStatus.tsx type-imports validator-facts.ts, which stays a type.
+    "ui/components/DomainStatus.tsx",
+    "ui/components/ExternalLink.tsx",
     "ui/components/status-icons.tsx",
     "ui/components/Countdown.tsx",
     "domain/validators-params.ts",
@@ -28,6 +35,7 @@ describe("the files of the validators pages that run in the browser", () => {
     "domain/amendment-ref.ts",
     "domain/time-words.ts",
     "domain/percent.ts",
+    "domain/publishers.ts",
     "domain/query-of.ts",
     // A page's tags are made in the browser too (a client-side navigation): its builder imports ./meta, which SERVER_ONLY lets through, and nothing else of app/server.
     "server/meta-validator.ts",
@@ -47,6 +55,18 @@ describe("the files of the validators pages that run in the browser", () => {
       "../../server/meta",
       "ripple-address-codec",
     ]);
+  });
+});
+
+describe("the country table", () => {
+  it("is imported as a value by app/server and by the routes' loaders, and by nothing the browser draws", () => {
+    const importers: string[] = [];
+    for (const file of readdirSync(appDir, { recursive: true, encoding: "utf8" })) {
+      if (!/\.(ts|tsx)$/.test(file) || /\.test\.tsx?$/.test(file)) continue;
+      if (valueImports(read(file)).some((from) => /(^|\/)countries$/.test(from))) importers.push(file);
+    }
+    // A route imports it for `COUNTRY_CODES` in its loader, which the client build leaves out (`pnpm check:bundle` looks for the table in the files of the build).
+    expect(importers.filter((file) => !file.startsWith("routes/") && !file.startsWith("server/"))).toEqual([]);
   });
 });
 

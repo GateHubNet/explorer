@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { formatAmount } from "../../domain/format";
 import { DataTable, type Column } from "../components/DataTable";
+import { Marks } from "../components/NameMark";
 import { bucketLabel, cellText, tableHeading } from "./labels";
 import type { BarListData, CandleData, ShareData, SmallMultiplesData, TimeSeriesData, ValueFormat } from "./types";
 
@@ -54,14 +55,26 @@ function figure(text: string | null, format?: ValueFormat): ReactNode {
   return format ? cellText(text, format) : formatAmount(text);
 }
 
-/** A label, and the sublabel (a short issuer) after it. */
-function named(label: string, sublabel: string | undefined): ReactNode {
+type Mark = BarListData["items"][number]["mark"];
+
+/**
+ * A label, the words of its marks (E9: how a named account's name is known, and its labels, as the list's link has them), and the sublabel (a short issuer, or a short address) after
+ * them.
+ */
+function named(label: string, sublabel: string | undefined, mark?: Mark): ReactNode {
+  const marks = mark === undefined ? null : <Marks mark={mark} />;
   return sublabel ? (
     <>
-      {label} <span className="chart__sub">{sublabel}</span>
+      {label}
+      {marks} <span className="chart__sub">{sublabel}</span>
     </>
-  ) : (
+  ) : marks === null ? (
     label
+  ) : (
+    <>
+      {label}
+      {marks}
+    </>
   );
 }
 
@@ -87,7 +100,7 @@ function timeSeries(title: string, data: TimeSeriesData, totalLabel: string) {
     bucketCol(axis, data.forming),
     ...data.series.map((series): Col<number> => ({
       id: series.id,
-      header: series.label,
+      header: series.heading ?? series.label,
       min: format.kind === "count" ? COUNT : FIGURE,
       figure: true,
       grow: true,
@@ -142,7 +155,7 @@ function smallMultiples(title: string, data: SmallMultiplesData) {
 function barList(title: string, data: BarListData) {
   const { items, format } = data;
   const cols: Col<BarListData["items"][number]>[] = [
-    { id: "name", header: "Name", min: NAME, grow: true, cell: (item) => named(item.label, item.sublabel) },
+    { id: "name", header: "Name", min: NAME, grow: true, cell: (item) => named(item.label, item.sublabel, item.mark) },
     { id: "value", header: "Value", min: FIGURE, figure: true, grow: true, cell: (item) => figure(item.value, format) },
   ];
   // A list whose tip is the count (`tip="count"`) has no share: a column of dashes would say nothing. An empty list has its headers as before.

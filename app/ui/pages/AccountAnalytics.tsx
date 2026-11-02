@@ -1,4 +1,4 @@
-import { Suspense, type CSSProperties, type ReactNode } from "react";
+import { Fragment, Suspense, type CSSProperties, type ReactNode } from "react";
 import { Await, Link } from "react-router";
 
 import type {
@@ -26,8 +26,10 @@ import type { Delta } from "../charts/types";
 import { AccountLink } from "../components/AccountLink";
 import { Card } from "../components/Card";
 import { DataTable, type Column } from "../components/DataTable";
+import { LabelMark } from "../components/NameMark";
 import { SectionError } from "../components/SectionError";
 import { StatGrid, StatTile } from "../components/StatTile";
+import { NamesProvider } from "../names";
 import type { NetworkInfo } from "../networks";
 import { useRetry } from "../use-retry";
 
@@ -464,7 +466,10 @@ function CounterpartiesTable({ native, net, retry, source, part }: ViewProps & {
             card.empty !== null ? (
               <p className="analytics__empty">{card.empty}</p>
             ) : (
-              <DataTable label={title} columns={columns} rows={card.rows} rowKey={(row) => row.account} minWidth={480} />
+              // The card's own names (display names spec 5): its rows' accounts were asked for in the card's call, so no other card's names or the page's are needed to draw it.
+              <NamesProvider names={card.names.map}>
+                <DataTable label={title} columns={columns} rows={card.rows} rowKey={(row) => row.account} minWidth={480} />
+              </NamesProvider>
             ),
           notes: card.note === null ? [] : [card.note],
         };
@@ -473,12 +478,33 @@ function CounterpartiesTable({ native, net, retry, source, part }: ViewProps & {
   );
 }
 
-/** A pair: its name, a link to its page when the data gives one, over the issuers of its issued sides. */
+/**
+ * A pair: its name, a link to its page when the data gives one, over the issuers of its issued sides: each its code and its issuer. The code and an address are mono, as they
+ * always were; a display name is not (`.acct__name` and `.acct__address` of a link, `AccountLink`); a labelled issuer has the label's mark (display names decision 12), the two
+ * one unit that does not break (`.issued-marked`), in a line that wraps and is never cut (pages.css). Drawn
+ * here and not with the lists' `IssuerTexts`: a module the view shared with those pages would be a file of its own that the view loads beyond the account page's.
+ */
 function Pair({ row }: { row: PairRow }) {
   return (
     <span className="analytics__pair">
       {row.href ? <Link to={row.href}>{row.label}</Link> : <span>{row.label}</span>}
-      {row.issued.length > 0 && <span className="analytics__issuers mono">{row.issued.join(" · ")}</span>}
+      {row.issued.length > 0 && (
+        <span className="analytics__issuers">
+          {row.issued.map((side, at) => (
+            <Fragment key={at}>
+              {at > 0 && " · "}
+              <span className="mono">{side.code}</span>{" "}
+              {side.labels.length > 0 ? (
+                <span className="issued-marked">
+                  <span className={side.name ? undefined : "mono"}>{side.issuer}</span> <LabelMark labels={side.labels} />
+                </span>
+              ) : (
+                <span className={side.name ? undefined : "mono"}>{side.issuer}</span>
+              )}
+            </Fragment>
+          ))}
+        </span>
+      )}
     </span>
   );
 }

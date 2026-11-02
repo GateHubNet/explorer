@@ -1,0 +1,28 @@
+{
+  "check": {
+    "account": "rfv3Z8pqTzWdB6L6EV6bRpgsUGeSfCjS1N",
+    "check_id": "DA6BE1644276D17524D4C5645D322D4A0249B444C0A3C320EA941597243F30EA",
+    "created": {
+      "ledger_index": 107972102,
+      "time": "2026-10-29T03:50:41Z",
+      "tx_hash": "DE0C4334780CE8115BCCB7E41371B85D13D284F82F48EFB98BE8D2F894207E0E"
+    },
+    "destination": "rNWDKX2qk6ZiFvJD3aTkLDmqE681PVvMAM",
+    "send_max": {
+      "currency": "XRP",
+      "value": "1000"
+    },
+    "sequence": 106663196,
+    "status": "open"
+  },
+  "close_time": "2026-10-29T03:50:41Z",
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 102145584
+  },
+  "history": [
+    {"account":"rfv3Z8pqTzWdB6L6EV6bRpgsUGeSfCjS1N","event":"create","ledger_index":107972102,"result":"tesSUCCESS","send_max":{"currency":"XRP","value":"1000"},"time":"2026-10-29T03:50:41Z","tx_hash":"DE0C4334780CE8115BCCB7E41371B85D13D284F82F48EFB98BE8D2F894207E0E","tx_type":"CheckCreate"}
+  ],
+  "ledger_index": 107972102,
+  "result": "success"
+}

@@ -4,5 +4,11 @@ export const PRODUCT_NAME = "explorer";
 /** The footer credit, after the product name. */
 export const CREDIT = "by GateHub";
 
+/**
+ * Where a visitor asks GateHub to change an account's name or give an account one (display names, decision 11): the link on the help sentence under a name GateHub gave. The owner
+ * gives the URL; until then it is `null` and the sentence has no link.
+ */
+export const NAME_REQUEST_URL: string | null = null;
+
 /** What the header's logo (app/ui/logo/) reads: its alt text, and the start of its link's name. */
 export const LOGO_TEXT = "GateHub Explorer";

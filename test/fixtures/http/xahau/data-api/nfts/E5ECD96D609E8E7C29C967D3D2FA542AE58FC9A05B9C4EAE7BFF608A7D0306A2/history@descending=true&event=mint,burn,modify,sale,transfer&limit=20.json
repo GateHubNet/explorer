@@ -1,0 +1,12 @@
+{
+  "count": 2,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "events": [
+    {"account":"r4k1jdyThSDbPwbNrpiuqNCoRJ61y9N4Wj","event":"mint","event_index":0,"executed_time":"2026-10-24T15:28:02Z","issuer":"r4k1jdyThSDbPwbNrpiuqNCoRJ61y9N4Wj","kind":"uritoken","ledger_index":26763629,"nft_id":"E5ECD96D609E8E7C29C967D3D2FA542AE58FC9A05B9C4EAE7BFF608A7D0306A2","to":"r4k1jdyThSDbPwbNrpiuqNCoRJ61y9N4Wj","tx_hash":"4B53D75736A4FB2A1197357E2278F8BC5E4CA85C3E61522EBFEB42FA86F54F3B","tx_index":0,"tx_type":"URITokenMint","uri":"5A585A79624756686332564D56465941415141414341466E667279793932373566564D5653646979665650446A58366B786F41414C564359787741414141414141414141414141414141414141414141"},
+    {"account":"r4k1jdyThSDbPwbNrpiuqNCoRJ61y9N4Wj","event":"burn","event_index":0,"executed_time":"2026-10-24T15:27:22Z","from":"r4k1jdyThSDbPwbNrpiuqNCoRJ61y9N4Wj","issuer":"r4k1jdyThSDbPwbNrpiuqNCoRJ61y9N4Wj","kind":"uritoken","ledger_index":26763618,"nft_id":"E5ECD96D609E8E7C29C967D3D2FA542AE58FC9A05B9C4EAE7BFF608A7D0306A2","tx_hash":"A6F805E9631B6ADB145597618463D7E4A7EA4040014248CD29E87AB00D00E73B","tx_index":7,"tx_type":"URITokenBurn"}
+  ],
+  "result": "success"
+}

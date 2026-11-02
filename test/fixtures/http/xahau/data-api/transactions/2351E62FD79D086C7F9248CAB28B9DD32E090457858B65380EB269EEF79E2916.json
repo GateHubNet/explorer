@@ -1,0 +1,25 @@
+{
+  "result": "success",
+  "transaction": {
+    "date": "2025-02-14T07:13:21+00:00",
+    "hash": "2351E62FD79D086C7F9248CAB28B9DD32E090457858B65380EB269EEF79E2916",
+    "ledger_index": 12064511,
+    "meta": {
+      "AffectedNodes": [{"ModifiedNode":{"LedgerEntryType":"AccountRoot","LedgerIndex":"002A224276124D75B9E3D3AFC854CA1869363856C7E8946CC728D258FADF8304","PreviousTxnID":"A08597A2C055DB25377EF19EA892C9254076DC285F89ABA594C1FE897BACFE28","PreviousTxnLgrSeq":11653422}},{"ModifiedNode":{"FinalFields":{"Flags":0,"Owner":"rsYxnKtb8JBzfG4hp6sVF3WiVNw2broUFo","RootIndex":"1990E625F19AC67A39FB6E824586A2EB362FD770974EB8663CDB33A5388DCF95"},"LedgerEntryType":"DirectoryNode","LedgerIndex":"1990E625F19AC67A39FB6E824586A2EB362FD770974EB8663CDB33A5388DCF95"}},{"ModifiedNode":{"FinalFields":{"Flags":0,"Owner":"rwietsevLFg8XSmG3bEZzFein1g8RBqWDZ","RootIndex":"66CAF9683F970A7D479B311FC5B7B5297A0DD265C801D997E81C051E9B4BBA4C"},"LedgerEntryType":"DirectoryNode","LedgerIndex":"66CAF9683F970A7D479B311FC5B7B5297A0DD265C801D997E81C051E9B4BBA4C"}},{"ModifiedNode":{"FinalFields":{"Account":"rwietsevLFg8XSmG3bEZzFein1g8RBqWDZ","AccountIndex":"7","Balance":"1119046454732","Domain":"7769657473652E636F6D","EmailHash":"AC143BF8B62329B70917F5BA2347BC99","Flags":1073741824,"OwnerCount":25,"RegularKey":"r9PfV3sQpKLWxccdg3HL2FXKxGW2orAcLE","RewardAccumulator":"b43c3c795f","RewardLgrFirst":11272786,"RewardLgrLast":12064511,"RewardTime":789950381,"Sequence":751998464,"TicketCount":10},"LedgerEntryType":"AccountRoot","LedgerIndex":"8C4F456312F02D5199BCB1FB8F657BF19675288E3F4EBF2AFCFB5A1253788404","PreviousFields":{"Balance":"1119046454744","OwnerCount":24,"RewardAccumulator":"9ff8d14397","RewardLgrLast":11986739,"Sequence":751998463}}},{"CreatedNode":{"LedgerEntryType":"Check","LedgerIndex":"F3B54B771F9269A2381A227CC01386C651C3A5AE7EE2234BD2A958EFDAE81716","NewFields":{"Account":"rwietsevLFg8XSmG3bEZzFein1g8RBqWDZ","Destination":"rsYxnKtb8JBzfG4hp6sVF3WiVNw2broUFo","SendMax":"1000000","Sequence":751998463}}}],
+      "TransactionIndex": 28,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "tx": {
+      "Account": "rwietsevLFg8XSmG3bEZzFein1g8RBqWDZ",
+      "Destination": "rsYxnKtb8JBzfG4hp6sVF3WiVNw2broUFo",
+      "Fee": "12",
+      "LastLedgerSequence": 12064528,
+      "NetworkID": 21337,
+      "SendMax": "1000000",
+      "Sequence": 751998463,
+      "SigningPubKey": "0350714189757DA0403CE1FF2025522337EA1B60D9796B11D5559EE914982D6AC3",
+      "TransactionType": "CheckCreate",
+      "TxnSignature": "30450221008645643C3114A376FBEE3DDDBFC7AD5436451FF12EFF718667965725C7410B6E0220331F6B0DB6D37A34096DD0AA5CD2E9869D7616BC1E06B0E6D387CBBD4D4E811A"
+    }
+  }
+}

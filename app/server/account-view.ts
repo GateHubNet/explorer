@@ -8,25 +8,37 @@
 
 import BigNumber from "bignumber.js";
 
-import { accountHref, ACCOUNT_TABS, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
-import { describe, rowSentence, type Segment } from "../domain/describe";
+import { accountHref, ACCOUNT_TABS, DELEGATIONS_LIMIT, DELEGATIONS_WORD, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
+import { accountsIn, delegateOf, describe, rowSentence, type Segment } from "../domain/describe";
 import { dropsToNative, formatUtc } from "../domain/format";
+import { NO_NAMES, type NamesPart } from "../domain/names";
+import { collectionLabel, nftWords, type CollectionKey } from "../domain/nft-params";
+import { delegationHref, ledgerId, OBJECT_KINDS, objectHref } from "../domain/object-link";
 import { MAX_TRAIL, parseTrail, trailPaging, type Paging } from "../domain/paging";
 import { balanceChanges } from "../domain/parse";
 import type { Native } from "../domain/parse/types";
+import { permissionCount } from "../domain/permission-chip";
+import { formatDate } from "../domain/time-words";
+import { tokenLink } from "../domain/token-params";
+import { nftGlyph } from "../ui/components/NftGlyph";
+import type { Features } from "../ui/features";
+import type { NameHeader } from "./account-name-view";
 import type { AnalyticsData } from "./analytics-view";
-import type { AccountData, AccountExchange, BalancesResponse, OrdersResponse, Page, Payment, TxObject } from "./api-types";
+import type { AccountData, AccountExchange, BalancesResponse, DelegationsPage, Nft, NftsPage, OrdersResponse, Page, Payment, TxObject } from "./api-types";
+import { coverageNote, type CoverageNoteText } from "./coverage";
+import { delegationLists, type DelegationList } from "./delegation-view";
 import type { NetworkId } from "./networks";
+import { DASH } from "./nft-format";
 import { RIPPLE_EPOCH_OFFSET, type AccountInfo, type AccountObjects, type LedgerObject, type ServerState } from "./node-rpc";
 import { UpstreamError } from "./upstream";
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // The tabs and the URL
 
-export { accountHref, ACCOUNT_TABS, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab };
+export { accountHref, ACCOUNT_TABS, DELEGATIONS_LIMIT, DELEGATIONS_WORD, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab };
 
-/** The tabs whose list is paged by marker; the offers and the objects are read live and have one page. */
-export const PAGED_TABS: readonly AccountTab[] = ["transactions", "payments", "trades"];
+/** The tabs whose list is paged by marker (the data API's lists, the NFTs' too); the offers and the objects are read live from the node and have one page, and so has the delegation's (200 of each direction). */
+export const PAGED_TABS: readonly AccountTab[] = ["transactions", "payments", "trades", "nfts"];
 
 /** Rows of a page of a list. */
 export const PAGE_SIZE = 20;
@@ -151,6 +163,8 @@ export interface AccountFlag {
 // The flags of an AccountRoot (`lsf...`). The same bit can mean different things on the two networks (0x02000000 is the AMM flag on
 // the XRP Ledger), so a flag that only one has is listed for that one, and a bit nobody here knows says nothing.
 const FLAGS: ReadonlyArray<{ mask: number; id: string; label: (native: Native) => string; only?: NetworkId }> = [
+  // Xahau's clawback flag (lsfAllowTrustLineClawback is 0x80000000 on the XRP Ledger, where 0x1000 is no flag); the token pages' issuer settings read it by this id.
+  { mask: 0x00001000, id: "allowClawback", label: () => "Clawback allowed", only: "xahau" },
   { mask: 0x00020000, id: "requireDestTag", label: () => "Requires destination tag" },
   { mask: 0x00040000, id: "requireAuth", label: () => "Requires trust line authorization" },
   // lsfDisallowXRP asks senders not to pay in the native currency; the ledger does not stop them (a wallet or a service may heed it).
@@ -205,7 +219,8 @@ const OWNED_LABELS: ReadonlyArray<readonly [type: string, one: string, many: str
   ["SignerList", "signer list", "signer lists"],
   ["DepositPreauth", "deposit preauthorization", "deposit preauthorizations"],
   ["NFTokenOffer", "NFT offer", "NFT offers"],
-  ["URIToken", "URI token", "URI tokens"],
+  ["URIToken", "URIToken", "URITokens"],
+  ["Delegate", "delegation given", "delegations given"],
 ];
 
 /**
@@ -235,21 +250,32 @@ export interface Token {
   value: string;
   /** An LP token: a 40-hex code that starts with `03`. */
   lp: boolean;
+  /** Where the code leads: the token's page (`tokenLink`); `null` for an LP token, whose pool line stays, and while `TOKENS` is off, when the code is text. */
+  href: string | null;
 }
 
 /** The API's default and largest page of balances: a list that fills it may go on. */
 const BALANCES_DEFAULT_LIMIT = 200;
 
-/** The trust lines of an account's balances, the native balance left out. */
-export function tokensOf(balances: BalancesResponse): { items: Token[]; truncated: boolean } {
+/**
+ * The trust lines of an account's balances, the native balance left out. A line's code leads to its token's page (`tokenLink`, spec 5.2): the token of the line's counterparty when the balance
+ * is zero or above, and the token of this account when it is below zero (the account is then that line's issuer). An LP token keeps its pool line (`href` is `null`), and `link` carries the
+ * network, the account and the switches that decide the rest.
+ */
+export function tokensOf(balances: BalancesResponse, link: Pick<ObjectRowsContext, "net" | "address" | "features">): { items: Token[]; truncated: boolean } {
   const items = balances.balances
     .filter((balance) => balance.counterparty !== undefined)
-    .map((balance) => ({
-      currency: balance.currency,
-      issuer: balance.counterparty!,
-      value: balance.value,
-      lp: /^03[0-9A-Fa-f]{38}$/.test(balance.currency),
-    }));
+    .map((balance): Token => {
+      const lp = /^03[0-9A-Fa-f]{38}$/.test(balance.currency);
+      const issuer = new BigNumber(balance.value).lt(0) ? link.address : balance.counterparty!;
+      return {
+        currency: balance.currency,
+        issuer: balance.counterparty!,
+        value: balance.value,
+        lp,
+        href: lp ? null : tokenLink(link.net, { currency: balance.currency, issuer }, link.features),
+      };
+    });
   return { items, truncated: balances.balances.length >= (balances.limit ?? BALANCES_DEFAULT_LIMIT) };
 }
 
@@ -302,7 +328,15 @@ export interface AccountHeader {
   owned: OwnedView | null;
   /** Some of what the node tells could not be read: the page says "Live state unavailable". */
   nodeProblem: boolean;
+  /**
+   * The account's name, its domain and how it is known (display names spec 6.5), from the header's names call and the toml of the domain the header shows: `null` while
+   * `NAMES` is off and when that call failed (the header is today's). The loader adds it to what `accountHeader` gives.
+   */
+  name: NameHeader | null;
 }
+
+/** The header as `accountHeader` makes it, before the loader names it. */
+export type UnnamedHeader = Omit<AccountHeader, "name">;
 
 export interface HeaderInput {
   native: Native;
@@ -315,12 +349,14 @@ export interface HeaderInput {
   balances?: Loaded<BalancesResponse>;
   /** The close time (unix seconds) of the ledger that last changed the account, if it could be read. */
   lastLedgerTime: number | null;
+  /** The page's network, the account and the switches, for the links of the tokens' codes: a header with its holdings needs them, one without (the analytics view) has no tokens to link. */
+  link?: Pick<ObjectRowsContext, "net" | "address" | "features">;
   /** Whether the index has a transaction of the address: asked only when neither the index nor the node has the account. */
   history?: Loaded<boolean>;
 }
 
-/** A call a header with its holdings reads: leaving it out is the caller's mistake, not a call that failed. */
-function needed<T>(value: Loaded<T> | undefined, name: string): Loaded<T> {
+/** A call, or the link, a header with its holdings reads: leaving it out is the caller's mistake, not a call that failed. */
+function needed<T>(value: T | undefined, name: string): T {
   if (value === undefined) throw new Error(`accountHeader with its holdings needs the ${name}`);
   return value;
 }
@@ -342,10 +378,11 @@ export function activationOf(created: AccountData): Activation {
  * Without it (the analytics view, spec 2.1) neither is read: `owned` is `null`, `tokens` is `none`, neither adds a problem, and the balance
  * is the node's alone (an account whose node did not answer has none, and the page says the balance could not be read).
  */
-export function accountHeader(input: HeaderInput, { holdings }: { holdings: boolean } = { holdings: true }): { header: AccountHeader; problems: string[] } {
+export function accountHeader(input: HeaderInput, { holdings }: { holdings: boolean } = { holdings: true }): { header: UnnamedHeader; problems: string[] } {
   const { native, created, info, state, lastLedgerTime, history } = input;
   const objects = holdings ? needed(input.objects, "objects") : undefined;
   const balances = holdings ? needed(input.balances, "balances") : undefined;
+  const link = holdings ? needed(input.link, "link") : undefined;
   const existence = existenceOf(created, info, history);
   if (existence === "never-activated" || existence === "outage" || existence === "undetermined") {
     throw new Error(`accountHeader is for an account that exists, not one that is ${existence}`);
@@ -408,7 +445,7 @@ export function accountHeader(input: HeaderInput, { holdings }: { holdings: bool
   if (!deleted && state.state === "failed") problems.push("node server_state failed");
 
   let tokens: TokensView = { state: "none" };
-  if (!deleted && balances?.state === "ok") tokens = { state: "ok", ...tokensOf(balances.value) };
+  if (!deleted && balances?.state === "ok" && link) tokens = { state: "ok", ...tokensOf(balances.value, link) };
   else if (!deleted && balances?.state === "failed") {
     tokens = { state: "failed" };
     problems.push("balances failed");
@@ -470,9 +507,12 @@ export interface TxRow {
 
 const lowerFirst = (word: string) => (/^[A-Z][a-z]/.test(word) ? `${word.charAt(0).toLowerCase()}${word.slice(1)}` : word);
 
-/** The row's sentence: the account's own transactions leave their sender out (it is the page's subject); another account's name it. */
+/**
+ * The row's sentence: the account's own transactions leave their sender out (it is the page's subject); another account's name it. A transaction a delegate sent ends
+ * " · sent by {delegate}", or " · sent by this account as its delegate" on the delegate's own page (`rowSentence`'s viewer).
+ */
 function sentenceFor(description: Parameters<typeof rowSentence>[0], sender: string, subject: string): Segment[] {
-  const row = rowSentence(description);
+  const row = rowSentence(description, subject);
   if (sender === subject) return row;
   const [first, ...rest] = row;
   if (first?.t === "text") return [{ t: "account", v: sender }, { t: "text", v: ` ${lowerFirst(first.v)}` }, ...rest];
@@ -482,13 +522,17 @@ function sentenceFor(description: Parameters<typeof rowSentence>[0], sender: str
 /** Whether a currency and its issuer (if any) are the network's native currency: the code alone. An issued `XAH` on XRPL is not. */
 export const isNative = (side: { currency: string; issuer?: string }, native: string): boolean => side.issuer === undefined && side.currency === native;
 
-/** Of the changes the transaction made to the account's balances, the one to show (see `ChangeView`). */
+/**
+ * Of the changes the transaction made to the account's balances, the one to show (see `ChangeView`). The fee is the change of the account that paid it: the delegate of a transaction a
+ * delegate sent (ledger object pages spec 6.2), else the sender.
+ */
 function changeOf(tx: TxObject, address: string, native: Native): ChangeView | null {
   const mine = balanceChanges(tx.tx, tx.meta, native).filter((change) => change.account === address && !isZero(change.value));
   const isNativeChange = (change: { currency: string; issuer?: string }) => isNative(change, native);
   const fee = new BigNumber(dropsToNative(tx.tx.Fee)).negated();
-  // The sender's native change includes the fee. When that is all of it, the change that is not the fee is the one that matters.
-  const feeOnly = (change: { value: string; currency: string; issuer?: string }) => tx.tx.Account === address && isNativeChange(change) && new BigNumber(change.value).isEqualTo(fee);
+  const payer = delegateOf(tx.tx) ?? tx.tx.Account;
+  // The payer's native change includes the fee. When that is all of it, the change that is not the fee is the one that matters.
+  const feeOnly = (change: { value: string; currency: string; issuer?: string }) => payer === address && isNativeChange(change) && new BigNumber(change.value).isEqualTo(fee);
   const meaningful = mine.filter((change) => !feeOnly(change));
   const pool = meaningful.length > 0 ? meaningful : mine;
   const ordered = [...pool.filter(isNativeChange), ...pool.filter((change) => !isNativeChange(change))];
@@ -611,6 +655,19 @@ export interface ObjectRow {
   fields: ObjectField[];
   /** The transaction that last changed it. */
   tx: string | null;
+  /**
+   * Where the object leads besides its fields: an NFT page to the account's NFTs (while `NFTS` is on), an escrow, a check or a payment channel to its page (while `LEDGER_OBJECTS` is on), a
+   * delegation the account gave to the Delegation tab of its delegator (while `DELEGATION` is on). None while the switch is off.
+   */
+  link?: { label: string; href: string };
+}
+
+/** What the Objects tab's rows are built in: the account's network and its native currency, the account (whose incoming objects name their source) and the switches its links follow. */
+export interface ObjectRowsContext {
+  net: NetworkId;
+  native: Native;
+  address: string;
+  features: Features;
 }
 
 const text = (v: string): Segment => ({ t: "text", v });
@@ -635,26 +692,70 @@ function timeField(value: unknown): Segment | null {
 const countField = (value: unknown): Segment | null => (Array.isArray(value) ? text(String(value.length)) : null);
 const numberField = (value: unknown): Segment | null => (typeof value === "number" && Number.isFinite(value) ? text(String(value)) : null);
 
+/** An NFT's or a URIToken's id, as the node writes it: 64 hexadecimal digits, which the page's link leads to the NFT with. Anything else is not an id, and is no field. */
+function nftField(value: unknown): Segment | null {
+  return typeof value === "string" && /^[0-9A-Fa-f]{64}$/.test(value) ? { t: "nft", v: value.toUpperCase() } : null;
+}
+
+/** The side of an NFT offer: a sell offer has `lsfSellNFToken` (1) set, a buy offer has not. A `Flags` that is no number says nothing of it. */
+const LSF_SELL_NFTOKEN = 0x00000001;
+const sideField = (flags: unknown): Segment | null => (typeof flags === "number" && Number.isSafeInteger(flags) ? text((flags & LSF_SELL_NFTOKEN) === 0 ? "Buy" : "Sell") : null);
+
+/** A URIToken's sell offer, when it has one: its `Amount`, and "only for" its `Destination` when it names one. An amount that is none (an MPT) is no offer. */
+function sellOfferField(entry: LedgerObject, native: Native): Segment[] | null {
+  const amount = amountField(entry.Amount, native);
+  if (amount === null) return null;
+  const only = accountField(entry.Destination);
+  return only === null ? [amount] : [amount, text(", only for "), only];
+}
+
+/** The source of an object the account is the destination of (an escrow, a check or a channel it was sent: ledger object pages decision 11): its `Account`; none for one of its own. */
+const fromField = (entry: LedgerObject, address: string): Segment | null => (entry.Destination === address ? accountField(entry.Account) : null);
+
+/** How many permissions a delegation grants, of the ten it can: "3 of 10". A `Permissions` that is no list says nothing of it. */
+const permissionsField = (value: unknown): Segment | null => (Array.isArray(value) ? text(permissionCount(value.length)) : null);
+
 /** The fields to show of each type of object, in order; a field the entry does not have, or in a shape unknown here, is left out. */
-const OBJECT_FIELDS: Record<string, (entry: LedgerObject, native: Native) => ReadonlyArray<readonly [string, Segment | null]>> = {
-  Escrow: (e, native) => [
+const OBJECT_FIELDS: Record<string, (entry: LedgerObject, ctx: ObjectRowsContext) => ReadonlyArray<readonly [string, Segment | Segment[] | null]>> = {
+  Escrow: (e, { native, address }) => [
     ["Amount", amountField(e.Amount, native)],
+    ["From", fromField(e, address)],
     ["To", accountField(e.Destination)],
     ["Can finish after", timeField(e.FinishAfter)],
     ["Can cancel after", timeField(e.CancelAfter)],
   ],
-  Check: (e, native) => [
+  Check: (e, { native, address }) => [
     ["Send up to", amountField(e.SendMax, native)],
+    ["From", fromField(e, address)],
     ["To", accountField(e.Destination)],
     ["Expires", timeField(e.Expiration)],
   ],
-  PayChannel: (e, native) => [
+  PayChannel: (e, { native, address }) => [
     ["Amount", amountField(e.Amount, native)],
     ["Claimed so far", amountField(e.Balance, native)],
+    ["From", fromField(e, address)],
     ["To", accountField(e.Destination)],
     ["Expires", timeField(e.Expiration)],
   ],
+  // A delegation the account gave (ledger object pages spec 7): the delegate, the account it may act for, and how many permissions it holds.
+  Delegate: (e) => [
+    ["Delegate", accountField(e.Authorize)],
+    ["On behalf of", accountField(e.Account)],
+    ["Permissions", permissionsField(e.Permissions)],
+  ],
   NFTokenPage: (e) => [["NFTs", countField(e.NFTokens)]],
+  NFTokenOffer: (e, { native }) => [
+    ["NFT", nftField(e.NFTokenID)],
+    ["Side", sideField(e.Flags)],
+    ["Amount", amountField(e.Amount, native)],
+    ["Only for", accountField(e.Destination)],
+    ["Expires", timeField(e.Expiration)],
+  ],
+  URIToken: (e, { native }) => [
+    ["URIToken", nftField(e.index)],
+    ["Issuer", accountField(e.Issuer)],
+    ["Sell offer", sellOfferField(e, native)],
+  ],
   Ticket: (e) => [["Ticket sequence", numberField(e.TicketSequence)]],
   SignerList: (e) => [
     ["Quorum", numberField(e.SignerQuorum)],
@@ -664,10 +765,29 @@ const OBJECT_FIELDS: Record<string, (entry: LedgerObject, native: Native) => Rea
 };
 
 /**
- * The objects an account owns, as rows for the Objects tab. Trust lines and offers have a place of their own (Tokens, the Offers
- * tab), so they are counted and left out.
+ * Where a row leads besides its fields (`ObjectRow.link`), while its switch is on: an NFT page to the account's NFTs tab (`NFTS`); an escrow, a check or a payment channel to its page by its
+ * `index` (`LEDGER_OBJECTS`; an index that is no ID leads nowhere); a delegation the account gave to its delegator's Delegation tab (`DELEGATION`).
  */
-export function objectRows(objects: readonly LedgerObject[], native: Native): { rows: ObjectRow[]; trustLines: number; offers: number } {
+function linkOf(entry: LedgerObject, ctx: ObjectRowsContext): ObjectRow["link"] {
+  const type = entry.LedgerEntryType;
+  if (type === "NFTokenPage") return ctx.features.nfts ? { label: "See the account’s NFTs", href: accountHref(ctx.net, ctx.address, { tab: "nfts" }) } : undefined;
+  if (type === "Delegate") {
+    const href = typeof entry.Account === "string" && entry.Account !== "" ? delegationHref(ctx.net, entry.Account, ctx.features) : null;
+    return href === null ? undefined : { label: "View delegation →", href };
+  }
+  const kind = OBJECT_KINDS.find((each) => each.type === type);
+  const id = ledgerId(entry.index);
+  if (kind === undefined || id === undefined) return undefined;
+  const href = objectHref(ctx.net, kind.kind, { id }, ctx.features);
+  // "Open escrow →", "Open check →", "Open payment channel →": the words of `OBJECT_KINDS`.
+  return href === null ? undefined : { label: `Open ${kind.words} →`, href };
+}
+
+/**
+ * The objects an account owns, as rows for the Objects tab. Trust lines and offers have a place of their own (Tokens, the Offers
+ * tab), so they are counted and left out. Each row's fields, and where it leads while its switch is on (`linkOf`).
+ */
+export function objectRows(objects: readonly LedgerObject[], ctx: ObjectRowsContext): { rows: ObjectRow[]; trustLines: number; offers: number } {
   let trustLines = 0;
   let offers = 0;
   const rows: ObjectRow[] = [];
@@ -680,29 +800,50 @@ export function objectRows(objects: readonly LedgerObject[], native: Native): { 
       offers += 1;
       return;
     }
-    const fields = Object.hasOwn(OBJECT_FIELDS, entry.LedgerEntryType) ? OBJECT_FIELDS[entry.LedgerEntryType]!(entry, native) : [];
+    const fields = Object.hasOwn(OBJECT_FIELDS, entry.LedgerEntryType) ? OBJECT_FIELDS[entry.LedgerEntryType]!(entry, ctx) : [];
     const last = entry.PreviousTxnID;
+    const link = linkOf(entry, ctx);
     rows.push({
       key: typeof entry.index === "string" ? entry.index : String(index),
       type: entry.LedgerEntryType,
-      fields: fields.flatMap(([label, value]) => (value === null ? [] : [{ label, value: [value] }])),
+      fields: fields.flatMap(([label, value]) => (value === null ? [] : [{ label, value: Array.isArray(value) ? value : [value] }])),
       tx: typeof last === "string" && /^[0-9A-Fa-f]{64}$/.test(last) ? last : null,
+      ...(link === undefined ? {} : { link }),
     });
   });
   return { rows, trustLines, offers };
 }
 
+/**
+ * An NFT the account holds, a row of the NFTs tab (spec 6.1). The page draws the glyph and the link from `nft` (`serial` is XRPL's: "#4,127", else the short id) and links the
+ * collection from `key` while `NFTS` is on (`collectionLink`). `lastSale` is the price in its own currency: an account's list has no converted amount, so the page draws no "≈".
+ * `minted` is the day of the mint, or a dash when the mint is not in the index.
+ */
+export interface AccountNftRow {
+  /** The NFT's id: the row's own key. */
+  key: string;
+  nft: { id: string; serial?: number; glyph: string };
+  collection: { label: string; key: CollectionKey };
+  lastSale: { value: string; currency: string; issuer?: string } | null;
+  minted: string;
+}
+
 // ---------------------------------------------------------------------------------------------------------------------------
 // The tab list and the page
 
-/** What the active tab shows. `failed` is the section that could not be loaded: "Couldn't load {what}" and Retry. */
+/**
+ * What the active tab shows. `failed` is the section that could not be loaded: "Couldn't load {what}" and Retry. A list that is there carries the names of the accounts it draws
+ * (`names`, display names spec 3.4): the builders give it `NO_NAMES`, and the loader the names of its call (`listAddresses`); the Objects tab's are the header's call's.
+ */
 export type TabList =
   | { state: "failed"; what: string }
-  | { state: "ok"; tab: "transactions"; rows: TxRow[]; paging: Paging }
-  | { state: "ok"; tab: "payments"; rows: PaymentRow[]; paging: Paging; csvHref: string }
-  | { state: "ok"; tab: "trades"; rows: TradeRow[]; paging: Paging }
-  | { state: "ok"; tab: "offers"; rows: OfferRow[]; ledgerIndex: number | null; truncated: boolean }
-  | { state: "ok"; tab: "objects"; rows: ObjectRow[]; trustLines: number; offers: number; truncated: boolean; ledgerIndex: number | null };
+  | { state: "ok"; tab: "transactions"; rows: TxRow[]; paging: Paging; names: NamesPart }
+  | { state: "ok"; tab: "payments"; rows: PaymentRow[]; paging: Paging; csvHref: string; names: NamesPart }
+  | { state: "ok"; tab: "trades"; rows: TradeRow[]; paging: Paging; names: NamesPart }
+  | { state: "ok"; tab: "offers"; rows: OfferRow[]; ledgerIndex: number | null; truncated: boolean; names: NamesPart }
+  | { state: "ok"; tab: "objects"; rows: ObjectRow[]; trustLines: number; offers: number; truncated: boolean; ledgerIndex: number | null; names: NamesPart }
+  | { state: "ok"; tab: "nfts"; rows: AccountNftRow[]; paging: Paging; coverage: CoverageNoteText | null; names: NamesPart }
+  | { state: "ok"; tab: "delegation"; given: DelegationList; held: DelegationList; names: NamesPart };
 
 /** What each tab is called in "Couldn't load transactions"; the analytics view's whole-view error is "Couldn't load the analytics." */
 export const TAB_WHAT: Record<AccountTab, string> = {
@@ -711,6 +852,8 @@ export const TAB_WHAT: Record<AccountTab, string> = {
   trades: "trades",
   offers: "offers",
   objects: "objects",
+  nfts: "NFTs",
+  delegation: DELEGATIONS_WORD,
   analytics: "the analytics",
 };
 
@@ -728,6 +871,7 @@ export function transactionsList(page: Page<"transactions", TxObject>, ctx: List
     tab: "transactions",
     rows: transactionRows(page.transactions, ctx.address, ctx.native),
     paging: pagingOf(ctx.net, ctx.address, { tab: "transactions", marker: ctx.marker, back: ctx.back, next: page.marker }),
+    names: NO_NAMES,
   };
 }
 
@@ -738,6 +882,7 @@ export function paymentsList(page: Page<"payments", Payment>, ctx: ListContext):
     rows: paymentRows(page.payments, ctx.address),
     paging: pagingOf(ctx.net, ctx.address, { tab: "payments", marker: ctx.marker, back: ctx.back, next: page.marker }),
     csvHref: `/${ctx.net}/account/${ctx.address}/payments.csv`,
+    names: NO_NAMES,
   };
 }
 
@@ -747,6 +892,7 @@ export function tradesList(page: Page<"exchanges", AccountExchange>, ctx: ListCo
     tab: "trades",
     rows: tradeRows(page.exchanges, ctx.address),
     paging: pagingOf(ctx.net, ctx.address, { tab: "trades", marker: ctx.marker, back: ctx.back, next: page.marker }),
+    names: NO_NAMES,
   };
 }
 
@@ -764,17 +910,97 @@ export function offersList(orders: OrdersResponse): TabList {
     rows: offerRows(orders),
     ledgerIndex: orders.ledger_index ?? null,
     truncated: orders.orders.length >= (orders.limit ?? ORDERS_DEFAULT_LIMIT),
+    names: NO_NAMES,
   };
 }
 
 /** The Objects tab; `null` for an account that has none to read (it was deleted). */
-export function objectsList(objects: AccountObjects | null, native: Native): TabList {
-  if (objects === null) return { state: "ok", tab: "objects", rows: [], trustLines: 0, offers: 0, truncated: false, ledgerIndex: null };
-  return { state: "ok", tab: "objects", ...objectRows(objects.account_objects, native), truncated: objects.marker !== undefined, ledgerIndex: objects.ledger_index };
+export function objectsList(objects: AccountObjects | null, ctx: ObjectRowsContext): TabList {
+  if (objects === null) return { state: "ok", tab: "objects", rows: [], trustLines: 0, offers: 0, truncated: false, ledgerIndex: null, names: NO_NAMES };
+  return {
+    state: "ok",
+    tab: "objects",
+    ...objectRows(objects.account_objects, ctx),
+    truncated: objects.marker !== undefined,
+    ledgerIndex: objects.ledger_index,
+    names: NO_NAMES,
+  };
 }
 
-export function failedList(tab: ListTab): TabList {
-  return { state: "failed", what: TAB_WHAT[tab] };
+/** A row of the NFTs tab: the key of its collection is `{ issuer, taxon }` on XRPL and `{ issuer }` on Xahau, whose URITokens have none. */
+function accountNftRow(nft: Nft): AccountNftRow {
+  const key: CollectionKey = nft.taxon === undefined ? { issuer: nft.issuer } : { issuer: nft.issuer, taxon: nft.taxon };
+  const sale = nft.last_sale;
+  return {
+    key: nft.nft_id,
+    nft: { id: nft.nft_id, ...(nft.serial === undefined ? {} : { serial: nft.serial }), glyph: nftGlyph(nft.nft_id, nft.serial) },
+    collection: { label: collectionLabel(key), key },
+    lastSale: sale === undefined ? null : { value: sale.amount, currency: sale.currency, ...(sale.amount_issuer === undefined ? {} : { issuer: sale.amount_issuer }) },
+    minted: nft.minted === undefined ? DASH : formatDate(nft.minted.executed_time),
+  };
+}
+
+/**
+ * The NFTs tab (spec 6.1): what the account holds now, one row for each NFT, in the order the API gave them (D3 orders them by collection and serial, a Xahau account's by id: the
+ * page never sorts them), with the Newer and Older links of the other paged lists. The coverage note is the list's, in the network's words (`NFTs`, `URITokens`).
+ */
+export function nftsList(page: NftsPage, ctx: ListContext): TabList {
+  return {
+    state: "ok",
+    tab: "nfts",
+    rows: page.nfts.map(accountNftRow),
+    paging: pagingOf(ctx.net, ctx.address, { tab: "nfts", marker: ctx.marker, back: ctx.back, next: page.marker }),
+    coverage: coverageNote(page.coverage, nftWords(ctx.net).tokens),
+    names: NO_NAMES,
+  };
+}
+
+/**
+ * The Delegation tab (ledger object pages spec 6.1): the delegations the account gave and the ones it holds, each list one page of at most `DELEGATIONS_LIMIT` rows with no pager (the page
+ * says when there are more), and the coverage note of each in the words of the delegations. Both come from the API, or the tab is the section that could not be loaded.
+ */
+export function delegationList(given: DelegationsPage, held: DelegationsPage): TabList {
+  return { state: "ok", tab: "delegation", ...delegationLists(given, held), names: NO_NAMES };
+}
+
+/** The section that could not be loaded: `TAB_WHAT`'s words of the tab, and the network's own for the NFTs (`net`: "URITokens" on Xahau). */
+export function failedList(tab: ListTab, net?: NetworkId): TabList {
+  return { state: "failed", what: tab === "nfts" && net !== undefined ? nftWords(net).tokens : TAB_WHAT[tab] };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// The accounts the page draws (display names spec 1 and 5): what the loader asks the names of, and nothing else it holds
+
+/**
+ * The accounts a tab's list draws as links, each once, in the order drawn: the accounts of the transactions' sentences, the counterparty of each payment and of each trade, the
+ * accounts of the objects' fields (From, To, Only for, Issuer, Authorized, a sell offer's only for, a delegation's Delegate and On behalf of), and the delegates of the delegations given
+ * and then the accounts of those held. The open offers and the NFTs draw none (an amount's issuer is in a title, a collection is a link to the collection), and neither does a list that
+ * failed. The first page's list asks for these names in a call of its own, after its rows; the Objects tab's rows come with the header, and its accounts are in the header's call.
+ */
+export function listAddresses(list: TabList): string[] {
+  if (list.state !== "ok") return [];
+  switch (list.tab) {
+    case "transactions":
+      return [...new Set(list.rows.flatMap((row) => accountsIn(row.what)))];
+    case "payments":
+    case "trades":
+      return [...new Set(list.rows.map((row) => row.counterparty))];
+    case "objects":
+      return [...new Set(list.rows.flatMap((row) => row.fields.flatMap((field) => accountsIn(field.value))))];
+    case "delegation":
+      return [...new Set([...list.given.rows, ...list.held.rows].map((row) => row.account))];
+    default:
+      return [];
+  }
+}
+
+/**
+ * The accounts the header draws, in the order drawn: the address (the `<h1>`), the account that activated it, and the issuer of each token. An LP token's issuer is its AMM pool,
+ * which the page links as the pool while `AMM_PAGES` is on (`TokenRow`), and as an account only while it is off.
+ */
+export function headerAccounts(address: string, header: Pick<AccountHeader, "activation" | "tokens">, features: Pick<Features, "ammPages">): string[] {
+  const issuers = header.tokens.state === "ok" ? header.tokens.items.filter((token) => !(token.lp && features.ammPages)).map((token) => token.issuer) : [];
+  return [address, ...(header.activation === null ? [] : [header.activation.parent]), ...issuers];
 }
 
 /**
@@ -784,6 +1010,8 @@ export function failedList(tab: ListTab): TabList {
  */
 export interface HistoryHeader {
   status: "history";
+  /** The account's name and its labels only (`accountNameHeader`'s `brief`): no domain, which only the live state says. `null` as `AccountHeader.name`. */
+  name: NameHeader | null;
 }
 
 /**
@@ -797,6 +1025,9 @@ export interface QrPicture {
   content: string;
   tag: number | null;
 }
+
+/** How the tab bar shows the Delegation tab: a link, the "soon" label, or not at all. */
+export type DelegationTab = "link" | "soon" | "none";
 
 /** What every account page is drawn from, whatever its tab. */
 interface AccountPageBase {
@@ -812,6 +1043,16 @@ interface AccountPageBase {
    * the page data, so that the stored HTML, the server's tab bar and the browser's agree.
    */
   analyticsTab: boolean;
+  /**
+   * The Delegation tab: a `link` while the network has delegation (`Network.hasDelegation`) and `DELEGATION` is on, the "soon" label while only the switch is off, and `none` on a network
+   * without delegation (Xahau), where there is nothing to wait for. Carried in the page data as `analyticsTab` is, for the same reason.
+   */
+  delegationTab: DelegationTab;
+  /**
+   * The names of the accounts the header draws (`headerAccounts`), from the header's call; behind a marker, of the one call of the page (the address and the list's rows). A
+   * streamed list and the analytics cards carry their own.
+   */
+  names: NamesPart;
 }
 
 /**

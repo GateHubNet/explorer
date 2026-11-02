@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 107874617
+  },
+  "events": [
+    {"account":"rB7UyKs9SwS4pX87tqtMjq4XRiEhkBfmuH","event":"modify","event_index":0,"executed_time":"2026-10-25T04:37:10Z","issuer":"rB7UyKs9SwS4pX87tqtMjq4XRiEhkBfmuH","kind":"nftoken","ledger_index":107886001,"nft_id":"00191F4072D67B49A7ED6E16B05851CF77CDC8475B5FD73836412B5105A01DC4","serial":94379460,"taxon":14,"tx_hash":"910FE30699392FDFD6A8B5935C0914AEB6E94978F67154665558A4C070DF156D","tx_index":64,"tx_type":"NFTokenModify","uri":"697066733A2F2F6261666B72656967616C69376F797632646D34666A756F746C72373471696772787332783773626B6B7534327265726D627774616B3366626A766D"}
+  ],
+  "result": "success"
+}

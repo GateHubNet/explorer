@@ -1,0 +1,38 @@
+{
+  "check": {
+    "account": "r3f6bMRipu5zneH4k7ieERt4PGhXCJkVDH",
+    "check_id": "C48549BA1291362FE14EB78E0C553CDC3ABA221A980A7519BAC0FAB18012DF1D",
+    "delivered": {
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "0.389373"
+    },
+    "destination": "rBi1QrVjwaNofisZAQnovoXdHkS73FG1tJ",
+    "expiration": "2026-10-17T07:16:41Z",
+    "invoice_id": "A5AEC70A3F1B44564AC40A212B5ED27D9E65FDD9A6FA806588274B6C20286373",
+    "removed": {
+      "ledger_index": 107711512,
+      "time": "2026-10-17T06:18:50Z",
+      "tx_hash": "A075E757D0E6E283ABB6CD7ED751A412D4B1DC14C6F5DE616819C7D6579EC63C",
+      "tx_type": "CheckCash"
+    },
+    "send_max": {
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "1"
+    },
+    "sequence": 106641642,
+    "source_tag": 804681468,
+    "status": "cashed"
+  },
+  "close_time": "2026-10-29T03:50:41Z",
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 102145584
+  },
+  "history": [
+    {"account":"rBi1QrVjwaNofisZAQnovoXdHkS73FG1tJ","delivered":{"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","value":"0.389373"},"event":"cash","ledger_index":107711512,"result":"tesSUCCESS","time":"2026-10-17T06:18:50Z","tx_hash":"A075E757D0E6E283ABB6CD7ED751A412D4B1DC14C6F5DE616819C7D6579EC63C","tx_type":"CheckCash"}
+  ],
+  "ledger_index": 107972102,
+  "result": "success"
+}

@@ -1,5 +1,8 @@
-import { LIVE, NEVER_FUNDED, NO_SUCH_TRANSACTION, XAHAU_REMIT, XRPL_ACCOUNT, XRPL_LEDGER, XRPL_PAYMENT } from "./fixtures";
-import { expect, hydrated, test } from "./support";
+import { fixtureNameOf, LIVE, NEVER_FUNDED, NO_SUCH_TRANSACTION, XAHAU_REMIT, XRPL_ACCOUNT, XRPL_LEDGER, XRPL_PAYMENT } from "./fixtures";
+import { expect, hashHint, hydrated, test } from "./support";
+
+/** What the box says a 64-digit hash can be: with `NFTS` on (the Worker's own var) it can be an NFT too (E8), with `LEDGER_OBJECTS` on an escrow, a check or a payment channel (E10); `E2E_FEATURES_OFF` tells the suite when a switch is off. */
+const HASH_HINT = hashHint("xrpl");
 
 test.describe("search", () => {
   test("a pasted transaction hash, with the noise a paste brings, leads to the transaction", async ({ page }) => {
@@ -10,7 +13,7 @@ test.describe("search", () => {
     // Lower case, a 0x prefix, spaces around it: the box says what it is before anything is sent.
     await box.fill(`  0x${XRPL_PAYMENT.toLowerCase()}  `);
     const hints = page.getByRole("list", { name: "Matches" });
-    await expect(hints).toContainText("Transaction or ledger");
+    await expect(hints).toContainText(HASH_HINT);
     await expect(hints).toContainText(XRPL_PAYMENT);
 
     await box.press("Enter");
@@ -18,7 +21,14 @@ test.describe("search", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Payment");
     await expect(page).toHaveTitle("Payment AACAFC…FD40 · XRPL · explorer");
     await expect(page.getByRole("region", { name: "Details" })).toContainText(XRPL_PAYMENT);
-    await expect(page.getByRole("region", { name: "Summary" })).toContainText("rBbW6i…W5jh sent 2.306481 XRP to rDFDjd…fy48");
+    // The summary names its accounts (display names): the sender is a verified name in the fixtures. A real stack has names of its own.
+    const summary = page.getByRole("region", { name: "Summary" });
+    await expect(summary).toContainText(" sent 2.306481 XRP to ");
+    if (!LIVE) {
+      const name = fixtureNameOf("xrpl", XRPL_ACCOUNT);
+      expect(name, "the fixtures name the sender").toBeDefined();
+      await expect(summary).toContainText(name!);
+    }
   });
 
   test("a hint leads straight to an account, and `/` puts the cursor in the header's box", async ({ page }) => {
@@ -32,7 +42,16 @@ test.describe("search", () => {
     await box.fill(XRPL_ACCOUNT);
     await page.getByRole("list", { name: "Matches" }).getByRole("link", { name: new RegExp(XRPL_ACCOUNT) }).click();
     await page.waitForURL(`**/xrpl/account/${XRPL_ACCOUNT}`);
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(XRPL_ACCOUNT);
+    // The page's h1 is the account's name, with the words of its mark (a verified name in the fixtures), and the address is under it. A real stack has names of its own.
+    const heading = page.getByRole("heading", { level: 1 });
+    if (LIVE) {
+      await expect(heading).toBeVisible();
+    } else {
+      const name = fixtureNameOf("xrpl", XRPL_ACCOUNT);
+      expect(name, "the fixtures name the account").toBeDefined();
+      await expect(heading).toHaveText(`${name!} verified name`);
+      await expect(page.getByRole("region", { name: "Account" })).toContainText(XRPL_ACCOUNT);
+    }
   });
 
   test("a ledger index, grouped as the pages show it, leads to the ledger", async ({ page }) => {

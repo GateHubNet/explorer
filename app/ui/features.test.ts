@@ -131,6 +131,217 @@ describe("the AMM_PAGES switch", () => {
   });
 });
 
+// NFTS (E8): the NFT pages, the header's NFTs link and every link into them (`nftLink`, `collectionLink`).
+describe("the NFTS switch", () => {
+  // Its place is the sixth, after E2's two, E3's MARKETS, E4's ACCOUNT_ANALYTICS and E5's AMM_PAGES. Checked as a prefix of both lists, not as their last entry,
+  // so that a switch appended after it by a later plan leaves this test as it is.
+  it("is the sixth switch, after the five before it, and its feature is nfts", () => {
+    const order = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS", "AMM_PAGES", "NFTS"];
+    expect(FEATURE_VARS.slice(0, 6)).toEqual(order);
+    expect(FEATURE_VARS.indexOf("NFTS")).toBe(5);
+    expect(Object.keys(FEATURE_NAME).slice(0, 6)).toEqual(order);
+    expect(Object.keys(FEATURE_NAME).indexOf("NFTS")).toBe(5);
+    expect(FEATURE_NAME.NFTS).toBe("nfts");
+  });
+
+  it('is on for "on" only', () => {
+    expect(featuresOf({ NFTS: "on" }).nfts).toBe(true);
+    for (const value of ["off", "ON", "On", "yes", undefined]) expect(featuresOf({ NFTS: value }).nfts, String(value)).toBe(false);
+    expect(featuresOf({}).nfts).toBe(false);
+  });
+
+  it("is off in NO_FEATURES", () => {
+    expect(NO_FEATURES.nfts).toBe(false);
+  });
+
+  it("does not turn on another feature, and no other switch turns it on", () => {
+    expect(featuresOf({ NFTS: "on" })).toEqual({ ...NO_FEATURES, nfts: true });
+    expect(featuresOf({ ...allSwitches("on"), NFTS: "off" }).nfts).toBe(false);
+    expect(featuresOf({ VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on" }).nfts).toBe(false);
+  });
+});
+
+// NAMES (E9): the display names, wherever an account shows. A feature-level switch: no route, no nav link.
+describe("the NAMES switch", () => {
+  // Its place is the seventh, after the NFTS switch. Checked as a prefix of both lists, not as their last entry, so that a switch appended after it by a later plan
+  // leaves this test as it is.
+  it("is the seventh switch, after the six before it, and its feature is names", () => {
+    const order = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS", "AMM_PAGES", "NFTS", "NAMES"];
+    expect(FEATURE_VARS.slice(0, 7)).toEqual(order);
+    expect(FEATURE_VARS.indexOf("NAMES")).toBe(6);
+    expect(Object.keys(FEATURE_NAME).slice(0, 7)).toEqual(order);
+    expect(Object.keys(FEATURE_NAME).indexOf("NAMES")).toBe(6);
+    expect(FEATURE_NAME.NAMES).toBe("names");
+  });
+
+  it('is on for "on" only', () => {
+    expect(featuresOf({ NAMES: "on" }).names).toBe(true);
+    for (const value of ["off", "ON", "On", "yes", undefined]) expect(featuresOf({ NAMES: value }).names, String(value)).toBe(false);
+    expect(featuresOf({}).names).toBe(false);
+  });
+
+  it("is off in NO_FEATURES", () => {
+    expect(NO_FEATURES.names).toBe(false);
+  });
+
+  it("does not turn on another feature, and no other switch turns it on", () => {
+    expect(featuresOf({ NAMES: "on" })).toEqual({ ...NO_FEATURES, names: true });
+    expect(featuresOf({ ...allSwitches("on"), NAMES: "off" }).names).toBe(false);
+    expect(featuresOf({ VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on", NFTS: "on" }).names).toBe(false);
+  });
+});
+
+// LEDGER_OBJECTS (E10): the escrow, check and payment-channel pages, their redirect, the links into them and the object question of search. Its own switch from DELEGATION,
+// which gates the Delegation tab only: the two are independent.
+describe("the LEDGER_OBJECTS switch", () => {
+  // Its place is the eighth, after NAMES. Checked as a prefix of both lists, not as their last entry, so that a switch appended after it by a later plan leaves this test as it is.
+  it("is the eighth switch, after the seven before it, and its feature is ledgerObjects", () => {
+    const order = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS", "AMM_PAGES", "NFTS", "NAMES", "LEDGER_OBJECTS"];
+    expect(FEATURE_VARS.slice(0, 8)).toEqual(order);
+    expect(FEATURE_VARS.indexOf("LEDGER_OBJECTS")).toBe(7);
+    expect(Object.keys(FEATURE_NAME).slice(0, 8)).toEqual(order);
+    expect(Object.keys(FEATURE_NAME).indexOf("LEDGER_OBJECTS")).toBe(7);
+    expect(FEATURE_NAME.LEDGER_OBJECTS).toBe("ledgerObjects");
+  });
+
+  it('is on for "on" only', () => {
+    expect(featuresOf({ LEDGER_OBJECTS: "on" }).ledgerObjects).toBe(true);
+    for (const value of ["off", "ON", "On", "yes", undefined]) expect(featuresOf({ LEDGER_OBJECTS: value }).ledgerObjects, String(value)).toBe(false);
+    expect(featuresOf({}).ledgerObjects).toBe(false);
+  });
+
+  it("is off in NO_FEATURES", () => {
+    expect(NO_FEATURES.ledgerObjects).toBe(false);
+  });
+
+  it("does not turn on another feature, and no other switch turns it on, DELEGATION included", () => {
+    expect(featuresOf({ LEDGER_OBJECTS: "on" })).toEqual({ ...NO_FEATURES, ledgerObjects: true });
+    expect(featuresOf({ ...allSwitches("on"), LEDGER_OBJECTS: "off" }).ledgerObjects).toBe(false);
+    expect(featuresOf({ ...allSwitches("on"), LEDGER_OBJECTS: "off" }).delegation).toBe(true);
+    expect(featuresOf({ VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on", NFTS: "on", NAMES: "on", DELEGATION: "on" }).ledgerObjects).toBe(false);
+  });
+});
+
+// DELEGATION (E10): the Delegation tab of an account ("soon" while off) and every link into it. The "Sent by" row, the "sent it on behalf of" sentence, the DelegateSet sentences and the
+// "· sent by" tail of a list row are not gated by it. Independent of LEDGER_OBJECTS.
+describe("the DELEGATION switch", () => {
+  it("is the ninth switch, after LEDGER_OBJECTS, and its feature is delegation", () => {
+    const order = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS", "AMM_PAGES", "NFTS", "NAMES", "LEDGER_OBJECTS", "DELEGATION"];
+    expect(FEATURE_VARS.slice(0, 9)).toEqual(order);
+    expect(FEATURE_VARS.indexOf("DELEGATION")).toBe(8);
+    expect(Object.keys(FEATURE_NAME).slice(0, 9)).toEqual(order);
+    expect(Object.keys(FEATURE_NAME).indexOf("DELEGATION")).toBe(8);
+    expect(FEATURE_NAME.DELEGATION).toBe("delegation");
+  });
+
+  it('is on for "on" only', () => {
+    expect(featuresOf({ DELEGATION: "on" }).delegation).toBe(true);
+    for (const value of ["off", "ON", "On", "yes", undefined]) expect(featuresOf({ DELEGATION: value }).delegation, String(value)).toBe(false);
+    expect(featuresOf({}).delegation).toBe(false);
+  });
+
+  it("is off in NO_FEATURES", () => {
+    expect(NO_FEATURES.delegation).toBe(false);
+  });
+
+  it("does not turn on another feature, and no other switch turns it on, LEDGER_OBJECTS included", () => {
+    expect(featuresOf({ DELEGATION: "on" })).toEqual({ ...NO_FEATURES, delegation: true });
+    expect(featuresOf({ ...allSwitches("on"), DELEGATION: "off" }).delegation).toBe(false);
+    expect(featuresOf({ ...allSwitches("on"), DELEGATION: "off" }).ledgerObjects).toBe(true);
+    expect(featuresOf({ VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on", NFTS: "on", NAMES: "on", LEDGER_OBJECTS: "on" }).delegation).toBe(false);
+  });
+});
+
+// TOKENS (E11): the token pages, the header's Tokens item ("soon" while off) and every link to a token. A page-level switch.
+describe("the TOKENS switch", () => {
+  // Its place is the tenth, after E10's two. Checked as a prefix of both lists, not as their last entry, so that a switch appended after it by a later plan leaves this test as it is.
+  it("is the tenth switch, after the nine before it, and its feature is tokens", () => {
+    const order = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS", "AMM_PAGES", "NFTS", "NAMES", "LEDGER_OBJECTS", "DELEGATION", "TOKENS"];
+    expect(FEATURE_VARS.slice(0, 10)).toEqual(order);
+    expect(FEATURE_VARS.indexOf("TOKENS")).toBe(9);
+    expect(Object.keys(FEATURE_NAME).slice(0, 10)).toEqual(order);
+    expect(Object.keys(FEATURE_NAME).indexOf("TOKENS")).toBe(9);
+    expect(FEATURE_NAME.TOKENS).toBe("tokens");
+  });
+
+  it('is on for "on" only', () => {
+    expect(featuresOf({ TOKENS: "on" }).tokens).toBe(true);
+    for (const value of ["off", "ON", "On", "yes", undefined]) expect(featuresOf({ TOKENS: value }).tokens, String(value)).toBe(false);
+    expect(featuresOf({}).tokens).toBe(false);
+  });
+
+  it("is off in NO_FEATURES", () => {
+    expect(NO_FEATURES.tokens).toBe(false);
+  });
+
+  it("does not turn on another feature, and no other switch turns it on", () => {
+    expect(featuresOf({ TOKENS: "on" })).toEqual({ ...NO_FEATURES, tokens: true });
+    expect(featuresOf({ ...allSwitches("on"), TOKENS: "off" }).tokens).toBe(false);
+    expect(featuresOf({ VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on", NFTS: "on", NAMES: "on", LEDGER_OBJECTS: "on", DELEGATION: "on" }).tokens).toBe(false);
+  });
+});
+
+// SUPPLY (E12): the supply page and the Network menu's Supply item ("soon" while off). A page-level switch.
+describe("the SUPPLY switch", () => {
+  // Its place is the eleventh, after E11's. Checked as a prefix of both lists, as TOKENS' is, so that a switch appended after it by a later plan leaves this test as it is.
+  it("is the eleventh switch, after the ten before it, and its feature is supply", () => {
+    const order = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS", "AMM_PAGES", "NFTS", "NAMES", "LEDGER_OBJECTS", "DELEGATION", "TOKENS", "SUPPLY"];
+    expect(FEATURE_VARS.slice(0, 11)).toEqual(order);
+    expect(FEATURE_VARS.indexOf("SUPPLY")).toBe(10);
+    expect(Object.keys(FEATURE_NAME).slice(0, 11)).toEqual(order);
+    expect(Object.keys(FEATURE_NAME).indexOf("SUPPLY")).toBe(10);
+    expect(FEATURE_NAME.SUPPLY).toBe("supply");
+  });
+
+  it('is on for "on" only', () => {
+    expect(featuresOf({ SUPPLY: "on" }).supply).toBe(true);
+    for (const value of ["off", "ON", "On", "yes", undefined]) expect(featuresOf({ SUPPLY: value }).supply, String(value)).toBe(false);
+    expect(featuresOf({}).supply).toBe(false);
+  });
+
+  it("is off in NO_FEATURES", () => {
+    expect(NO_FEATURES.supply).toBe(false);
+  });
+
+  it("does not turn on another feature, and no other switch turns it on", () => {
+    expect(featuresOf({ SUPPLY: "on" })).toEqual({ ...NO_FEATURES, supply: true });
+    expect(featuresOf({ ...allSwitches("on"), SUPPLY: "off" }).supply).toBe(false);
+    expect(featuresOf({ VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on", NFTS: "on", NAMES: "on", LEDGER_OBJECTS: "on", DELEGATION: "on", TOKENS: "on" }).supply).toBe(false);
+  });
+});
+
+// VALIDATORS_MAP (E13): the validators page's countries card, Country filter and place under a row, and the validator page's toml card. A feature-level switch, on top of VALIDATORS.
+describe("the VALIDATORS_MAP switch", () => {
+  // Its place is the twelfth, after E12's. Checked as a prefix of both lists, as SUPPLY's is, so that a switch appended after it by a later plan leaves this test as it is.
+  it("is the switch after SUPPLY, and its feature is validatorsMap", () => {
+    const order = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS", "AMM_PAGES", "NFTS", "NAMES", "LEDGER_OBJECTS", "DELEGATION", "TOKENS", "SUPPLY", "VALIDATORS_MAP"];
+    expect(FEATURE_VARS.slice(0, 12)).toEqual(order);
+    expect(FEATURE_VARS.indexOf("VALIDATORS_MAP")).toBe(11);
+    expect(Object.keys(FEATURE_NAME).slice(0, 12)).toEqual(order);
+    expect(Object.keys(FEATURE_NAME).indexOf("VALIDATORS_MAP")).toBe(11);
+    expect(FEATURE_NAME.VALIDATORS_MAP).toBe("validatorsMap");
+  });
+
+  it('is on only for "on"', () => {
+    expect(featuresOf({ VALIDATORS_MAP: "on" }).validatorsMap).toBe(true);
+    for (const value of ["off", "ON", "On", "yes", undefined]) expect(featuresOf({ VALIDATORS_MAP: value }).validatorsMap, String(value)).toBe(false);
+    expect(featuresOf({}).validatorsMap).toBe(false);
+    expect(NO_FEATURES.validatorsMap).toBe(false);
+  });
+
+  it("turns nothing else on, and nothing else turns it on, VALIDATORS included", () => {
+    expect(featuresOf({ VALIDATORS_MAP: "on" })).toEqual({ ...NO_FEATURES, validatorsMap: true });
+    expect(featuresOf({ VALIDATORS: "on" })).toEqual({ ...NO_FEATURES, validators: true });
+    expect(featuresOf({ ...allSwitches("on"), VALIDATORS_MAP: "off" }).validatorsMap).toBe(false);
+    expect(featuresOf({ ...allSwitches("on"), VALIDATORS_MAP: "off" }).validators).toBe(true);
+    expect(featuresOf({ ...allSwitches("off"), VALIDATORS_MAP: "on" }).validators).toBe(false);
+    expect(
+      featuresOf({ VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on", NFTS: "on", NAMES: "on", LEDGER_OBJECTS: "on", DELEGATION: "on", TOKENS: "on", SUPPLY: "on" })
+        .validatorsMap,
+    ).toBe(false);
+  });
+});
+
 describe("NO_FEATURES", () => {
   it("is frozen, so that a component cannot turn a feature on for everyone", () => {
     expect(Object.isFrozen(NO_FEATURES)).toBe(true);

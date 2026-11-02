@@ -90,6 +90,12 @@
   "result": "success",
   "server_version": "1745992596280311808",
   "signing_key": "n9KSmx4RCW3j36xZ57YQMQtruGnoPPave6RjsRXBwHC5DqkNcewv",
+  "toml": {
+    "network": "main",
+    "owner_country": "ES",
+    "server_country": "ES",
+    "unl": "https://vl.ripple.com"
+  },
   "unl": true,
   "unl_lists": [
     "unl.xrplf.org",

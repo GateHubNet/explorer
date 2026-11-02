@@ -1,0 +1,11 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "saltmarsh.example",
+    "toml_url": "https://saltmarsh.example/.well-known/xahau.toml",
+    "status": "failed",
+    "reason": "http_status",
+    "status_code": 404,
+    "checked": "2026-10-17T06:00:00.000Z"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "collection": {
+    "burned": 1,
+    "first_mint": {
+      "executed_time": "2026-10-24T15:28:02Z",
+      "ledger_index": 26763629,
+      "tx_hash": "4B53D75736A4FB2A1197357E2278F8BC5E4CA85C3E61522EBFEB42FA86F54F3B"
+    },
+    "holders": 1,
+    "issuer": "r4k1jdyThSDbPwbNrpiuqNCoRJ61y9N4Wj",
+    "kind": "uritoken",
+    "last_ledger": 26763629,
+    "last_mint": {
+      "executed_time": "2026-10-24T15:28:02Z",
+      "ledger_index": 26763629,
+      "tx_hash": "4B53D75736A4FB2A1197357E2278F8BC5E4CA85C3E61522EBFEB42FA86F54F3B"
+    },
+    "minted": 1,
+    "sales_count": 0,
+    "supply": 1,
+    "volume_native": "0"
+  },
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "result": "success"
+}

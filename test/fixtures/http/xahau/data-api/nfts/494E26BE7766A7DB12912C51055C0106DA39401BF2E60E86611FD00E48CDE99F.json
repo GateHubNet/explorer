@@ -1,0 +1,29 @@
+{
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "nft": {
+    "burned": false,
+    "flags": 1,
+    "issuer": "rNk6oeGA4BKsCraCEMg2g5YkbegcXFtPGV",
+    "kind": "uritoken",
+    "last_sale": {
+      "amount": "0.0011",
+      "amount_issuer": "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8",
+      "currency": "EVR",
+      "executed_time": "2026-10-24T15:27:22Z",
+      "ledger_index": 26763618,
+      "tx_hash": "30B0FE015F9CE2BACE93D95385CD8EA70AD68EB4B6380655C6352FBF1B5897D6"
+    },
+    "nft_id": "494E26BE7766A7DB12912C51055C0106DA39401BF2E60E86611FD00E48CDE99F",
+    "owner": "r9fT9gsDG4Zyodz9E2U6RG4Z3e4RD7tBa",
+    "owner_since": {
+      "executed_time": "2026-10-24T15:27:22Z",
+      "ledger_index": 26763618,
+      "tx_hash": "30B0FE015F9CE2BACE93D95385CD8EA70AD68EB4B6380655C6352FBF1B5897D6"
+    },
+    "sale_count": 1
+  },
+  "result": "success"
+}

@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "nettle-fe95.example",
+    "toml_url": "https://nettle-fe95.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rs7zjGreJ27yr2o6vuBu2oVnodwCp66WTR",
+        "desc": "Nettle Markets"
+      }
+    ]
+  }
+}

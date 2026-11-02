@@ -1,0 +1,32 @@
+{
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 107874617
+  },
+  "nft": {
+    "burned": false,
+    "flags": 8,
+    "issuer": "rRamaNFTdhr1q7gjsDK1Q4baffxHUQfQ9",
+    "kind": "nftoken",
+    "last_sale": {
+      "amount": "100",
+      "amount_issuer": "rfUefeHzBZQGEs66znmX9rV6S9viGbxv9v",
+      "currency": "5852506C61790000000000000000000000000000",
+      "executed_time": "2026-10-24T23:43:20Z",
+      "ledger_index": 107881530,
+      "tx_hash": "2A7673223CF85AE016B4E9683CFB258DDA9A569876B0C64826CD70E17D5374F7"
+    },
+    "nft_id": "00081388048ECA9BA1C412A6BFFEEA29E21873E92DE6B3F3EA90AAA805041E13",
+    "owner": "rLTavNLNKhA1kf8KMfW5U4Q1TNGSUNdint",
+    "owner_since": {
+      "executed_time": "2026-10-24T23:43:20Z",
+      "ledger_index": 107881530,
+      "tx_hash": "2A7673223CF85AE016B4E9683CFB258DDA9A569876B0C64826CD70E17D5374F7"
+    },
+    "sale_count": 1,
+    "serial": 84155923,
+    "taxon": 6,
+    "transfer_fee": 5000
+  },
+  "result": "success"
+}

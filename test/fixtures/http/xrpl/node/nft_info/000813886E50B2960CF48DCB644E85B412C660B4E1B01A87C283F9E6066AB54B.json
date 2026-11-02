@@ -1,0 +1,16 @@
+{
+  "result": {
+    "flags": 8,
+    "is_burned": false,
+    "issuer": "rBhJrnrN8Q6FQyDwg6ZrtoBa2QCicCEzug",
+    "ledger_index": 107853043,
+    "nft_id": "000813886E50B2960CF48DCB644E85B412C660B4E1B01A87C283F9E6066AB54B",
+    "nft_serial": 107656523,
+    "nft_taxon": 0,
+    "owner": "rHhvUexKKSJZG9vuZKX2kNendG2TXoavG9",
+    "status": "success",
+    "transfer_fee": 5000,
+    "uri": "68747470733A2F2F6E66742E6578616D706C652F7242684A726E724E2F3130373635363532332E6A736F6E",
+    "validated": true
+  }
+}

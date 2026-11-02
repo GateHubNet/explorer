@@ -1,0 +1,22 @@
+{
+  "result": {
+    "index": "DA6BE1644276D17524D4C5645D322D4A0249B444C0A3C320EA941597243F30EA",
+    "ledger_hash": "CD362D14BCEACBF65B9BFDE226CD393FC1F930FC814F21269935D7FA6DD5A697",
+    "ledger_index": 107972102,
+    "node": {
+      "Account": "rfv3Z8pqTzWdB6L6EV6bRpgsUGeSfCjS1N",
+      "Destination": "rNWDKX2qk6ZiFvJD3aTkLDmqE681PVvMAM",
+      "DestinationNode": "22",
+      "Flags": 0,
+      "LedgerEntryType": "Check",
+      "OwnerNode": "44e",
+      "PreviousTxnID": "DE0C4334780CE8115BCCB7E41371B85D13D284F82F48EFB98BE8D2F894207E0E",
+      "PreviousTxnLgrSeq": 107972102,
+      "SendMax": "1000000000",
+      "Sequence": 106663196,
+      "index": "DA6BE1644276D17524D4C5645D322D4A0249B444C0A3C320EA941597243F30EA"
+    },
+    "status": "success",
+    "validated": true
+  }
+}

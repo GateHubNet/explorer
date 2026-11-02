@@ -91,9 +91,10 @@ describe("targets and boxes", () => {
     expect(rule(pagesCss, ".account-balance__link")["min-height"]).toBe("44px");
   });
 
-  it("makes the QR button a 44 px target on touch screens and phones, as every .copy button is", () => {
+  it("makes the QR button a 44 px target on touch screens and phones, as every .copy button is, and every .btn too (the Objects tab's row button: its 36 px is the desktop's)", () => {
     const touch = /@media \(pointer: coarse\), \(max-width: 720px\)\s*\{([\s\S]*?)\n\}/.exec(componentsCss)![1]!;
     expect(touch).toMatch(/\.copy\s*\{[^}]*min-height:\s*44px/);
+    expect(touch).toMatch(/\.btn,[^{}]*\{[^}]*min-height:\s*44px/);
   });
 
   it("lets the boxes of the page shrink below their content, so that a phone does not scroll sideways", () => {
@@ -112,5 +113,60 @@ describe("targets and boxes", () => {
     const component = readFileSync(new URL("../../app/ui/components/QrButton.tsx", import.meta.url), "utf8");
     expect(component).toContain('fill="#ffffff"');
     expect(component).toContain('fill="#000000"');
+  });
+});
+
+describe("the activation line", () => {
+  // The line under the address reads "Activated on <date> by <parent> with 25 XRP · domain northpeak.example": once an account's domain lengthens it, axe reads it as a
+  // sentence of muted text, and the date's link is told from the words around it by its colour alone (link-in-text-block).
+  it("underlines the date's link, so that more than its colour tells it from the words around it", () => {
+    expect(rule(pagesCss, ".account-id__meta > a.num")["text-decoration"]).toBe("underline");
+  });
+});
+
+describe("the name header (display names spec 6.1 to 6.4)", () => {
+  it("has the 'How we know' summary at 44 px, a native disclosure's summary with its marker drawn by the page", () => {
+    expect(rule(componentsCss, ".disc > summary")["min-height"]).toBe("44px");
+    expect(rule(componentsCss, ".disc > summary")["list-style"]).toBe("none");
+  });
+
+  it("turns the chevron when the disclosure is open", () => {
+    expect(rule(componentsCss, ".disc[open] .disc__chevron").transform).toBe("rotate(90deg)");
+  });
+
+  // `--link` against the text colour is under 3:1 (2.88:1 on XRPL, 2.73:1 on Xahau, 2.06:1 in dark), so a link in a sentence is told from it by more than its colour (WCAG 1.4.1;
+  // axe cannot say it here: the hidden "(opens in a new tab)" of an `ExternalLink` makes its check incomplete). AccountPage.test.tsx holds every link the header draws to these.
+  it("underlines the links in its muted lines, in the checks of 'How we know' and in a warning banner, so that more than their colour tells them from the words around them (WCAG 1.4.1)", () => {
+    const underlined = [...componentsCss.matchAll(/([^{}]+)\{([^}]*)\}/g)]
+      .filter(([, , body]) => /text-decoration:\s*underline/.test(body!))
+      .flatMap(([, selectors]) => selectors!.split(",").map((selector) => selector.trim()));
+    expect(underlined).toEqual(expect.arrayContaining([".account-head__kind a", ".disc__checks a", ".notice--warning a"]));
+  });
+
+  it.each([
+    ["light", 0],
+    ["dark", DARK_AT],
+  ] as const)("holds the facts' labels (--muted) at 4.5:1 or more on the box's --sunken in %s, and the box has no ground but that", (_mode, from) => {
+    expect(rule(componentsCss, ".disc__box").background).toBe("var(--sunken)");
+    expect(rule(componentsCss, ".toml-facts dt").color).toBe("var(--muted)");
+    expect(contrast(rgb(token("--muted", from)), rgb(token("--sunken", from)))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("makes a banner's 'Details' link a target of 24 px at least: it is a flex item, not a word in a sentence", () => {
+    expect(rule(componentsCss, ".label-banner__meta a")["min-height"]).toBe("24px");
+  });
+
+  it("cuts a name in the breadcrumb's last item by the stylesheet, which lets it shrink", () => {
+    const cut = rule(componentsCss, ".crumbs [aria-current]:has(> .acct__name)");
+    expect(cut.display).toBe("flex");
+    expect(cut["min-width"]).toBe("0");
+  });
+
+  it("lets the h1 and the address under it wrap, so that a phone does not scroll sideways, and keeps the marks in the h1's line of text", () => {
+    expect(rule(componentsCss, ".account-head__name")["overflow-wrap"]).toBe("anywhere");
+    expect(rule(componentsCss, ".account-head__name")["min-width"]).toBe("0");
+    expect(rule(componentsCss, ".account-head__address")["overflow-wrap"]).toBe("anywhere");
+    // Not a flex container: its marks would wrap to a line of their own under a name that wraps.
+    expect(rule(componentsCss, ".account-head__name").display).toBeUndefined();
   });
 });

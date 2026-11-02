@@ -4,7 +4,7 @@
 
 import type { MetaDescriptor } from "react-router";
 
-import { joinAnd } from "../domain/time-words";
+import { listedByText } from "../domain/publishers";
 import { absolute, imageUrl, sharing, suffixOf, type MetaContext } from "./meta";
 import type { ValidatorPageData } from "./validator-view";
 
@@ -31,7 +31,7 @@ export function validatorMeta(page: ValidatorPageData, ctx: MetaContext): MetaDe
   }
 
   const { publishers, version, domain } = page.meta;
-  const unl = page.identity.unl ? `, on the default UNL${publishers.length > 0 ? ` (listed by ${joinAnd(publishers)})` : ""}` : "";
+  const unl = page.identity.unl ? `, on the default UNL${publishers.length > 0 ? ` (${listedByText(publishers)})` : ""}` : "";
   const running = version === null ? "" : `, running ${page.network.software} ${version}`;
   const checked = domain === null ? "" : DOMAIN_WORDS[domain];
   return sharing({

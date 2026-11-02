@@ -1,14 +1,20 @@
 import { redirect } from "react-router";
 import { classicAddressToXAddress, isValidClassicAddress, isValidXAddress, xAddressToClassicAddress } from "ripple-address-codec";
 
-import { accountHref, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
+import { DELEGATIONS_LIMIT, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
 import { parseAnalyticsQuery, type AnalyticsPeriod } from "../domain/analytics-params";
 import { shortAddress } from "../domain/format";
+import { accountNameHeader } from "../server/account-name-view";
+import { LAST_LEDGER_DEADLINE_MS, LIST_DEADLINE_MS, namedHeader, nameList, nodeTomlOf, withNames } from "../server/account-names-load";
 import {
   accountHeader,
+  delegationList,
   existenceOf,
   failedList,
+  headerAccounts,
+  listAddresses,
   loaded,
+  nftsList,
   objectsList,
   offersList,
   PAGE_SIZE,
@@ -20,10 +26,12 @@ import {
   transactionsList,
   type AccountAnalyticsPageData,
   type AccountListPageData,
+  type DelegationTab,
   type HistoryHeader,
   type ListContext,
   type Loaded,
   type NeverActivatedData,
+  type ObjectRowsContext,
   type TabList,
 } from "../server/account-view";
 import { loadAnalytics } from "../server/analytics-load";
@@ -34,19 +42,20 @@ import { clientsFor } from "../server/clients";
 import { CARD_DEADLINE_MS } from "../server/deadline";
 import { echoOf } from "../server/echo";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
-import { markDegraded } from "../server/env";
+import { getEnv, markDegraded } from "../server/env";
 import { upstreamOutage } from "../server/loader-errors";
 import { logProblem } from "../server/logging";
 import { isMarker } from "../server/marker";
 import { metaContext } from "../server/meta";
 import { accountMeta } from "../server/meta-account";
+import { collectAddresses, loadNames } from "../server/names-load";
 import { requireNetwork } from "../server/network-route";
-import type { Network } from "../server/networks";
+import { networkOf, type Network } from "../server/networks";
 import type { NodeRpc } from "../server/node-rpc";
 import { encodeQr, qrPath } from "../server/qr";
 import { UpstreamError } from "../server/upstream";
 import { PRODUCT_NAME } from "../ui/brand";
-import { findNetwork } from "../ui/networks";
+import { NamesProvider } from "../ui/names";
 import { AccountPage, NeverActivatedPage } from "../ui/pages/AccountPage";
 import { useNetwork } from "../ui/use-network";
 
@@ -55,16 +64,6 @@ import type { Route } from "./+types/net.account.$address";
 // The loader names a cache class and throws 404s of class `short`; the answers that are served but never stored (the node is down, a
 // section could not be loaded) say so through the degraded mark (see edge-cache.ts).
 export const headers = forwardCacheClass;
-
-/**
- * How long the list of the active tab may take before the page gives up on it. The framework stops streaming a page's deferred data
- * 5 s after the request (`streamTimeout` in entry.server.tsx), and a client given a promise that is cut off then is left with an error
- * instead of a section that says it could not load; the data API's own deadline (5 s) is not early enough to be sure.
- */
-const LIST_DEADLINE_MS = 4_500;
-
-/** How long after account_info the page waits for the close time of the ledger of the account's last transaction: no time is no reason to hold the header. */
-const LAST_LEDGER_DEADLINE_MS = 1_500;
 
 /** A redirect to the one URL a thing has, with the class of the page it leads to. */
 function permanent(to: string) {
@@ -89,7 +88,10 @@ async function within<T>(list: Promise<T>, ms: number, onTimeout: () => T): Prom
   }
 }
 
-/** The data of the list of a tab that is read from the data API: transactions, payments, trades (paged) and the open offers. */
+/**
+ * The data of the list of a tab that is read from the data API: transactions, payments, trades, NFTs (paged), the delegations given and held (both directions at once, one page each)
+ * and the open offers. Either direction failing fails the tab: half a list would say that an account has no delegations it has.
+ */
 function readList(api: DataApi, tab: ListTab, ctx: ListContext): Promise<TabList> {
   const query = { descending: true, limit: PAGE_SIZE, marker: ctx.marker };
   switch (tab) {
@@ -99,6 +101,14 @@ function readList(api: DataApi, tab: ListTab, ctx: ListContext): Promise<TabList
       return api.accountPayments(ctx.address, query).then((page) => paymentsList(page, ctx));
     case "trades":
       return api.accountExchanges(ctx.address, query).then((page) => tradesList(page, ctx));
+    case "nfts":
+      // What the account holds now, in the API's order (by collection and serial): no `descending`.
+      return api.accountNfts(ctx.address, { limit: PAGE_SIZE, marker: ctx.marker }).then((page) => nftsList(page, ctx));
+    case "delegation":
+      return Promise.all([
+        api.accountDelegations(ctx.address, { direction: "given", limit: DELEGATIONS_LIMIT }),
+        api.accountDelegations(ctx.address, { direction: "held", limit: DELEGATIONS_LIMIT }),
+      ]).then(([given, held]) => delegationList(given, held));
     default:
       return api.orders(ctx.address).then(
         (orders) => offersList(orders),
@@ -131,6 +141,11 @@ const withoutRoutesParam = (search: string) =>
  *   call: with `ACCOUNT_ANALYTICS` off, to the account page (as an unknown tab, without the rest of the query); with it on, to the view's
  *   canonical URL (`tab=analytics`, then `period` when it is not the default). The canonical URL is the view (`analyticsPage`, spec 2): class
  *   `live`, the header without the holdings, and the frame and six cards streamed after it.
+ * - **The NFTs tab** (`?tab=nfts`, NFT spec 6.1) is a list of the data API (`accountNfts`) paged by marker as the transactions are. While `NFTS` is off the
+ *   tab is the "soon" label and its URL a 302 of class `short` to the account page before any call, as Analytics'; while it is on, the Objects tab's NFT pages lead to it.
+ * - **The Delegation tab** (`?tab=delegation`, ledger object pages spec 6.1) is two lists of the data API (`accountDelegations`, the delegations given and held, 200 of each and no pages), read
+ *   side by side in the list's promise: either failing is "Couldn't load delegations". Where the network has no delegation (`hasDelegation`) there is no tab, and while `DELEGATION` is off it is
+ *   the "soon" label; either way its URL is a 302 of class `short` to the account page before any call, as the NFTs'. A `marker` on it is a 302 to the URL without it, as on the offers' and objects'.
  * - **The first page of a tab** (no marker) is class `live`. The header is read side by side from the data API (creation, balances) and
  *   the node (`account_info`, `account_objects`, `server_state` for the reserves) and awaited. The list of the tab is a promise that
  *   streams in after it, and that never rejects: when it cannot be loaded it is a `failed` list, which the page shows as "Couldn't
@@ -142,6 +157,14 @@ const withoutRoutesParam = (search: string) =>
  * - **A page with a marker** is old history and class `MARKER_PAGE_CLASS` (`slow`, not `immutable`: backfill writes history below the
  *   frontier, see cache-class.ts), `noindex, follow`. Everything is awaited (a stored page must be whole), and it carries no live state,
  *   which would be as old as the page. A marker the API refuses is a 404.
+ * - **Names** (display names spec 5, 6.5): the first page makes two names calls, so that the header never waits for the list: the header's,
+ *   awaited after the header's calls (the address, its parent, its tokens' issuers and, on the Objects tab, the rows' accounts), and the list's,
+ *   in the list's promise after its rows. The toml of the domain the header shows is asked as soon as the node gives it, and awaited beside the
+ *   header's names call; when the node gives none (a deleted account, a node that did not answer, no Domain set), it is the header call's entry's,
+ *   asked after that call (the data API gives a deleted account none: no toml call). The calls and their deadlines are account-names-load.ts's. The page behind a marker makes one call (the address and the rows)
+ *   and no toml call, and the analytics view the header's (the address and its parent) and the toml's, its cards their own. A names call that
+ *   fails or is late, and a toml call that fails, never fail the page: it shows what it has without them and is served, not stored; `toml not
+ *   found` (a domain the data API never checked) is no failure. With `NAMES` off neither call is made, and the page is today's.
  */
 export async function loader({ request, params, context }: Route.LoaderArgs) {
   // The analytics view's deadline is counted from here, as the list's is.
@@ -170,6 +193,11 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   if (search.has("tab") && !isAccountTab(tabParam)) return tidied(without("tab"));
   const tab: AccountTab = isAccountTab(tabParam) ? tabParam : "transactions";
 
+  // The NFTs tab is the "soon" label while `NFTS` is off, and its URL is as an unknown tab's, a 302 to the account page before any call.
+  if (tab === "nfts" && !network.features.nfts) return tidied(base);
+  // So is the Delegation tab's: the "soon" label while `DELEGATION` is off, and no tab at all on a network without delegation (`hasDelegation`), whatever the switch says.
+  if (tab === "delegation" && !(network.hasDelegation && network.features.delegation)) return tidied(base);
+
   if (tab === "analytics") {
     if (!network.features.accountAnalytics) return tidied(base);
     // The query as it came (`url.search`), not as `URLSearchParams` writes it again: an escaped spelling of the canonical query is redirected.
@@ -193,11 +221,11 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 
   return marker === undefined
     ? firstPage(context, request, network, tab, ctx, common)
-    : historyPage(context, network, tab, ctx, common);
+    : historyPage(context, request, network, tab, ctx, common);
 }
 
-type Common = Pick<AccountListPageData, "kind" | "address" | "native" | "tab" | "tag" | "qr" | "analyticsTab">;
-type AnalyticsCommon = Pick<AccountAnalyticsPageData, "kind" | "address" | "native" | "tab" | "tag" | "qr" | "analyticsTab">;
+type Common = Pick<AccountListPageData, "kind" | "address" | "native" | "tab" | "tag" | "qr" | "analyticsTab" | "delegationTab">;
+type AnalyticsCommon = Pick<AccountAnalyticsPageData, "kind" | "address" | "native" | "tab" | "tag" | "qr" | "analyticsTab" | "delegationTab">;
 
 /**
  * What every account page is drawn from, whatever its tab. A page opened with a destination tag has the tag in its QR code, as the X-address of
@@ -213,7 +241,14 @@ function pageBase(network: Network, address: string, tag: number | null) {
     tag,
     qr: { size: code.size, path: qrPath(code), content, tag },
     analyticsTab: network.features.accountAnalytics,
+    delegationTab: delegationTabOf(network),
   };
+}
+
+/** How the tab bar shows the Delegation tab: not at all where the ledger has no delegation, as the "soon" label while `DELEGATION` is off, else as a link. */
+function delegationTabOf(network: Pick<Network, "hasDelegation" | "features">): DelegationTab {
+  if (!network.hasDelegation) return "none";
+  return network.features.delegation ? "link" : "soon";
 }
 
 /** `make()`'s value: made on the first call, and the same on every call after. */
@@ -262,12 +297,12 @@ async function historyOf(rows: Promise<Page<"transactions", TxObject>>): Promise
  * The answer for an address the page has no account of: the 404 of one that was never activated (class `short`), or the 503 of one that cannot
  * be told apart from it.
  */
-function notAnAccount(existence: "never-activated" | "outage", network: Network, address: string) {
+function notAnAccount(context: Route.LoaderArgs["context"], existence: "never-activated" | "outage", network: Network, address: string) {
   if (existence === "outage") {
     return upstreamOutage(new UpstreamError("server", "the account could not be told apart from one that does not exist"), `account ${shortAddress(address)}`);
   }
-  const other = findNetwork(network.other);
-  const page: NeverActivatedData = { kind: "never-activated", address, other: { id: network.other, name: other?.name ?? network.other } };
+  const other = networkOf(network.other, getEnv(context));
+  const page: NeverActivatedData = { kind: "never-activated", address, other: { id: other.id, name: other.name } };
   return cached(page, "short", { status: 404 });
 }
 
@@ -279,12 +314,12 @@ function reportProblems(context: Route.LoaderArgs["context"], request: Request, 
 }
 
 /**
- * A page of old history: awaited whole, class `MARKER_PAGE_CLASS`, and nothing but the list. It does not ask for the creation record: that
+ * A page of old history: awaited whole, class `MARKER_PAGE_CLASS`, and nothing but the list and its one names call. It does not ask for the creation record: that
  * is slow-class data that must not sit in a page stored for a long time, and the index has none for an account that was created before its
  * first ledger (it is filled by range), whose first page shows it as active all the same. The page does not exist when the API refuses
  * the marker or when there is nothing behind it.
  */
-async function historyPage(context: Route.LoaderArgs["context"], network: Network, tab: ListTab, ctx: ListContext, common: Common) {
+async function historyPage(context: Route.LoaderArgs["context"], request: Request, network: Network, tab: ListTab, ctx: ListContext, common: Common) {
   const { api } = clientsFor(context, network);
   let list: TabList;
   try {
@@ -300,8 +335,12 @@ async function historyPage(context: Route.LoaderArgs["context"], network: Networ
     throw cached({ notFound: "that page of the account" }, "short", { status: 404 });
   }
 
-  const header: HistoryHeader = { status: "history" };
-  const page: AccountListPageData = { ...common, mode: "history", header, list };
+  // One names call, awaited (the page is stored whole): the address and the rows' accounts. Its header is the name and the labels alone (Ruling 8): no toml call.
+  const { address } = ctx;
+  const names = await loadNames(api, collectAddresses(address, listAddresses(list)), { context, request, features: network.features });
+  const name = names.part.state === "ok" ? accountNameHeader({ address, entry: names.entries.get(address), liveDomain: null, toml: null, network, brief: true }) : null;
+  const header: HistoryHeader = { status: "history", name };
+  const page: AccountListPageData = { ...common, mode: "history", header, list: withNames(list, names.part), names: names.part };
   return cached(page, MARKER_PAGE_CLASS);
 }
 
@@ -317,7 +356,10 @@ async function firstPage(
   const { api, node } = clientsFor(context, network);
   const address = ctx.address;
 
-  // The list of the tab starts now, beside the header. It never rejects, and what it came to is settled before the page's stream ends.
+  // The list of the tab starts now, beside the header. It never rejects, and what it came to is settled before the page's stream ends. Its rows are
+  // raced against the list's deadline; then the names of the accounts they draw are asked for with what is left of it (`nameList`), outside that race,
+  // so that a names call that fails or is late leaves the list drawn with addresses, and never makes it a list that failed.
+  const listStarted = Date.now();
   const settled: Promise<TabList> | null =
     tab === "objects"
       ? null
@@ -325,18 +367,20 @@ async function firstPage(
           readList(api, tab, ctx).catch((err: unknown) => {
             logProblem(`the ${tab} of an account could not be loaded`, err, request);
             markDegraded(context, `${tab} could not be loaded`);
-            return failedList(tab);
+            return failedList(tab, network.id);
           }),
           LIST_DEADLINE_MS,
           () => {
             logProblem(`the ${tab} of an account took too long`, new Error("deadline"), request);
             markDegraded(context, `${tab} took too long`);
-            return failedList(tab);
+            return failedList(tab, network.id);
           },
-        );
+        ).then((list) => nameList(api, list, listStarted, { context, request, features: network.features }));
 
   const infoCall = node.accountInfo(address);
   const lastLedger = lastLedgerTimeOf(api, infoCall, request);
+  // The toml of the node's domain starts as soon as account_info answers; it is awaited beside the header's names call (`namedHeader`), not before it.
+  const nodeToml = nodeTomlOf(api, infoCall, network);
 
   const results = await Promise.allSettled([
     api.account(address),
@@ -358,23 +402,29 @@ async function firstPage(
   const history = existenceOf(created, info) === "undetermined" ? await historyOf(api.accountTransactions(address, { limit: 1 })) : undefined;
 
   const existence = existenceOf(created, info, history);
-  if (existence === "never-activated" || existence === "outage") return notAnAccount(existence, network, address);
+  // `nodeToml` is left running on purpose: it never rejects, logs or marks nothing itself, and the 404 or 503 never reads it.
+  if (existence === "never-activated" || existence === "outage") return notAnAccount(context, existence, network, address);
 
-  const { header, problems } = accountHeader({ native: network.native, created, info, objects, state, balances, lastLedgerTime, history });
-  reportProblems(context, request, problems);
+  // What the header's tokens and the Objects tab's rows are linked in: the page's network and account and the switches (a token's code leads to its page, an escrow, a check or a channel to its own).
+  const objectsCtx: ObjectRowsContext = { net: network.id, native: network.native, address, features: network.features };
+  const unnamed = accountHeader({ native: network.native, created, info, objects, state, balances, lastLedgerTime, link: objectsCtx, history });
+  reportProblems(context, request, unnamed.problems);
 
-  let list: Promise<TabList> | TabList;
-  if (settled !== null) {
-    list = settled;
-  } else if (objects.state === "ok") {
-    list = objectsList(objects.value, network.native);
-  } else if (objects.state === "missing") {
-    list = objectsList(null, network.native);
-  } else {
-    list = failedList("objects");
+  // The Objects tab's rows come with the header. Where a row leads follows the switches (`objectRows`): an NFT page to the account's NFTs, an escrow, a check or a channel to its page, a
+  // delegation to the Delegation tab.
+  let objectsTab: TabList | null = null;
+  if (settled === null) {
+    if (objects.state === "ok") objectsTab = objectsList(objects.value, objectsCtx);
+    else if (objects.state === "missing") objectsTab = objectsList(null, objectsCtx);
+    else objectsTab = failedList("objects");
   }
 
-  const page: AccountListPageData = { ...common, mode: "live", header, list };
+  // The header's names call: the accounts the header draws and the Objects tab's rows' accounts (spec 5: no call of their own).
+  const drawn = [...headerAccounts(address, unnamed.header, network.features), ...(objectsTab === null ? [] : listAddresses(objectsTab))];
+  const { header, names } = await namedHeader({ context, request, api, network }, address, unnamed.header, drawn, nodeToml);
+  const list: Promise<TabList> | TabList = objectsTab === null ? settled! : withNames(objectsTab, names.part);
+
+  const page: AccountListPageData = { ...common, mode: "live", header, list, names: names.part };
   return cached(page, "live");
 }
 
@@ -402,6 +452,8 @@ async function analyticsPage(
   const infoCall = node.accountInfo(address);
   const stateCall = node.serverState();
   const lastLedger = lastLedgerTimeOf(api, infoCall, request);
+  // As on the first page: asked as soon as account_info answers, awaited beside the header's names call.
+  const nodeToml = nodeTomlOf(api, infoCall, network);
   let toldDeleted!: (deleted: boolean) => void;
   const deleted = new Promise<boolean>((resolve) => (toldDeleted = resolve));
   const abandon = new AbortController();
@@ -417,14 +469,18 @@ async function analyticsPage(
     const history = existenceOf(created, info) === "undetermined" ? await historyOf(probe()) : undefined;
 
     const existence = existenceOf(created, info, history);
-    if (existence === "never-activated" || existence === "outage") return notAnAccount(existence, network, address);
+    // `nodeToml` is left running on purpose, as on the first page: it never rejects, logs or marks nothing itself, and the 404 or 503 never reads it.
+    if (existence === "never-activated" || existence === "outage") return notAnAccount(context, existence, network, address);
 
-    const { header, problems } = accountHeader({ native: network.native, created, info, state, lastLedgerTime, history }, { holdings: false });
+    const unnamed = accountHeader({ native: network.native, created, info, state, lastLedgerTime, history }, { holdings: false });
     isView = true;
     toldDeleted(existence === "deleted");
-    reportProblems(context, request, problems);
+    reportProblems(context, request, unnamed.problems);
 
-    const page: AccountAnalyticsPageData = { ...common, mode: "live", header, analytics };
+    // The header's names call: the address and its parent (no holdings). The cards make their own (`loadAnalytics`).
+    const drawn = headerAccounts(address, unnamed.header, network.features);
+    const { header, names } = await namedHeader({ context, request, api, network }, address, unnamed.header, drawn, nodeToml);
+    const page: AccountAnalyticsPageData = { ...common, mode: "live", header, analytics, names: names.part };
     return cached(page, "live");
   } finally {
     if (!isView) abandon.abort();
@@ -443,8 +499,11 @@ export function meta({ loaderData, matches, params }: Route.MetaArgs) {
 
 export default function Account({ loaderData }: Route.ComponentProps) {
   const network = useNetwork();
+  // The page's names (the header's call) are one provider above everything it draws, the activator and the token issuers included; a list and a card have their own inside.
   return loaderData.kind === "account" ? (
-    <AccountPage network={network} data={loaderData} />
+    <NamesProvider names={loaderData.names.map}>
+      <AccountPage network={network} data={loaderData} />
+    </NamesProvider>
   ) : (
     <NeverActivatedPage network={network} data={loaderData} />
   );

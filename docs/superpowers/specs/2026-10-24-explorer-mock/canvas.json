@@ -1,0 +1,412 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-17T15:30:00Z"
+  },
+  "title": "Explorer Design Mock",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 1560,
+      "title": "Home and search",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Ledger.dc.html": {
+      "x": 1520,
+      "y": 0,
+      "w": 1440,
+      "h": 1900,
+      "title": "Ledger",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Transaction.dc.html": {
+      "x": 3040,
+      "y": 0,
+      "w": 1440,
+      "h": 2300,
+      "title": "Transaction",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Account.dc.html": {
+      "x": 4560,
+      "y": 0,
+      "w": 1440,
+      "h": 1800,
+      "title": "Account",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "TransactionMobile.dc.html": {
+      "x": 0,
+      "y": 2700,
+      "w": 390,
+      "h": 1700,
+      "title": "Transaction on a phone",
+      "is_interactive": true
+    },
+    "LinkPreview.dc.html": {
+      "x": 470,
+      "y": 2700,
+      "w": 1200,
+      "h": 630,
+      "title": "Link preview image (Open Graph)"
+    },
+    "Network.dc.html": {
+      "x": 0,
+      "y": 4800,
+      "w": 1440,
+      "h": 2150,
+      "title": "Network dashboard",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Markets.dc.html": {
+      "x": 1520,
+      "y": 4800,
+      "w": 1440,
+      "h": 1500,
+      "title": "Markets",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "MarketPair.dc.html": {
+      "x": 3040,
+      "y": 4800,
+      "w": 1440,
+      "h": 2150,
+      "title": "Market pair",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Amm.dc.html": {
+      "x": 4560,
+      "y": 4800,
+      "w": 1440,
+      "h": 1650,
+      "title": "AMM pools",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "AmmPool.dc.html": {
+      "x": 6080,
+      "y": 4800,
+      "w": 1440,
+      "h": 2300,
+      "title": "AMM pool",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Validators.dc.html": {
+      "x": 0,
+      "y": 7600,
+      "w": 1440,
+      "h": 2250,
+      "title": "Validators",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Validator.dc.html": {
+      "x": 1520,
+      "y": 7600,
+      "w": 1440,
+      "h": 2400,
+      "title": "Validator",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Amendments.dc.html": {
+      "x": 3040,
+      "y": 7600,
+      "w": 1440,
+      "h": 1700,
+      "title": "Amendments",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Amendment.dc.html": {
+      "x": 4560,
+      "y": 7600,
+      "w": 1440,
+      "h": 1950,
+      "title": "Amendment",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "AccountAnalytics.dc.html": {
+      "x": 6080,
+      "y": 7600,
+      "w": 1440,
+      "h": 2800,
+      "title": "Account analytics",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Nfts.dc.html": {
+      "x": 0,
+      "y": 11000,
+      "w": 1440,
+      "h": 2250,
+      "title": "NFTs",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "NftCollection.dc.html": {
+      "x": 1520,
+      "y": 11000,
+      "w": 1440,
+      "h": 2100,
+      "title": "NFT collection",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Nft.dc.html": {
+      "x": 3040,
+      "y": 11000,
+      "w": 1440,
+      "h": 2050,
+      "title": "NFT",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Tokens.dc.html": {
+      "x": 0,
+      "y": 13970,
+      "w": 1440,
+      "h": 1380,
+      "title": "Tokens: issued tokens",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "TokensMpt.dc.html": {
+      "x": 1520,
+      "y": 13970,
+      "w": 1440,
+      "h": 1150,
+      "title": "Tokens: MPT on XRPL Testnet (sandbox)",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Token.dc.html": {
+      "x": 3040,
+      "y": 13970,
+      "w": 1440,
+      "h": 2900,
+      "title": "Issued token",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Mpt.dc.html": {
+      "x": 4560,
+      "y": 13970,
+      "w": 1440,
+      "h": 2750,
+      "title": "MPT",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "AccountNames.dc.html": {
+      "x": 0,
+      "y": 17590,
+      "w": 1440,
+      "h": 2050,
+      "title": "Account names",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Delegation.dc.html": {
+      "x": 1520,
+      "y": 17590,
+      "w": 1440,
+      "h": 1850,
+      "title": "Delegation",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Escrow.dc.html": {
+      "x": 3040,
+      "y": 17590,
+      "w": 1440,
+      "h": 1600,
+      "title": "Escrow",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Check.dc.html": {
+      "x": 4560,
+      "y": 17590,
+      "w": 1440,
+      "h": 1550,
+      "title": "Check",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "PayChannel.dc.html": {
+      "x": 6080,
+      "y": 17590,
+      "w": 1440,
+      "h": 1850,
+      "title": "Payment channel",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Nodes.dc.html": {
+      "x": 0,
+      "y": 20360,
+      "w": 1440,
+      "h": 2560,
+      "title": "Nodes",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Node.dc.html": {
+      "x": 1520,
+      "y": 20360,
+      "w": 1440,
+      "h": 1650,
+      "title": "Node",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Supply.dc.html": {
+      "x": 3040,
+      "y": 20360,
+      "w": 1440,
+      "h": 1750,
+      "title": "Supply: XRPL",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "SupplyXahau.dc.html": {
+      "x": 4560,
+      "y": 20360,
+      "w": 1440,
+      "h": 2150,
+      "title": "Supply: Xahau",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Distribution.dc.html": {
+      "x": 6080,
+      "y": 20360,
+      "w": 1440,
+      "h": 2700,
+      "title": "Distribution",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Escrows.dc.html": {
+      "x": 7600,
+      "y": 20360,
+      "w": 1440,
+      "h": 2050,
+      "title": "Escrows",
+      "expand": "fill",
+      "is_interactive": true
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Ledger.dc.html",
+    "Transaction.dc.html",
+    "Account.dc.html",
+    "TransactionMobile.dc.html",
+    "LinkPreview.dc.html",
+    "Network.dc.html",
+    "Markets.dc.html",
+    "MarketPair.dc.html",
+    "Amm.dc.html",
+    "AmmPool.dc.html",
+    "Validators.dc.html",
+    "Validator.dc.html",
+    "Amendments.dc.html",
+    "Amendment.dc.html",
+    "AccountAnalytics.dc.html",
+    "Nfts.dc.html",
+    "NftCollection.dc.html",
+    "Nft.dc.html",
+    "Tokens.dc.html",
+    "TokensMpt.dc.html",
+    "Token.dc.html",
+    "Mpt.dc.html",
+    "AccountNames.dc.html",
+    "Delegation.dc.html",
+    "Escrow.dc.html",
+    "Check.dc.html",
+    "PayChannel.dc.html",
+    "Nodes.dc.html",
+    "Node.dc.html",
+    "Supply.dc.html",
+    "SupplyXahau.dc.html",
+    "Distribution.dc.html",
+    "Escrows.dc.html"
+  ],
+  "notes": {
+    "row1": {
+      "x": 0,
+      "y": -300,
+      "text": "Explorer v1 · core lookup pages",
+      "kind": "title1",
+      "maxW": 6000
+    },
+    "row2": {
+      "x": 0,
+      "y": 2420,
+      "text": "Phone and link preview",
+      "kind": "title1",
+      "maxW": 1670
+    },
+    "row3": {
+      "x": 0,
+      "y": 4500,
+      "text": "Later sub-projects · network, markets, AMM",
+      "kind": "title1",
+      "maxW": 7520
+    },
+    "row4": {
+      "x": 0,
+      "y": 7300,
+      "text": "Validators, amendments and account analytics",
+      "kind": "title1",
+      "maxW": 7520
+    },
+    "row5": {
+      "x": 0,
+      "y": 10700,
+      "text": "Next · NFTs and URITokens",
+      "kind": "title1",
+      "maxW": 4480
+    },
+    "row6": {
+      "x": 0,
+      "y": 13670,
+      "text": "Tokens · issued tokens and MPT (one in the sandbox)",
+      "kind": "title1",
+      "maxW": 6000
+    },
+    "row7": {
+      "x": 0,
+      "y": 17290,
+      "text": "Account names, delegation and ledger objects",
+      "kind": "title1",
+      "maxW": 7520
+    },
+    "row8": {
+      "x": 0,
+      "y": 20060,
+      "text": "Network · nodes, supply and distribution",
+      "kind": "title1",
+      "maxW": 9040
+    }
+  },
+  "designSystems": []
+}

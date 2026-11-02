@@ -1,0 +1,37 @@
+{
+  "close_time": "2026-10-29T03:50:41Z",
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 102145584
+  },
+  "history": [
+    {"account":"rfn1iu8peiUtayZMqXcpL8rt7x4cfk1Qfu","amount":{"currency":"XRP","value":"5.000002"},"amount_change":{"currency":"XRP","value":"0.000001"},"balance":{"currency":"XRP","value":"5"},"event":"fund","expiration":"2026-10-09T06:04:58Z","ledger_index":107220098,"result":"tesSUCCESS","time":"2026-09-25T06:03:01Z","tx_hash":"0E08BB2ADB8831F0D20DC26CB9AEE0782E82C141725ECB7F465B78CF3D63F6DE","tx_type":"PaymentChannelFund"},
+    {"account":"rfn1iu8peiUtayZMqXcpL8rt7x4cfk1Qfu","amount":{"currency":"XRP","value":"5"},"balance":{"currency":"XRP","value":"0.002469"},"event":"renew","ledger_index":107218583,"result":"tesSUCCESS","time":"2026-09-25T04:25:22Z","tx_hash":"FCBC932640226E26E212E3E2F8F71763440DC092A398CA8C84B06FA870CABCE8","tx_type":"PaymentChannelClaim"},
+    {"account":"rfn1iu8peiUtayZMqXcpL8rt7x4cfk1Qfu","amount":{"currency":"XRP","value":"5"},"balance":{"currency":"XRP","value":"0.002469"},"event":"close_request","expiration":"2026-10-04T05:20:30Z","ledger_index":107107437,"result":"tesSUCCESS","time":"2026-09-20T05:20:31Z","tx_hash":"29DE719FF22F8F1CE291BE2350C459CE9B06982EE4B15ACEAA1E5925FFE709DB","tx_type":"PaymentChannelClaim"}
+  ],
+  "ledger_index": 107972102,
+  "payment_channel": {
+    "account": "rfn1iu8peiUtayZMqXcpL8rt7x4cfk1Qfu",
+    "amount": {
+      "currency": "XRP",
+      "value": "5.000002"
+    },
+    "balance": {
+      "currency": "XRP",
+      "value": "5"
+    },
+    "channel_id": "494E75E70AAFD8E655C4EBEA9541991367C038EC2251BEB4ABEBAC2AED8B0B7F",
+    "claims": 0,
+    "destination": "rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR",
+    "expiration": "2026-10-09T06:04:58Z",
+    "funds": 1,
+    "public_key": "03A6C6BED4F26E1EBD97A7A4AE82560D3BA21C465F95A350FEAFC1BF17574CD306",
+    "remaining": {
+      "currency": "XRP",
+      "value": "0.000002"
+    },
+    "settle_delay": 1209600,
+    "status": "closing"
+  },
+  "result": "success"
+}

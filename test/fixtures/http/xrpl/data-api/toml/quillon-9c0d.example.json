@@ -1,0 +1,10 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "quillon-9c0d.example",
+    "toml_url": "https://quillon-9c0d.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z"
+  }
+}

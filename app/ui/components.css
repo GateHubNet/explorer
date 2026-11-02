@@ -45,6 +45,13 @@
   padding-block: 12px;
 }
 
+/* The logo and, in the sandbox, the Testnet badge after it, as one flex item of the header: the badge stays at every width (on a phone the logo's name goes). */
+.hdr__brandgroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .hdr__brand {
   display: flex;
   align-items: center;
@@ -126,6 +133,91 @@ a.nav-item:hover {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+/* The Network menu (supply spec 2): a `<details>` in the navigation, its summary one of the items and its panel a list of links under it. The summary is a `.nav-item`, so it is the other
+   items' size to the pixel; it takes the marker off and the hover of `a.nav-item:hover` (which does not reach a summary). The panel is the board's: the surface, a border, a radius and a
+   shadow, 230 px at least, 6 px under the summary, and below the search hints (20) and above the page. `.hdr__nav ul` (flex, wrap) also reaches it, so its selector is the longer one. */
+.menu {
+  position: relative;
+}
+
+.menu__summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.menu__summary::-webkit-details-marker {
+  display: none;
+}
+
+.menu__summary:hover {
+  background: var(--sunken);
+  color: var(--fg);
+}
+
+.menu__chevron {
+  margin-left: 4px;
+  transition: transform 0.15s;
+}
+
+/* base.css takes every transition off under prefers-reduced-motion: reduce (`*`, !important), the chevron's included: it turns at once there. */
+.menu[open] .menu__chevron {
+  transform: rotate(180deg);
+}
+
+.hdr__nav .menu__panel {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 230px;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 2px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px -16px rgba(15, 18, 23, 0.35);
+}
+
+.menu__item {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 7px;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+a.menu__item:hover {
+  background: var(--sunken);
+  text-decoration: none;
+}
+
+/* The item of the page the visitor is on ("page"), or of the one it is under ("true"): the board's sunken background; forced colours (below) add a rule. */
+.menu__item[aria-current] {
+  background: var(--sunken);
+}
+
+.menu__item.is-soon {
+  color: var(--muted);
+  cursor: default;
+}
+
+@media (forced-colors: active) {
+  /* The surface and the shadow are gone in forced colours: the panel keeps its border, and the current item a 2 px rule at its left in place of its background (the padding gives the 2 px back). */
+  .hdr__nav .menu__panel {
+    border-color: CanvasText;
+  }
+
+  .menu__item[aria-current] {
+    border-left: 2px solid CanvasText;
+    padding-left: 8px;
+  }
 }
 
 .hdr__tools {
@@ -236,6 +328,25 @@ a.nav-item:hover {
   font-size: 13px;
 }
 
+/* A segment that cannot be chosen yet (SegmentedLinks `disabled`): a span, quieter than the links and with no hover; its tag sits in the segment, its note beside the control. */
+.netswitch__item.is-disabled,
+.netswitch__item.is-disabled:hover {
+  color: var(--faint);
+  cursor: not-allowed;
+}
+
+.netswitch__item .soon {
+  margin-left: 0;
+}
+
+.seglinks__note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 /* ---------------------------------------------------------------------------------------------------------------
    Search box and its hints */
 
@@ -315,6 +426,39 @@ a.nav-item:hover {
   flex: 1 1 260px;
 }
 
+/* The toggle is never alone on a row of its own, at any width and with the sandbox's Testnet badge too: what comes before it in the markup (the box, or the nav where there is no
+   box: the home page) carries the room of the toggle and its gap (44 px and the 20 px column gap of .hdr__inner) as a margin, so it fits on a row only where the toggle fits after
+   it, and the toggle takes that margin back, which leaves both where they stand when they fit. Where that item wraps, the toggle wraps with it, beside it on the next row. The
+   toggle must follow the box (or the nav) directly in Header.tsx: another item between them would leave the margin as a gap.
+   The nav grows (the toggle's auto margin is gone) so that the toggle stays at the right, and is held to a row less the room (`max-width`): a nav as wide as production's, with its
+   "soon" labels, wraps its items to two lines at 721 to 801 px, as it did, where it would otherwise be alone on its line and leave the toggle alone on the next one, drawn off the page
+   by its negative margin.
+   A phone (below) gives the box a row of its own and the toggle the top row. 721 px is the phone block's 720 and one: this sheet's media queries have no range syntax. A browser
+   without `:has` keeps the nav rules out, together, and the toggle may then wrap alone on the home page, as it did. */
+@media (min-width: 721px) {
+  .hdr__inner {
+    --hdr-tools-room: calc(44px + 20px);
+  }
+
+  .search--header {
+    margin-right: var(--hdr-tools-room);
+  }
+
+  .search--header + .hdr__tools {
+    margin-left: calc(-1 * var(--hdr-tools-room));
+  }
+
+  .hdr__nav:has(+ .hdr__tools) {
+    flex: 1 1 auto;
+    max-width: calc(100% - var(--hdr-tools-room));
+    margin-right: var(--hdr-tools-room);
+  }
+
+  .hdr__nav:has(+ .hdr__tools) + .hdr__tools {
+    margin-left: calc(-1 * var(--hdr-tools-room));
+  }
+}
+
 /* In the header the hints float over the page; in the hero and on a 404 they are part of it. */
 .search--header .search__hints {
   position: absolute;
@@ -383,6 +527,22 @@ a.nav-item:hover {
 .hit__go {
   flex: none;
   color: var(--faint);
+}
+
+/* The row of a hint wraps when its tag is long ("Transaction, ledger or URIToken", E8; with objects, E10, the tag itself wraps, below): the detail has at least 8rem, or it goes to the next line, so that a phone
+   never gets a row wider than itself nor a hash cut to nothing. The page of a choice (.choice, pages.css) writes its own lines. */
+.search__hints .hit {
+  flex-wrap: wrap;
+}
+
+.search__hints .hit__detail {
+  flex-basis: 8rem;
+}
+
+/* The tag of a hash's hint names everything the search can find ("Transaction, ledger, URIToken, escrow, check or payment channel", E10), which is wider than a phone: it wraps in its own
+   box, where a transaction type's tag (.type, nowrap) never does. */
+.search__hints .hit .type {
+  white-space: normal;
 }
 
 .search__empty {
@@ -463,6 +623,11 @@ a.nav-item:hover {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
+/* Tiles that hold a formula and a definition beside the figure (the supply page): as many as fit at 360 px, a single column under it. */
+.stat-grid--wide {
+  grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr));
+}
+
 .stat {
   display: flex;
   flex-direction: column;
@@ -479,6 +644,22 @@ a.nav-item:hover {
   font-weight: 500;
 }
 
+/* A tile with an aside: the label at the start of a line and the aside at its end, on the baseline they share. The aside keeps its words on one line. */
+.stat__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.stat__aside {
+  flex: none;
+  color: var(--faint);
+  font-size: 12px;
+  font-variant-numeric: proportional-nums;
+  white-space: nowrap;
+}
+
 .stat__value {
   font-family: var(--font-mono);
   font-size: 22px;
@@ -490,6 +671,16 @@ a.nav-item:hover {
 .stat__sub {
   color: var(--muted);
   font-size: 12px;
+}
+
+/* The formula of a figure under it ("= total supply − escrowed"): mono, muted, on a line of its own in the tile's note, and broken inside a long one. */
+.stat__formula {
+  display: block;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 /* The tile of the network pages (spec 2.11): sans, proportional figures, 24 px, weight 600. The home page's mono 22 px above is the default. */
@@ -552,6 +743,13 @@ a.nav-item:hover {
   overflow-wrap: anywhere;
 }
 
+/* The ledger's name for a row's field, under its label (DetailList's `field`: the object pages' "FinishAfter", the board's small mono line). */
+.kv__field {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
+}
+
 /* ---------------------------------------------------------------------------------------------------------------
    Pills, tags, amounts, entities, buttons */
 
@@ -594,6 +792,25 @@ a.nav-item:hover {
   background: transparent;
   color: var(--muted);
   border: 1px solid var(--border);
+}
+
+/* The sandbox's badge after the logo (Header): the tokens are amber on a wash of it, 7.1:1 in light and 9.5:1 in dark, which test/unit/tokens.test.ts pins. */
+.pill--testnet {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--testnet-bg);
+  color: var(--testnet-fg);
+  border: 1px solid var(--testnet-border);
+}
+
+/* A state that wants attention ("Can be cancelled", "Expired", "Closing"; object pages decision 13): the Testnet badge's amber on its wash, as `--amb` and `--amb-bg` (tokens.css
+   makes them those tokens), so test/unit/tokens.test.ts pins the pair with the badge's. It says its state in words, as every pill does. */
+.pill--warn {
+  background: var(--amb-bg);
+  color: var(--amb);
 }
 
 .pill.mono {
@@ -689,6 +906,265 @@ a.nav-item:hover {
   color: var(--ok);
 }
 
+/* An account with a name (AccountLink, E9; the board AccountNames.dc.html): the name, then the mark that says how it is known, and the labels' mark. The name
+   is cut with an ellipsis when it does not fit, never in the data, and the marks stay: they do not shrink. The link's own focus ring and its target are the
+   link's, as for an address; the marks add none. Before .ent, so that a chip keeps its own gap. */
+.acct {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.acct__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A name is not mono, so its face no longer tells the link from the words around it, and --link against the text is under 3:1 (WCAG 1.4.1; axe cannot say it of an
+   inline-flex link). The name of every named link is underlined, wherever it stands: a rule for the sentences alone would miss the next one a page adds. A chip has its box,
+   and the account page's h1 is no link. The underline, 2 px under the baseline, stays inside the box `overflow: hidden` clips to: a line leaves about 5 px under the
+   baseline at 12 to 14 px. */
+a.acct:not(.ent) > .acct__name {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* `a:hover` underlines the whole link, with its own offset: under a name that already has its line that is two lines, a pixel apart. A hovered named link draws
+   none of its own, and its name's line grows instead: hover still shows, and it is not the focus ring. */
+a.acct:not(.ent):hover {
+  text-decoration: none;
+}
+
+a.acct:not(.ent):hover > .acct__name {
+  text-decoration-thickness: 2px;
+}
+
+/* The whole address after the name (AccountLink `full`): mono, the board's 12.5 px, and it wraps where it must, as a bare address does. */
+.acct__address {
+  min-width: 0;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+/* The marks: a shape each, drawn in `currentColor` so that forced colours keep them, and a word (visually hidden, or the tag's own). In an inline-flex
+   link `vertical-align` is ignored; beside a mono address, or a label in a list, it sets the icon on the text. */
+.namemark {
+  display: inline-flex;
+  flex: none;
+  vertical-align: -2px;
+}
+
+.namemark--verified {
+  color: var(--ok);
+}
+
+.namemark--account {
+  color: var(--muted);
+}
+
+.labelmark {
+  display: inline-flex;
+  flex: none;
+  vertical-align: -2px;
+  color: var(--bad);
+}
+
+/* A labelled issuer and its mark in a list's issuers (IssuerTexts, the Analytics DEX pairs): one unit, so that the issuers' line, which wraps, never leaves the mark alone at
+   the start of the next. (A no-break space does not hold an inline-flex box to the word before it in Chrome.) The issuer is a short address, so the unit is short. */
+.issued-marked {
+  white-space: nowrap;
+}
+
+/* "not verified": a name that only the account's domain says. The board's tag: dashed, no ground of its own (tokens.test.ts holds its text to 4.5:1 on
+   every ground it can sit on). */
+.unv {
+  flex: none;
+  padding: 0 5px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 5px;
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* The account page's header when the account has a name (E9, spec 6.1 to 6.4; the board AccountNames.dc.html). The name is the page's one h1, in the board's 22 px; its marks follow it,
+   drawn larger than in a link, and wrap with it. The address is the line under it, in mono. What is said of the name is a muted line: its links, the toml's in the checks of "How we
+   know" and a banner's are told from the words around them by more than their colour (WCAG 1.4.1: --link against the text is under 3:1, and axe's link-in-text-block cannot say it of an
+   ExternalLink, whose hidden words make its check incomplete). */
+.account-head__name {
+  min-width: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  overflow-wrap: anywhere;
+}
+
+/* The marks are inline, after a space as text, so that a name that wraps has them on its last line and not on a line of their own. */
+.account-head__name .namemark,
+.account-head__name .labelmark {
+  vertical-align: -3px;
+}
+
+.account-head__name .namemark svg,
+.account-head__name .labelmark svg {
+  width: 18px;
+  height: 18px;
+}
+
+.account-head__name .unv {
+  padding: 1px 7px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  vertical-align: 2px;
+}
+
+.account-head__address {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.account-head__kind {
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.account-head__help {
+  font-size: 13px;
+}
+
+.account-head__kind a,
+.disc__checks a,
+.notice--warning a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* A label's source and link, under its description in the banner. The link is a flex item here, not a word in a sentence, so it is a target of 24 px at least (WCAG 2.5.8). */
+.label-banner__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 16px;
+  margin-top: 4px;
+}
+
+.label-banner__meta a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+/* The last item of a breadcrumb that is a name: cut with an ellipsis when it does not fit, never in the data. Where :has() is missing it wraps, as the others do. */
+.crumbs [aria-current]:has(> .acct__name) {
+  display: flex;
+  min-width: 0;
+}
+
+/* "How we know": the board's disclosure, a chevron that turns. The summary is a 44 px target; the checks are a list of what passed, the toml's facts a box of their own. */
+.disc {
+  border-top: 1px solid var(--border);
+}
+
+.disc > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--link);
+  font-weight: 500;
+  list-style: none;
+  cursor: pointer;
+}
+
+.disc > summary::-webkit-details-marker {
+  display: none;
+}
+
+.disc__chevron {
+  transition: transform 0.15s;
+}
+
+.disc[open] .disc__chevron {
+  transform: rotate(90deg);
+}
+
+.disc[open] {
+  padding-bottom: 4px;
+}
+
+.disc__checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.disc__checks li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.disc__checks svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--ok);
+}
+
+.disc__checks .mono {
+  font-size: 12.5px;
+}
+
+/* Under the checks, and the box under that: a `<details>` is no flex container, so their distance is theirs. */
+.disc__checked {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.disc__box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--sunken);
+  font-size: 13px;
+}
+
+/* The toml's facts: a grid of the rows it has, each label over its value. --muted on --sunken is 4.5:1 or more in both themes (tokens.test.ts); --faint is not asked to be. */
+.toml-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 10px 24px;
+}
+
+.toml-facts dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.toml-facts dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: 2px;
+}
+
+.toml-facts .mono {
+  font-size: 12.5px;
+}
+
 /* An account, in a sentence: a chip. */
 .ent {
   display: inline-flex;
@@ -705,6 +1181,11 @@ a.nav-item:hover {
 
 a.ent {
   color: var(--fg);
+}
+
+/* A chip with a name is the name's words, not an address: not mono (the whole address in it, `.acct__address`, has its own .mono). */
+.ent.acct {
+  font-family: inherit;
 }
 
 a.ent:hover {
@@ -768,7 +1249,10 @@ a.btn {
 /* ---------------------------------------------------------------------------------------------------------------
    Tables */
 
+/* The region is the containing block of what is positioned inside it: the visually hidden words of a cell ("no data", `.sr`) are absolute, and without this they sit where the
+   table puts them, beyond the card, which no overflow clips, and the page scrolls sideways (the chart's table view on a phone, E8's sweep). */
 .table-scroll {
+  position: relative;
   overflow-x: auto;
 }
 
@@ -1182,6 +1666,58 @@ a.tabs__item:hover {
 }
 
 /* ---------------------------------------------------------------------------------------------------------------
+   Coverage notes and NFT glyphs */
+
+/* What the index does not hold of a list's history: one faint line with the info icon, directly under the list or figure. The icon sits on the first line when the note wraps. */
+.coverage-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.coverage-note svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.coverage-note > span {
+  min-width: 0;
+}
+
+/* The ledger link sits inside a sentence, so it is told from the words around it by more than its colour (axe: link-in-text-block). */
+.coverage-note a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The two characters in front of a collection or an NFT (the board's glyph); capitals, whatever case the characters have in an address. Decoration: aria-hidden. */
+.nft-glyph {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--sunken);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.nft-glyph--large {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  font-size: 18px;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
    Raw data (pages use these; the components come with their pages) */
 
 .code {
@@ -1293,9 +1829,21 @@ a.tabs__item:hover {
   .nav-item {
     min-height: 44px;
   }
+
+  /* The folded nav: the panel is in the flow under its summary, indented 12 px, its items as wide as the nav (44 px high: the touch rule below). */
+  .hdr__nav.is-open .menu__panel {
+    position: static;
+    min-width: 0;
+    margin: 6px 0 4px 12px;
+    box-shadow: none;
+  }
 }
 
 @media (max-width: 640px) {
+  .account-head__name {
+    font-size: 19px;
+  }
+
   .kv {
     grid-template-columns: 1fr;
   }
@@ -1331,7 +1879,8 @@ a.tabs__item:hover {
 @media (pointer: coarse), (max-width: 720px) {
   .btn,
   .tabs__item,
-  .nav-item {
+  .nav-item,
+  .menu__item {
     min-height: 44px;
   }
 
@@ -1339,4 +1888,248 @@ a.tabs__item:hover {
     min-width: 44px;
     min-height: 44px;
   }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Ledger object pages: the states strip, the timeline, the check flow, the permission chip, the MPT amount, the link to an object
+   (the boards Escrow.dc.html, Check.dc.html, PayChannel.dc.html and Delegation.dc.html; spec 5). The classes are these components' alone: test/unit/pages-css.test.ts
+   keeps every other sheet from taking one. */
+
+/* The states an object can be in, as a legend: the title, then one box for each state with what it means. The current one is framed in the link colour and says "· this
+   escrow" in words. A frame and a word, not the colour alone. The boxes wrap at 150 px. */
+.states {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.states__title {
+  flex: 0 0 auto;
+  padding: 0 8px 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.states__list {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.states__item {
+  display: flex;
+  flex: 1 1 150px;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.states__item.is-current {
+  border-color: var(--link);
+  box-shadow: inset 0 0 0 1px var(--link);
+}
+
+.states__name {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.states__item.is-current .states__name {
+  color: var(--link);
+}
+
+.states__here {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.states__meaning {
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+/* The history of an object: a rail with a dot for each line, oldest first. The dots are decoration (aria-hidden); what a line is, is in its words, and the footnote says what the
+   dots mean: filled for a transaction, outlined for a time that passed, dashed for what can still happen. */
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.timeline__list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.timeline__item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 12px;
+}
+
+/* The rail: from under one dot to the next, across the 18 px gap. */
+.timeline__item:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 21px;
+  bottom: -15px;
+  width: 2px;
+  background: var(--border);
+}
+
+.timeline__dot {
+  width: 14px;
+  height: 14px;
+  margin-top: 3px;
+  border: 2px solid;
+  border-radius: 50%;
+}
+
+.timeline__dot--tx {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.timeline__dot--mark {
+  background: var(--surface);
+  border-color: var(--muted);
+}
+
+.timeline__dot--next {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--border-strong);
+}
+
+.timeline__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.timeline__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.timeline__title {
+  font-weight: 600;
+}
+
+/* The type tag of a time that passed or of what can still happen: dashed and without a fill, so that it is not mistaken for a transaction that happened. */
+.timeline__type--ghost {
+  border-style: dashed;
+  background: transparent;
+  color: var(--muted);
+}
+
+.timeline__when {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+/* What an event did, who sent it, and its hash and ledger. Long addresses and hashes break at the edge of the card. */
+.timeline__line {
+  margin: 0;
+  color: var(--faint);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.timeline__what {
+  color: var(--fg);
+  font-size: 13px;
+}
+
+/* A link in a sentence is told from the words round it by more than its colour (WCAG 1.4.1; axe: link-in-text-block): the by line's addresses, the hash, the ledger, an NFT.
+   Not a chip (`.ent` has its box), and not a named account, whose name has an underline of its own (`a.acct:not(.ent) > .acct__name`): a second one on the whole link
+   would lie 1 px under it. */
+.timeline__line a:not(.ent):not(.acct) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.timeline__footnote {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  color: var(--faint);
+  font-size: 12px;
+}
+
+/* The three boxes of a check, on the transaction page's flow (`.flow` and its parts, pages.css). A long amount or issuer breaks at the edge of its box. */
+.checkflow {
+  overflow-wrap: anywhere;
+}
+
+/* The issuer is in the words "issued by", so an address is underlined (a named one has its own line, as above). */
+.checkflow__issuer a:not(.acct) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* A permission of a delegation: a transaction type is filled, a narrower right (or one nobody knows) outlined. Its hidden words (`.sr`, absolute) stay inside the chip, so that a
+   scrolling table or the page does not widen by them. */
+.permchip {
+  position: relative;
+  display: inline-block;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--sunken);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.permchip--granular,
+.permchip--unknown {
+  background: transparent;
+  border-color: var(--border-strong);
+}
+
+/* "2,500,000 units of MPT 0000012A…": mono (the element has `.mono`), tabular, and broken at the edge of its cell. A link in it stands in the words, so it is underlined. */
+.mptamount {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.mptamount a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* An escrow, a check or a channel in a sentence ("escrow 57978925", "a check"): `Sentence`'s link, wherever it stands (a transaction's words, a ledger's or an account's row). Its colour alone
+   does not tell it from the words round it (2.06 to 2.88:1 against the text, and axe does not see it: its heuristic wants more words than link), so it is underlined (WCAG 1.4.1). */
+.objectlink {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* A token's code that is a link in running words ("USD issued by r…" on a pair's and a pool's page, the toml's currencies under "How we know"): its colour alone does not tell it from the
+   words round it (WCAG 1.4.1; axe sees the pair's line and not the pool's, whose facts are inline-flex boxes), so it is underlined, as `.objectlink` is. */
+.tokenlink {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }

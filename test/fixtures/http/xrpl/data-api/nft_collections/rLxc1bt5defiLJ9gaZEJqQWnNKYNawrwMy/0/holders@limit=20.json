@@ -1,0 +1,14 @@
+{
+  "count": 4,
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 32570
+  },
+  "holders": [
+    {"held":2,"owner":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh"},
+    {"held":2,"owner":"rwuX3EqfBF7tcQyB9oSE2aigToGS6erfxh"},
+    {"held":1,"owner":"rLCscV9iDJpvje4ZCKxGjYAMNtBA1Ltauk"},
+    {"held":1,"owner":"rfXCG4LFaEYstvawLHj6KR7fDg1K3b2nDF"}
+  ],
+  "result": "success"
+}

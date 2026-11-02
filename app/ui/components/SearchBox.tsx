@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Form, Link } from "react-router";
 
+import { hashWhat, joinNouns, type HashNounOptions } from "../../domain/hash-nouns";
 import type { classify as Classify, SearchKind } from "../../domain/search";
 import { cx } from "../cx";
 import type { NetworkBrief } from "../networks";
 import { hintsFor } from "../search-hints";
+import { useFeatures } from "../use-network";
 import { ArrowRightIcon, SearchIcon } from "./icons";
 import { TypeTag } from "./TypeTag";
 
@@ -23,10 +25,17 @@ function isTyping(target: EventTarget | null): boolean {
   );
 }
 
+/** What the empty box says it takes: with NFTS on, an NFT id too (the board's words), and with LEDGER_OBJECTS on an object id: "Address, hash, ledger, CTID, NFT id or object id". */
+function placeholderOf(variant: "header" | "hero", { nfts, ledgerObjects }: HashNounOptions): string {
+  const takes = variant === "hero" ? ["Address", "transaction hash", "ledger index"] : ["Address", "hash", "ledger"];
+  return joinNouns([...takes, "CTID", ...(nfts ? ["NFT id"] : []), ...(ledgerObjects ? ["object id"] : [])]);
+}
+
 /**
  * The search box. A GET form to `/{net}/search?q=...`, so it works before JavaScript loads; with JavaScript it shows what the
  * input looks like as you type (a ledger, an account, a hash, a CTID), without any request. `/` focuses it from anywhere on
- * the page except while another field has focus.
+ * the page except while another field has focus. It reads the switches (`useFeatures()`): while `NFTS` is on, its placeholders and the hint of a hash name the NFT, and while `LEDGER_OBJECTS`
+ * is on they name the objects too.
  *
  * `variant="header"` is the compact box of the header; `"hero"` the large one with a Search button. A second box on the same
  * page (the 404 page has the header's and its own) passes `shortcut={false}`, so that it does not claim the `/` key, and
@@ -45,6 +54,7 @@ export function SearchBox({
   landmark?: boolean;
   initialQuery?: string;
 }) {
+  const features = useFeatures();
   const inputId = useId();
   const hintsId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -72,7 +82,7 @@ export function SearchBox({
 
   const trimmed = query.trim();
   const found: SearchKind | undefined = open && classify && trimmed ? classify(trimmed) : undefined;
-  const hints = found ? hintsFor(found, net.id) : [];
+  const hints = found ? hintsFor(found, net.id, features) : [];
 
   return (
     <Form
@@ -111,7 +121,7 @@ export function SearchBox({
             if (event.key === "Escape") setOpen(false);
           }}
           className={cx("search__input", variant === "hero" && "mono")}
-          placeholder={variant === "hero" ? "Address, transaction hash, ledger index or CTID" : "Address, hash, ledger or CTID"}
+          placeholder={placeholderOf(variant, features)}
           autoComplete="off"
           autoCapitalize="off"
           spellCheck={false}
@@ -154,7 +164,7 @@ export function SearchBox({
         )}
         {found?.kind === "none" && (
           <p className="search__empty">
-            Nothing on {net.name} looks like that. Enter an address (r&hellip;), a 64-character transaction or ledger hash, a
+            Nothing on {net.name} looks like that. Enter an address (r&hellip;), a 64-character {hashWhat(net.id, features)} hash, a
             ledger index, or a CTID (C followed by 15 hex digits).
           </p>
         )}

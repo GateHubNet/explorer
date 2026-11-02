@@ -1,4 +1,4 @@
-import { useId, type FormEvent } from "react";
+import { useId, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { formatUtc } from "../../domain/format";
@@ -21,15 +21,24 @@ import { SegmentedLinks } from "../components/SegmentedLinks";
 import { StatTile } from "../components/StatTile";
 import { DomainStatus, FeeArrow, IncompleteMark, LatestMark, NegativeUnlTag, Parts, UnlTag } from "../components/StatusMarks";
 import { cx } from "../cx";
-import { useHolds, type HoldHandlers } from "../use-hold";
+import { holdsFocus, useHolds, type HoldHandlers } from "../use-hold";
 import type { LiveControls } from "../use-live-controls";
 import { useRefetching } from "../use-refetching";
 import { useRetry } from "../use-retry";
+import { ValidatorsMapCard } from "./ValidatorsMapCard";
 
 const DASH = "—";
 
 /** The tiles of the overview, as the builder labels them: a summary that did not load has no tiles to read them from, and the page still shows six dashes. */
 const TILE_LABELS = ["Validators seen, last 24 h", "On the default UNL", "Quorum", "Negative UNL", "Base / owner reserve", "Next flag ledger"] as const;
+
+/** The parts of the page that hold it while the visitor is on them (spec decision 13): the countries card and the list's table, which both have links. */
+type HeldPart = "countries" | "table";
+/** What the live row says of the part that holds the page: one note for each part, as MarketPairPage has. */
+const HELD_NOTES = {
+  countries: "Paused while you look at the map",
+  table: "Paused while you look at the table",
+} as const satisfies Record<HeldPart, string>;
 
 /** What the versions card counts in the label column of its bars. */
 const VALIDATOR_UNIT = { one: "validator", other: "validators" } as const;
@@ -134,9 +143,11 @@ function viewOf(form: HTMLFormElement): ValidatorsParams {
   const view: ValidatorsParams = { scope: field("scope") === "all" ? "all" : "unl" };
   const publisher = field("publisher");
   const amendment = field("amendment");
+  const country = field("country");
   const q = field("q");
   if (publisher !== undefined) view.publisher = publisher;
   if (amendment !== undefined) view.amendment = amendment;
+  if (country !== undefined) view.country = country;
   if (q !== undefined) view.q = q;
   return view;
 }
@@ -159,7 +170,7 @@ function FilterSelect({ name, label, anyLabel, options, value }: { name: string;
 }
 
 /**
- * The search field, "Listed by" and "Votes yes for" (each only while the data it lists loaded), and Apply. A plain GET form that works without a script (the
+ * The search field, "Listed by", "Votes yes for" and "Country" (each only while the data it lists loaded), and Apply. A plain GET form that works without a script (the
  * list's canonical redirect tidies its empty fields); with one, Apply goes straight to the canonical address of the fields and keeps the window where it is. The
  * fields are uncontrolled: the page is keyed by its view, so another view is a new form, and a beat that brings the same view leaves what the visitor typed alone.
  * A filter whose field is not drawn (its data did not load) rides in a hidden field, so that Apply does not drop what the address applies as given.
@@ -170,10 +181,13 @@ function FilterForm({ data }: { data: ValidatorsPageData }) {
   const { params, hrefs } = data;
   const publishers = data.summary.state === "ok" ? data.summary.publishers : null;
   const amendments = data.amendments.state === "ok" && data.amendments.options.length > 0 ? data.amendments.options : null;
+  // The countries are L's: while L failed (or the switch is off) there is no select, and the country of the address rides in a hidden field like the other filters.
+  const countries = data.map.state === "ok" ? data.map.options : null;
   const hidden: Array<[string, string]> = [];
   if (params.scope === "all") hidden.push(["scope", "all"]);
   if (publishers === null && params.publisher !== undefined) hidden.push(["publisher", params.publisher]);
   if (amendments === null && params.amendment !== undefined) hidden.push(["amendment", params.amendment]);
+  if (countries === null && params.country !== undefined) hidden.push(["country", params.country]);
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -201,6 +215,7 @@ function FilterForm({ data }: { data: ValidatorsPageData }) {
       </div>
       {publishers !== null && <FilterSelect name="publisher" label="Listed by" anyLabel="any publisher" options={publishers} value={params.publisher} />}
       {amendments !== null && <FilterSelect name="amendment" label="Votes yes for" anyLabel="any amendment" options={amendments} value={params.amendment} />}
+      {countries !== null && <FilterSelect name="country" label="Country" anyLabel="all countries" options={countries} value={params.country} />}
       {hidden.map(([name, value]) => (
         <input key={name} type="hidden" name={name} value={value} />
       ))}
@@ -228,10 +243,13 @@ function ValidatorCell({ row }: { row: ValidatorRowView }) {
           {row.name.text}
         </Link>
         {row.domainStatus !== null && <DomainStatus status={row.domainStatus} />}
-        {row.unl && <UnlTag publishers={row.unlPublishers} />}
+        {row.unl && <UnlTag listedBy={row.listedBy} />}
         {row.negativeUnl && <NegativeUnlTag />}
       </span>
-      <span className="validators__sub mono">{row.sub}</span>
+      <span className="validators__sub mono">
+        {row.sub}
+        {row.place !== null && <span className="validators__place">{` · ${row.place}`}</span>}
+      </span>
     </span>
   );
 }
@@ -354,7 +372,14 @@ function ValidatorsCard({ data, holds, onRetry, retrying }: { data: ValidatorsPa
               rowKey={(row) => row.validation_public_key}
               minWidth={980}
               empty={
-                hrefs.clear !== null ? (
+                list.unlEmpty !== null ? (
+                  <>
+                    {list.unlEmpty.text}{" "}
+                    <Link to={list.unlEmpty.link.href} preventScrollReset>
+                      {list.unlEmpty.link.text}
+                    </Link>
+                  </>
+                ) : hrefs.clear !== null ? (
                   <>
                     No validators match these filters.{" "}
                     <Link to={hrefs.clear} preventScrollReset>
@@ -387,14 +412,15 @@ function ValidatorsCard({ data, holds, onRetry, retrying }: { data: ValidatorsPa
 
 /**
  * The validators list (`/{net}/validators`, spec 3.1), in the board's order: the breadcrumb, the heading with its intro and the link to the amendments, E2's live
- * row, the notices about the publishers' lists, the network overview, the versions card, and the validators card (the scope links, the filter form, the table and its
- * footer). Takes what the view builder made of the data API's three answers (`validatorsPage`) and never fetches: every label, href and figure is text in `data`.
+ * row, the notices about the publishers' lists, the network overview, the countries card (E13, while `VALIDATORS_MAP` is on), the versions card, and the validators card (the
+ * scope links, the filter form, the table and its footer). Takes what the view builder made of the data API's three answers (`validatorsPage`) and never fetches: every label, href and figure is text in `data`.
  * Each of the three stands or fails alone (spec 3.3): the summary's parts are dashes and a section error, the list's card is a section error with the filters kept, and
  * a missing list of amendments only takes "Votes yes for" away.
  *
  * The page follows the chain (spec 2.3): the table's rows enter and slide (`DataTable live`, keyed by master key), a figure that changed ticks in (`LiveValue`), the
  * share bar rings when its versions moved. Nothing animates on the first render, so a view navigation must remount the page (the route keys it by the view). The
- * table holds the page while a mouse is over it or keyboard focus is in it; the charts do not. While another view loads (`useRefetching`) the charts are dimmed.
+ * table and the countries card hold the page while a mouse is over them or keyboard focus is in them (the live row says which one: the map or the table); the charts do not.
+ * While another view loads (`useRefetching`) the charts are dimmed.
  *
  * `live` is what the route gives the page (`useLiveControls`): the pause button, the status line and the hold. `anchor` and `build` are the route's data, which the
  * page does not draw.
@@ -403,7 +429,24 @@ export function ValidatorsPage({ data, live }: { data: ValidatorsPageData & { an
   const refetching = useRefetching();
   const { retry, retrying } = useRetry();
   const holds = useHolds(live.onHold);
+  const [heldPart, setHeldPart] = useState<HeldPart>("table");
   const net = data.network.id;
+
+  /** The handlers of `useHolds` for a part, which also note that the hold, when there is one, is this part's (the part the visitor came to last). */
+  const holding = (part: HeldPart): HoldHandlers => {
+    const handlers = holds(part);
+    return {
+      ...handlers,
+      onPointerEnter: (event) => {
+        if (event.pointerType !== "touch") setHeldPart(part);
+        handlers.onPointerEnter(event);
+      },
+      onFocus: (event) => {
+        if (holdsFocus(event.target)) setHeldPart(part);
+        handlers.onFocus(event);
+      },
+    };
+  };
 
   return (
     <div className={cx("validators", refetching && "is-refetching")}>
@@ -421,7 +464,7 @@ export function ValidatorsPage({ data, live }: { data: ValidatorsPageData & { an
         </Link>
       </div>
 
-      <LiveRow label="Live · updates every 10 s" live={live} heldNote="Paused while you look at the table" />
+      <LiveRow label="Live · updates every 10 s" live={live} heldNote={HELD_NOTES[heldPart]} />
 
       {data.summary.state === "ok" &&
         data.summary.notices.map((notice) => (
@@ -431,8 +474,9 @@ export function ValidatorsPage({ data, live }: { data: ValidatorsPageData & { an
         ))}
 
       <Overview summary={data.summary} onRetry={retry} retrying={retrying} />
+      <ValidatorsMapCard map={data.map} holds={holding("countries")} onRetry={retry} retrying={retrying} />
       <VersionsCard summary={data.summary} onRetry={retry} retrying={retrying} />
-      <ValidatorsCard data={data} holds={holds("table")} onRetry={retry} retrying={retrying} />
+      <ValidatorsCard data={data} holds={holding("table")} onRetry={retry} retrying={retrying} />
     </div>
   );
 }

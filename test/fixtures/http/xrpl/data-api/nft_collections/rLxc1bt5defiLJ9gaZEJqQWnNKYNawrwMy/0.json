@@ -1,0 +1,29 @@
+{
+  "collection": {
+    "burned": 1,
+    "first_mint": {
+      "executed_time": "2026-10-24T16:08:12Z",
+      "ledger_index": 107874617,
+      "tx_hash": "F7AED45B4EB7BA60457A92505BE934C4B561E46ED41A99E62BAA27C87A3BE7C9"
+    },
+    "holders": 4,
+    "issuer": "rLxc1bt5defiLJ9gaZEJqQWnNKYNawrwMy",
+    "kind": "nftoken",
+    "last_ledger": 107886233,
+    "last_mint": {
+      "executed_time": "2026-10-25T04:52:11Z",
+      "ledger_index": 107886233,
+      "tx_hash": "9F8D001C7AF1C7CB004DACE6EE2E9A803650B586F83915231E2893DEDB9072FF"
+    },
+    "minted": 6,
+    "sales_count": 21,
+    "supply": 14,
+    "taxon": 0,
+    "volume_native": "3695.22"
+  },
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 32570
+  },
+  "result": "success"
+}

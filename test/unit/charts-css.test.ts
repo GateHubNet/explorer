@@ -709,6 +709,40 @@ describe("the share bars (ShareBar)", () => {
   });
 });
 
+describe("the compact share bar (ShareBar compact, the supply page)", () => {
+  it("is one row of the bar alone, 40 px high: the label column of the plain form is not there to keep", () => {
+    expect(rule(chartsCss, ".share--compact .share__row")["grid-template-columns"]).toBe("minmax(0, 1fr)");
+    expect(rule(chartsCss, ".share--compact .share__bar")).toMatchObject({ height: "40px", "border-radius": "6px" });
+    // The plain bar is 28 px, and nothing outside the compact class changed it.
+    expect(rule(chartsCss, ".share__bar").height).toBe("28px");
+  });
+
+  it("keeps a sliver of the bar 5 px wide: 3 px of colour and the 2 px gap inside its end, where the plain 3 px leaves 1", () => {
+    const gap = Number.parseFloat(/inset -(\d+)px/.exec(rule(chartsCss, ".share__seg:not(:last-child)")["box-shadow"]!)![1]!);
+    const sliver = rule(chartsCss, ".share--compact .share__seg:not(:last-child)");
+    expect(Number.parseFloat(sliver["min-width"]!)).toBe(3 + gap);
+    expect(sliver["min-width"]).toBe("5px");
+    // The last segment has no gap and keeps the plain 3 px, and the compact form does not say less than that anywhere.
+    expect(rule(chartsCss, ".share__seg")["min-width"]).toBe("3px");
+    expect(parse(chartsCss).filter((r) => r.selectors.some((selector) => /^\.share--compact \.share__seg\b/.test(selector)) && r.declarations["min-width"] !== undefined)).toHaveLength(1);
+  });
+
+  it("gives a label the 48 px of two lines, the name and the caption, each cut with an ellipsis where it does not fit", () => {
+    expect(rule(chartsCss, ".share--compact .share__labels").height).toBe("48px");
+    expect(rule(chartsCss, ".share--compact .share__label")).toMatchObject({ "line-height": "1.35", "font-size": "12px" });
+    // Two lines of that, under the label's own top, fit in the band.
+    const label = rule(chartsCss, ".share--compact .share__label");
+    expect(Number.parseFloat(label.top!) + 2 * 12 * Number.parseFloat(label["line-height"]!)).toBeLessThanOrEqual(48);
+    expect(rule(chartsCss, ".share--compact .share__label b")).toMatchObject({ display: "block", overflow: "hidden", "text-overflow": "ellipsis" });
+    expect(rule(chartsCss, ".share--compact .share__caption")).toMatchObject({ display: "block", overflow: "hidden", "text-overflow": "ellipsis" });
+  });
+
+  it("opens the tooltip under the 40 px bar, 6 px under its edge as the plain form does under its 28 px", () => {
+    expect(rule(chartsCss, ".share__tip").top).toBe("34px");
+    expect(rule(chartsCss, ".share--compact .share__tip").top).toBe("46px");
+  });
+});
+
 describe("the sparkline (Sparkline)", () => {
   it("is a box that does not shrink in a row: its size is the svg's own, 100 × 28 px", () => {
     expect(rule(chartsCss, ".spark").flex).toBe("none");
@@ -922,10 +956,209 @@ describe("the inline bars (InlineBar)", () => {
   });
 });
 
+describe("the window bar (WindowBar)", () => {
+  const WBAR = [
+    ".wbar",
+    ".wbar__plot",
+    ".wbar__track",
+    ".wbar__part",
+    ".wbar__part--window",
+    ".wbar__seg",
+    ".wbar__mark",
+    ".wbar__mark-label",
+    ".wbar__ticks",
+    ".wbar__tick",
+    ".wbar__tip",
+  ];
+  /** Whether a stylesheet's rules mention `name` as a class: not a longer class that starts with it (`.wbar` is not `.wbar__seg`). */
+  const mentions = (css: string, name: string) => new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-])`).test(css);
+  const px = (value: string | undefined) => Number.parseFloat(value ?? "NaN");
+  const COARSE = "@media (pointer: coarse), (max-width: 720px)";
+  /** A `calc()` of lengths in px and `var()`s as a number of px, with the variables given (a `100% + ` is the box's own edge and left out). */
+  const evalPx = (value: string, vars: Record<string, number>): number => {
+    const text = value
+      .replace(/var\((--[\w-]+)(?:\s*,\s*([^)]+))?\)/g, (_, name: string, fallback?: string) => String(vars[name] ?? Number.parseFloat(fallback ?? "NaN")))
+      .replace(/100% [+-] /g, "")
+      .replace(/calc/g, "")
+      .replace(/(\d)px/g, "$1");
+    if (!/^[\d\s.+\-*/()]+$/.test(text)) throw new Error(`not arithmetic on px: ${value}`);
+    return Function(`return (${text})`)() as number;
+  };
+  /** The sizes of the bar at a target of 24 px (the base) and at 44 px (a touch screen or a phone): `--target` and what `--hit`, the part of it that is not the bar, comes to. */
+  const sizes = (target: number) => ({ "--target": target, "--hit": evalPx(rule(chartsCss, ".wbar")["--hit"]!, { "--target": target }) });
+  const OTHER_SHEETS = [["components.css", componentsCss], ["pages.css", read("pages.css")], ["base.css", read("base.css")], ["tokens.css", read("tokens.css")]] as const;
+
+  // E9 found `.acct` also defined in pages.css, which is imported after components.css: the later rule won at equal specificity. The classes of the bar are this sheet's alone.
+  it.each(WBAR)("%s is defined in charts.css and in no other stylesheet", (name) => {
+    expect(mentions(chartsCss, name), `charts.css has ${name}`).toBe(true);
+    for (const [file, css] of OTHER_SHEETS) expect(mentions(css, name), `${file} has ${name}`).toBe(false);
+  });
+
+  it("has no other sheet with a class that starts with .wbar", () => {
+    for (const [file, css] of OTHER_SHEETS) expect(/\.wbar(?![\w-])|\.wbar[_-]/.test(css), `${file} has a class of wbar`).toBe(false);
+  });
+
+  it("has the legend above a plot of 22 px of room for the mark's label, the bar of 12 px as a row, and the bounds' room under it", () => {
+    expect(rule(chartsCss, ".wbar")).toMatchObject({ position: "relative", display: "flex", "flex-direction": "column", gap: "6px" });
+    expect(rule(chartsCss, ".wbar__plot").position).toBe("relative");
+    // 16 px of room and what the button reaches above the bar: 22 px, and 32 on a phone (the bar is at the same 12 px, and the buttons' boxes start 16 px into the room).
+    expect(evalPx(rule(chartsCss, ".wbar__plot")["padding-top"]!, sizes(24))).toBe(22);
+    expect(evalPx(rule(chartsCss, ".wbar__plot")["padding-top"]!, sizes(44))).toBe(32);
+    expect(rule(chartsCss, ".wbar__track")).toMatchObject({ display: "flex", height: "12px" });
+  });
+
+  // The Worker's style gives a part `flex: {share} 1 {share}%`; the browser lays the row out. A window has 24 px at the least and the rest of the row gives way for it
+  // (flex-shrink 1, which the style's own 1 says, and the grow takes up what is left), and a stretch no window covers has none.
+  it("lays the parts of the bar out in a row where a window has 24 px at the least, which the others give way for, and what is in a part is placed in it", () => {
+    expect(rule(chartsCss, ".wbar__part")).toMatchObject({ position: "relative", "min-width": "0" });
+    expect(rule(chartsCss, ".wbar__part--window")["min-width"]).toBe("var(--target)");
+  });
+
+  // axe (WCAG 2.5.8, target-size) reads the button's own box, never a pseudo-element's: so the box has to be the target, and the colour the 12 px in the middle of it.
+  // The target is 24 px, and 44 px (spec 8) on a touch screen and on a phone, as the bar list's links are (`pointer: coarse` or a viewport of 720 px at most).
+  it("makes the button of a window 24 px high and wide, and 44 px on a touch screen or a phone, with the 12 px of colour in the middle of it", () => {
+    expect(rule(chartsCss, ".wbar")["--target"]).toBe("24px");
+    expect(rule(chartsCss, ".wbar", [COARSE])["--target"]).toBe("44px");
+    // What the button has above the bar and below it is `--hit`, and the target less the bar's 12 px is two of them.
+    expect(rule(chartsCss, ".wbar")["--hit"]).toBe("calc((var(--target) - 12px) / 2)");
+    const [segment, fill] = [rule(chartsCss, ".wbar__seg"), rule(chartsCss, ".wbar__seg::before")];
+    expect(segment).toMatchObject({ position: "absolute", left: "0", right: "0", border: "0", background: "transparent", padding: "0", top: "calc(var(--hit) * -1)", bottom: "calc(var(--hit) * -1)" });
+    expect(fill).toMatchObject({ content: '""', position: "absolute", background: "var(--mark)", inset: "var(--hit) 0" });
+    expect(rule(chartsCss, ".wbar__part--window")["min-width"]).toBe("var(--target)");
+    const bar = px(rule(chartsCss, ".wbar__track").height);
+    for (const target of [24, 44]) {
+      const vars = sizes(target);
+      // The button's box is the target, and the fill in it is the bar.
+      expect(bar - evalPx(segment.top!, vars) - evalPx(segment.bottom!, vars), `the box at ${target}`).toBe(target);
+      expect(target - 2 * evalPx(fill.inset!.split(" ")[0]!, vars), `the fill at ${target}`).toBe(bar);
+    }
+  });
+
+  it("keeps what is over and under the bar clear of the button's box at either size, and takes no pointer, so that the button under a label is hovered", () => {
+    const bar = px(rule(chartsCss, ".wbar__track").height);
+    for (const target of [24, 44]) {
+      const vars = sizes(target);
+      const hit = vars["--hit"];
+      // The mark's label ends above the button's top (the part's top less `--hit`); the first row of the bounds starts under the button's bottom.
+      const label = rule(chartsCss, ".wbar__mark-label");
+      expect(evalPx(label.bottom!, vars), `the label at ${target}`).toBeGreaterThan(hit);
+      for (const [vars2, top, at] of [[{ ...vars, "--row": 0 }, rule(chartsCss, ".wbar__tick").top, []], [{ ...vars, "--row-narrow": 0 }, rule(chartsCss, ".wbar__tick", [NARROW]).top, [NARROW]]] as const) {
+        expect(evalPx(top!, vars2), `the bounds at ${target} ${at.join(" ")}`).toBeGreaterThanOrEqual(bar + hit);
+      }
+      // The band under the bar holds a row of bounds, which starts under the button's box, and a line of text (11 px at 1.3).
+      const first = evalPx(rule(chartsCss, ".wbar__tick").top!, { ...vars, "--row": 0 }) - bar;
+      expect(evalPx(rule(chartsCss, ".wbar__ticks").height!, { ...vars, "--rows": 1 }), `the band at ${target}`).toBeGreaterThanOrEqual(first + Math.ceil(11 * 1.3));
+    }
+    for (const selector of [".wbar__mark", ".wbar__mark-label", ".wbar__tick", ".plot__tip"]) expect(rule(chartsCss, selector)["pointer-events"], selector).toBe("none");
+  });
+
+  it("draws the 2 px gap inside the end of each window but the last, in --surface, so that the widths stay exact spans", () => {
+    expect(rule(chartsCss, ".wbar__part:not(:last-child) > .wbar__seg::before")["box-shadow"]).toBe("inset -2px 0 0 var(--surface)");
+    expect(rule(chartsCss, ".wbar__seg::before")["box-shadow"]).toBeUndefined();
+  });
+
+  it("rounds the ends of the bar by 4 px, and a bar of one window all round", () => {
+    expect(rule(chartsCss, ".wbar__part:first-child > .wbar__seg::before")["border-radius"]).toBe("4px 0 0 4px");
+    expect(rule(chartsCss, ".wbar__part:last-child > .wbar__seg::before")["border-radius"]).toBe("0 4px 4px 0");
+    expect(rule(chartsCss, ".wbar__part:only-child > .wbar__seg::before")["border-radius"]).toBe("4px");
+  });
+
+  it("keeps the global focus ring on a window's button, above the next part's colour, and sets no overflow on the bar that would cut it", () => {
+    expect(rule(chartsCss, ".wbar__part:focus-within")["z-index"]).toBe("1");
+    // No rule of the bar's takes the ring off a button.
+    const rules = parse(chartsCss).filter((r) => r.selectors.some((selector) => /^\.wbar__seg\b/.test(selector)));
+    expect(rules.filter((r) => /none|^0/.test(r.declarations.outline ?? "2px solid"))).toEqual([]);
+    expect(rule(read("base.css"), ":focus-visible").outline).toMatch(/^2px solid/);
+    for (const selector of WBAR) expect(rule(chartsCss, selector).overflow, selector).toBeUndefined();
+  });
+
+  it("dims the other windows to 45% while one is hovered or focused, and not that one", () => {
+    expect(rule(chartsCss, ".wbar[data-active] .wbar__seg:not(.is-active)::before").opacity).toBe("0.45");
+  });
+
+  it("draws the mark as a line of 2 px in --fg that reaches past the bar at both ends and takes no pointer, so that the button under it is hovered", () => {
+    const mark = rule(chartsCss, ".wbar__mark");
+    expect(mark).toMatchObject({ position: "absolute", width: "2px", background: "var(--fg)", "pointer-events": "none", "margin-left": "-1px" });
+    // It hangs from the bar's top (the part is the bar's 12 px).
+    expect(px(mark.top)).toBeLessThan(0);
+    expect(px(mark.top) + px(mark.height)).toBeGreaterThan(px(rule(chartsCss, ".wbar__track").height));
+    // Its label is over the bar: 7 px above it, in the 22 px that the plot keeps (32 px of room on a phone, where the button reaches 10 px further).
+    const label = rule(chartsCss, ".wbar__mark-label");
+    expect(label).toMatchObject({ position: "absolute", bottom: "calc(100% + var(--hit) + 1px)", "white-space": "nowrap", "pointer-events": "none" });
+    for (const target of [24, 44]) {
+      const vars = sizes(target);
+      expect(evalPx(label.bottom!, vars) + Math.ceil(11.5 * 1.3), `the label at ${target}`).toBeLessThanOrEqual(evalPx(rule(chartsCss, ".wbar__plot")["padding-top"]!, vars));
+    }
+  });
+
+  it("writes the bounds in --faint 11 px under the bar, clear of the buttons, and takes no pointer", () => {
+    expect(rule(chartsCss, ".wbar__tick")).toMatchObject({ position: "absolute", color: "var(--faint)", "font-size": "11px", "white-space": "nowrap", "pointer-events": "none" });
+    // The first row starts 8 px under the bar's bottom, and under the button's box (the next test): 14 px from the bar's top and what the button has above it.
+    expect(rule(chartsCss, ".wbar__tick").top).toBe("calc(14px + var(--hit) + var(--row, 0) * 15px)");
+  });
+
+  it("moves a label left of its time by the component's `--shift`, for the wide bar, and by `--shift-narrow` where the bar is under 480 px", () => {
+    for (const label of [".wbar__mark-label", ".wbar__tick"]) {
+      expect(rule(chartsCss, label).transform, label).toBe("translateX(var(--shift, 0%))");
+      expect(rule(chartsCss, label, [NARROW]).transform, label).toBe("translateX(var(--shift-narrow, 0%))");
+    }
+  });
+
+  it("puts labels that would meet in rows of 15 px, as many as the component says, for the wide bar and (under 480 px of it) for the narrow one", () => {
+    expect(rule(chartsCss, ".wbar__tick").top).toBe("calc(14px + var(--hit) + var(--row, 0) * 15px)");
+    expect(rule(chartsCss, ".wbar__ticks").height).toBe("calc(10px + var(--hit) + var(--rows, 1) * 15px)");
+    expect(rule(chartsCss, ".wbar__tick", [NARROW]).top).toBe("calc(14px + var(--hit) + var(--row-narrow, 0) * 15px)");
+    expect(rule(chartsCss, ".wbar__ticks", [NARROW]).height).toBe("calc(10px + var(--hit) + var(--rows-narrow, 1) * 15px)");
+  });
+
+  it("is the container that the query asks, so that the bar's own width and not the page's says which labels are drawn", () => {
+    expect(rule(chartsCss, ".wbar")["container-type"]).toBe("inline-size");
+  });
+
+  // `.card` clips (overflow: hidden) and the bar is the last thing in its card: a tooltip of three lines under the bounds would be cut by the card's edge.
+  it("opens the tooltip over the bar, above the buttons' boxes, at the middle of its window, and not under the bar, where the card would clip it", () => {
+    const tip = rule(chartsCss, ".wbar__tip");
+    expect(tip).toMatchObject({ top: "auto", bottom: "calc(100% - 12px)", left: "var(--tip-left, 50%)" });
+    // The tooltip ends 12 px from the top of the plot; the buttons' boxes start 16 px from it, at either size (the bar is lower on a phone by what the button has more above it).
+    for (const target of [24, 44]) {
+      const vars = sizes(target);
+      const buttons = evalPx(rule(chartsCss, ".wbar__plot")["padding-top"]!, vars) + evalPx(rule(chartsCss, ".wbar__seg").top!, vars);
+      expect(buttons, `the buttons at ${target}`).toBe(16);
+      expect(Number(/calc\(100% - (\d+)px\)/.exec(tip.bottom!)![1])).toBeLessThan(buttons);
+    }
+    // Up to 340 px, for a range on one line, and 90% of a bar that is narrower.
+    expect(tip["max-width"]).toBe("min(340px, 90%)");
+  });
+
+  it("centres the tooltip on a bar under 480 px, whatever side the component gave it, since no side of a window holds 90% of a phone's bar", () => {
+    // `.plot__tip.right` and its two are two classes; this one is two as well, and later in the sheet.
+    expect(rule(chartsCss, ".plot__tip.wbar__tip", [NARROW])).toMatchObject({ left: "50%", transform: "translateX(-50%)" });
+    const order = parse(chartsCss).findIndex((r) => r.selectors.includes(".plot__tip.wbar__tip") && r.at.length > 0);
+    expect(order).toBeGreaterThan(parse(chartsCss).findIndex((r) => r.selectors.includes(".plot__tip.right")));
+  });
+
+  it("keeps the colours of the windows under forced colours, draws the mark in the system's text colour, since a background would be gone, and the focus ring in Highlight", () => {
+    const forced = ["@media (forced-colors: active)"];
+    expect(rule(chartsCss, ".wbar__seg", forced)["forced-color-adjust"]).toBe("none");
+    expect(rule(chartsCss, ".wbar__mark", forced).background).toBe("CanvasText");
+    // `forced-color-adjust: none` leaves the global ring in `--link`, which the user's colours do not promise anything about.
+    expect(rule(chartsCss, ".wbar__seg:focus-visible", forced)["outline-color"]).toBe("Highlight");
+  });
+
+  it("rings after a change of the token, as the other forms do, and under reduced motion too", () => {
+    expect(rule(chartsCss, ".wbar.is-changed").animation).toBe("value-mark 1200ms ease-out");
+    expect(rule(chartsCss, ".wbar.is-changed", [REDUCED]).animation).toBe("value-mark 1200ms ease-out !important");
+  });
+});
+
 describe("the tiles (components.css)", () => {
   it("keep the home page's grid of 220 px tiles, and the narrow grid is of 150 px", () => {
     expect(rule(componentsCss, ".stat-grid")["grid-template-columns"]).toBe("repeat(auto-fit, minmax(220px, 1fr))");
     expect(rule(componentsCss, ".stat-grid--narrow")["grid-template-columns"]).toBe("repeat(auto-fit, minmax(150px, 1fr))");
+  });
+
+  it("make a wide grid of tiles of 360 px, or of the section's width where it is narrower, that keeps its empty columns", () => {
+    expect(rule(componentsCss, ".stat-grid--wide")["grid-template-columns"]).toBe("repeat(auto-fill, minmax(min(360px, 100%), 1fr))");
   });
 
   it("keep the home page's tile mono at 22 px, and the figure tile is sans, proportional, 24 px and weight 600", () => {
@@ -945,6 +1178,17 @@ describe("the tiles (components.css)", () => {
 
   it("write the source in --faint, mono, small, breaking inside a path", () => {
     expect(rule(componentsCss, ".stat__source")).toMatchObject({ color: "var(--faint)", "font-family": "var(--font-mono)", "font-size": "11px", "overflow-wrap": "anywhere" });
+  });
+
+  it("put an aside at the end of the label's line: faint, 12 px, proportional figures, one line", () => {
+    expect(rule(componentsCss, ".stat__head")).toMatchObject({ display: "flex", "justify-content": "space-between", "align-items": "baseline" });
+    expect(rule(componentsCss, ".stat__aside")).toMatchObject({ color: "var(--faint)", "font-size": "12px", "font-variant-numeric": "proportional-nums", "white-space": "nowrap", flex: "none" });
+    // The label's own rule is the one it was, with or without an aside.
+    expect(rule(componentsCss, ".stat__label")).toMatchObject({ color: "var(--faint)", "font-size": "12px", "font-weight": "500" });
+  });
+
+  it("write a formula on a line of its own, mono, muted and 11.5 px, breaking inside a long one", () => {
+    expect(rule(componentsCss, ".stat__formula")).toMatchObject({ display: "block", color: "var(--muted)", "font-family": "var(--font-mono)", "font-size": "11.5px", "overflow-wrap": "anywhere" });
   });
 
   it("keep the figure's height while busy: one line of the figure's own size, which is the body's line height", () => {

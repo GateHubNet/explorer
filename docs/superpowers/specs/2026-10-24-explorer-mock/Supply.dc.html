@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Supply</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.xp{--bg:#F5F6F8;--surface:#FFFFFF;--sunken:#EEF0F3;--border:#E1E4E9;--border-strong:#CDD2D9;--fg:#0F1217;--muted:#4F5864;--faint:#646D7A;--link:var(--accent);--ok:#17733F;--ok-bg:#E3F3E9;--bad:#B42318;--bad-bg:#FCEBE9;--grid:#EEF0F3;--axis:#CDD2D9;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s-other:#A7AEB8;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.xp.dark{--bg:#0B0E12;--surface:#12161C;--sunken:#181D24;--border:#232A33;--border-strong:#323B46;--fg:#E7EBF0;--muted:#A3ACB9;--faint:#8D97A5;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--ok:#5BD08F;--ok-bg:#10281B;--bad:#F28B80;--bad-bg:#30161A;--grid:#1D232B;--axis:#323B46;--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s-other:#58616C}
+.xp a{color:var(--link);text-decoration:none}
+.xp a:hover{text-decoration:underline}
+.xp button,.xp input,.xp select{font:inherit;color:inherit}
+.xp :focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{border:0;background:transparent;padding:6px 12px;border-radius:7px;display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:500;color:var(--muted);min-height:32px;white-space:nowrap;position:relative}
+.seg::after{content:'';position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.seg.on{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--border)}
+.segs{display:flex;padding:3px;background:var(--sunken);border:1px solid var(--border);border-radius:9px}
+.ptabs a.seg{color:var(--muted)!important;text-decoration:none!important;box-sizing:border-box;padding:6px 16px}
+.ptabs a.seg.on{color:var(--fg)!important}
+.nav{padding:8px 10px;border-radius:7px;color:var(--muted)!important;font-weight:500;display:inline-flex;align-items:center}
+.nav:hover{background:var(--sunken);text-decoration:none!important;color:var(--fg)!important}
+.nav.cur{color:var(--fg)!important;background:var(--sunken)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.src{font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--faint)}
+.xl{position:absolute;top:6px;transform:translateX(-50%);font-size:11px;color:var(--faint);white-space:nowrap}
+.tip{position:absolute;z-index:3;top:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 28px -14px rgba(0,0,0,.4);padding:10px 12px;font-size:12px;min-width:180px;pointer-events:none;display:flex;flex-direction:column;gap:4px}
+.tip b{font-weight:600;font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.hseg{border:0;padding:0;min-width:3px;height:100%;cursor:default}
+.hseg.dim{opacity:.45}
+.hseg:focus-visible{outline:2px solid var(--link);outline-offset:-2px}
+.tbl{max-height:300px;overflow:auto;border-top:1px solid var(--border)}
+.trow{display:grid;grid-template-columns:var(--cols);column-gap:12px;padding:0 12px;min-height:34px;align-items:center;border-bottom:1px solid var(--border);font-size:12.5px;font-variant-numeric:tabular-nums;min-width:520px}
+.trow span{text-align:right;white-space:nowrap}
+.trow span:first-child{text-align:left}
+.trow.th{position:sticky;top:0;background:var(--surface);font-weight:500;color:var(--faint);z-index:1}
+.plot{position:relative;height:200px}
+.gl{position:absolute;left:0;right:0;border-top:1px solid var(--grid)}
+.gl.base{border-top-color:var(--axis)}
+.yl{position:absolute;right:10px;transform:translateY(50%);font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap}
+.col{flex:1 1 0;height:100%;display:flex;align-items:flex-end;justify-content:center;border:0;background:transparent;padding:0;min-width:0;cursor:default}
+.col:focus-visible{outline:2px solid var(--link);outline-offset:-2px;border-radius:4px}
+.bar{width:min(24px,72%);border-radius:3px 3px 0 0;min-height:1px}
+.stack{width:min(24px,72%);display:flex;flex-direction:column-reverse;gap:1px;border-radius:3px 3px 0 0;overflow:hidden}
+.stack span{flex-basis:0;min-height:1px}
+.col.dim .bar,.col.dim .stack{opacity:.45}
+.blab{position:absolute;top:8px;display:flex;flex-direction:column;font-size:12px;color:var(--muted);white-space:nowrap;line-height:1.35}
+.blab b{color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
+.menu{position:relative;display:inline-flex}.menu>summary{list-style:none;cursor:pointer}.menu>summary::-webkit-details-marker{display:none}.menu-panel{position:absolute;z-index:20;top:calc(100% + 6px);left:0;min-width:230px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px -16px rgba(0,0,0,.35);padding:6px;display:flex;flex-direction:column;gap:2px}.menu-panel a{display:flex;align-items:center;min-height:36px;padding:0 10px;border-radius:7px;color:var(--fg)!important;font-weight:500}.menu-panel a:hover{background:var(--sunken);text-decoration:none!important}.menu-panel a[aria-current="page"]{background:var(--sunken)}
+</style>
+</helmet>
+<div class="xp {{themeClass}}" style="--accent: {{accentNow}};">
+
+<header style="background: var(--surface); border-bottom: 1px solid var(--border);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 12px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: var(--fg);" aria-label="Explorer home">
+      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" style="fill: var(--accent)"></rect><path d="M8 10h7M8 14h12M8 18h9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"></path></svg>
+      <span style="font-weight: 650; font-size: 17px; letter-spacing: -0.01em;">explorer</span>
+    </a>
+    <div role="group" aria-label="Network" class="segs">
+      <button type="button" class="seg {{xrplCls}}" aria-pressed="{{isXrpl}}" onClick="{{pickXrpl}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xrplDot}};"></span>XRPL</button>
+      <button type="button" class="seg {{xahauCls}}" aria-pressed="{{isXahau}}" onClick="{{pickXahau}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xahauDot}};"></span>Xahau</button>
+    </div>
+    <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 2px; align-items: center;">
+      <a class="nav" href="Ledger.dc.html">Ledgers</a>
+      <a class="nav" href="Transaction.dc.html">Transactions</a>
+      <a class="nav" href="Account.dc.html">Accounts</a>
+      <a class="nav" href="Tokens.dc.html">Tokens</a>
+      <details class="menu">
+        <summary class="nav cur">Network<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 4px;"><path d="m6 9 6 6 6-6"></path></svg></summary>
+        <div class="menu-panel">
+          <a href="Network.dc.html">Overview</a>
+          <a href="Validators.dc.html">Validators</a>
+          <a href="Nodes.dc.html">Nodes</a>
+          <a href="Amendments.dc.html">Amendments</a>
+          <a href="Supply.dc.html" aria-current="page">Supply &amp; distribution</a>
+        </div>
+      </details>
+      <a class="nav" href="Markets.dc.html">Markets</a>
+      <a class="nav" href="Amm.dc.html">AMM</a>
+      <a class="nav" href="Nfts.dc.html">NFTs</a>
+    </nav>
+    <form role="search" style="flex: 1 1 240px; display: flex; align-items: center; gap: 8px; background: var(--sunken); border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; min-height: 40px;">
+      <label for="hdr-q" class="sr">Search</label>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint); flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <input id="hdr-q" type="search" placeholder="Address, hash, ledger or CTID" style="flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px;">
+    </form>
+  </div>
+</header>
+
+<main style="max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; display: flex; flex-direction: column; gap: 18px;">
+
+  <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--faint); display: flex; gap: 8px; flex-wrap: wrap;">
+    <a href="Main.dc.html">{{netName}}</a><span aria-hidden="true">/</span><a href="Network.dc.html">Network</a><span aria-hidden="true">/</span><span aria-current="page" style="color: var(--muted);">Supply &amp; distribution</span>
+  </nav>
+
+  <div style="display: flex; flex-direction: column; gap: 4px;">
+    <h1 style="margin: 0; font-size: 30px; letter-spacing: -0.02em; font-weight: 650;">Supply &amp; distribution</h1>
+    <sc-if value="{{isXrpl}}" hint-placeholder-val="{{true}}"><p style="margin: 0; color: var(--muted);">How much XRP exists, how much is burned and escrowed, and how much circulates.</p></sc-if>
+    <sc-if value="{{isXahau}}" hint-placeholder-val="{{false}}"><p style="margin: 0; color: var(--muted);">How much XAH exists, how much is minted, burned and escrowed, and how much circulates.</p></sc-if>
+  </div>
+
+  <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px;">
+    <nav aria-label="Supply and distribution" class="segs ptabs">
+      <a class="seg on" href="Supply.dc.html" aria-current="page">Supply</a>
+      <a class="seg" href="Distribution.dc.html">Distribution</a>
+    </nav>
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 13px; color: var(--muted);">
+      <span>Snapshot at ledger <a class="mono num" href="Ledger.dc.html">#{{snapLedger}}</a> · 24 Oct 2026, 21:00 UTC · updated hourly</span>
+      <span class="src">/v2/network/supply</span>
+    </div>
+  </div>
+
+  <section class="card" aria-labelledby="bar-title" style="padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 14px;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <sc-if value="{{isXrpl}}" hint-placeholder-val="{{true}}"><h2 id="bar-title" style="margin: 0; font-size: 15px; font-weight: 600;">Where the 100 billion XRP are</h2></sc-if>
+        <sc-if value="{{isXahau}}" hint-placeholder-val="{{false}}"><h2 id="bar-title" style="margin: 0; font-size: 15px; font-weight: 600;">Where the XAH are</h2></sc-if>
+        <span class="src">/v2/network/supply</span>
+      </div>
+      <div class="legend" aria-label="Legend">
+        <sc-for list="{{barLegend}}" as="g" hint-placeholder-count="3"><span><span class="sw" style="background: {{g.color}};"></span>{{g.name}}</span></sc-for>
+      </div>
+    </div>
+    <sc-if value="{{isXrpl}}" hint-placeholder-val="{{true}}"><p style="margin: 0; font-size: 13px; color: var(--muted);">100,000,000,000 XRP were created in the first ledger and no more can be made. Every transaction burns a little as its fee, so the total supply only shrinks.</p></sc-if>
+    <sc-if value="{{isXahau}}" hint-placeholder-val="{{false}}"><p style="margin: 0; font-size: 13px; color: var(--muted);">Xahau has no 100 billion cap: its supply grows by minting, through rewards, Import and GenesisMint, and shrinks a little as fees are burned. The bar is today’s total supply.</p></sc-if>
+
+    <div style="display: flex; flex-direction: column;">
+      <sc-if value="{{isXrpl}}" hint-placeholder-val="{{true}}">
+        <div style="border-left: 2px solid var(--s2); padding: 0 0 6px 8px; font-size: 12px; color: var(--muted);"><b style="color: var(--fg); font-weight: 600;">Burned {{burnedCompact}} XRP</b> · {{burnedShare}} of the 100 billion, a sliver at this scale</div>
+      </sc-if>
+      <div style="position: relative;" onMouseLeave="{{leaveSeg}}">
+        <div style="display: flex; gap: 2px; height: 40px; border-radius: 6px; overflow: hidden;">
+          <sc-for list="{{barSegs}}" as="s" hint-placeholder-count="3"><button type="button" class="hseg {{s.cls}}" aria-label="{{s.aria}}" onMouseEnter="{{s.enter}}" onFocus="{{s.enter}}" onBlur="{{leaveSeg}}" style="flex: {{s.flex}} 1 0px; background: {{s.color}};"></button></sc-for>
+        </div>
+        <sc-if value="{{segTip.show}}" hint-placeholder-val="{{false}}">
+          <div class="tip" style="left: {{segTip.left}}; top: 46px; transform: {{segTip.tf}};">
+            <span><span class="sw" style="background: {{segTip.color}};"></span><b>{{segTip.name}}</b></span>
+            <span class="mono num" style="color: var(--fg);">{{segTip.exact}} {{cur}}</span>
+            <span style="color: var(--muted);">{{segTip.share}}</span>
+          </div>
+        </sc-if>
+        <div style="position: relative; height: 48px;" aria-hidden="true">
+          <sc-for list="{{barLabels}}" as="l" hint-placeholder-count="2"><span class="blab" style="left: {{l.left}};"><b><span class="sw" style="background: {{l.color}};"></span>{{l.name}}</b><span>{{l.v}} · {{l.share}}</span></span></sc-for>
+        </div>
+        <div style="margin-left: {{circStart}}; display: flex; flex-direction: column; align-items: center; gap: 6px;">
+          <span aria-hidden="true" style="align-self: stretch; height: 8px; border: 1px solid var(--border-strong); border-top: 0; border-radius: 0 0 4px 4px;"></span>
+          <sc-if value="{{isXrpl}}" hint-placeholder-val="{{true}}"><span style="font-size: 12px; color: var(--muted); text-align: center;">Part of circulating: <b class="num" style="color: var(--fg); font-weight: 600;">46.22 M XRP</b> in AMM pools ({{ammShare}}) · <b class="num" style="color: var(--fg); font-weight: 600;">9.81 M XRP</b> held as account reserves ({{resShare}})</span></sc-if>
+          <sc-if value="{{isXahau}}" hint-placeholder-val="{{false}}"><span style="font-size: 12px; color: var(--muted); text-align: center;">Part of circulating: <b class="num" style="color: var(--fg); font-weight: 600;">268,973.2 XAH</b> held as account reserves ({{resShare}}) · no AMM on Xahau</span></sc-if>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-label="Supply figures" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 12px;">
+    <sc-for list="{{tiles}}" as="t" hint-placeholder-count="6">
+      <div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px;">
+          <span style="font-size: 12px; color: var(--faint); font-weight: 500;">{{t.label}}</span>
+          <span class="num" style="font-size: 12px; color: var(--faint);">{{t.approx}}</span>
+        </div>
+        <span class="num" style="font-size: 22px; font-weight: 600; letter-spacing: -0.015em; overflow-wrap: anywhere;">{{t.whole}}<span style="color: var(--muted); font-weight: 500;">{{t.frac}}</span> <span style="font-size: 14px; color: var(--muted); font-weight: 500;">{{cur}}</span></span>
+        <sc-if value="{{t.hasFormula}}" hint-placeholder-val="{{false}}"><span class="mono num" style="font-size: 11.5px; color: var(--muted);">= {{t.formula}}</span></sc-if>
+        <span style="font-size: 12.5px; color: var(--muted);">{{t.def}}</span>
+        <sc-if value="{{t.hasLink}}" hint-placeholder-val="{{false}}"><a href="Escrows.dc.html" style="font-size: 13px; font-weight: 500; align-self: flex-start; min-height: 32px; display: inline-flex; align-items: center;">{{t.linkText}} →</a></sc-if>
+      </div>
+    </sc-for>
+  </section>
+
+  <sc-if value="{{isXahau}}" hint-placeholder-val="{{false}}">
+    <section class="card" aria-labelledby="mint-title" style="padding: 16px 18px 14px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <h2 id="mint-title" style="margin: 0; font-size: 15px; font-weight: 600;">XAH minted per day, by source</h2>
+          <span class="src">/v2/network/supply/minted?interval=day</span>
+        </div>
+        <div class="segs">
+          <button type="button" class="seg {{mintChartCls}}" aria-pressed="{{mintIsChart}}" onClick="{{mintShowChart}}">Chart</button>
+          <button type="button" class="seg {{mintTableCls}}" aria-pressed="{{mintIsTable}}" onClick="{{mintShowTable}}">Table</button>
+        </div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; align-items: baseline;">
+        <div class="legend" aria-label="Legend">
+          <sc-for list="{{mintLegend}}" as="g" hint-placeholder-count="3"><span><span class="sw" style="background: {{g.color}};"></span>{{g.name}} <b class="num" style="color: var(--fg); font-weight: 600;">{{g.total}}</b></span></sc-for>
+        </div>
+        <span style="font-size: 12px; color: var(--muted);">Last 90 days: <b class="num" style="color: var(--fg); font-weight: 600;">{{mintTotal}} XAH</b> minted, {{mintAvg}} a day on average</span>
+      </div>
+      <sc-if value="{{mintIsChart}}" hint-placeholder-val="{{true}}">
+        <div style="display: flex;">
+          <div style="position: relative; width: 52px; flex: none;" aria-hidden="true"><div class="plot"><sc-for list="{{mintAxis}}" as="a" hint-placeholder-count="5"><span class="yl" style="bottom: {{a.pos}};">{{a.label}}</span></sc-for></div></div>
+          <div style="flex: 1 1 auto; min-width: 0;">
+            <div class="plot" onMouseLeave="{{leaveMint}}">
+              <sc-for list="{{mintAxis}}" as="a" hint-placeholder-count="5"><span class="gl {{a.cls}}" style="bottom: {{a.pos}};"></span></sc-for>
+              <div style="position: absolute; inset: 0; display: flex; align-items: flex-end;">
+                <sc-for list="{{mintCols}}" as="c" hint-placeholder-count="30">
+                  <button type="button" class="col {{c.cls}}" aria-label="{{c.aria}}" onMouseEnter="{{c.enter}}" onFocus="{{c.enter}}" onBlur="{{leaveMint}}">
+                    <span class="stack" style="height: {{c.h}};"><sc-for list="{{c.segs}}" as="s" hint-placeholder-count="3"><span style="flex-grow: {{s.grow}}; background: {{s.color}};"></span></sc-for></span>
+                  </button>
+                </sc-for>
+              </div>
+              <sc-if value="{{mintTip.show}}" hint-placeholder-val="{{false}}">
+                <div class="tip" style="left: {{mintTip.left}}; transform: {{mintTip.tf}};">
+                  <span style="color: var(--faint);">{{mintTip.date}}</span>
+                  <sc-for list="{{mintTip.rows}}" as="r" hint-placeholder-count="3"><span><span class="sw" style="background: {{r.color}};"></span><b>{{r.v}}</b> <span style="color: var(--muted);">{{r.name}}</span></span></sc-for>
+                  <span style="border-top: 1px solid var(--border); padding-top: 4px; margin-top: 2px;"><b>{{mintTip.total}} XAH</b> <span style="color: var(--muted);">minted</span></span>
+                </div>
+              </sc-if>
+            </div>
+            <div style="position: relative; height: 24px;" aria-hidden="true"><sc-for list="{{dayXl}}" as="d" hint-placeholder-count="6"><span class="xl" style="left: {{d.pos}};">{{d.label}}</span></sc-for></div>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{mintIsTable}}" hint-placeholder-val="{{false}}">
+        <div class="tbl" role="table" aria-label="XAH minted per day, by source" style="--cols: 90px repeat(4, minmax(110px, 1fr));">
+          <div role="row" class="trow th"><span role="columnheader">Day</span><span role="columnheader">Rewards</span><span role="columnheader">Import</span><span role="columnheader">GenesisMint</span><span role="columnheader">Total, XAH</span></div>
+          <sc-for list="{{mintRows}}" as="r" hint-placeholder-count="8">
+            <div role="row" class="trow"><span role="cell">{{r.date}}</span><span role="cell">{{r.rw}}</span><span role="cell">{{r.im}}</span><span role="cell">{{r.gm}}</span><span role="cell" style="font-weight: 600;">{{r.total}}</span></div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <span style="font-size: 12px; color: var(--faint);">Rewards are paid to accounts that claim them. Import mints XAH for XRP burned on XRPL. GenesisMint is minted by governance.</span>
+    </section>
+  </sc-if>
+
+  <section class="card" aria-labelledby="burn-title" style="padding: 16px 18px 14px; display: flex; flex-direction: column; gap: 12px;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="burn-title" style="margin: 0; font-size: 15px; font-weight: 600;">{{cur}} burned per day</h2>
+        <span class="src">/v2/network/supply/burned?interval=day</span>
+      </div>
+      <div class="segs">
+        <button type="button" class="seg {{burnChartCls}}" aria-pressed="{{burnIsChart}}" onClick="{{burnShowChart}}">Chart</button>
+        <button type="button" class="seg {{burnTableCls}}" aria-pressed="{{burnIsTable}}" onClick="{{burnShowTable}}">Table</button>
+      </div>
+    </div>
+    <span style="font-size: 13px; color: var(--muted);">Last 90 days: <b class="num" style="color: var(--fg); font-weight: 600;">{{burnTotal}} {{cur}}</b> burned as fees, {{burnAvg}} {{cur}} a day on average. Highest: {{burnPeak}} {{cur}} on {{burnPeakDay}}.</span>
+    <sc-if value="{{burnIsChart}}" hint-placeholder-val="{{true}}">
+      <div style="display: flex;">
+        <div style="position: relative; width: 52px; flex: none;" aria-hidden="true"><div class="plot"><sc-for list="{{burnAxis}}" as="a" hint-placeholder-count="5"><span class="yl" style="bottom: {{a.pos}};">{{a.label}}</span></sc-for></div></div>
+        <div style="flex: 1 1 auto; min-width: 0;">
+          <div class="plot" onMouseLeave="{{leaveBurn}}">
+            <sc-for list="{{burnAxis}}" as="a" hint-placeholder-count="5"><span class="gl {{a.cls}}" style="bottom: {{a.pos}};"></span></sc-for>
+            <div style="position: absolute; inset: 0; display: flex; align-items: flex-end;">
+              <sc-for list="{{burnCols}}" as="c" hint-placeholder-count="30">
+                <button type="button" class="col {{c.cls}}" aria-label="{{c.aria}}" onMouseEnter="{{c.enter}}" onFocus="{{c.enter}}" onBlur="{{leaveBurn}}"><span class="bar" style="height: {{c.h}}; background: var(--accent);"></span></button>
+              </sc-for>
+            </div>
+            <sc-if value="{{burnTip.show}}" hint-placeholder-val="{{false}}">
+              <div class="tip" style="left: {{burnTip.left}}; transform: {{burnTip.tf}};">
+                <span style="color: var(--faint);">{{burnTip.date}}</span>
+                <span><b class="mono">{{burnTip.v}} {{cur}}</b> <span style="color: var(--muted);">burned</span></span>
+              </div>
+            </sc-if>
+          </div>
+          <div style="position: relative; height: 24px;" aria-hidden="true"><sc-for list="{{dayXl}}" as="d" hint-placeholder-count="6"><span class="xl" style="left: {{d.pos}};">{{d.label}}</span></sc-for></div>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{burnIsTable}}" hint-placeholder-val="{{false}}">
+      <div class="tbl" role="table" aria-label="Burned per day" style="--cols: 110px minmax(160px, 1fr);">
+        <div role="row" class="trow th"><span role="columnheader">Day</span><span role="columnheader">Burned, {{cur}}</span></div>
+        <sc-for list="{{burnRows}}" as="r" hint-placeholder-count="8">
+          <div role="row" class="trow"><span role="cell">{{r.date}}</span><span role="cell" class="mono">{{r.v}}</span></div>
+        </sc-for>
+      </div>
+    </sc-if>
+  </section>
+
+  <section class="card" aria-labelledby="rel-title" style="padding: 16px 18px 14px; display: flex; flex-direction: column; gap: 12px;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="rel-title" style="margin: 0; font-size: 15px; font-weight: 600;">Escrow releases by month</h2>
+        <span class="src">/v2/escrows/releases?interval=month</span>
+      </div>
+      <a href="Escrows.dc.html" style="font-size: 13px; font-weight: 500; min-height: 32px; display: inline-flex; align-items: center;">All escrows →</a>
+    </div>
+    <span style="font-size: 13px; color: var(--muted);">{{cur}} in escrows that can be finished from each of the next 12 months. Escrows with a crypto-condition also need their fulfillment.</span>
+    <div style="display: flex;">
+      <div style="position: relative; width: 52px; flex: none;" aria-hidden="true"><div class="plot" style="height: 180px;"><sc-for list="{{relAxis}}" as="a" hint-placeholder-count="5"><span class="yl" style="bottom: {{a.pos}};">{{a.label}}</span></sc-for></div></div>
+      <div style="flex: 1 1 auto; min-width: 0;">
+        <div class="plot" style="height: 180px;" onMouseLeave="{{leaveRel}}">
+          <sc-for list="{{relAxis}}" as="a" hint-placeholder-count="5"><span class="gl {{a.cls}}" style="bottom: {{a.pos}};"></span></sc-for>
+          <div style="position: absolute; inset: 0; display: flex; align-items: flex-end;">
+            <sc-for list="{{relCols}}" as="c" hint-placeholder-count="12">
+              <button type="button" class="col {{c.cls}}" aria-label="{{c.aria}}" onMouseEnter="{{c.enter}}" onFocus="{{c.enter}}" onBlur="{{leaveRel}}"><span class="bar" style="height: {{c.h}}; background: var(--accent); width: min(28px, 56%);"></span></button>
+            </sc-for>
+          </div>
+          <sc-if value="{{relTip.show}}" hint-placeholder-val="{{false}}">
+            <div class="tip" style="left: {{relTip.left}}; transform: {{relTip.tf}};">
+              <span style="color: var(--faint);">{{relTip.month}}</span>
+              <span class="mono num"><b>{{relTip.v}} {{cur}}</b></span>
+              <span style="color: var(--muted);">can be finished, from {{relTip.n}}</span>
+            </div>
+          </sc-if>
+        </div>
+        <div style="position: relative; height: 24px;" aria-hidden="true"><sc-for list="{{relXl}}" as="d" hint-placeholder-count="12"><span class="xl" style="left: {{d.pos}};">{{d.label}}</span></sc-for></div>
+      </div>
+    </div>
+    <span style="font-size: 13px; color: var(--muted);">Already released this year: <b class="num" style="color: var(--fg); font-weight: 600;">{{relYear}} {{cur}}</b> from {{relYearN}} escrows finished between 1 Jan and 24 Oct 2026.</span>
+  </section>
+</main>
+
+<footer style="border-top: 1px solid var(--border); background: var(--surface);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 22px 20px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--faint);">
+    <span>explorer · by GateHub</span>
+    <span>History from validated ledgers. Balances and account state read live from the network.</span>
+    <span style="display: flex; gap: 16px;"><a href="#">API</a><a href="#">Status</a><a href="#">Privacy</a></span>
+  </div>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"accent":{"editor":"color","options":["#2F5BEA","#0F766E","#6D28D9","#111827"],"default":"#2F5BEA","section":"Network colors"},"xahauAccent":{"editor":"color","options":["#B45309","#C2410C","#A16207"],"default":"#B45309","section":"Network colors"},"network":{"editor":"enum","options":["xrpl","xahau"],"default":"xrpl"},"$preview":{"width":1440,"height":1750}}'>
+class Component extends DCLogic {
+  state = { seg: '', hovB: -1, hovM: -1, hovR: -1, viewB: 'chart', viewM: 'chart' };
+
+  renderVals() {
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const accent = this.props.accent ?? '#2F5BEA';
+    const xahauAccent = this.props.xahauAccent ?? '#B45309';
+    const st = this.state;
+    const net = st.net ?? this.props.network ?? 'xrpl';
+    const x = net === 'xrpl';
+    const cur = x ? 'XRP' : 'XAH';
+    const fmt = (n) => n.toLocaleString('en-US');
+    const seedRng = (s) => () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    const DAY = 86400000, NOW = Date.UTC(2026, 9, 24, 21, 0);
+    const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const six = (drops) => fmt(Math.floor(drops / 1e6)) + '.' + String(drops % 1e6).padStart(6, '0');
+    const compact = (n) => { const a = Math.abs(n); const t = (v, u) => (+v.toFixed(2)).toLocaleString('en-US') + ' ' + u; return a >= 1e9 ? t(n / 1e9, 'B') : a >= 1e6 ? t(n / 1e6, 'M') : a >= 1e3 ? t(n / 1e3, 'K') : (+n.toFixed(2)).toLocaleString('en-US'); };
+    const niceAxis = (max) => {
+      const rough = max / 4;
+      const mag = Math.pow(10, Math.floor(Math.log10(rough || 1)));
+      const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= rough);
+      const top = Math.ceil(max / step) * step;
+      const ticks = [];
+      for (let v = 0; v <= top + 1e-9; v += step) ticks.push({ pos: (v / top * 100).toFixed(2) + '%', label: compact(v), cls: v === 0 ? 'base' : '' });
+      return { top, ticks };
+    };
+    const tipAt = (i, count) => { const left = (i + 0.5) / count * 100; return { left: left.toFixed(2) + '%', tf: left < 22 ? 'translateX(-8px)' : left > 78 ? 'translateX(calc(-100% + 8px))' : 'translateX(-50%)' }; };
+
+    // Escrows still in the ledger: the same book as Escrows.dc.html (amounts, dates and conditions only).
+    const escrowCore = (xr) => {
+      const R = seedRng(xr ? 9101 : 9202);
+      const list = [];
+      if (xr) {
+        for (let m = 0; m < 32; m++) list.push({ xrp: 1e9, drops: 0, fin: Date.UTC(2026, 10 + m, 1), can: null, cond: false, big: 'm' });
+        list.push({ xrp: 1250000000, drops: 0, fin: Date.UTC(2027, 2, 1, 12), can: Date.UTC(2028, 2, 1, 12), cond: false, big: 'h' });
+        list.push({ xrp: 1100000000, drops: 0, fin: null, can: Date.UTC(2027, 11, 31), cond: true, big: 's' });
+      }
+      const n = xr ? 12845 : 2140;
+      let S = 0, maxI = -1;
+      for (let i = 0; i < n; i++) {
+        let v = Math.round(Math.pow(10, 1.7 + (xr ? 4.3 : 3.9) * Math.pow(R(), xr ? 8 : 6)));
+        if (R() < 0.7) { const p = Math.pow(10, Math.max(0, Math.floor(Math.log10(v)) - 1)); v = Math.round(v / p) * p; }
+        const d = R() < 0.25 ? Math.floor(R() * 1e6) : 0;
+        const cond = R() < 0.09;
+        let fin = R() < 0.05 ? NOW - (1 + R() * 420) * DAY : NOW + Math.pow(R(), 1.7) * 5 * 365 * DAY + 3600000;
+        fin = Math.floor(fin / 3600000) * 3600000;
+        if (cond && R() < 0.3) fin = null;
+        let can = null;
+        if (fin === null || R() < 0.5) can = Math.floor(((fin === null ? NOW - R() * 300 * DAY : fin) + (20 + R() * 700) * DAY) / 3600000) * 3600000;
+        if (maxI < 0 || v > list[maxI].xrp) maxI = list.length;
+        S += v * 1e6 + d;
+        list.push({ xrp: v, drops: d, fin, can, cond, big: '' });
+      }
+      const T = xr ? 862847105402318 : 18406227318004;
+      const a = list[maxI], t = a.xrp * 1e6 + a.drops + (T - S);
+      a.xrp = Math.floor(t / 1e6); a.drops = t % 1e6;
+      list.forEach((e, i) => { e.i = i; e.state = e.can !== null && e.can <= NOW ? 'cancel' : e.fin === null || e.fin <= NOW ? 'finish' : 'pending'; });
+      return list;
+    };
+    this._books = this._books || {};
+    const book = this._books[net] || (this._books[net] = escrowCore(x));
+
+    // The supply bar
+    const seg = st.seg;
+    const segDefs = x
+      ? [['burned', 'Burned', 'var(--s2)', 0.014687625, '14,687,625.283682', '0.015% of the 100 billion XRP'],
+         ['escrowed', 'Escrowed', 'var(--s3)', 35.212847105, '35,212,847,105.402318', '35.21% of the 100 billion XRP'],
+         ['circ', 'Circulating supply', 'var(--accent)', 64.772465269, '64,772,465,269.314000', '64.77% of the 100 billion XRP']]
+      : [['escrowed', 'Escrowed', 'var(--s3)', 3.000680444, '18,406,227.318004', '3.00% of the total supply'],
+         ['circ', 'Circulating supply', 'var(--accent)', 96.999319556, '594,995,554.799302', '97.00% of the total supply']];
+    let acc = 0;
+    const segs = segDefs.map((d) => { const s = { key: d[0], name: d[1], color: d[2], pct: d[3], exact: d[4], share: d[5], start: acc }; acc += d[3]; return s; });
+    const barSegs = segs.map((s) => ({ flex: s.pct, color: s.color, cls: seg && seg !== s.key ? 'dim' : '', aria: s.name + ': ' + s.exact + ' ' + cur + ', ' + s.share, enter: () => this.setState({ seg: s.key }) }));
+    const hs = segs.find((s) => s.key === seg);
+    const segMid = hs ? Math.min(Math.max(hs.start + hs.pct / 2, 0), 100) : 0;
+    const segTip = hs ? { show: true, left: segMid.toFixed(2) + '%', tf: segMid < 22 ? 'translateX(-8px)' : segMid > 78 ? 'translateX(calc(-100% + 8px))' : 'translateX(-50%)', color: hs.color, name: hs.name, exact: hs.exact, share: hs.share } : { show: false, left: '0%', tf: '', color: '', name: '', exact: '', share: '' };
+    const circ = segs[segs.length - 1];
+    const escS = segs[segs.length - 2];
+    const barLabels = [
+      { left: escS.start.toFixed(3) + '%', color: escS.color, name: 'Escrowed', v: x ? '35.21 B XRP' : '18.41 M XAH', share: x ? '35.2%' : '3.0%' },
+      { left: circ.start.toFixed(3) + '%', color: circ.color, name: 'Circulating supply', v: x ? '64.77 B XRP' : '595.00 M XAH', share: x ? '64.8%' : '97.0%' }
+    ];
+    if (!x) barLabels[1].left = '30%';
+
+    // Tiles
+    const split = (s) => { const i = s.indexOf('.'); return i < 0 ? [s, ''] : [s.slice(0, i), s.slice(i)]; };
+    const tile = (label, exact, approx, def, formula, linkText) => { const p = split(exact); return { label, whole: p[0], frac: p[1], approx, def, formula: formula || '', hasFormula: !!formula, linkText: linkText || '', hasLink: !!linkText }; };
+
+    // Days: the 90 full days to 23 Oct 2026
+    const dayEnd = Date.UTC(2026, 9, 23);
+    const days = [];
+    for (let i = 0; i < 90; i++) { const d = new Date(dayEnd - (89 - i) * DAY); days.push(d.getUTCDate() + ' ' + MON[d.getUTCMonth()]); }
+    const dayXl = days.map((label, i) => ({ i, label, pos: ((i + 0.5) / 90 * 100).toFixed(2) + '%' })).filter((p) => (89 - p.i) % 15 === 0);
+
+    // Burned per day, in drops
+    const RB = seedRng(x ? 311 : 312);
+    const burned = days.map((d, i) => {
+      const base = x ? 26.4 : 2.25;
+      const w = 1 + 0.14 * Math.sin(i / 4.3) + (RB() - 0.5) * 0.32;
+      const spike = RB() > 0.94 ? base * (0.8 + RB() * 2.1) : 0;
+      return Math.round((base * w + spike) * 1e6);
+    });
+    const bTot = burned.reduce((a, b) => a + b, 0);
+    const bPeakI = burned.indexOf(Math.max.apply(null, burned));
+    const bAx = niceAxis(burned[bPeakI] / 1e6);
+    const hB = st.hovB;
+    const burnCols = burned.map((v, i) => ({ h: (v / 1e6 / bAx.top * 100).toFixed(2) + '%', cls: hB < 0 ? '' : hB === i ? '' : 'dim', aria: days[i] + ' 2026: ' + six(v) + ' ' + cur + ' burned', enter: () => this.setState({ hovB: i }) }));
+    const burnTip = hB >= 0 && hB < 90 ? Object.assign({ show: true, date: days[hB] + ' 2026', v: six(burned[hB]) }, tipAt(hB, 90)) : { show: false, left: '0%', tf: '', date: '', v: '' };
+    const burnRows = burned.map((v, i) => ({ date: days[i], v: six(v) })).reverse();
+    const isBC = st.viewB === 'chart';
+
+    // Minted per day, by source (Xahau)
+    const RM = seedRng(415);
+    const minted = days.map((d, i) => {
+      const rw = Math.round((29500 + 3200 * Math.sin(i / 6.1) + (RM() - 0.5) * 4200) * 1e6) + Math.floor(RM() * 1e6);
+      const im = Math.round((RM() > 0.92 ? 9000 + RM() * 14000 : 1200 + RM() * 6500) * 1e6);
+      const gm = i === 44 ? 40000e6 : 0;
+      return [rw, im, gm];
+    });
+    const srcs = [['Rewards', 'var(--s1)'], ['Import', 'var(--s3)'], ['GenesisMint', 'var(--s5)']];
+    const mTot = minted.map((m) => m[0] + m[1] + m[2]);
+    const mSum = mTot.reduce((a, b) => a + b, 0);
+    const mBySrc = [0, 1, 2].map((k) => minted.reduce((a, m) => a + m[k], 0));
+    const mAx = niceAxis(Math.max.apply(null, mTot) / 1e6);
+    const hM = st.hovM;
+    const mintCols = minted.map((m, i) => ({ h: (mTot[i] / 1e6 / mAx.top * 100).toFixed(2) + '%', segs: m.map((v, k) => ({ grow: v, color: srcs[k][1] })).filter((q) => q.grow > 0), cls: hM < 0 ? '' : hM === i ? '' : 'dim', aria: days[i] + ' 2026: ' + six(mTot[i]) + ' XAH minted', enter: () => this.setState({ hovM: i }) }));
+    const mintTip = hM >= 0 && hM < 90 ? Object.assign({ show: true, date: days[hM] + ' 2026', total: six(mTot[hM]), rows: srcs.map((s, k) => ({ name: s[0], color: s[1], v: six(minted[hM][k]) })) }, tipAt(hM, 90)) : { show: false, left: '0%', tf: '', date: '', total: '', rows: [] };
+    const mintRows = minted.map((m, i) => ({ date: days[i], rw: six(m[0]), im: six(m[1]), gm: m[2] ? six(m[2]) : '—', total: six(mTot[i]) })).reverse();
+    const isMC = st.viewM === 'chart';
+
+    // Escrow releases, the next 12 months
+    const months = [];
+    for (let m = 0; m < 12; m++) {
+      const s = Date.UTC(2026, 10 + m, 1), e = Date.UTC(2026, 11 + m, 1);
+      let dr = 0, n = 0;
+      book.forEach((q) => { if (q.state === 'pending' && q.fin >= s && q.fin < e) { dr += q.xrp * 1e6 + q.drops; n++; } });
+      const d = new Date(s);
+      months.push({ y: d.getUTCFullYear(), mo: d.getUTCMonth(), dr, n });
+    }
+    const rAx = niceAxis(Math.max.apply(null, months.map((m) => m.dr / 1e6)));
+    const hR = st.hovR;
+    const relCols = months.map((m, i) => ({ h: (m.dr / 1e6 / rAx.top * 100).toFixed(2) + '%', cls: hR < 0 ? '' : hR === i ? '' : 'dim', aria: MON[m.mo] + ' ' + m.y + ': ' + six(m.dr) + ' ' + cur + ' from ' + fmt(m.n) + ' escrows', enter: () => this.setState({ hovR: i }) }));
+    const relXl = months.map((m, i) => ({ label: MON[m.mo] + (i === 0 || m.mo === 0 ? ' ' + m.y : ''), pos: ((i + 0.5) / 12 * 100).toFixed(2) + '%' }));
+    const relTip = hR >= 0 && hR < 12 ? Object.assign({ show: true, month: MON[months[hR].mo] + ' ' + months[hR].y, v: six(months[hR].dr), n: fmt(months[hR].n) + ' escrows' }, tipAt(hR, 12)) : { show: false, left: '0%', tf: '', month: '', v: '', n: '' };
+
+    const tiles = x ? [
+      tile('Total supply', '99,985,312,374.716318', '≈ 99.99 B', 'All the XRP that exists: 100 billion XRP less what has been burned.', '100,000,000,000 − burned'),
+      tile('Burned', '14,687,625.283682', '≈ 14.69 M', 'XRP destroyed as transaction fees, since the first ledger.'),
+      tile('Escrowed', '35,212,847,105.402318', '≈ 35.21 B', 'XRP held in escrows.', '', 'All ' + fmt(book.length) + ' escrows'),
+      tile('Circulating supply', '64,772,465,269.314000', '≈ 64.77 B', 'The total supply less what is escrowed.', 'total supply − escrowed'),
+      tile('In AMM pools', '46,218,377.402915', '≈ 46.22 M', 'XRP held by 14,594 AMM pools. Part of the circulating supply.'),
+      tile('Account reserves', '9,810,004.000000', '≈ 9.81 M', 'XRP accounts must keep: 1 XRP each, and 0.2 XRP for every object they own. Part of the circulating supply.', '6,410,280 × 1 + 16,998,620 × 0.2')
+    ] : [
+      tile('Total supply', '613,401,782.117306', '≈ 613.40 M', 'All the XAH that exists. No 100 billion cap: Xahau’s supply grows by minting.'),
+      tile('Minted, last 90 days', six(mSum), '≈ ' + compact(mSum / 1e6), 'New XAH from rewards, Import and GenesisMint.'),
+      tile('Burned', '2,318.640227', '≈ 2.32 K', 'XAH destroyed as transaction fees, since the first ledger.'),
+      tile('Escrowed', '18,406,227.318004', '≈ 18.41 M', 'XAH held in escrows.', '', 'All ' + fmt(book.length) + ' escrows'),
+      tile('Circulating supply', '594,995,554.799302', '≈ 595.00 M', 'The total supply less what is escrowed.', 'total supply − escrowed'),
+      tile('Account reserves', '268,973.200000', '≈ 268.97 K', 'XAH accounts must keep: 1 XAH each, and 0.2 XAH for every object they own. Part of the circulating supply.', '186,412 × 1 + 412,806 × 0.2')
+    ];
+
+    const reset = { seg: '', hovB: -1, hovM: -1, hovR: -1 };
+    return {
+      themeClass: dark ? 'dark' : '',
+      accentNow: x ? accent : xahauAccent,
+      xrplDot: accent, xahauDot: xahauAccent,
+      isXrpl: x, isXahau: !x,
+      xrplCls: x ? 'on' : '', xahauCls: x ? '' : 'on',
+      pickXrpl: () => this.setState(Object.assign({ net: 'xrpl' }, reset)),
+      pickXahau: () => this.setState(Object.assign({ net: 'xahau' }, reset)),
+      netName: x ? 'XRPL' : 'Xahau', cur,
+      snapLedger: x ? '107,747,456' : '17,482,656',
+      barLegend: segs.map((s) => ({ name: s.name, color: s.color })),
+      burnedCompact: '14.69 M', burnedShare: '0.015%',
+      barSegs, segTip, barLabels, circStart: circ.start.toFixed(3) + '%',
+      leaveSeg: () => this.setState({ seg: '' }),
+      ammShare: '0.071% of circulating', resShare: x ? '0.015% of circulating' : '0.045% of circulating',
+      tiles,
+      dayXl,
+      burnTotal: six(bTot), burnAvg: six(Math.round(bTot / 90)), burnPeak: six(burned[bPeakI]), burnPeakDay: days[bPeakI],
+      burnAxis: bAx.ticks, burnCols, burnTip, burnRows,
+      leaveBurn: () => this.setState({ hovB: -1 }),
+      burnIsChart: isBC, burnIsTable: !isBC, burnChartCls: isBC ? 'on' : '', burnTableCls: isBC ? '' : 'on',
+      burnShowChart: () => this.setState({ viewB: 'chart' }), burnShowTable: () => this.setState({ viewB: 'table', hovB: -1 }),
+      mintLegend: srcs.map((s, k) => ({ name: s[0], color: s[1], total: compact(mBySrc[k] / 1e6) })),
+      mintTotal: six(mSum), mintAvg: compact(mSum / 90 / 1e6),
+      mintAxis: mAx.ticks, mintCols, mintTip, mintRows,
+      leaveMint: () => this.setState({ hovM: -1 }),
+      mintIsChart: isMC, mintIsTable: !isMC, mintChartCls: isMC ? 'on' : '', mintTableCls: isMC ? '' : 'on',
+      mintShowChart: () => this.setState({ viewM: 'chart' }), mintShowTable: () => this.setState({ viewM: 'table', hovM: -1 }),
+      relAxis: rAx.ticks, relCols, relXl, relTip,
+      leaveRel: () => this.setState({ hovR: -1 }),
+      relYear: x ? '10,061,834,207.552019' : '4,912,406.118430', relYearN: x ? '4,126' : '801'
+    };
+  }
+}
+</script>
+</body>
+</html>

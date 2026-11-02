@@ -185,10 +185,37 @@ describe("/:net", () => {
     }
   });
 
+  it("shows no Testnet badge", async () => {
+    // Development shows the mainnets: no badge on a network's page, nor on the unknown network's error page.
+    for (const path of ["/xrpl", "/xahau"]) expect((await page(path)).html, path).not.toContain("pill--testnet");
+    const { html } = await page("/doge", 404);
+    expect(html).not.toContain("pill--testnet");
+    expect(html).not.toContain(">Testnet<");
+  });
+
+  it("has no X-Robots-Tag on a page", async () => {
+    // Development and production are indexable: only the sandbox says noindex (the `worker-sandbox` project pins it there).
+    for (const path of ["/xrpl", "/xahau", "/doge", "/robots.txt", "/"]) {
+      const response = await get(path);
+      await response.text();
+      expect(response.headers.has("X-Robots-Tag"), path).toBe(false);
+    }
+  });
+
   it("is the same document for every visitor: no per-visitor markup from the cookie or the theme", async () => {
     const plain = (await page("/xrpl")).html;
     const withCookies = (await page("/xrpl", 200, { Cookie: "net=xahau; theme=dark" })).html;
     expect(withCookies).toBe(plain);
+  });
+});
+
+describe("the environment in the root's data", () => {
+  it("hands the browser the environment in the root's data", async () => {
+    const response = await get("/xrpl.data?_routes=root");
+    const body = await response.text();
+    expect(response.status, body.slice(0, 300)).toBe(200);
+    expect(body).toContain('"environment"');
+    expect(body).toContain('"development"');
   });
 });
 

@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 26533927
+  },
+  "events": [
+    {"account":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","event":"mint","event_index":0,"executed_time":"2026-10-21T13:29:11Z","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","kind":"uritoken","ledger_index":26689211,"nft_id":"099E410166351A8C94AE6D76154CBF301C609282EAE659C1BF08AF46936867BF","to":"r9gvUQxtV98nRAM26aknj4h6RXKyXCLMVS","tx_hash":"3D9B20E130D7498E98FB3499BD4C2AC4CCDB3D11FFBFEA8F9B7FB844DDF33426","tx_index":0,"tx_type":"Remit","uri":"6F64696E73657965733A726176656E3A76323A3030346530313061"}
+  ],
+  "result": "success"
+}

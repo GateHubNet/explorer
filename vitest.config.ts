@@ -7,13 +7,14 @@ import { configDefaults, defineConfig } from "vitest/config";
 import { FEATURE_VARS, type FeatureVar } from "./app/ui/features.ts";
 
 // The switches at the top level of wrangler.jsonc, which the `worker` project runs with (README, "Switches"). A switch is "on" here from
-// the moment the code it gates is built (`VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS`, `AMM_PAGES`). The `satisfies` fails until a new switch is
+// the moment the code it gates is built (`VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS`, `AMM_PAGES`, `NFTS`, `NAMES`, `LEDGER_OBJECTS`, `DELEGATION`, `TOKENS`, `SUPPLY`, `VALIDATORS_MAP`). The `satisfies` fails until a new switch is
 // listed. The `worker-off` project does not read this: it sets every switch of `FEATURE_VARS` "off".
-const TOP_LEVEL_SWITCHES = { VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on" } satisfies Record<FeatureVar, "on" | "off">;
+const TOP_LEVEL_SWITCHES = { VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on", NFTS: "on", NAMES: "on", LEDGER_OBJECTS: "on", DELEGATION: "on", TOKENS: "on", SUPPLY: "on", VALIDATORS_MAP: "on" } satisfies Record<FeatureVar, "on" | "off">;
 
 // Pinned for the worker projects, so that a developer's .dev.vars (a real key, a Sentry DSN, a local
 // data API) cannot change what the tests do or where they send requests.
 const testBindings = {
+  ENVIRONMENT: "development",
   XRPL_DATA_API_URL: "https://xrpl.data.example.invalid",
   XAHAU_DATA_API_URL: "https://xahau.data.example.invalid",
   XRPL_NODE_URL: "https://s1.ripple.com:51234/",
@@ -31,10 +32,17 @@ const resolve = { alias: { "~": fileURLToPath(new URL("./app", import.meta.url))
 // The `worker-off` project's bindings: the same, with every switch of `FEATURE_VARS` "off".
 const offBindings = { ...testBindings, ...Object.fromEntries(FEATURE_VARS.map((name) => [name, "off"])) };
 
+// The `worker-names-off` project's bindings: the top level's, with `NAMES` alone "off" (display names spec 2.2): the pages another switch gates are there, and name nothing.
+const namesOffBindings = { ...testBindings, NAMES: "off" };
+
+// The `worker-sandbox` project's bindings: the top level's (its placeholder URLs and its switches, so that every page can be drawn over the
+// existing fixtures, which are mainnet data standing in for the testnets') with `ENVIRONMENT` "sandbox". No test reaches a deployed data API.
+const sandboxBindings = { ...testBindings, ENVIRONMENT: "sandbox" };
+
 export default defineConfig({
-  // The root config is the Worker projects' (`worker` and `worker-off`, below): they share its one Vite server, and so its one React Router
+  // The root config is the Worker projects' (`worker`, `worker-off`, `worker-names-off` and `worker-sandbox`, below): they share its one Vite server, and so its one React Router
   // plugin. That plugin removes and rewrites `.react-router/types` each time a server starts, and two of them starting together raced on the
-  // directory (ENOTEMPTY, EINVAL: `pnpm test` sometimes failed to start). What tells the two projects apart is the `workerBindings` each is
+  // directory (ENOTEMPTY, EINVAL: `pnpm test` sometimes failed to start). What tells the projects apart is the `workerBindings` each is
   // `provide`d, which the Workers plugin reads for its Miniflare. `unit` and `components` have servers of their own and do not extend this.
   plugins: [
     cloudflareTest(({ inject }) => ({
@@ -85,8 +93,8 @@ export default defineConfig({
         test: {
           name: "worker",
           include: ["test/worker/**/*.spec.ts"],
-          // The files of the project below.
-          exclude: [...configDefaults.exclude, "test/worker/**/*-off.spec.ts"],
+          // The files of the projects below.
+          exclude: [...configDefaults.exclude, "test/worker/**/*-off.spec.ts", "test/worker/**/*-sandbox.spec.ts"],
           provide: { workerBindings: testBindings },
         },
       },
@@ -95,7 +103,27 @@ export default defineConfig({
         test: {
           name: "worker-off",
           include: ["test/worker/**/*-off.spec.ts"],
+          // The files of the project below.
+          exclude: [...configDefaults.exclude, "test/worker/**/*-names-off.spec.ts"],
           provide: { workerBindings: offBindings },
+        },
+      },
+      {
+        // The same Worker with every switch the top level has "on" but `NAMES`, which is "off" (display names spec 2.2), in files named `*-names-off.spec.ts`: the pages another switch gates, which
+        // `worker-off` would have as 404s and redirects before any call, drawn with no name and no call for one. (The `worker` project leaves these files out with the other `-off` files.)
+        test: {
+          name: "worker-names-off",
+          include: ["test/worker/**/*-names-off.spec.ts"],
+          provide: { workerBindings: namesOffBindings },
+        },
+      },
+      {
+        // The Worker as the sandbox runs it: `ENVIRONMENT` "sandbox", so that the facts and names are the testnets' (sandbox spec 5), in files named
+        // `*-sandbox.spec.ts`. A page gets a case here only where it says something per kind of network.
+        test: {
+          name: "worker-sandbox",
+          include: ["test/worker/**/*-sandbox.spec.ts"],
+          provide: { workerBindings: sandboxBindings },
         },
       },
     ],

@@ -1,0 +1,17 @@
+{
+  "collections": [
+    {"burned":17,"holders":1,"issuer":"rwKBSSAfhkvXTRgBfRJWQYQSdcckMnSaNE","kind":"nftoken","last_ledger":107878775,"minted":0,"sales_count":532,"supply":333,"taxon":479,"volume_native":"13587.68"},
+    {"burned":318,"holders":2690,"issuer":"r3dsiyhcYX5QKdpuEncQQyz3Tis6peYgwM","kind":"nftoken","last_ledger":107886163,"minted":0,"sales_count":10797,"supply":8165,"taxon":7462,"volume_native":"10390.99"},
+    {"burned":627,"holders":3421,"issuer":"raGb32mWzKrdDfB1sCBP9Qk1w7E5mv14Ry","kind":"nftoken","last_ledger":107883082,"minted":0,"sales_count":0,"supply":10282,"taxon":915,"volume_native":"0"},
+    {"burned":1297,"first_mint":{"executed_time":"2026-10-24T23:43:20Z","ledger_index":107881530,"tx_hash":"046A5DCFCD8DB2750DF5A811E7A74FFEBE12D18E3F0221BE386B53624F47CA97"},"holders":11783,"issuer":"rn5q3NjuAYBxooCNLTd3SYSEs4JR3Rcmzu","kind":"nftoken","last_ledger":107886233,"last_mint":{"executed_time":"2026-10-25T04:52:11Z","ledger_index":107886233,"tx_hash":"60B0ACC963B23108F34B5EFA3AD4F8BEB4A06A58A94B8ABF87D09B3ACE02541F"},"minted":17105,"sales_count":0,"supply":15808,"taxon":5286,"volume_native":"0"},
+    {"burned":2867,"holders":12028,"issuer":"rhDCFgtwdeTniJ6TAz9RD4yYdNHJhAe9nD","kind":"nftoken","last_ledger":107879497,"minted":0,"sales_count":34137,"supply":32524,"taxon":2275,"volume_native":"1798538.29"},
+    {"burned":469,"first_mint":{"executed_time":"2026-10-24T21:30:41Z","ledger_index":107879497,"tx_hash":"BC9BEE242A4140A02794276D8D2C8CDABBA2220303D5A062E858D084BEB8C1DF"},"holders":32503,"issuer":"rQuE6kEyTuS2cM6Yg19zTUE1wZ6RLXo1J","kind":"nftoken","last_ledger":107886163,"last_mint":{"executed_time":"2026-10-25T04:47:41Z","ledger_index":107886163,"tx_hash":"2D1DB0A5654C117CE73D34ADE4C80490B2FB2B222A453A62EA693127FFC03A56"},"minted":37876,"sales_count":18830,"supply":37407,"taxon":4574,"volume_native":"110929.2"}
+  ],
+  "count": 6,
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 32570
+  },
+  "result": "success",
+  "total": 46
+}

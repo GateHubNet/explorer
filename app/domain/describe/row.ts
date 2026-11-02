@@ -1,15 +1,16 @@
 // What a table row shows of a transaction (the ledger page's list, the home page's): pure, no I/O.
 
 import type { Native, TxJson, TxMeta } from "../parse/types";
-import { parseAmount } from "./helpers";
+import { account, parseAmount, seq } from "./helpers";
 import type { Description, FlowAmount, Segment } from "./types";
 
 /**
  * The sentence of `describe()` as a table row's "What happened" cell. The sender is left out (the Account column has
  * it), so is the reason of a failure (the Result column has its code), and so is the full stop; the first letter is a
- * capital: "Sent 5 XRP to rNYbL8…", "Tried to send 5 XRP to rNYbL8…".
+ * capital: "Sent 5 XRP to rNYbL8…", "Tried to send 5 XRP to rNYbL8…". A transaction a delegate sent ends
+ * " · sent by {delegate}", or " · sent by this account as its delegate" on the page of `viewer` when that is the delegate.
  */
-export function rowSentence(description: Pick<Description, "ok" | "sentence">): Segment[] {
+export function rowSentence(description: Pick<Description, "ok" | "sentence" | "delegate">, viewer?: string): Segment[] {
   const segments = [...description.sentence];
   if (segments[0]?.t === "account") segments.shift();
   // A failure's sentence ends with one more text segment after the full stop: why (see `Description.sentence`).
@@ -27,7 +28,10 @@ export function rowSentence(description: Pick<Description, "ok" | "sentence">): 
     const text = first.v.replace(/^\s+/, "");
     segments[0] = { t: "text", v: text.charAt(0).toUpperCase() + text.slice(1) };
   }
-  return segments;
+
+  const { delegate } = description;
+  if (delegate === undefined) return segments;
+  return delegate === viewer ? seq(segments, " · sent by this account as its delegate") : seq(segments, " · sent by ", account(delegate));
 }
 
 /**

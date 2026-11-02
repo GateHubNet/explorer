@@ -1,0 +1,20 @@
+{
+  "result": {
+    "index": "06CF2C55017B289AA55FAFBE2AED6BC481568B7828910F89FADF6F23A95D85AD",
+    "ledger_hash": "C2755BA8BA533A8A1326F597EC3D418C30018EE7F31C6AD7E67C77BAE37812EF",
+    "ledger_index": 26774724,
+    "node": {
+      "Digest": "DD59F3C96017189AD022F96B39EA33E149D26ACAF71FF81F773382A39C030D28",
+      "Flags": 0,
+      "Issuer": "rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb",
+      "LedgerEntryType": "URIToken",
+      "Owner": "rAucmWmE8yiueemhmrGh5MyD2mNjXfpQp",
+      "OwnerNode": "0",
+      "PreviousTxnLgrSeq": 26533927,
+      "URI": "6F64696E73657965733A726176656E3A76323A3030383062653561",
+      "index": "06CF2C55017B289AA55FAFBE2AED6BC481568B7828910F89FADF6F23A95D85AD"
+    },
+    "status": "success",
+    "validated": true
+  }
+}

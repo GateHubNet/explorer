@@ -93,6 +93,11 @@
   "result": "success",
   "server_version": "1745992596280311808",
   "signing_key": "n9LJCiZzwte8BJ819cBJZfAxj5hT8M1wMKNKK8DEV47ukwp9ab1A",
+  "toml": {
+    "network": "main",
+    "owner_country": "IE",
+    "unl": "https://vl.ripple.com"
+  },
   "unl": false,
   "unl_lists": [],
   "validation_public_key": "nHUwN9fCyp19U1UNQrxwD6o7wBo18z1fXLqBTG6JxNXo5iHNNRsw",

@@ -38,19 +38,26 @@ async function pointOver(page: Page, plot: Locator, fraction: number): Promise<v
 }
 
 test.describe("the way to the page", () => {
-  test("'Network' in the header leads to /xrpl/network in the same document, and is the current item", async ({ page }) => {
+  test("'Overview' in the header's Network menu leads to /xrpl/network in the same document, and is the current page", async ({ page }) => {
     await page.goto("/xrpl");
     await hydrated(page);
     await page.evaluate(() => Object.assign(window, { sameDocument: true }));
-    const item = page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Network", exact: true });
+    const menu = page.getByRole("navigation", { name: "Main" }).locator('details[data-menu="network"]');
+    const summary = menu.locator("summary");
+    const item = menu.getByRole("link", { name: "Overview", includeHidden: true });
+    await expect(summary).not.toHaveAttribute("aria-current", /./);
     await expect(item).not.toHaveAttribute("aria-current", /./);
 
+    await summary.click();
     await item.click();
     await page.waitForURL("**/xrpl/network");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("XRPL network");
     await expect(page).toHaveTitle("XRPL network · explorer");
+    // The item is the page, the summary the section, and the panel closed on the new page.
     await expect(item).toHaveAttribute("aria-current", "page");
-    await expect(item).toHaveClass(/is-current/);
+    await expect(summary).toHaveAttribute("aria-current", "true");
+    await expect(summary).toHaveClass(/is-current/);
+    await expect(menu).toHaveJSProperty("open", false);
     expect(await sameDocument(page)).toBe(true);
   });
 });

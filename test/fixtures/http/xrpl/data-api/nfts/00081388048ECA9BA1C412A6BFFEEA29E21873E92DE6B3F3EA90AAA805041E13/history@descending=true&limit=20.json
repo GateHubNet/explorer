@@ -1,0 +1,12 @@
+{
+  "count": 2,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 107874617
+  },
+  "events": [
+    {"account":"rLTavNLNKhA1kf8KMfW5U4Q1TNGSUNdint","amount":"100","amount_issuer":"rfUefeHzBZQGEs66znmX9rV6S9viGbxv9v","currency":"5852506C61790000000000000000000000000000","event":"sale","event_index":1,"executed_time":"2026-10-24T23:43:20Z","from":"rRamaNFTdhr1q7gjsDK1Q4baffxHUQfQ9","is_sell_offer":true,"issuer":"rRamaNFTdhr1q7gjsDK1Q4baffxHUQfQ9","kind":"nftoken","ledger_index":107881530,"nft_id":"00081388048ECA9BA1C412A6BFFEEA29E21873E92DE6B3F3EA90AAA805041E13","offer_id":"58A18F1CF52EA11A65CFC2F1C168908C4AF315A08ECA5FA238A40A0D01A67CE8","serial":84155923,"taxon":6,"to":"rLTavNLNKhA1kf8KMfW5U4Q1TNGSUNdint","tx_hash":"2A7673223CF85AE016B4E9683CFB258DDA9A569876B0C64826CD70E17D5374F7","tx_index":11,"tx_type":"NFTokenAcceptOffer"},
+    {"account":"rRamaNFTdhr1q7gjsDK1Q4baffxHUQfQ9","amount":"100","amount_issuer":"rfUefeHzBZQGEs66znmX9rV6S9viGbxv9v","currency":"5852506C61790000000000000000000000000000","event":"offer_removed","event_index":0,"executed_time":"2026-10-24T23:43:20Z","is_sell_offer":true,"issuer":"rRamaNFTdhr1q7gjsDK1Q4baffxHUQfQ9","kind":"nftoken","ledger_index":107881530,"nft_id":"00081388048ECA9BA1C412A6BFFEEA29E21873E92DE6B3F3EA90AAA805041E13","offer_id":"58A18F1CF52EA11A65CFC2F1C168908C4AF315A08ECA5FA238A40A0D01A67CE8","removed_by":"sale","serial":84155923,"taxon":6,"tx_hash":"2A7673223CF85AE016B4E9683CFB258DDA9A569876B0C64826CD70E17D5374F7","tx_index":11,"tx_type":"NFTokenAcceptOffer"}
+  ],
+  "result": "success"
+}

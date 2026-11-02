@@ -1,0 +1,23 @@
+{
+  "result": {
+    "index": "04CE36B38E978993BEC1DC2EAC552C3083E3B2EB98C0DC9DD47A15DDEAE57971",
+    "ledger_hash": "FD816B31FFE84E838E6645C4BAFA181F58F7581A55547F452B376A4DC1DCFAB7",
+    "ledger_index": 26399329,
+    "node": {
+      "Account": "rNyv2vcKQiR3UqsFBrjWR2MpjACJDFhcJT",
+      "Amount": {"currency":"CLV","issuer":"rK8rYUs6gFH4QJ9JS814EF9112gKuYZZT","value":"80875"},
+      "CancelAfter": 1109602800,
+      "Destination": "rNyv2vcKQiR3UqsFBrjWR2MpjACJDFhcJT",
+      "FinishAfter": 1009904400,
+      "Flags": 0,
+      "LedgerEntryType": "Escrow",
+      "OwnerNode": "0",
+      "PreviousTxnID": "D09B8B9BF75C0A991CBEF6B2C47480DCA7460F43E50AD9C5AC522D56513F3086",
+      "PreviousTxnLgrSeq": 25229443,
+      "TransferRate": 1000000000,
+      "index": "04CE36B38E978993BEC1DC2EAC552C3083E3B2EB98C0DC9DD47A15DDEAE57971"
+    },
+    "status": "success",
+    "validated": true
+  }
+}

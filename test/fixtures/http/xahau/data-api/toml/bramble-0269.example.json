@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "bramble-0269.example",
+    "toml_url": "https://bramble-0269.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rpXNiN8UY6YTZy4SWN7jq44tKjx1rWBZ1M",
+        "desc": "Bramble Exchange"
+      }
+    ]
+  }
+}

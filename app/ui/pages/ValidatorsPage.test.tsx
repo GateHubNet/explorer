@@ -9,7 +9,7 @@ import { serverThenHydrated } from "../../../test/support/hydrate";
 import { shortHash } from "../../domain/format";
 import { validatorsHref, type ValidatorsParams } from "../../domain/validators-params";
 import type { Loaded } from "../../server/account-view";
-import type { ValidatorRow, ValidatorsList, ValidatorsSummary } from "../../server/api-types";
+import type { UnlPublisher, ValidatorRow, ValidatorsList, ValidatorsSummary } from "../../server/api-types";
 import { validatorsPage, type ValidatorsPageData } from "../../server/validators-view";
 import type { NetworkInfo } from "../networks";
 import type { LiveControls } from "../use-live-controls";
@@ -24,8 +24,12 @@ afterEach(() => {
 
 // ---- The world of the tests ------------------------------------------------------------------------------------------------------------------
 
-const XRPL: NetworkInfo = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" };
-const XAHAU: NetworkInfo = { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" };
+const XRPL: NetworkInfo = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" };
+const XAHAU: NetworkInfo = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", software: "xahaud" };
+const XAHAU_TESTNET: NetworkInfo = { id: "xahau", kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", longName: "Xahau Testnet", dexName: "the Xahau Testnet DEX", native: "XAH", software: "xahaud" };
+
+/** Xahau Testnet's fixed list as the data API serves it (D-env §5): the publisher `local`, with no site, no key and no expiration. */
+const FIXED_LIST: UnlPublisher = { id: "local", url: "", public_key: "", status: "ok", sequence: 1, version: 1, fetched: "2026-10-19T15:51:26.114Z", validators: 4, seen_24h: 4 };
 
 const ok = <T,>(value: T): Loaded<T> => ({ state: "ok", value });
 const FAILED: Loaded<never> = { state: "failed" };
@@ -115,6 +119,8 @@ function build(over: Partial<Input> = {}): ValidatorsPageData {
     summary: ok(summary()),
     list: ok(listOf(fleet())),
     amendments: ok(amendmentsSample()),
+    // Off unless a test is about the countries: the older tests are of the page E6 built.
+    features: { validatorsMap: false },
     ...over,
   });
 }
@@ -525,6 +531,185 @@ describe("ValidatorsPage, the filter form", () => {
   });
 });
 
+// ---- The countries: the Country filter and each row's place (E13 spec 4.4) ------------------------------------------------------------------------
+
+const MAP_ON = { validatorsMap: true } as const;
+
+/** The fleet with what D8 says of each row's toml: northpeak and shoreline are served from DE, tidewater from FR, `nameless` gave `{}` and `quiet` has no toml. */
+function placedFleet(): ValidatorRow[] {
+  const [north, shore, tide, nameless, quiet] = fleet() as [ValidatorRow, ValidatorRow, ValidatorRow, ValidatorRow, ValidatorRow];
+  return [{ ...north, toml: { server_country: "DE" } }, { ...shore, toml: { server_country: "DE" } }, { ...tide, toml: { server_country: "FR" } }, { ...nameless, toml: {} }, quiet];
+}
+
+describe("ValidatorsPage, the countries", () => {
+  const form = () => screen.getByRole("search", { name: "Filter validators" });
+  const placed = ok(listOf(placedFleet()));
+  const hiddenFields = () => Array.from(form().querySelectorAll<HTMLInputElement>('input[type="hidden"]'), (input) => [input.name, input.value]);
+
+  it("draws the Country select after Votes yes for, with the view's value", () => {
+    mount(build({ features: MAP_ON, list: placed, params: { scope: "all", country: "FR" } }));
+    const labels = Array.from(form().querySelectorAll("label"), (label) => label.textContent).filter((label) => ["Listed by", "Votes yes for", "Country"].includes(label ?? ""));
+    expect(labels).toEqual(["Listed by", "Votes yes for", "Country"]);
+    const country = within(form()).getByLabelText("Country") as unknown as HTMLSelectElement;
+    expect(country.name).toBe("country");
+    expect(country.value).toBe("FR");
+    expect(Array.from(country.options, (option) => [option.value, option.textContent])).toEqual([
+      ["", "all countries"],
+      ["FR", "France"],
+      ["DE", "Germany"],
+      ["unknown", "Unknown location"],
+    ]);
+    // The select carries the country: no hidden field beside it.
+    expect(hiddenFields()).toEqual([["scope", "all"]]);
+  });
+
+  it("has no Country select while the switch is off, and none where nothing places a validator but Unknown location", () => {
+    mount(build({ list: placed }));
+    expect(within(form()).queryByLabelText("Country")).toBeNull();
+    cleanup();
+    mount(build({ features: MAP_ON }));
+    const country = within(form()).getByLabelText("Country") as unknown as HTMLSelectElement;
+    expect(Array.from(country.options, (option) => option.value)).toEqual(["", "unknown"]);
+  });
+
+  it("applies a country with the other fields, and sets the select back to every country", async () => {
+    const { router } = mount(build({ features: MAP_ON, list: placed }));
+    fireEvent.change(within(form()).getByLabelText("Country"), { target: { value: "DE" } });
+    fireEvent.change(within(form()).getByLabelText("Search validators by domain or key"), { target: { value: "north" } });
+    fireEvent.submit(form());
+    await act(async () => {});
+    expect(router.state.location.pathname + router.state.location.search).toBe("/xrpl/validators?country=DE&q=north");
+    cleanup();
+    const again = mount(build({ features: MAP_ON, list: placed, params: { scope: "unl", country: "DE" } }));
+    fireEvent.change(within(form()).getByLabelText("Country"), { target: { value: "" } });
+    fireEvent.submit(form());
+    await act(async () => {});
+    expect(again.router.state.location.pathname + again.router.state.location.search).toBe("/xrpl/validators");
+  });
+
+  it("keeps a country in a hidden field when the map failed", async () => {
+    const failed = build({ features: MAP_ON, list: FAILED, params: { scope: "unl", country: "DE" } });
+    expect(failed.map.state).toBe("failed");
+    const { router } = mount(failed);
+    expect(within(form()).queryByLabelText("Country")).toBeNull();
+    expect(hiddenFields()).toEqual([["country", "DE"]]);
+    // Apply does not drop what the address applies as given.
+    fireEvent.change(within(form()).getByLabelText("Search validators by domain or key"), { target: { value: "x" } });
+    fireEvent.submit(form());
+    await act(async () => {});
+    expect(router.state.location.pathname + router.state.location.search).toBe("/xrpl/validators?country=DE&q=x");
+    // With the switch off the select is not drawn either, and the field keeps the address's country the same way.
+    cleanup();
+    mount(build({ list: placed, params: { scope: "unl", country: "DE" } }));
+    expect(hiddenFields()).toEqual([["country", "DE"]]);
+  });
+
+  it("draws the place after the short key, in the page's own face", () => {
+    mount(build({ features: MAP_ON, list: placed, params: { scope: "all" } }));
+    const sub = (name: string | RegExp) => within(rowOf(name)).getAllByText(/./).find((element) => element.classList.contains("validators__sub"))!;
+    const north = sub("northpeak.example");
+    expect(north.textContent).toBe(`${shortHash(KEY_NORTH)} · Germany`);
+    // The key is mono and the place is not: it is a name, in a span of its own inside the mono line.
+    expect(north.classList.contains("mono")).toBe(true);
+    const place = north.querySelector(".validators__place")!;
+    expect(place.textContent).toBe(" · Germany");
+    expect(place.classList.contains("mono")).toBe(false);
+    expect(sub("tidewater.example").textContent).toBe(`${shortHash(KEY_TIDE)} · France`);
+    // No server country, no place, and no separator: the line is what it was.
+    expect(sub(shortHash(KEY_NAMELESS)).textContent).toBe("no domain");
+    expect(sub(shortHash(KEY_NAMELESS)).querySelector(".validators__place")).toBeNull();
+  });
+
+  it("draws no place with the switch off", () => {
+    mount(build({ list: placed, params: { scope: "all" } }));
+    expect(table().querySelector(".validators__place")).toBeNull();
+    expect(text(table())).not.toContain("Germany");
+  });
+
+  it("draws the empty-UNL sentence and its link, in place of the filters' sentence", () => {
+    mount(build({ features: MAP_ON, list: placed, params: { scope: "unl", country: "FR" } }));
+    const empty = table().closest('[role="region"]')!.querySelector(".table__empty")!;
+    expect(empty.textContent).toBe("No validator in France is on the default UNL. Show the 1 in All");
+    expect(within(empty as HTMLElement).getByRole("link", { name: "Show the 1 in All" }).getAttribute("href")).toBe("/xrpl/validators?scope=all&country=FR");
+    expect(text(empty)).not.toContain("No validators match these filters.");
+    cleanup();
+    // Unknown location keeps E6's sentence and its link.
+    mount(build({ features: MAP_ON, list: placed, params: { scope: "unl", country: "unknown", q: "nameless" } }));
+    const other = table().closest('[role="region"]')!.querySelector(".table__empty")!;
+    expect(other.textContent).toBe("No validators match these filters. Clear filters");
+    expect(within(other as HTMLElement).getByRole("link", { name: "Clear filters" }).getAttribute("href")).toBe("/xrpl/validators");
+  });
+});
+
+describe("ValidatorsPage, the countries card", () => {
+  const placed = ok(listOf(placedFleet()));
+  const followsOrPrecedes = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? "before" : "after");
+
+  it("draws the card between the tiles and the versions", () => {
+    mount(build({ features: MAP_ON, list: placed }));
+    const tiles = region("Network overview");
+    const countries = card("Where validators are");
+    const versions = card("Validator software versions");
+    expect(followsOrPrecedes(tiles, countries)).toBe("before");
+    expect(followsOrPrecedes(countries, versions)).toBe("before");
+    // Its table is the countries' (Germany 2, France 1), beside the validators' own, which is the page's second.
+    expect(within(countries).getByRole("table", { name: "Validators by country" })).toBeTruthy();
+    expect(screen.getByRole("table", { name: "Validators" })).toBeTruthy();
+    expect(within(countries).getAllByRole("link", { name: /^(Germany|France): / }).map((link) => link.getAttribute("aria-label"))).toEqual([
+      "Germany: 2 validators, 2 on the UNL",
+      "France: 1 validator, 0 on the UNL",
+    ]);
+  });
+
+  it("draws no card while the switch is off, and a section error in its place when L failed", () => {
+    mount(build({ list: placed }));
+    expect(screen.queryByRole("heading", { level: 2, name: "Where validators are" })).toBeNull();
+    cleanup();
+    mount(build({ features: MAP_ON, list: FAILED }));
+    const countries = card("Where validators are");
+    expect(within(countries).getByRole("alert").textContent).toContain("Couldn’t load where validators are.");
+    expect(within(countries).queryByRole("table")).toBeNull();
+    // The list's own card says its own: two alerts, one for each.
+    expect(screen.getAllByRole("alert").map((alert) => alert.textContent)).toEqual(expect.arrayContaining([expect.stringContaining("Couldn’t load the validators.")]));
+  });
+
+  it("retries from the card's own button, asking the route's loader again", async () => {
+    const loader = vi.fn(() => null);
+    mount(build({ features: MAP_ON, list: FAILED }), { loader });
+    const calls = loader.mock.calls.length;
+    fireEvent.click(within(card("Where validators are")).getByRole("button", { name: "Retry" }));
+    await act(async () => {});
+    expect(loader.mock.calls.length).toBe(calls + 1);
+  });
+
+  it("holds the page while the pointer is on the card, as it does for the table", () => {
+    const live = controls();
+    mount(build({ features: MAP_ON, list: placed }), { live });
+    fireEvent.pointerEnter(card("Where validators are"), { pointerType: "mouse" });
+    expect(live.onHold).toHaveBeenLastCalledWith(true);
+    fireEvent.pointerLeave(card("Where validators are"), { pointerType: "mouse" });
+    expect(live.onHold).toHaveBeenLastCalledWith(false);
+  });
+
+  it("says in the live row which part holds the page: the map for the countries card, the table for the list's", () => {
+    // `held` is the route's; the page only says which of its parts the visitor came to last.
+    const { container } = mount(build({ features: MAP_ON, list: placed }), { live: controls({ held: true }) });
+    const note = () => container.querySelector(".hero__held")!.textContent;
+    expect(note()).toBe("Paused while you look at the table");
+    fireEvent.pointerEnter(card("Where validators are"), { pointerType: "mouse" });
+    expect(note()).toBe("Paused while you look at the map");
+    fireEvent.pointerEnter(region("Validators, scrollable table"), { pointerType: "pen" });
+    expect(note()).toBe("Paused while you look at the table");
+    // Keyboard focus on a link of either part says the same; a finger holds nothing and changes nothing.
+    act(() => within(card("Where validators are")).getAllByRole("link")[0]!.focus());
+    expect(note()).toBe("Paused while you look at the map");
+    act(() => within(region("Validators, scrollable table")).getAllByRole("link")[0]!.focus());
+    expect(note()).toBe("Paused while you look at the table");
+    fireEvent.pointerEnter(card("Where validators are"), { pointerType: "touch" });
+    expect(note()).toBe("Paused while you look at the table");
+  });
+});
+
 describe("ValidatorsPage, Apply", () => {
   const apply = (fill: (form: HTMLElement) => void, data = build()) => {
     const { router } = mount(data);
@@ -622,6 +807,19 @@ describe("ValidatorsPage, the table", () => {
       expect(link.getAttribute("href")).toBe(`/xrpl/validators/${KEY_NORTH}`);
       expect(text(cellsOf(row)[0]!)).toContain(shortHash(KEY_NORTH));
       expect(cellsOf(row)[0]!.querySelector(".validators__sub")!.classList.contains("mono")).toBe(true);
+    });
+
+    it("words the UNL tag of a row: mainnet as ever, and 'Listed by the fixed list' on Xahau Testnet", () => {
+      mount(build());
+      const tagOf = (name: string) => rowOf(name).querySelector(".tag")!;
+      expect(text(tagOf("northpeak.example"))).toBe("UNL Listed by unl.xrplf.org and vl.ripple.com");
+      expect(tagOf("northpeak.example").getAttribute("title")).toBe("Listed by unl.xrplf.org and vl.ripple.com");
+      cleanup();
+
+      const fixed = validatorRowSample({ unl_lists: ["local"] });
+      mount(build({ network: XAHAU_TESTNET, summary: ok(summary({ unl: { trusted: 4, publishers: [FIXED_LIST] } })), list: ok(listOf([fixed])) }));
+      expect(text(tagOf("northpeak.example"))).toBe("UNL Listed by the fixed list");
+      expect(tagOf("northpeak.example").getAttribute("title")).toBe("Listed by the fixed list");
     });
 
     it("says 'verified' with a check, 'not verified' with an alert and 'not checked yet' with a clock: an icon and a word each", () => {

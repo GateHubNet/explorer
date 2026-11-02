@@ -1,0 +1,16 @@
+{
+  "result": {
+    "flags": 1,
+    "is_burned": false,
+    "issuer": "raNypRjrVu98Rp3AYLRhQBDUeJKyyRRV92",
+    "ledger_index": 107886163,
+    "nft_id": "00010000397CCDAB554D69B034DBB4042C29C6B714F0504560FB4B5105E502FD",
+    "nft_serial": 98894589,
+    "nft_taxon": 123589321,
+    "owner": "r4Xgqy68ykjLEJAkFQ7EaFs8VEdSiWkSeX",
+    "status": "success",
+    "transfer_fee": 0,
+    "uri": "697066733A2F2F516D5753466B7034317A33436F6767595454577A4C447565537342534D6438325431566D7A6D326A723759776F36",
+    "validated": true
+  }
+}

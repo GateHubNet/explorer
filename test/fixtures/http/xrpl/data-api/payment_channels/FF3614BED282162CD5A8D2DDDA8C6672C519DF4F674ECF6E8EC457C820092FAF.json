@@ -1,0 +1,41 @@
+{
+  "close_time": "2026-10-29T03:50:41Z",
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 102145584
+  },
+  "history": [
+    {"account":"rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR","amount":{"currency":"XRP","value":"10"},"balance":{"currency":"XRP","value":"0.154393"},"balance_change":{"currency":"XRP","value":"0.00002"},"event":"close","ledger_index":107296498,"result":"tesSUCCESS","time":"2026-09-28T16:40:31Z","tx_hash":"42AACB8AB7ADBAB178D0FE7E2EB49ABCF102B64AA7D9807424E35D0C413E3C75","tx_type":"PaymentChannelClaim"}
+  ],
+  "ledger_index": 107972102,
+  "payment_channel": {
+    "account": "rMLwBUc2HZjfwvJLabFinEnCYEpdn9PAYF",
+    "amount": {
+      "currency": "XRP",
+      "value": "10"
+    },
+    "balance": {
+      "currency": "XRP",
+      "value": "0.154393"
+    },
+    "channel_id": "FF3614BED282162CD5A8D2DDDA8C6672C519DF4F674ECF6E8EC457C820092FAF",
+    "claims": 1,
+    "destination": "rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR",
+    "funds": 0,
+    "public_key": "ED3FC7F09C25307C989D93EC314ABB2A811D6838886D60901294C66DEC7D3E1AD4",
+    "remaining": {
+      "currency": "XRP",
+      "value": "9.845607"
+    },
+    "removed": {
+      "ledger_index": 107296498,
+      "time": "2026-09-28T16:40:31Z",
+      "tx_hash": "42AACB8AB7ADBAB178D0FE7E2EB49ABCF102B64AA7D9807424E35D0C413E3C75",
+      "tx_type": "PaymentChannelClaim"
+    },
+    "sequence": 99081953,
+    "settle_delay": 1209600,
+    "status": "closed"
+  },
+  "result": "success"
+}

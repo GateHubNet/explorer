@@ -89,6 +89,20 @@
   "result": "success",
   "server_version": "1745992609668532078",
   "signing_key": "n9K9cjq65STELXdmvkBLSQiDDKLZVxs9WcizYSKMEfguAVrStbHP",
+  "toml": {
+    "currencies": [
+      {"code":"BEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEF"}
+    ],
+    "currencies_listed": 1,
+    "fetched": "2026-10-17T17:27:10.561Z",
+    "network": "longnetworklongnetworklongnetwor",
+    "owner_country": "NL",
+    "principals": [
+      "LongPrincipalNameLongPrincipalNameLongPrincipalNameLongPrincipalNameLongPrincipalNameLongPrincipalNa"
+    ],
+    "server_country": "GS",
+    "unl": "https://vl.longhostlonghostlonghostlonghostlonghostlonghostlonghostlonghos.longhostlonghostlonghostlonghostlonghostlonghostlonghostlonghos.longhostlonghostlonghostlonghostlonghostlonghostlonghostlongh.example"
+  },
   "unl": true,
   "unl_lists": [
     "vl.xahau.org"

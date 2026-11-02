@@ -1,12 +1,17 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { classicAddressToXAddress, encodeAccountID, xAddressToClassicAddress } from "ripple-address-codec";
+import { classicAddressToXAddress, xAddressToClassicAddress } from "ripple-address-codec";
 
 import { shortAddress } from "../../app/domain/format";
+import { linkTextOf } from "../../app/domain/names";
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration } from "../../app/server/env";
 import { encodeQr, qrPath } from "../../app/server/qr";
-import { anchors, elementText, hrefs as rawHrefs, pageClient, tableRows, textOf } from "../support/pages";
+import { account, healthy, type Health } from "../support/account-loader";
+import { accountHeadOf, expectTextWithAccounts, headingText, shownName, viewOf, withoutNamesOrTomls } from "../support/names";
+import { holderCase } from "../support/nft-cases";
+import { coverageSample, nftSample, nftsPageSample } from "../support/nft-samples";
+import { accountTabsNav, anchors, elementText, hrefsRead as hrefs, pageClient, tableRows, textOf } from "../support/pages";
 import { dataApiError, mockUpstream, nodeError, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
 
 // The account page, `/{net}/account/{address}`, on the real Worker against the recorded answers of the data API and the nodes
@@ -45,12 +50,6 @@ const IMMUTABLE = { cls: "immutable", ttl: 31_536_000 };
 const MARKER_PAGE = { cls: "slow", ttl: 3_600 };
 const SHORT = { cls: "short", ttl: 30 };
 
-/** A valid address that no recording has: 20 bytes of `n`. */
-const account = (n: number) => encodeAccountID(new Uint8Array(20).fill(n));
-
-/** The `href`s of a page as a browser reads them (`&amp;` is `&`). */
-const hrefs = (html: string) => rawHrefs(html).map((href) => href.replace(/&amp;/g, "&"));
-
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Whether the edge cache holds a copy of `path` now (for after the answer has been read; waits a moment for a store that is not wanted). */
@@ -75,55 +74,6 @@ async function recordedList(name: string): Promise<{ result: string; count: numb
   return JSON.parse(await load());
 }
 
-interface Health {
-  /** The account's `account_info` fields over the defaults. */
-  info?: Record<string, unknown>;
-  /** What the node lists as its objects, and a marker when it has more. */
-  objects?: Array<Record<string, unknown>>;
-  objectsMarker?: string;
-  /** The balances after the native one. */
-  tokens?: Array<Record<string, unknown>>;
-}
-
-/** The answers of a healthy active account of `address` on the XRP Ledger, except for its lists, which a test adds. */
-function healthy(address: string, health: Health = {}): Overrides {
-  const objects = health.objects ?? [];
-  return {
-    [`GET /v2/accounts/${address}`]: {
-      result: "success",
-      account_data: { account: address, parent: "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ", initial_balance: "25", inception: "2025-07-15T18:30:43Z", ledger_index: 97500000, tx_hash: "9B".repeat(32) },
-    },
-    [`GET /v2/accounts/${address}/balances`]: {
-      result: "success",
-      ledger_index: 107721455,
-      limit: 200,
-      balances: [{ currency: "XRP", value: "25" }, ...(health.tokens ?? [])],
-    },
-    [`node account_info ${address}`]: {
-      account_data: {
-        Account: address,
-        Balance: "25000000",
-        Flags: 0,
-        LedgerEntryType: "AccountRoot",
-        OwnerCount: objects.length,
-        PreviousTxnID: "C7FE6468BA25CE904C41722C0892316954133B000339C644073A88CACD8A9143",
-        PreviousTxnLgrSeq: 107720688,
-        Sequence: 12,
-        ...health.info,
-      },
-      ledger_index: 107721455,
-      validated: true,
-    },
-    [`node account_objects ${address}`]: {
-      account: address,
-      account_objects: objects,
-      ledger_index: 107721455,
-      validated: true,
-      ...(health.objectsMarker ? { marker: health.objectsMarker } : {}),
-    },
-  };
-}
-
 const LIST = (address: string, kind: "transactions" | "payments" | "exchanges", marker?: string) =>
   `GET /v2/accounts/${address}/${kind}?descending=true&limit=20${marker ? `&marker=${marker}` : ""}`;
 
@@ -133,6 +83,16 @@ async function withHistory(address: string, health: Health = {}, extra: Override
 }
 
 const requests = (m: UpstreamMock, kind: "node" | "data-api") => m.requests.filter((r) => r.kind === kind);
+
+/**
+ * The text of the page's main, where the account's own content is: the header has words of its own (its Tokens item, E11) that the Tokens card's title must not be mistaken for. It
+ * throws where the page has no main, so that a check made on it can never be vacuous.
+ */
+function mainTextOf(html: string): string {
+  const start = html.indexOf('<main id="main"');
+  if (start < 0) throw new Error('the page has no <main id="main">');
+  return textOf(html.slice(start));
+}
 
 /**
  * What a `.data` URL (a client-side navigation, a Retry) answers, decoded. It is turbo-stream: a flat list in which every key, string and
@@ -502,7 +462,7 @@ describe("a deleted account", () => {
     expect(text).toContain("Deleted This account was deleted from the ledger");
     expect(text).toContain("The account no longer exists");
     expect(text).not.toContain("Live state unavailable");
-    expect(text).not.toContain("Tokens");
+    expect(mainTextOf(html)).not.toContain("Tokens");
     expect(text).not.toContain("Owned objects");
     expect(text).not.toContain("Sequence");
     const rows = tableRows(html, "Transactions");
@@ -539,21 +499,28 @@ describe("the active XRPL account", () => {
     expect(response.headers.get("Content-Type")).toContain("text/html");
     expect(response.headers.get("Cache-Control")).toBe("max-age=0, must-revalidate");
     expect(elementText(html, "account-id__address")).toContain(ACTIVE);
-    expect(html).toMatch(new RegExp(`<h1[^>]*>${ACTIVE}</h1>`));
+    // The page's one h1 is the account's name, which the fixtures give it (a verified one), with the words of its mark; the address is the line under it.
+    const view = (await viewOf("xrpl", ACTIVE))!;
+    expect(view.name?.kind).toBe("verified");
+    expect(headingText(html)).toBe(`${linkTextOf(view)} verified name`);
 
-    expect(text).toContain(`Activated on 2025-07-15 18:30:43 UTC by ${shortAddress("rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ")} with 25 XRP`);
+    // The activator has a label and no name: its short address, with the words of the label's mark.
+    await expectTextWithAccounts(elementText(html, "account-id__meta")!, "xrpl", ["Activated on 2025-07-15 18:30:43 UTC by ", { account: "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ" }, " with 25 XRP"]);
     expect(hrefs(html)).toContain("/xrpl/account/rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ");
     expect(hrefs(html)).toContain(`/xrpl/tx/9B107B80D5606BB743A58ED7EA6DCA1BDC1E8619FBFA531CD881523C1DCC76F1`);
     expect(text).toContain("Sequence 98,986,800");
     expect(text).toContain("XRP balance 10.001625");
-    // 1 base + 1 object * 0.2 = 1.2 reserve, from the node's server_state; 10.001625 - 1.2 available.
-    expect(text).toContain("Available 8.801625");
-    expect(text).toContain("Reserve 1.2 XRP = 1 base + 1 object × 0.2");
+    // 1 base + 4 objects * 0.2 = 1.8 reserve, from the node's server_state (its trust line, and the escrow, channel and delegation of the ledger-object pages); 10.001625 - 1.8 available.
+    expect(text).toContain("Available 8.201625");
+    expect(text).toContain("Reserve 1.8 XRP = 1 base + 4 objects × 0.2");
     expect(text).toContain("Read live from the network at ledger #107,721,455.");
 
-    // Tokens: the LIONS line, its code as text, its issuer, its balance.
+    // Tokens: the LIONS line, its code a link to its token page (TOKENS is on), its issuer, its balance.
     expect(text).toContain("Tokens 1 trust line");
-    expect(text).toContain("LIONS rGHtf1…AuzS 48,329.908117603");
+    expect(hrefs(html)).toContain("/xrpl/token/LIONS.rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS");
+    // The issuer is an account GateHub names in the fixtures.
+    expect(text).toContain(`LIONS ${await shownName("xrpl", "rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS")}`);
+    expect(text).toContain("48,329.908117603");
     expect(hrefs(html)).toContain("/xrpl/account/rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS");
     // Owned objects: counts by type.
     expect(text).toContain("Owned objects 1 trust line");
@@ -628,21 +595,23 @@ describe("the active XRPL account", () => {
     expect(textOf(html)).toContain("4 transactions");
   });
 
-  it("has the six tabs as links, Analytics with rel=nofollow (ACCOUNT_ANALYTICS is on here; account-analytics-off.spec.ts has it off)", async () => {
+  it("has the eight tabs as links, the NFTs and Delegation before Analytics and Analytics with rel=nofollow (NFTS, DELEGATION and ACCOUNT_ANALYTICS are on here; nfts-off.spec.ts, delegation-off.spec.ts and account-analytics-off.spec.ts have them off)", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(path);
-    const nav = /<nav class="tabs" aria-label="Account activity">([\s\S]*?)<\/nav>/.exec(html);
-    expect(nav).not.toBeNull();
-    const tabs = anchors(nav![1]!).map((a) => [a.text, /href="([^"]*)"/.exec(a.attrs)![1], a.attrs.includes('aria-current="page"'), /rel="([^"]*)"/.exec(a.attrs)?.[1] ?? null]);
+    const nav = accountTabsNav(html);
+    expect(nav).toBeDefined();
+    const tabs = anchors(nav!).map((a) => [a.text, /href="([^"]*)"/.exec(a.attrs)![1], a.attrs.includes('aria-current="page"'), /rel="([^"]*)"/.exec(a.attrs)?.[1] ?? null]);
     expect(tabs).toEqual([
       ["Transactions", `/xrpl/account/${ACTIVE}`, true, null],
       ["Payments", `/xrpl/account/${ACTIVE}?tab=payments`, false, null],
       ["Trades", `/xrpl/account/${ACTIVE}?tab=trades`, false, null],
       ["Offers", `/xrpl/account/${ACTIVE}?tab=offers`, false, null],
       ["Objects", `/xrpl/account/${ACTIVE}?tab=objects`, false, null],
+      ["NFTs", `/xrpl/account/${ACTIVE}?tab=nfts`, false, null],
+      ["Delegation", `/xrpl/account/${ACTIVE}?tab=delegation`, false, null],
       ["Analytics", `/xrpl/account/${ACTIVE}?tab=analytics`, false, "nofollow"],
     ]);
-    expect(nav![1]).not.toContain("is-soon");
+    expect(nav).not.toContain("is-soon");
   });
 
   it("is stored as class live: 5 s at the edge, revalidated by the browser", async () => {
@@ -654,8 +623,13 @@ describe("the active XRPL account", () => {
   it("has a title and a description built from its data, and is indexable", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(path);
-    expect(html).toContain(`<title>Account ${shortAddress(ACTIVE)} · XRPL · explorer</title>`);
-    expect(html).toMatch(new RegExp(`<meta name="description" content="${ACTIVE} on XRPL: Balance 10\\.001625 XRP, activated 2025-07-15\\.`));
+    // The fixtures' verified name is in the title (display names spec 7), with the short address after it, and the description says who verified it.
+    const view = (await viewOf("xrpl", ACTIVE))!;
+    expect(html).toContain(`<title>${await accountHeadOf("xrpl", ACTIVE)} · XRPL · explorer</title>`);
+    expect(html).toContain(`<title>Account ${linkTextOf(view)} (${shortAddress(ACTIVE)}) · XRPL · explorer</title>`);
+    expect(html).toContain(
+      `<meta name="description" content="${ACTIVE} on XRPL: Balance 10.001625 XRP, activated 2025-07-15. Transactions, payments, trades, offers and objects. Verified by ${view.domain}."`,
+    );
     expect(html).not.toMatch(/<meta name="robots"/);
   });
 
@@ -669,7 +643,8 @@ describe("the active XRPL account", () => {
     });
     const { html } = await page(`/xrpl/account/${a}`);
 
-    const asked = mock.requests.filter((r) => r.key !== "node server_state").map((r) => r.key).sort();
+    // The names calls are account-names.spec.ts's: the Worker keeps their answers a minute, so whether a render makes one is the cache's state.
+    const asked = withoutNamesOrTomls(mock.requests).filter((r) => r.key !== "node server_state").map((r) => r.key).sort();
     expect(asked).toEqual(
       [
         `GET /v2/accounts/${a}`,
@@ -710,8 +685,11 @@ describe("the active Xahau account", () => {
     expect(text).toContain("Sequence 755,783,996");
     expect(text).toContain("Available 9,349.639221");
     expect(text).toContain("Reserve 1.4 XAH = 1 base + 2 objects × 0.2");
-    expect(text).toContain("EVR rEvern…HXr8 28,437,367.3675102");
-    expect(html).toContain(`<title>Account ${shortAddress(XAHAU_ACTIVE)} · Xahau · explorer</title>`);
+    // The token's issuer is an account GateHub names in the fixtures: a name and its mark where the short address was.
+    expect(text).toContain(`EVR ${await shownName("xahau", "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8")}`);
+    expect(text).toContain("28,437,367.3675102");
+    expect(html).toContain(`<title>${await accountHeadOf("xahau", XAHAU_ACTIVE)} · Xahau · explorer</title>`);
+    expect((await viewOf("xahau", XAHAU_ACTIVE))?.name?.kind).toBe("verified");
     expect(await storedAs(`/xahau/account/${XAHAU_ACTIVE}`)).toEqual(LIVE);
   });
 });
@@ -757,6 +735,26 @@ describe("what the recordings do not hold", () => {
     const poolLink = anchors(html).find((a) => a.text === `AMM pool ${shortAddress(pool)}`);
     expect(poolLink?.attrs).toContain(`href="/xrpl/amm/${pool}"`);
     expect(hrefs(html)).not.toContain(`/xrpl/account/${pool}`);
+  });
+
+  it("leads the code of a trust line to its token page: the counterparty's for a balance of zero or more, this account's for a negative one, and none for an LP token", async () => {
+    const a = account(90);
+    const pool = account(91);
+    const lp = `03${"AB".repeat(19)}`;
+    mock = mockUpstream("xrpl", {
+      ...(await withHistory(a, {
+        tokens: [
+          { currency: "USD", counterparty: account(92), value: "3120.50" },
+          { currency: "EUR", counterparty: account(93), value: "0" },
+          { currency: "GBP", counterparty: account(94), value: "-40" },
+          { currency: lp, counterparty: pool, value: "1042.77" },
+        ],
+      })),
+    });
+    const { html } = await page(`/xrpl/account/${a}`);
+    const links = hrefs(html).filter((href) => href.includes("/token/"));
+    expect(links).toEqual([`/xrpl/token/USD.${account(92)}`, `/xrpl/token/EUR.${account(93)}`, `/xrpl/token/GBP.${a}`]);
+    expect(hrefs(html)).toContain(`/xrpl/amm/${pool}`);
   });
 
   it("says on a pool account's page that it is one, with a link to the pool page, while AMM_PAGES is on", async () => {
@@ -913,7 +911,11 @@ describe("the tabs", () => {
     const rows = tableRows(html, "Payments");
     expect(rows).toHaveLength(2);
     expect(rows[0]).toEqual(["Date (UTC)", "Direction", "Counterparty", "Delivered", "Tag"]);
-    expect(rows[1]).toEqual(["2026-10-13 21:34:30", "Received", expect.stringMatching(/^rDQSFB…[A-Za-z0-9]{4}$/), "+0.00001 XRP", ""]);
+    // The counterparty's domain is all that is known of it, which the fixtures give as a name that is not verified.
+    const counterparty = rows[1]![2]!;
+    await expectTextWithAccounts(counterparty, "xrpl", [{ account: "rDQSFBVK7Nrh2tTCmPPRjpjxdTZ2afhvFz" }]);
+    expect(counterparty).toMatch(/not verified$/);
+    expect(rows[1]).toEqual(["2026-10-13 21:34:30", "Received", counterparty, "+0.00001 XRP", ""]);
     const csv = anchors(html).find((a) => a.text === "Download CSV");
     expect(csv?.attrs).toContain(`href="/xrpl/account/${ACTIVE}/payments.csv"`);
     expect(csv?.attrs).toContain("download");
@@ -1017,10 +1019,303 @@ describe("the tabs", () => {
   });
 
   it("?tab=objects without more than one page does not say it is cut", async () => {
-    mock = mockUpstream("xrpl");
-    const { html } = await page(`/xrpl/account/${ACTIVE}?tab=objects`);
+    // An account that owns a trust line and nothing else (the active account owns the ledger-object pages' escrow, channel and delegation, and was sent their check: C7).
+    const a = account(38);
+    mock = mockUpstream("xrpl", healthy(a, { objects: [{ LedgerEntryType: "RippleState", index: "R".repeat(64) }] }));
+    const { html } = await page(`/xrpl/account/${a}?tab=objects`);
     expect(textOf(html)).not.toContain("Showing the first 400");
     expect(textOf(html)).toContain("This account owns no other objects");
+  });
+
+  // The links of the Objects tab (ledger object pages spec 7, decision 11): the active account owns the escrow, the payment channel and a delegation of the ledger-object pages, and was sent
+  // their check (C7); LEDGER_OBJECTS and DELEGATION are on in this project.
+  it("?tab=objects of the active account opens its escrow, check and payment channel by their IDs, leads to its delegation, and names the source of the check it was sent", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/account/${ACTIVE}?tab=objects`);
+    const list = html.slice(html.indexOf('class="objectlist"'));
+    const opens = anchors(list).filter((a) => /^(Open|View) /.test(a.text));
+    expect(opens.map((a) => [a.text, /href="([^"]*)"/.exec(a.attrs)![1]])).toEqual([
+      ["Open escrow →", "/xrpl/escrows/0D1331F9B60A0BCEC44FA9A0A1C60BEE947936ED5BF17A8DFA7D1BA9DA22273E"],
+      ["Open check →", "/xrpl/checks/1D17BE181E11B2C0DF66782CCE12E3A47B569ADDB904BCE9B0482D0F02BC4F72"],
+      ["Open payment channel →", "/xrpl/payment-channels/B5AEC697DEA9EA4F87F6DF5AE07F475BD10096646B57077EC1743A00702543A3"],
+      ["View delegation →", `/xrpl/account/${ACTIVE}?tab=delegation`],
+    ]);
+    // The check's source, its From, is an account link; the delegation's row has its delegate, the account and the count of its permissions.
+    expect(hrefs(list)).toContain("/xrpl/account/rp8D2s2o2dDHxYNBobMmBmbjmzVEHDMPvp");
+    expect(textOf(list)).toMatch(/Check Send up to 100 XRP From .+ To .+ Expires/);
+    expect(textOf(list)).toMatch(/Delegate Delegate .+ On behalf of .+ Permissions 3 of 10/);
+    expect(textOf(html)).toContain("1 delegation given");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// The NFTs tab and the NFT objects (NFT spec 6.1). The recorded accounts that hold NFTs are the active ones of each network (`holderCase`: their lists are synthetic, derived from the
+// recorded NFT ledgers, nft-cases.ts); an account of the list below that the tests make holds what the test says.
+
+/** The data API's call for an account's NFTs: a page of 20, and no `descending` (the API's own order is by collection and serial). */
+const NFTS = (address: string, marker?: string) => `GET /v2/accounts/${address}/nfts?limit=20${marker ? `&marker=${marker}` : ""}`;
+
+/** The NFT of serial `serial` of the collection of `issuer` and `taxon`, as the index lists it for an account (no converted amount: D3's list rule). */
+const held = (serial: number, issuer = ACTIVE, taxon = 1) =>
+  nftSample({ nft_id: serial.toString(16).toUpperCase().padStart(64, "0"), issuer, taxon, serial, owner: undefined, owner_since: undefined, last_sale: undefined });
+
+describe("the NFTs tab", () => {
+  const path = `/xrpl/account/${ACTIVE}?tab=nfts`;
+  const FIRST = "001900007438324FE86D08A8B9D4FB58FBABF72EAAD24B4412C5D5A00000000C";
+  const SECOND = "00190BB8DAEF366CB05EE8DCC919EF9A1AA24DD22B3D62C937FFDB030669E968";
+  const THIRD = "00190BB8DAEF366CB05EE8DCC919EF9A1AA24DD22B3D62C993971F070669E96C";
+  const RLXC = "rLxc1bt5defiLJ9gaZEJqQWnNKYNawrwMy";
+
+  it("is asked of the recorded account that holds NFTs", async () => {
+    expect(await holderCase("xrpl")).toBe(ACTIVE);
+    expect(await holderCase("xahau")).toBe(XAHAU_ACTIVE);
+  });
+
+  it("lists what the account holds in the API's order: the NFT, its collection, the last sale and the day of the mint, each NFT and collection a link", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(path);
+    const rows = tableRows(html, "NFTs");
+    expect(rows[0]).toEqual(["NFT", "Collection", "Last sale", "Minted"]);
+    expect(rows.slice(1)).toEqual([
+      ["12 #12 00190000…000C", `${shortAddress(ACTIVE)} · taxon 7`, "—", "Oct 25, 2026"],
+      ["28 #107,604,328 00190BB8…E968", `${shortAddress(RLXC)} · taxon 0`, "20 XRP", "Oct 24, 2026"],
+      ["32 #107,604,332 00190BB8…E96C", `${shortAddress(RLXC)} · taxon 0`, "—", "Oct 25, 2026"],
+    ]);
+    expect(hrefs(html)).toEqual(expect.arrayContaining([`/xrpl/nft/${FIRST}`, `/xrpl/nft/${SECOND}`, `/xrpl/nft/${THIRD}`, `/xrpl/nfts/${ACTIVE}/7`, `/xrpl/nfts/${RLXC}/0`]));
+    // An account's list has no converted amount: nothing is "≈", and the whole list is complete (no coverage note).
+    expect(textOf(html)).not.toContain("≈");
+    expect(html).not.toContain('role="note"');
+    expect(textOf(html)).toContain("Showing 3 NFTs");
+  });
+
+  it("asks the data API for the account, its balances, the NFTs and the ledger of its last transaction, and the node for the account and its objects: nothing else, once, and not the transactions", async () => {
+    // A made-up account, so that nothing it asks for is in the subrequest cache already (the tests above fill it for the recorded one).
+    const a = account(83);
+    mock = mockUpstream("xrpl", {
+      ...healthy(a, { info: { PreviousTxnLgrSeq: 107700783 } }),
+      [NFTS(a)]: nftsPageSample({ nfts: [held(1, a)], count: 1, marker: undefined }),
+      "GET /v2/ledgers/107700783": { result: "success", ledger: { ledger_index: 107700783, close_time: 1792253462 } },
+    });
+    const { html } = await page(`/xrpl/account/${a}?tab=nfts`);
+    expect(withoutNamesOrTomls(mock.requests).filter((r) => r.key !== "node server_state").map((r) => r.key).sort()).toEqual(
+      [
+        `GET /v2/accounts/${a}`,
+        `GET /v2/accounts/${a}/balances`,
+        NFTS(a),
+        "GET /v2/ledgers/107700783",
+        `node account_info account=${a}&ledger_index=validated`,
+        `node account_objects account=${a}&ledger_index=validated&limit=400`,
+      ].sort(),
+    );
+    expect(mock.requests.every((r) => r.status === 200)).toBe(true);
+    expect(tableRows(html, "NFTs")).toHaveLength(2);
+    expect(await storedAs(`/xrpl/account/${a}?tab=nfts`)).toEqual(LIVE);
+  });
+
+  it("has the NFTs tab current, the account's holdings beside it, and the tab's own title, description and canonical URL, indexable", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(path);
+    const nav = accountTabsNav(html)!;
+    expect(anchors(nav).filter((a) => a.attrs.includes('aria-current="page"')).map((a) => a.text)).toEqual(["NFTs"]);
+    expect(textOf(html)).toContain("Owned objects");
+    expect(html).toContain(`<title>${await accountHeadOf("xrpl", ACTIVE)} · XRPL · explorer</title>`);
+    expect(html).toMatch(new RegExp(`<link rel="canonical" href="[^"]*/xrpl/account/${ACTIVE}\\?tab=nfts"`));
+    expect(html).not.toMatch(/<meta name="robots"/);
+  });
+
+  it("is the URITokens of Xahau: the tab, the table and the note of a coverage that starts late are in the network's words", async () => {
+    mock = mockUpstream("xahau");
+    const { html } = await page(`/xahau/account/${XAHAU_ACTIVE}?tab=nfts`);
+    const nav = accountTabsNav(html)!;
+    expect(anchors(nav).map((a) => a.text)).toEqual(["Transactions", "Payments", "Trades", "Offers", "Objects", "URITokens", "Analytics"]);
+    const rows = tableRows(html, "URITokens");
+    expect(rows[0]).toEqual(["URIToken", "Collection", "Last sale", "Minted"]);
+    expect(rows.slice(1)).toEqual([
+      ["8E 8E940BB8…88B5", shortAddress(XAHAU_ACTIVE), "—", "Oct 15, 2026"],
+      ["81 81077E1E…7EEC", shortAddress("rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb"), "1,500 XAH", "Oct 24, 2026"],
+    ]);
+    expect(hrefs(html)).toEqual(expect.arrayContaining([`/xahau/nft/8E940BB8B5533E2AC239DEFB78DDE8B317B73947D6458D7DACFD80C0CDB088B5`, `/xahau/nfts/rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb`, "/xahau/ledger/26533927"]));
+    expect(elementText(html, "coverage-note")).toBe("Covers ledger #26,533,927 onwards: earlier URITokens are not in the index yet.");
+    expect(textOf(html)).toContain("Showing 2 URITokens");
+    expect(await storedAs(`/xahau/account/${XAHAU_ACTIVE}?tab=nfts`)).toEqual(LIVE);
+  });
+
+  it("says so when the account holds none, and the deleted account has its banner above it", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/account/${DELETED}?tab=nfts`);
+    const text = textOf(html);
+    expect(text).toContain("Deleted");
+    expect(text).toContain("This account holds no NFTs in the index.");
+    expect(tableRows(html, "NFTs")).toHaveLength(1);
+  });
+
+  it("links Older to the API's marker, and the page behind it is class slow, noindex, follow, with no live state, whose only call is its own list", async () => {
+    const a = account(71);
+    mock = mockUpstream("xrpl", {
+      ...healthy(a),
+      [NFTS(a)]: nftsPageSample({ nfts: [held(1), held(2)], count: 2, marker: "M1" }),
+      [NFTS(a, "M1")]: nftsPageSample({ nfts: [held(3)], count: 1, marker: undefined }),
+    });
+    const first = await page(`/xrpl/account/${a}?tab=nfts`);
+    expect(hrefs(first.html)).toContain(`/xrpl/account/${a}?tab=nfts&marker=M1`);
+    expect(tableRows(first.html, "NFTs")).toHaveLength(3);
+
+    mock.requests.length = 0;
+    const second = await page(`/xrpl/account/${a}?tab=nfts&marker=M1`);
+    expect(await storedAs(`/xrpl/account/${a}?tab=nfts&marker=M1`)).toEqual(MARKER_PAGE);
+    expect(second.html).toMatch(/<meta name="robots" content="noindex, follow"/);
+    expect(second.html).toContain(`content="Older NFTs of the account ${a} on XRPL."`);
+    expect(second.html).not.toMatch(/<link rel="canonical"/);
+    expect(tableRows(second.html, "NFTs").slice(1).map((r) => r[0]!.split(" ")[1])).toEqual(["#3"]);
+    expect(textOf(second.html)).toContain("does not show the balance or the live state");
+    // Newer goes back to the first page of the tab; there is nothing older.
+    expect(hrefs(second.html)).toContain(`/xrpl/account/${a}?tab=nfts`);
+    const nav = /<nav class="pager"[^>]*>([\s\S]*?)<\/nav>/.exec(second.html)![1]!;
+    expect(anchors(nav).map((x) => x.text)).toEqual(["Newer"]);
+    expect(withoutNamesOrTomls(mock.requests).map((r) => r.key)).toEqual([NFTS(a, "M1")]);
+  });
+
+  it("goes back one page at a time: the third page remembers the markers before it", async () => {
+    const a = account(72);
+    mock = mockUpstream("xrpl", {
+      [NFTS(a, "M1")]: nftsPageSample({ nfts: [held(1)], count: 1, marker: "M2" }),
+      [NFTS(a, "M2")]: nftsPageSample({ nfts: [held(2)], count: 1, marker: "M3" }),
+    });
+    const second = await page(`/xrpl/account/${a}?tab=nfts&marker=M1`);
+    expect(hrefs(second.html)).toEqual(expect.arrayContaining([`/xrpl/account/${a}?tab=nfts`, `/xrpl/account/${a}?tab=nfts&marker=M2&back=M1`]));
+    const third = await page(`/xrpl/account/${a}?tab=nfts&marker=M2&back=M1`);
+    expect(hrefs(third.html)).toEqual(expect.arrayContaining([`/xrpl/account/${a}?tab=nfts&marker=M1`, `/xrpl/account/${a}?tab=nfts&marker=M3&back=M2.M1`]));
+  });
+
+  it("is a 404 of class short when the API refuses the marker, and when the list behind it is empty", async () => {
+    const a = account(73);
+    mock = mockUpstream("xrpl", {
+      [NFTS(a, "NOPE")]: () => dataApiError(400, "invalid marker"),
+      [NFTS(a, "M1")]: nftsPageSample({ nfts: [], count: 0, marker: undefined }),
+    });
+    for (const marker of ["NOPE", "M1"]) {
+      const { html } = await page(`/xrpl/account/${a}?tab=nfts&marker=${marker}`, 404);
+      expect(textOf(html)).toContain("We couldn’t find that page of the account");
+      expect(await storedAs(`/xrpl/account/${a}?tab=nfts&marker=${marker}`)).toEqual(SHORT);
+    }
+  });
+
+  it("is a 404 for a marker that is none, without a call, and a 503, stored for no time, when the list behind a marker cannot be loaded", async () => {
+    const a = account(74);
+    mock = mockUpstream("xrpl", { [NFTS(a, "M1")]: () => dataApiError(500, "boom") });
+    await page(`/xrpl/account/${a}?tab=nfts&marker=%3Cscript%3E`, 404);
+    expect(mock.requests).toEqual([]);
+    const response = await get(`/xrpl/account/${a}?tab=nfts&marker=M1`);
+    await response.text();
+    expect(response.status).toBe(503);
+    expect(await isStored(`/xrpl/account/${a}?tab=nfts&marker=M1`)).toBe(false);
+  });
+
+  it("renders the header, says 'Couldn’t load NFTs' with a Retry in place of the list when the API fails, stores nothing, and stores the next good render", async () => {
+    const a = account(75);
+    let calls = 0;
+    mock = mockUpstream("xrpl", {
+      ...healthy(a),
+      [NFTS(a)]: () => (++calls === 1 ? dataApiError(503, "unavailable") : Response.json(nftsPageSample({ nfts: [held(1)], count: 1, marker: undefined }))),
+    });
+    const first = await get(`/xrpl/account/${a}?tab=nfts`);
+    const html = await first.text();
+    expect(first.status).toBe(200);
+    expect(textOf(html)).toContain("XRP balance 25");
+    expect(textOf(html)).toContain("Couldn’t load NFTs");
+    expect(html).toMatch(/<button[^>]*>Retry<\/button>/);
+    expect(tableRows(html, "NFTs")).toEqual([]);
+    expect(await isStored(`/xrpl/account/${a}?tab=nfts`)).toBe(false);
+
+    const second = await get(`/xrpl/account/${a}?tab=nfts`);
+    const again = await second.text();
+    expect(second.headers.get("X-Cache")).toBe("MISS");
+    expect(textOf(again)).not.toContain("Couldn’t load");
+    expect(tableRows(again, "NFTs")).toHaveLength(2);
+    expect(await storedAs(`/xrpl/account/${a}?tab=nfts`)).toEqual(LIVE);
+  });
+
+  it("says 'Couldn’t load URITokens' on Xahau, in the data a client-side navigation fetches too", async () => {
+    const a = account(84);
+    mock = mockUpstream("xahau", { ...healthy(a), [NFTS(a)]: () => dataApiError(500, "boom") });
+    const { html } = await page(`/xahau/account/${a}?tab=nfts`);
+    expect(textOf(html)).toContain("Couldn’t load URITokens");
+    const data = decodeData(await (await get(`/xahau/account/${a}.data?tab=nfts`)).text())[ACCOUNT_ROUTE]!.data;
+    expect(data.list).toEqual({ state: "failed", what: "URITokens" });
+  });
+
+  it("gives a client-side navigation the list as data: rows, paging and coverage, and none of the API's raw fields", async () => {
+    const a = account(76);
+    mock = mockUpstream("xrpl", { ...healthy(a), [NFTS(a)]: nftsPageSample({ nfts: [held(5, a, 2)], count: 1, marker: "M1", coverage: coverageSample() }) });
+    const response = await get(`/xrpl/account/${a}.data?tab=nfts`);
+    const data = decodeData(await response.text())[ACCOUNT_ROUTE]!.data;
+    expect(data).toMatchObject({ kind: "account", mode: "live", tab: "nfts" });
+    expect(data.list).toEqual({
+      state: "ok",
+      tab: "nfts",
+      rows: [
+        {
+          key: "0".repeat(63) + "5",
+          nft: { id: "0".repeat(63) + "5", serial: 5, glyph: "05" },
+          collection: { label: `${shortAddress(a)} · taxon 2`, key: { issuer: a, taxon: 2 } },
+          lastSale: null,
+          minted: "—",
+        },
+      ],
+      paging: { newerHref: null, olderHref: `/xrpl/account/${a}?tab=nfts&marker=M1` },
+      coverage: { before: "Covers ledger ", ledger: 107874617, after: " onwards: earlier NFTs are not in the index yet." },
+      // The NFTs draw no account: the list asks no names.
+      names: { state: "ok", map: {} },
+    });
+  });
+
+  it("keeps the order the API gave and shows the page it was given: a page that is out of order stays so", async () => {
+    const a = account(77);
+    mock = mockUpstream("xrpl", { ...healthy(a), [NFTS(a)]: nftsPageSample({ nfts: [held(9, a, 2), held(100, a, 1), held(3, a, 0)], count: 3, marker: undefined }) });
+    const { html } = await page(`/xrpl/account/${a}?tab=nfts`);
+    expect(tableRows(html, "NFTs").slice(1).map((row) => row[0]!.split(" ")[1])).toEqual(["#9", "#100", "#3"]);
+  });
+});
+
+describe("the NFT objects of the Objects tab", () => {
+  const NFT = "00081388AF09C1D4B4D1E8031467F3508DFFADABEA73255F370449870655E6D8";
+  const nftPage = { LedgerEntryType: "NFTokenPage", index: "A".repeat(64), NFTokens: Array.from({ length: 32 }, () => ({})), PreviousTxnID: "AB".repeat(32) };
+  const nftOffer = {
+    LedgerEntryType: "NFTokenOffer",
+    index: "F".repeat(64),
+    NFTokenID: NFT,
+    Flags: 1,
+    Amount: "25000000",
+    Destination: account(79),
+    Expiration: 1792000000 - 946684800,
+    PreviousTxnID: "CD".repeat(32),
+  };
+
+  it("leads from an NFT page to the account's NFTs, keeps 'NFTs: 32', and gives an NFT offer its NFT as a link, side, amount, only for and expiry", async () => {
+    const a = account(78);
+    mock = mockUpstream("xrpl", healthy(a, { objects: [nftPage, nftOffer] }));
+    const { html } = await page(`/xrpl/account/${a}?tab=objects`);
+    const text = textOf(html);
+    expect(text).toContain("NFTokenPage NFTs 32");
+    expect(anchors(html).find((x) => x.text === "See the account’s NFTs")?.attrs).toContain(`href="/xrpl/account/${a}?tab=nfts"`);
+    expect(text).toContain(`NFTokenOffer NFT 00081388…E6D8 Side Sell Amount 25 XRP Only for ${shortAddress(account(79))} Expires 2026-10-14 17:46:40 UTC`);
+    expect(anchors(html).find((x) => x.text === "00081388…E6D8")?.attrs).toContain(`href="/xrpl/nft/${NFT}"`);
+    expect(hrefs(html)).toContain(`/xrpl/tx/${"CD".repeat(32)}`);
+    expect(await storedAs(`/xrpl/account/${a}?tab=objects`)).toEqual(LIVE);
+  });
+
+  it("gives a Xahau URIToken its link, its issuer and its sell offer, only for the account it is offered to", async () => {
+    const a = account(80);
+    const TOKEN = "9613336614047483F3AEC00173139D88FE9BA70720CAC2B46E12711A71A9AAE9";
+    const token = { LedgerEntryType: "URIToken", index: TOKEN, Issuer: account(81), Owner: a, Amount: "1500000000", Destination: account(82), PreviousTxnID: "EF".repeat(32) };
+    mock = mockUpstream("xahau", healthy(a, { objects: [token] }));
+    const { html } = await page(`/xahau/account/${a}?tab=objects`);
+    expect(textOf(html)).toContain(`URIToken URIToken 96133366…AAE9 Issuer ${shortAddress(account(81))} Sell offer 1,500 XAH , only for ${shortAddress(account(82))}`);
+    expect(anchors(html).find((x) => x.text === "96133366…AAE9")?.attrs).toContain(`href="/xahau/nft/${TOKEN}"`);
+    // Only an NFT page leads to the account's URITokens.
+    expect(textOf(html)).not.toContain("See the account’s");
+    // The owned objects count says URIToken, as the glossary does.
+    expect(textOf(html)).toMatch(/\b1 URIToken\b/);
   });
 });
 
@@ -1070,11 +1365,43 @@ describe("the list streams after the header", () => {
     expect(await copy!.text()).toContain("OfferCreate");
   });
 
+  it("streams the list's rows after its place, drawn by the list panels, a chunk of their own that the server's render waits for: a known row is in the document", async () => {
+    const a = account(41);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const history = await recordedList("transactions@descending=true&limit=20");
+    mock = mockUpstream("xrpl", {
+      ...healthy(a),
+      [LIST(a, "transactions")]: async () => {
+        await gate;
+        return Response.json(history);
+      },
+    });
+
+    const response = await get(`/xrpl/account/${a}`);
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let seen = "";
+    const deadline = Date.now() + 4_000;
+    while (!seen.includes("Loading transactions") && Date.now() < deadline) {
+      const part = await reader.read();
+      if (part.done) break;
+      seen += decoder.decode(part.value, { stream: true });
+    }
+    expect(seen).toContain("Loading transactions");
+    const place = seen.length;
+    release();
+    for (let part = await reader.read(); !part.done; part = await reader.read()) seen += decoder.decode(part.value, { stream: true });
+    // The rows are in what was sent after the list's place, whole: the date and time, the type and the result of the newest.
+    expect(tableRows(seen.slice(place), "Transactions").slice(1, 2).map((r) => [r[0], r[1], r[4]])).toEqual([["2026-10-17 16:11:02", "OfferCreate", "Success"]]);
+  });
+
   it("has the list's resolved markup after the header in the document, for the recorded account", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(`/xrpl/account/${ACTIVE}?case=order`);
-    expect(html.indexOf(`<h1 class="mono">${ACTIVE}</h1>`)).toBeGreaterThan(-1);
-    expect(html.indexOf(`<h1 class="mono">${ACTIVE}</h1>`)).toBeLessThan(html.indexOf("OfferCreate"));
+    // The recorded account has a name, which is its h1 (a name is not mono).
+    expect(html.indexOf('<h1 class="account-head__name">')).toBeGreaterThan(-1);
+    expect(html.indexOf('<h1 class="account-head__name">')).toBeLessThan(html.indexOf("OfferCreate"));
   });
 
   it("serves a visitor who is a search engine's crawler the whole page: the list is in the document", async () => {
@@ -1120,12 +1447,12 @@ describe("paging", () => {
     expect(text).not.toContain("Activation is not in the index");
     expect(text).toContain("does not show the balance or the live state");
     expect(text).not.toContain("Sequence");
-    expect(text).not.toContain("Tokens");
+    expect(mainTextOf(html)).not.toContain("Tokens");
     expect(text).not.toContain("Owned objects");
     expect(text).not.toContain("Live state unavailable");
     expect(hrefs(html)).toContain(`/xrpl/account/${a}`);
-    // Nothing but the page's own list was asked for: not the node, not the balances, not the creation of the account.
-    expect(mock.requests.map((r) => r.key)).toEqual([LIST(a, "transactions", "M1")]);
+    // Nothing but the page's own list was asked for (and its names: account-names.spec.ts): not the node, not the balances, not the creation of the account.
+    expect(withoutNamesOrTomls(mock.requests).map((r) => r.key)).toEqual([LIST(a, "transactions", "M1")]);
     expect(mock.unusedOverrides()).toEqual([]);
   });
 
@@ -1293,15 +1620,24 @@ describe("the query of the URL", () => {
   );
 });
 
+/** The elements a drawing is made of: the numbers of their geometry are no text. */
+const DRAWING = new Set(["svg", "g", "path", "circle", "ellipse", "rect", "line", "polyline", "polygon"]);
+/** The attributes of those that are geometry. */
+const GEOMETRY = new Set(["d", "r", "rx", "ry", "cx", "cy", "x", "y", "x1", "x2", "y1", "y2", "points"]);
+
 /**
  * What a page tells, apart from its scripts: its visible text and the values of the attributes of its tags, outside `<script>` and `<style>`
  * elements (a canonical link, a `content`, an `href`, a `value`). The names of the build's own files (`/assets/...`, hashed with random text) are
- * not told by anybody.
+ * not told by anybody, nor is the geometry of a drawing (the `d` of a path, the `r` of a circle).
  */
 function toldBy(html: string): string[] {
   const markup = html.replace(/<script\b[\s\S]*?<\/script>/gi, "<script></script>").replace(/<style\b[\s\S]*?<\/style>/gi, "<style></style>");
-  const values = [...markup.matchAll(/<[a-zA-Z][^>]*>/g)].flatMap((tag) =>
-    [...tag[0].matchAll(/\s[\w:.-]+="([^"]*)"/g)].map((attribute) => attribute[1]!.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">")),
+  // The geometry of a drawing is numbers: nobody is told by an icon's path or circle (the seal of a verified name has "21.5" in it, the tag of a name GateHub gave a radius of 1.5). Only
+  // an element of a drawing: on any other, `x` or `d` is an attribute like the rest.
+  const values = [...markup.matchAll(/<([a-zA-Z][\w:-]*)[^>]*>/g)].flatMap((tag) =>
+    [...tag[0].matchAll(/\s([\w:.-]+)="([^"]*)"/g)]
+      .filter((attribute) => !(DRAWING.has(tag[1]!.toLowerCase()) && GEOMETRY.has(attribute[1]!)))
+      .map((attribute) => attribute[2]!.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">")),
   );
   return [textOf(html), ...values.filter((value) => !value.startsWith("/assets/"))];
 }
@@ -1323,6 +1659,17 @@ describe("what a page tells (toldBy, for the ?tag tests above)", () => {
     const html = sample.replace("</head>", "<style>.a007{color:red}</style></head>");
     expect(html).toContain("007");
     expect(toldBy(html).filter((told) => told.includes("007"))).toEqual([]);
+  });
+
+  it("does not find digits in the geometry of a drawing, which an icon is made of", () => {
+    const html = sample.replace("<p>", '<p><svg><path d="M12 21.5l-2.4-1.8"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg>');
+    expect(html).toContain("1.5");
+    expect(toldBy(html).filter((told) => told.includes("1.5"))).toEqual([]);
+  });
+
+  it("finds digits in the attributes of an element that is no drawing, even those a drawing's geometry is made of", () => {
+    const html = sample.replace("<p>", '<p data-a="1" x="007" y="007" d="007" r="007">');
+    expect(toldBy(html).filter((told) => told.includes("007"))).toEqual(["007", "007", "007", "007"]);
   });
 
   it.each([

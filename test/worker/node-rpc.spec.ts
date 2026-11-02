@@ -2,11 +2,12 @@ import { encodeAccountID } from "ripple-address-codec";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import type { Asset } from "../../app/domain/asset";
-import type { CacheClass } from "../../app/server/cache-class";
+import type { CacheClass, SubrequestCache } from "../../app/server/cache-class";
 import { createSubrequestCache } from "../../app/server/edge-cache";
 import type { Env } from "../../app/server/env";
 import { networkOf } from "../../app/server/networks";
 import { BOOK_OFFERS_LIMIT, createNodeRpc, RIPPLE_EPOCH_OFFSET, UpstreamError } from "../../app/server/node-rpc";
+import { NFT_TX_HASH, NODE_NFT_ID, nodeNftInfoSample, nodeUriTokenSample, URI_TOKEN_ID, URI_TOKEN_ISSUER } from "../support/nft-samples";
 import { passThroughCache, recordingCache } from "../support/subrequest-cache";
 import { allSwitches } from "../support/switches";
 
@@ -17,6 +18,7 @@ import { allSwitches } from "../support/switches";
 import ammDepositMeta from "../fixtures/runtime/amm-deposit.meta.json";
 
 const env: Env = {
+  ENVIRONMENT: "development",
   XRPL_DATA_API_URL: "https://xrpl.data.example.invalid",
   XAHAU_DATA_API_URL: "https://xahau.data.example.invalid",
   XRPL_NODE_URL: "https://s1.ripple.com:51234/",
@@ -1520,5 +1522,712 @@ describe("amm_info", () => {
       expect(cache.calls[2]!.key).toBe(`${cache.calls[0]!.key} [kept 2 s]`);
       expect(cache.calls[3]!.key).toBe(`${cache.calls[1]!.key} [kept 5 s]`);
     });
+  });
+});
+
+// ---- NFTs: nft_info, nft_sell_offers, nft_buy_offers and the URIToken's ledger_entry ---------------------------------------
+
+// What the nodes answered when these readers were written (2026-10-24, read-only POSTs to https://s1.ripple.com:51234/, a Clio server, and to https://xahau.network/):
+//
+//   nft_info, an NFT:         `{ nft_id, ledger_index (a number), owner, is_burned, flags, transfer_fee, issuer, nft_taxon, nft_serial, validated: true, uri (hex), status }`;
+//                             `warnings` sits beside `result`. A NFT it has none of: `objectNotFound`, error_code 92, "NFT not found".
+//   nft_sell_offers, buy:     for an NFT with no offer (and for one that is none): `objectNotFound`, 92, "notFound".
+//   ledger_entry, `index` of a URIToken, on xahau.network: `{ index, ledger_hash, ledger_index, node: { Digest, Flags, Issuer, LedgerEntryType: "URIToken", Owner, OwnerNode,
+//                             PreviousTxnID, PreviousTxnLgrSeq, Remarks, URI, index }, validated: true }`; an index with no entry: `entryNotFound` with no `error_code`.
+
+describe("the NFT commands", () => {
+  /** The readers say once, on stderr, that a node does not know a command: the test of that is below, the others keep the line out of the output. */
+  let logged: MockInstance<typeof console.error>;
+  beforeEach(() => {
+    logged = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  const NFT = NODE_NFT_ID;
+  const OFFER_INDEX = "3CD49EC73A6F77B3D365B97FEAC58825EE08F1342C25BBD53A6B34062E242A2E";
+  const BUYER = "rMTaAGVd77vAbzDv8qhoMgnZR1T5R3w6Wq";
+  const USD_ISSUER = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
+
+  /** Clio's `nft_info` result: what the reader returns, and `validated` (the `status` is `success()`'s). */
+  const infoResult = (over: Record<string, unknown> = {}) => ({ ...nodeNftInfoSample(), validated: true, ...over });
+  const withoutKey = (result: object, key: string) => Object.fromEntries(Object.entries(result).filter(([name]) => name !== key));
+
+  /** `nftInfo` on the XRP Ledger's node, whatever `fetch` answers next. */
+  const info = (id = NFT) => rpc().nftInfo(id);
+
+  describe("nftInfo", () => {
+    it("asks Clio for the NFT on the newest validated ledger", async () => {
+      fetchSpy.mockResolvedValueOnce(success(infoResult()));
+
+      await info();
+
+      expect(sentRequest().url).toBe("https://s1.ripple.com:51234/");
+      expect(await sentBody()).toEqual({ method: "nft_info", params: [{ nft_id: NFT, ledger_index: "validated" }] });
+    });
+
+    it("returns Clio's answer: the owner, is_burned false, flags 8, a transfer fee of 5000, taxon 500 and serial 106293080, the URI as hex", async () => {
+      fetchSpy.mockResolvedValueOnce(success(infoResult()));
+
+      const found = await info();
+
+      expect(found).toEqual({
+        nft_id: NFT,
+        ledger_index: 107671930,
+        owner: "rfxioGqxazNZt3sbeVSZtziEQBHHJAXXjE",
+        is_burned: false,
+        flags: 8,
+        transfer_fee: 5000,
+        issuer: "rGxWAWXg8okZh29ojBRvEMpN5peQRV16Xu",
+        nft_taxon: 500,
+        nft_serial: 106293080,
+        uri: "697066733A2F2F6261667962656963696A356672347537666F79756235376E7A6764736D66646B766B796D336F6C793363746D32736C6335636671793337716F6F792F39362E6A736F6E",
+      });
+      expect(found).toEqual(nodeNftInfoSample());
+      // The keys in the order the type has them, and nothing of the node's wrapper.
+      expect(Object.keys(found)).toEqual(["nft_id", "ledger_index", "owner", "is_burned", "flags", "transfer_fee", "issuer", "nft_taxon", "nft_serial", "uri"]);
+    });
+
+    it("asks for the id in upper case, whatever case it is given in, and returns it as the node writes it", async () => {
+      fetchSpy.mockResolvedValueOnce(success(infoResult()));
+      expect((await info(NFT.toLowerCase())).nft_id).toBe(NFT);
+      expect(await sentBody()).toEqual({ method: "nft_info", params: [{ nft_id: NFT, ledger_index: "validated" }] });
+
+      // The node's own spelling of the id is not a difference either.
+      fetchSpy.mockResolvedValueOnce(success(infoResult({ nft_id: NFT.toLowerCase() })));
+      expect((await info()).nft_id).toBe(NFT);
+    });
+
+    // Clio writes `"uri": ""` for an NFT minted without a URI (the NFT's page shows "no URI", as for a missing key): it is not a failure of the node.
+    it("takes an empty uri as no URI, and the NFT is the same one as with the key left out", async () => {
+      fetchSpy.mockResolvedValueOnce(success(infoResult({ uri: "" })));
+
+      const bare = await info();
+
+      expect("uri" in bare).toBe(false);
+      expect(bare).toEqual(withoutKey(nodeNftInfoSample(), "uri"));
+      expect(Object.keys(bare)).toEqual(["nft_id", "ledger_index", "owner", "is_burned", "flags", "transfer_fee", "issuer", "nft_taxon", "nft_serial"]);
+    });
+
+    it("takes an NFT with no URI, and a burned one, which has none and whatever the node says its owner is", async () => {
+      fetchSpy.mockResolvedValueOnce(success(withoutKey(infoResult(), "uri")));
+      const bare = await info();
+      expect("uri" in bare).toBe(false);
+      expect(bare).toEqual(withoutKey(nodeNftInfoSample(), "uri"));
+
+      fetchSpy.mockResolvedValueOnce(success(withoutKey(infoResult({ is_burned: true, owner: "rrrrrrrrrrrrrrrrrrrrrhoLvTp" }), "uri")));
+      expect(await info()).toEqual({ ...bare, is_burned: true, owner: "rrrrrrrrrrrrrrrrrrrrrhoLvTp" });
+    });
+
+    describe("what is not found", () => {
+      it.each([
+        ["objectNotFound", "NFT not found"],
+        ["entryNotFound", ""],
+      ])("%s is not_found", async (code, message) => {
+        fetchSpy.mockResolvedValueOnce(failure(code, message));
+
+        const error = await failureOf(info());
+
+        expect(error.kind).toBe("not_found");
+        expect(error.message).toContain(code);
+      });
+
+      // A node that is not Clio (rippled cannot look an NFT up by its id) is a node with no NFT page to show: nothing found, not an outage; said once per Worker instance.
+      it.each(["unknownCmd", "notImpl"])("%s, a node that is not Clio, is not_found too", async (code) => {
+        fetchSpy.mockResolvedValueOnce(failure(code, "Unknown method."));
+
+        const error = await failureOf(info());
+
+        expect(error.kind).toBe("not_found");
+        expect(error.message).toContain(code);
+      });
+
+      it("says once per Worker instance, in the log, that the node does not know the command, however many calls it fails", async () => {
+        // A new module has a new flag: the Worker instance this test is. (The others of this file have used the old one.)
+        vi.resetModules();
+        const fresh = await import("../../app/server/node-rpc");
+        fetchSpy.mockImplementation(async () => failure("unknownCmd", "Unknown method."));
+        const node = fresh.createNodeRpc(xrpl, passThroughCache);
+
+        for (const id of [NFT, "0".repeat(63) + "1"]) {
+          const error = await node.nftInfo(id).then(
+            () => undefined,
+            (reason: unknown) => reason,
+          );
+          expect(error).toBeInstanceOf(fresh.UpstreamError);
+          expect((error as UpstreamError).kind).toBe("not_found");
+        }
+        fetchSpy.mockImplementation(async () => failure("notImpl"));
+        await node.nftInfo(NFT).catch(() => undefined);
+
+        expect(fetchSpy).toHaveBeenCalledTimes(3);
+        expect(logged).toHaveBeenCalledTimes(1);
+        expect(JSON.parse(logged.mock.calls[0]![0] as string)).toMatchObject({ level: "error", what: expect.stringContaining("nft_info"), error: expect.stringContaining("unknownCmd") });
+      });
+
+      it("does not say it for the codes that are an NFT's own, or for a failure of any other kind", async () => {
+        vi.resetModules();
+        const fresh = await import("../../app/server/node-rpc");
+        const node = fresh.createNodeRpc(xrpl, passThroughCache);
+        for (const code of ["objectNotFound", "entryNotFound", "slowDown", "noNetwork"]) {
+          fetchSpy.mockResolvedValueOnce(failure(code));
+          await node.nftInfo(NFT).catch(() => undefined);
+        }
+        expect(logged).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("what is not an answer", () => {
+      it("is rate_limited for slowDown, bad_request for an id the node cannot read, and server for any other failure of the node, a 5xx included", async () => {
+        fetchSpy.mockResolvedValueOnce(failure("slowDown"));
+        expect((await failureOf(info())).kind).toBe("rate_limited");
+        for (const code of ["invalidParams", "malformedRequest"]) {
+          fetchSpy.mockResolvedValueOnce(failure(code));
+          expect((await failureOf(info())).kind, code).toBe("bad_request");
+        }
+        for (const code of ["noNetwork", "internal", "lgrNotFound", "actNotFound"]) {
+          fetchSpy.mockResolvedValueOnce(failure(code));
+          expect((await failureOf(info())).kind, code).toBe("server");
+        }
+        fetchSpy.mockResolvedValueOnce(new Response("overloaded", { status: 503 }));
+        expect((await failureOf(info())).kind).toBe("server");
+      });
+
+      it.each([
+        ["another NFT than the one asked for", "nft_id", { nft_id: "A".repeat(64) }],
+        ["no validated", "validated", { validated: undefined }],
+        ["a validated that is false", "validated", { validated: false }],
+        ["a validated that is the text true", "validated", { validated: "true" }],
+        ["no nft_id", "nft_id", { nft_id: undefined }],
+        ["an owner that is no address", "owner", { owner: "rNope" }],
+        ["no owner", "owner", { owner: undefined }],
+        ["an is_burned that is text", "is_burned", { is_burned: "false" }],
+        ["no is_burned", "is_burned", { is_burned: undefined }],
+        ["a flags that is text", "flags", { flags: "8" }],
+        ["a negative flags", "flags", { flags: -8 }],
+        ["a transfer_fee above 50000", "transfer_fee", { transfer_fee: 50001 }],
+        ["a transfer_fee with a fraction", "transfer_fee", { transfer_fee: 0.5 }],
+        ["an issuer that is no address", "issuer", { issuer: "rNope" }],
+        ["a nft_taxon that is negative", "nft_taxon", { nft_taxon: -1 }],
+        ["a nft_taxon beyond 4294967295", "nft_taxon", { nft_taxon: 4294967296 }],
+        ["a nft_serial that is text", "nft_serial", { nft_serial: "106293080" }],
+        ["a ledger_index that is text", "ledger_index", { ledger_index: "107671930" }],
+        ["a uri that is not hex", "uri", { uri: "ipfs://x" }],
+        ["a uri of an odd length", "uri", { uri: "697" }],
+        ["a uri that is a number", "uri", { uri: 7 }],
+      ] as const)("is a server error: %s", async (_what, field, over) => {
+        fetchSpy.mockResolvedValueOnce(success(infoResult(over)));
+
+        const error = await failureOf(info());
+
+        expect(error.kind).toBe("server");
+        expect(error.status).toBe(200);
+        expect(error.message).toContain("node nft_info answered something unexpected");
+        expect(error.message).toContain(field);
+      });
+
+      it("is a server error for a result that is none", async () => {
+        fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ nothing: true }), { status: 200 }));
+        expect((await failureOf(info())).kind).toBe("server");
+      });
+    });
+
+    it("is class live and kept as long as the class says, under the node, the method and the NFT", async () => {
+      const cache = recordingCache();
+      fetchSpy.mockImplementation(async () => success(infoResult()));
+
+      await createNodeRpc(xrpl, cache).nftInfo(NFT);
+
+      expect(cache.calls.map((c) => [c.cls, c.ttlOverride, c.holdFailure])).toEqual([["live", undefined, undefined]]);
+      expect(cache.calls[0]!.key).toBe(`POST https://s1.ripple.com:51234/ {"method":"nft_info","params":[{"nft_id":"${NFT}","ledger_index":"validated"}]}`);
+    });
+  });
+
+  describe("nftSellOffers and nftBuyOffers", () => {
+    const offer = (extra: Record<string, unknown> = {}) => ({ amount: "6290000", flags: 1, nft_offer_index: OFFER_INDEX, owner: BUYER, ...extra });
+    const offersResult = (offers: unknown[] = [offer()], extra: Record<string, unknown> = {}) => ({ nft_id: NFT, offers, limit: 50, validated: true, ...extra });
+    const sell = (id = NFT) => rpc().nftSellOffers(id);
+    const buy = (id = NFT) => rpc().nftBuyOffers(id);
+
+    it("asks for the first 50 offers of the side, on the newest validated ledger", async () => {
+      fetchSpy.mockResolvedValueOnce(success(offersResult())).mockResolvedValueOnce(success(offersResult()));
+
+      await sell();
+      await buy();
+
+      expect(await sentBody(0)).toEqual({ method: "nft_sell_offers", params: [{ nft_id: NFT, ledger_index: "validated", limit: 50 }] });
+      expect(await sentBody(1)).toEqual({ method: "nft_buy_offers", params: [{ nft_id: NFT, ledger_index: "validated", limit: 50 }] });
+    });
+
+    it("returns the offers in the node's order, native amounts in whole units, an issued amount as it is, the expiration in unix seconds", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        success(
+          offersResult([
+            offer({ destination: ACCOUNT, expiration: RIPPLE_TIME }),
+            offer({ nft_offer_index: "B".repeat(64), flags: 0, amount: { currency: "USD", issuer: USD_ISSUER, value: "12.5" } }),
+            offer({ nft_offer_index: "C".repeat(64), amount: "0" }),
+          ]),
+        ),
+      );
+
+      expect(await sell()).toEqual({
+        offers: [
+          { nft_offer_index: OFFER_INDEX, flags: 1, owner: BUYER, amount: { currency: "XRP", value: "6.29" }, destination: ACCOUNT, expiration: UNIX_TIME },
+          { nft_offer_index: "B".repeat(64), flags: 0, owner: BUYER, amount: { currency: "USD", issuer: USD_ISSUER, value: "12.5" } },
+          { nft_offer_index: "C".repeat(64), flags: 1, owner: BUYER, amount: { currency: "XRP", value: "0" } },
+        ],
+        more: false,
+      });
+    });
+
+    it("reads Clio's own answer for an NFT with offers (read on 2026-10-27): validated, three offers to buy with a destination, one with no expiration", async () => {
+      const id = "00081388EF7C422EF52CEB969960BEF4144D7BC3F862C467E0D5C5F7059EA05C";
+      const destination = "rpx9JThQ2y37FaGeeJP7PXDUVEXY3PHZSC";
+      fetchSpy.mockResolvedValueOnce(
+        success({
+          nft_id: id,
+          validated: true,
+          offers: [
+            { nft_offer_index: "447CCCCCE6D87B6819D1F62A706B874156B40A0539AA2A6FC068A29C7AC72EB5", flags: 0, owner: "rf7Db55CXcWgqmHnb1Pjx1WVGNCqMNsyZ", amount: "500000000", destination, expiration: 847014951 },
+            { nft_offer_index: "A7F886FD3A6FFF90B57C3342507C9FF7700E871BCF71DFE80676D88E3AFF71C3", flags: 0, owner: "rf7Db55CXcWgqmHnb1Pjx1WVGNCqMNsyZ", amount: "525001050", destination, expiration: 847015227 },
+            { nft_offer_index: "A9EDEDC7B4B623472504AECA9C8AF6731482BA2F69C69A09BCF02BD319796CDF", flags: 0, owner: "rHALT8JEoSoWK4DmHnYWv9wgfnJmpS25Mv", amount: "500001000", destination },
+          ],
+        }),
+      );
+
+      expect(await buy(id)).toEqual({
+        offers: [
+          { nft_offer_index: "447CCCCCE6D87B6819D1F62A706B874156B40A0539AA2A6FC068A29C7AC72EB5", flags: 0, owner: "rf7Db55CXcWgqmHnb1Pjx1WVGNCqMNsyZ", amount: { currency: "XRP", value: "500" }, destination, expiration: 1_793_699_751 },
+          { nft_offer_index: "A7F886FD3A6FFF90B57C3342507C9FF7700E871BCF71DFE80676D88E3AFF71C3", flags: 0, owner: "rf7Db55CXcWgqmHnb1Pjx1WVGNCqMNsyZ", amount: { currency: "XRP", value: "525.00105" }, destination, expiration: 1_793_699_751 + 276 },
+          { nft_offer_index: "A9EDEDC7B4B623472504AECA9C8AF6731482BA2F69C69A09BCF02BD319796CDF", flags: 0, owner: "rHALT8JEoSoWK4DmHnYWv9wgfnJmpS25Mv", amount: { currency: "XRP", value: "500.001" }, destination },
+        ],
+        more: false,
+      });
+    });
+
+    it("has more when the node had a marker for more, and not for an answer without one", async () => {
+      fetchSpy.mockResolvedValueOnce(success(offersResult([offer()], { marker: "ABC123" })));
+      expect((await buy()).more).toBe(true);
+      fetchSpy.mockResolvedValueOnce(success(offersResult([offer()])));
+      expect((await buy()).more).toBe(false);
+    });
+
+    it("is an empty list of offers for an answer that lists none", async () => {
+      fetchSpy.mockResolvedValueOnce(success(offersResult([])));
+      expect(await sell()).toEqual({ offers: [], more: false });
+    });
+
+    it("is an empty list for objectNotFound, which is what the node says of an NFT with no offer on that side", async () => {
+      fetchSpy.mockResolvedValueOnce(failure("objectNotFound", "notFound"));
+      expect(await sell()).toEqual({ offers: [], more: false });
+      fetchSpy.mockResolvedValueOnce(failure("objectNotFound", "notFound"));
+      expect(await buy()).toEqual({ offers: [], more: false });
+    });
+
+    it("keeps that empty list, as an answer: the second call for an NFT with no offer makes no request", async () => {
+      const pending: Promise<unknown>[] = [];
+      const ctx = { waitUntil: (p: Promise<unknown>) => void pending.push(p), passThroughOnException() {} } as unknown as ExecutionContext;
+      const node = createNodeRpc(xrpl, createSubrequestCache(ctx, "node-no-offers"));
+      const id = "0008138800000000000000000000000000000000000000000000000000000001";
+      fetchSpy.mockImplementation(async () => failure("objectNotFound", "notFound"));
+
+      expect(await node.nftSellOffers(id)).toEqual({ offers: [], more: false });
+      await Promise.all(pending.splice(0));
+      expect(await node.nftSellOffers(id)).toEqual({ offers: [], more: false });
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not read the other codes as no offers: not even the ones that are not found for the other commands", async () => {
+      for (const [code, kind] of [
+        ["lgrNotFound", "server"],
+        ["actNotFound", "server"],
+        ["entryNotFound", "server"],
+        ["unknownCmd", "server"],
+        ["slowDown", "rate_limited"],
+        ["invalidParams", "bad_request"],
+      ] as const) {
+        fetchSpy.mockResolvedValueOnce(failure(code));
+        expect((await failureOf(sell())).kind, code).toBe(kind);
+      }
+      expect(logged).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["an answer for another NFT", "nft_id", { nft_id: "A".repeat(64) }],
+      ["no nft_id", "nft_id", { nft_id: undefined }],
+      ["a validated that is false", "validated", { validated: false }],
+      ["no offers", "offers", { offers: undefined }],
+      ["offers that are not a list", "offers", { offers: {} }],
+      ["more offers than the 50 asked for", "offers", { offers: Array.from({ length: 51 }, () => offer()) }],
+      ["a marker that is a number", "marker", { marker: 5 }],
+      ["an offer that is text", "offers[0]", { offers: ["offer"] }],
+      ["an offer with no index", "nft_offer_index", { offers: [offer({ nft_offer_index: undefined })] }],
+      ["an offer index that is no hash", "nft_offer_index", { offers: [offer({ nft_offer_index: "abc" })] }],
+      ["an offer with flags that are text", "flags", { offers: [offer({ flags: "1" })] }],
+      ["an offer whose owner is no address", "owner", { offers: [offer({ owner: "rNope" })] }],
+      ["an offer with no amount", "amount", { offers: [offer({ amount: undefined })] }],
+      ["an amount of drops that are not drops", "amount", { offers: [offer({ amount: "6.29" })] }],
+      ["an issued amount without issuer", "amount", { offers: [offer({ amount: { currency: "USD", value: "1" } })] }],
+      ["a destination that is no address", "destination", { offers: [offer({ destination: "rNope" })] }],
+      ["an expiration that is text", "expiration", { offers: [offer({ expiration: "soon" })] }],
+    ] as const)("is a server error: %s", async (_what, field, over) => {
+      fetchSpy.mockResolvedValueOnce(success(offersResult(undefined, over)));
+
+      const error = await failureOf(sell());
+
+      expect(error.kind).toBe("server");
+      expect(error.status).toBe(200);
+      expect(error.message).toContain("node nft_sell_offers answered something unexpected");
+      expect(error.message).toContain(field);
+    });
+
+    it("accepts an answer with no validated (Clio serves validated data only), like book_offers", async () => {
+      fetchSpy.mockResolvedValueOnce(success(offersResult(undefined, { validated: undefined })));
+      expect((await sell()).offers).toHaveLength(1);
+    });
+
+    it("is class live, a side under a key of its own", async () => {
+      const cache = recordingCache();
+      fetchSpy.mockImplementation(async () => success(offersResult()));
+      const node = createNodeRpc(xrpl, cache);
+
+      await node.nftSellOffers(NFT);
+      await node.nftBuyOffers(NFT);
+
+      expect(cache.calls.map((c) => [c.cls, c.ttlOverride])).toEqual([
+        ["live", undefined],
+        ["live", undefined],
+      ]);
+      expect(cache.calls[0]!.key).toContain('"method":"nft_sell_offers"');
+      expect(cache.calls[1]!.key).toContain('"method":"nft_buy_offers"');
+      expect(cache.calls[0]!.key).toContain(`"nft_id":"${NFT}"`);
+    });
+  });
+
+  describe("uriToken", () => {
+    const uriToken = (id = URI_TOKEN_ID) => createNodeRpc(xahau, passThroughCache).uriToken(id);
+    const entry = (extra: Record<string, unknown> = {}) => ({
+      Digest: "772B38763E8E603AEE9BBB2026B8E9B97537ECC8867E46D042630C0B326B8736",
+      Flags: 0,
+      Issuer: URI_TOKEN_ISSUER,
+      LedgerEntryType: "URIToken",
+      Owner: "rLEUHuVCd8o9XmKn3nk8oGwYS3QEpUjo3e",
+      OwnerNode: "0",
+      PreviousTxnID: NFT_TX_HASH,
+      PreviousTxnLgrSeq: 26763779,
+      Remarks: [{ Remark: { RemarkName: "696D672E30", RemarkValue: "52494646" } }],
+      URI: "6F64696E73657965733A726176656E3A76323A3030346230353234",
+      index: URI_TOKEN_ID,
+      ...extra,
+    });
+    /** xahau.network's `ledger_entry` result. */
+    const entryResult = (node: Record<string, unknown> = entry(), extra: Record<string, unknown> = {}) => ({
+      index: URI_TOKEN_ID,
+      ledger_hash: LEDGER_HASH,
+      ledger_index: 26829859,
+      node,
+      validated: true,
+      ...extra,
+    });
+
+    it("asks the node for the entry at the URIToken's id, on the newest validated ledger", async () => {
+      fetchSpy.mockResolvedValueOnce(success(entryResult()));
+
+      await uriToken();
+
+      expect(sentRequest().url).toBe("https://xahau.network/");
+      expect(await sentBody()).toEqual({ method: "ledger_entry", params: [{ index: URI_TOKEN_ID, ledger_index: "validated" }] });
+    });
+
+    it("returns the URIToken: its owner, issuer, URI, digest and flags, and the ledger it was read at, the Remarks and the rest of the entry left out", async () => {
+      fetchSpy.mockResolvedValueOnce(success(entryResult()));
+
+      const found = await uriToken();
+
+      expect(found).toEqual(nodeUriTokenSample());
+      expect(Object.keys(found)).toEqual(["index", "ledger_index", "Owner", "Issuer", "URI", "Digest", "Flags"]);
+    });
+
+    it("returns its sell offer when it has one: the amount in whole units of the native currency (XAH), and the destination", async () => {
+      fetchSpy.mockResolvedValueOnce(success(entryResult(entry({ Amount: "4200000000", Destination: ACCOUNT }))));
+      expect(await uriToken()).toEqual(nodeUriTokenSample({ Amount: { currency: "XAH", value: "4200" }, Destination: ACCOUNT }));
+
+      fetchSpy.mockResolvedValueOnce(success(entryResult(entry({ Amount: { currency: "EVR", issuer: "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8", value: "12.5" } }))));
+      expect((await uriToken()).Amount).toEqual({ currency: "EVR", issuer: "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8", value: "12.5" });
+    });
+
+    it("takes a URIToken with no digest", async () => {
+      const { Digest, ...bare } = entry();
+      fetchSpy.mockResolvedValueOnce(success(entryResult(bare)));
+      expect(await uriToken()).toEqual(nodeUriTokenSample({ Digest: undefined }));
+      expect(Digest).toBeDefined();
+    });
+
+    it("takes the id in any case and returns the entry's own", async () => {
+      fetchSpy.mockResolvedValueOnce(success(entryResult()));
+      expect((await uriToken(URI_TOKEN_ID.toLowerCase())).index).toBe(URI_TOKEN_ID);
+    });
+
+    it("is not_found for entryNotFound, which xahaud says with no error_code", async () => {
+      fetchSpy.mockResolvedValueOnce(answer({ error: "entryNotFound", ledger_hash: LEDGER_HASH, ledger_index: 26829859, validated: true, request: {}, status: "error" }));
+
+      const error = await failureOf(uriToken());
+
+      expect(error.kind).toBe("not_found");
+      expect(error.message).toContain("entryNotFound");
+    });
+
+    it("is not_found for an entry that is no URIToken: the id of an account root, or of an offer", async () => {
+      for (const type of ["AccountRoot", "Offer", "NFTokenPage"]) {
+        fetchSpy.mockResolvedValueOnce(success(entryResult(entry({ LedgerEntryType: type }))));
+        const error = await failureOf(uriToken());
+        expect([type, error.kind]).toEqual([type, "not_found"]);
+        expect(error.message).toContain(type);
+      }
+      expect(logged).not.toHaveBeenCalled();
+    });
+
+    it("is the node's own kind for any other failure", async () => {
+      for (const [code, kind] of [
+        ["slowDown", "rate_limited"],
+        ["malformedRequest", "bad_request"],
+        ["invalidParams", "bad_request"],
+        ["noNetwork", "server"],
+        ["lgrNotFound", "server"],
+        ["objectNotFound", "server"],
+        ["unknownCmd", "server"],
+      ] as const) {
+        fetchSpy.mockResolvedValueOnce(failure(code));
+        expect((await failureOf(uriToken())).kind, code).toBe(kind);
+      }
+      expect(logged).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["an entry for another id than the one asked for", "index", entryResult(entry({ index: "A".repeat(64) }), { index: "A".repeat(64) })],
+      ["no index", "index", entryResult(entry({ index: undefined }), { index: undefined })],
+      ["no validated", "validated", entryResult(undefined, { validated: undefined })],
+      ["a validated that is false", "validated", entryResult(undefined, { validated: false })],
+      ["no node", "node", entryResult(undefined, { node: undefined })],
+      ["a node that is text", "node", entryResult(undefined, { node: "entry" })],
+      ["no ledger_index", "ledger_index", entryResult(undefined, { ledger_index: undefined })],
+      ["an owner that is no address", "Owner", entryResult(entry({ Owner: "rNope" }))],
+      ["no issuer", "Issuer", entryResult(entry({ Issuer: undefined }))],
+      ["no URI", "URI", entryResult(entry({ URI: undefined }))],
+      ["a URI that is not hex", "URI", entryResult(entry({ URI: "ipfs://x" }))],
+      ["a digest of 63 digits", "Digest", entryResult(entry({ Digest: "7".repeat(63) }))],
+      ["flags that are text", "Flags", entryResult(entry({ Flags: "0" }))],
+      ["an Amount that is a number", "Amount", entryResult(entry({ Amount: 4200 }))],
+      ["a Destination that is no address", "Destination", entryResult(entry({ Destination: "rNope" }))],
+    ])("is a server error: %s", async (_what, field, result) => {
+      fetchSpy.mockResolvedValueOnce(success(result));
+
+      const error = await failureOf(uriToken());
+
+      expect(error.kind).toBe("server");
+      expect(error.status).toBe(200);
+      expect(error.message).toContain("node ledger_entry answered something unexpected");
+      expect(error.message).toContain(field);
+    });
+
+    it("is class live", async () => {
+      const cache = recordingCache();
+      fetchSpy.mockImplementation(async () => success(entryResult()));
+
+      await createNodeRpc(xahau, cache).uriToken(URI_TOKEN_ID);
+
+      expect(cache.calls.map((c) => [c.cls, c.ttlOverride])).toEqual([["live", undefined]]);
+      expect(cache.calls[0]!.key).toBe(`POST https://xahau.network/ {"method":"ledger_entry","params":[{"index":"${URI_TOKEN_ID}","ledger_index":"validated"}]}`);
+    });
+  });
+});
+
+// ---- Ledger objects: ledger_entry by index (E10) ----------------------------------------------------------------------------
+
+// `ledger_entry` with an `index` answers the entry at that key whatever its type, as it does for a URIToken (above): `{ index, ledger_hash, ledger_index, node: { …the entry's fields,
+// LedgerEntryType, index }, validated: true }`; a key with no entry is `entryNotFound`. The fields are the ledger's own (times in Ripple-epoch seconds, a native amount in drops as
+// text), which the view builder converts. `uriToken` reads the same request, so that the two share one cache entry and one stored shape.
+
+describe("ledgerEntry", () => {
+  const ESCROW_ENTRY_ID = "B95064B1A92F02EE009E6BDFB369CF476FB925BB8615456970E38774034A5D30";
+  const escrowNode = (extra: Record<string, unknown> = {}) => ({
+    Account: ACCOUNT,
+    Amount: "500000",
+    CancelAfter: 814_000_000,
+    Destination: "rGtW2dWHmHQ3f65pfbjYF5PbFbdZwgwuqW",
+    DestinationNode: "0",
+    FinishAfter: 813_000_000,
+    Flags: 0,
+    LedgerEntryType: "Escrow",
+    OwnerNode: "0",
+    PreviousTxnID: TX_HASH,
+    PreviousTxnLgrSeq: 107897249,
+    index: ESCROW_ENTRY_ID,
+    ...extra,
+  });
+  const entryResult = (node: Record<string, unknown> = escrowNode(), extra: Record<string, unknown> = {}) => ({
+    index: ESCROW_ENTRY_ID,
+    ledger_hash: LEDGER_HASH,
+    ledger_index: 107972102,
+    node,
+    validated: true,
+    ...extra,
+  });
+  const ledgerEntry = (id = ESCROW_ENTRY_ID) => createNodeRpc(xrpl, passThroughCache).ledgerEntry(id);
+
+  it("asks the node for the entry at the index, on the newest validated ledger", async () => {
+    fetchSpy.mockResolvedValueOnce(success(entryResult()));
+
+    await ledgerEntry();
+
+    expect(sentRequest().url).toBe("https://s1.ripple.com:51234/");
+    expect(await sentBody()).toEqual({ method: "ledger_entry", params: [{ index: ESCROW_ENTRY_ID, ledger_index: "validated" }] });
+  });
+
+  it("returns the entry as the node wrote it, with its index and the ledger it was read at: the Ripple-epoch times and the drops are the ledger's own", async () => {
+    fetchSpy.mockResolvedValueOnce(success(entryResult()));
+
+    const found = await ledgerEntry();
+
+    expect(found).toEqual({ node: escrowNode(), index: ESCROW_ENTRY_ID, ledger_index: 107972102 });
+    expect(Object.keys(found)).toEqual(["node", "index", "ledger_index"]);
+    expect(found.node.LedgerEntryType).toBe("Escrow");
+    expect(found.node.FinishAfter).toBe(813_000_000);
+  });
+
+  it("takes the index in any case and returns the entry's own, upper-case", async () => {
+    fetchSpy.mockResolvedValueOnce(success(entryResult()));
+
+    expect((await ledgerEntry(ESCROW_ENTRY_ID.toLowerCase())).index).toBe(ESCROW_ENTRY_ID);
+    expect(await sentBody()).toEqual({ method: "ledger_entry", params: [{ index: ESCROW_ENTRY_ID, ledger_index: "validated" }] });
+  });
+
+  it("takes the index from the node (a node that puts it in the entry alone), and an entry of any type", async () => {
+    fetchSpy.mockResolvedValueOnce(success(entryResult(escrowNode(), { index: undefined })));
+    expect((await ledgerEntry()).index).toBe(ESCROW_ENTRY_ID);
+
+    for (const LedgerEntryType of ["Check", "PayChannel", "Delegate", "AccountRoot"]) {
+      fetchSpy.mockResolvedValueOnce(success(entryResult(escrowNode({ LedgerEntryType }))));
+      expect((await ledgerEntry()).node.LedgerEntryType).toBe(LedgerEntryType);
+    }
+  });
+
+  it("is not_found for entryNotFound, which the node says with no error_code", async () => {
+    fetchSpy.mockResolvedValueOnce(answer({ error: "entryNotFound", ledger_hash: LEDGER_HASH, ledger_index: 107972102, validated: true, request: {}, status: "error" }));
+
+    const error = await failureOf(ledgerEntry());
+
+    expect(error.kind).toBe("not_found");
+    expect(error.message).toContain("entryNotFound");
+  });
+
+  it("is the node's own kind for any other failure", async () => {
+    for (const [code, kind] of [
+      ["slowDown", "rate_limited"],
+      ["malformedRequest", "bad_request"],
+      ["invalidParams", "bad_request"],
+      ["noNetwork", "server"],
+      ["lgrNotFound", "server"],
+      ["objectNotFound", "server"],
+      ["unknownCmd", "server"],
+    ] as const) {
+      fetchSpy.mockResolvedValueOnce(failure(code));
+      expect((await failureOf(ledgerEntry())).kind, code).toBe(kind);
+    }
+  });
+
+  it.each([
+    ["an entry for another index than the one asked for", "index", entryResult(escrowNode({ index: "A".repeat(64) }), { index: "A".repeat(64) })],
+    ["a result for another index, with the entry's own", "index", entryResult(undefined, { index: "A".repeat(64) })],
+    ["an entry for another index, in a result with none", "node.index", entryResult(escrowNode({ index: "A".repeat(64) }), { index: undefined })],
+    ["no index", "index", entryResult(escrowNode({ index: undefined }), { index: undefined })],
+    ["no validated", "validated", entryResult(undefined, { validated: undefined })],
+    ["a validated that is false", "validated", entryResult(undefined, { validated: false })],
+    ["no node", "node", entryResult(undefined, { node: undefined })],
+    ["a node that is text", "node", entryResult(undefined, { node: "entry" })],
+    ["no ledger_index", "ledger_index", entryResult(undefined, { ledger_index: undefined })],
+    ["a ledger_index that is text", "ledger_index", entryResult(undefined, { ledger_index: "107972102" })],
+    ["no LedgerEntryType", "LedgerEntryType", entryResult(escrowNode({ LedgerEntryType: undefined }))],
+    ["a LedgerEntryType that is a number", "LedgerEntryType", entryResult(escrowNode({ LedgerEntryType: 117 }))],
+  ])("is a server error: %s", async (_what, field, result) => {
+    fetchSpy.mockResolvedValueOnce(success(result));
+
+    const error = await failureOf(ledgerEntry());
+
+    expect(error.kind).toBe("server");
+    expect(error.status).toBe(200);
+    expect(error.message).toContain("node ledger_entry answered something unexpected: ");
+    // The field is looked for in the reason alone: the request is "node ledger_entry", which holds "node".
+    expect(error.message.split("answered something unexpected: ")[1]).toContain(field);
+  });
+
+  it("is class live, under the key uriToken's request has", async () => {
+    const cache = recordingCache();
+    fetchSpy.mockImplementation(async () => success(entryResult()));
+
+    await createNodeRpc(xrpl, cache).ledgerEntry(ESCROW_ENTRY_ID);
+
+    expect(cache.calls.map((c) => [c.cls, c.ttlOverride])).toEqual([["live", undefined]]);
+    expect(cache.calls[0]!.key).toBe(`POST https://s1.ripple.com:51234/ {"method":"ledger_entry","params":[{"index":"${ESCROW_ENTRY_ID}","ledger_index":"validated"}]}`);
+  });
+
+  /** A cache that keeps what a load returned, as the Worker's does, so that a second call reads what the first stored. */
+  const memoryCache = (): SubrequestCache => {
+    const stored = new Map<string, unknown>();
+    return {
+      async json<T>(key: string, _cls: CacheClass, load: () => Promise<T>): Promise<T> {
+        if (!stored.has(key)) stored.set(key, await load());
+        return stored.get(key) as T;
+      },
+    };
+  };
+  const uriTokenNode = (extra: Record<string, unknown> = {}) => ({
+    Digest: "772B38763E8E603AEE9BBB2026B8E9B97537ECC8867E46D042630C0B326B8736",
+    Flags: 0,
+    Issuer: URI_TOKEN_ISSUER,
+    LedgerEntryType: "URIToken",
+    Owner: "rLEUHuVCd8o9XmKn3nk8oGwYS3QEpUjo3e",
+    URI: "6F64696E73657965733A726176656E3A76323A3030346230353234",
+    index: URI_TOKEN_ID,
+    ...extra,
+  });
+  const uriTokenResult = (node: Record<string, unknown>) => ({ index: URI_TOKEN_ID, ledger_hash: LEDGER_HASH, ledger_index: 26829859, node, validated: true });
+
+  it("shares its cache entry with uriToken: the one request is made once, and each call reads its own from what is stored", async () => {
+    const node = createNodeRpc(xahau, memoryCache());
+    fetchSpy.mockResolvedValueOnce(success(uriTokenResult(uriTokenNode())));
+
+    const entry = await node.ledgerEntry(URI_TOKEN_ID);
+    const uri = await node.uriToken(URI_TOKEN_ID);
+    const again = await node.ledgerEntry(URI_TOKEN_ID);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(entry).toEqual({ node: uriTokenNode(), index: URI_TOKEN_ID, ledger_index: 26829859 });
+    expect(uri).toEqual(nodeUriTokenSample());
+    expect(again).toEqual(entry);
+  });
+
+  it("an entry that is no URIToken is not_found for uriToken, and ledgerEntry then returns it from what is stored, with no second request", async () => {
+    const node = createNodeRpc(xrpl, memoryCache());
+    fetchSpy.mockResolvedValueOnce(success(entryResult()));
+
+    const error = await failureOf(node.uriToken(ESCROW_ENTRY_ID));
+    expect(error.kind).toBe("not_found");
+    expect(error.message).toContain("Escrow");
+
+    expect(await node.ledgerEntry(ESCROW_ENTRY_ID)).toEqual({ node: escrowNode(), index: ESCROW_ENTRY_ID, ledger_index: 107972102 });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("a URIToken whose fields are not right (an Owner that is no address) is a server error for uriToken, and ledgerEntry still returns the entry, with no second request", async () => {
+    const node = createNodeRpc(xahau, memoryCache());
+    fetchSpy.mockResolvedValueOnce(success(uriTokenResult(uriTokenNode({ Owner: "rNope" }))));
+
+    const error = await failureOf(node.uriToken(URI_TOKEN_ID));
+    expect(error.kind).toBe("server");
+    expect(error.status).toBe(200);
+    expect(error.message.split("answered something unexpected: ")[1]).toContain("Owner");
+
+    expect(await node.ledgerEntry(URI_TOKEN_ID)).toEqual({ node: uriTokenNode({ Owner: "rNope" }), index: URI_TOKEN_ID, ledger_index: 26829859 });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });

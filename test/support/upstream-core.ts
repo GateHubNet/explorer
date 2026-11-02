@@ -1,7 +1,8 @@
 // The answering half of the upstream mock, free of any runtime: a request in, a Response out, the fixtures behind
 // an interface. `upstream.ts` (the `fetch` stub of the Worker tests) and `fixture-server.ts` (the Node HTTP server
 // of the end-to-end suite) both sit on it, and `scripts/make-http-fixtures.ts` uses its file naming, so a fixture
-// is found by the same rule it was written by. Types and standard Web APIs only (Request, Response, URL).
+// is found by the same rule it was written by. Types and standard Web APIs only (Request, Response, URL), and the address
+// codec, which checks the addresses of a names call as the data API does (both runtimes load it: the Worker uses it too).
 //
 // Fixtures live in test/fixtures/http/<net>/ (README.md, "Upstream fixtures"):
 //
@@ -21,6 +22,13 @@
 //                                     (the currency as the ledger holds it)
 //   node amm_info rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3
 //                                     a pool by its account; by its pair the subject is `<asset>_<asset2>`, written as a book's
+//   node nft_info <NFT ID>            an NFT by its id (so are `nft_sell_offers` and `nft_buy_offers`); `node ledger_entry <ID>` a ledger entry (a URIToken, an escrow, a check, a
+//                                     payment channel, a delegation) by its `index`
+//   GET /v2/account_names             without a query: every names call of the network (`GET /v2/account_names?addresses=…` is one call, and wins over it)
+//
+// `GET /v2/account_names` has no file per call: the mock composes D4's answer from the network's `data-api/account_names.json` (`composeAccountNames`).
+
+import { isValidClassicAddress } from "ripple-address-codec";
 
 export const NETWORK_NAMES = ["xrpl", "xahau"] as const;
 export type NetworkName = (typeof NETWORK_NAMES)[number];
@@ -112,6 +120,11 @@ const SUBJECT_PARAMS: Record<string, string[]> = {
   account_objects: ["account"],
   // The pool form: the subject is the pool account. The pair form has no such parameter, see `PAIR_PARAMS`.
   amm_info: ["amm_account"],
+  // The NFT commands (rippled's and Clio's) are about one NFT; a `ledger_entry` asked by `index` is about the entry, which for a URIToken is its id.
+  nft_info: ["nft_id"],
+  nft_sell_offers: ["nft_id"],
+  nft_buy_offers: ["nft_id"],
+  ledger_entry: ["index"],
 };
 
 /** The methods whose subject is two assets, and the parameters that hold them: a book's, and an `amm_info` asked by pair. */
@@ -236,7 +249,8 @@ export function dataApiError(status: number, message: string, headers: Record<st
   });
 }
 
-const NODE_ERRORS: Record<string, [code: number, message: string]> = {
+/** A node's error: its `error_code` and `error_message`, either of which a node may leave out (xahaud's `entryNotFound` has neither). */
+const NODE_ERRORS: Record<string, [code: number | undefined, message: string | undefined]> = {
   actNotFound: [19, "Account not found."],
   txnNotFound: [29, "Transaction not found."],
   lgrNotFound: [21, "ledgerNotFound"],
@@ -246,6 +260,10 @@ const NODE_ERRORS: Record<string, [code: number, message: string]> = {
   noNetwork: [17, "Not synced to the network."],
   slowDown: [10, "You are placing too much load on the server."],
   internal: [73, "Internal error."],
+  // What s1.ripple.com (Clio) answered an NFT it has none of on 2026-10-24 (its offers commands say "notFound" there; one text serves both).
+  objectNotFound: [92, "NFT not found"],
+  // What xahau.network answered `ledger_entry` for an entry it has none of on 2026-10-24: the code, the ledger it looked in and the request, no `error_code`.
+  entryNotFound: [undefined, undefined],
 };
 
 /**
@@ -254,15 +272,69 @@ const NODE_ERRORS: Record<string, [code: number, message: string]> = {
  */
 export function nodeError(code: string, request: Record<string, unknown> = {}): Record<string, unknown> {
   const [error_code, error_message] = NODE_ERRORS[code] ?? [73, "Internal error."];
-  return { error: code, error_code, error_message, request, status: "error" };
+  return {
+    error: code,
+    ...(error_code !== undefined && { error_code }),
+    ...(error_message !== undefined && { error_message }),
+    request,
+    status: "error",
+  };
 }
 
 function nodeAnswer(result: unknown): Response {
   return new Response(JSON.stringify({ result }), { status: 200, headers: JSON_HEADERS });
 }
 
-/** The "absent" answer of a data API path: what the real API says for a thing that does not exist. */
-function dataApiAbsent(segments: string[]): Response {
+/**
+ * D3's feature coverage for NFTs as the mock has it, by network: the fixtures' (scripts/nft-fixtures.ts, `FEATURE_COVERAGE`; a test compares the two), the one coverage of every
+ * answer of a network that is not about one NFT. XRPL's feature is as old as the network, so its index is complete from the network's first ledger (32,570, D3's "Coverage");
+ * Xahau's starts at the first ledger the recordings D3's own end-to-end suites seed have (`docs/api-reference.md` at da5ce14, "NFTs"), and nothing before it is indexed.
+ */
+const NFT_COVERAGE: Record<NetworkName, { from_ledger_index: number; complete: boolean }> = {
+  xrpl: { from_ledger_index: 32570, complete: true },
+  xahau: { from_ledger_index: 26533927, complete: false },
+};
+
+/**
+ * D5's delegations as the mock has them, by network (scripts/object-fixtures.ts and the hand-written `delegations@…` files; test/unit/object-fixtures.test.ts compares the two): the
+ * delegations' coverage (XRPL's is whole from the first ledger of the objects recordings, which is before the PermissionDelegation amendment; Xahau cannot have delegations, which
+ * D5 says complete from its first ledger: docs/api-reference.md at 0c2e58c) and the ledger every objects answer is as of, the newest of the network's objects recordings.
+ */
+const DELEGATIONS_AS_OF: Record<NetworkName, { coverage: { from_ledger_index: number; complete: boolean }; ledger_index: number; close_time: string }> = {
+  xrpl: { coverage: { from_ledger_index: 102145584, complete: true }, ledger_index: 107972102, close_time: "2026-10-29T03:50:41Z" },
+  xahau: { coverage: { from_ledger_index: 8852809, complete: true }, ledger_index: 26399329, close_time: "2026-10-09T12:49:32Z" },
+};
+
+/** D5's 404 of each object route (`NOT_FOUND_OF`, `LEDGER_OBJECT_NOT_FOUND`): the object and the pages of its history. */
+const OBJECT_NOT_FOUND: Record<string, string> = {
+  escrows: "escrow not found",
+  checks: "check not found",
+  payment_channels: "payment channel not found",
+};
+
+/**
+ * `GET /v2/accounts/{address}/delegations` of an account without a file, as D5 answers it: 400 `invalid ripple address` for an address that is no classic one, 400 `invalid direction`
+ * for a direction that is neither `given` nor `held` (missing or empty is `given`), else 200 with an empty page and the delegations' coverage (C11), as D3 answers the NFTs of any account.
+ */
+function delegationsAbsent(net: NetworkName, address: string, search: URLSearchParams): Response {
+  if (!isValidClassicAddress(address)) return dataApiError(400, "invalid ripple address");
+  const direction = search.get("direction") || "given";
+  if (direction !== "given" && direction !== "held") return dataApiError(400, "invalid direction");
+  const { coverage, ledger_index, close_time } = DELEGATIONS_AS_OF[net];
+  return new Response(JSON.stringify({ result: "success", coverage, ledger_index, close_time, count: 0, delegations: [] }), { status: 200, headers: JSON_HEADERS });
+}
+
+/**
+ * D6's coverage of the tokens as the mock has it, by network (scripts/token-fixtures.ts; test/unit/token-fixtures.test.ts compares the two): from the first recorded ledger of the network,
+ * never complete, as the transfers of a token without a file state it.
+ */
+const TOKEN_COVERAGE: Record<NetworkName, { from_ledger_index: number; complete: boolean }> = {
+  xrpl: { from_ledger_index: 93663334, complete: false },
+  xahau: { from_ledger_index: 26540187, complete: false },
+};
+
+/** The "absent" answer of a data API path: what the real API says for a thing that does not exist. `net` is the network whose API is asked. */
+function dataApiAbsent(net: NetworkName, segments: string[], search: URLSearchParams = new URLSearchParams()): Response {
   const [version, resource, id, sub] = segments;
   if (version === "v2" && resource === "ledgers" && id !== undefined && sub === undefined) {
     return dataApiError(404, "ledger not found");
@@ -273,6 +345,28 @@ function dataApiAbsent(segments: string[]): Response {
   if (version === "v2" && resource === "accounts" && id !== undefined) {
     if (sub === undefined) return dataApiError(404, "Account not found");
     if (sub === "balances" || sub === "orders") return dataApiError(404, "account not found");
+    // D3 does not check the address of the NFTs of an account ("one that is none holds nothing"): an empty page with the coverage of the network, never a 404.
+    if (sub === "nfts" && segments.length === 4) {
+      return new Response(JSON.stringify({ result: "success", coverage: NFT_COVERAGE[net], count: 0, nfts: [] }), { status: 200, headers: JSON_HEADERS });
+    }
+    if (sub === "delegations" && segments.length === 4) return delegationsAbsent(net, id, search);
+  }
+  // D5's escrows, checks and payment channels (`/{id}` and `/{id}/history`) and the lookup of an ID: the routes' own not-found messages. Nothing else is below them.
+  if (version === "v2" && resource !== undefined && Object.hasOwn(OBJECT_NOT_FOUND, resource) && id !== undefined && (sub === undefined || (sub === "history" && segments.length === 4))) {
+    return dataApiError(404, OBJECT_NOT_FOUND[resource]!);
+  }
+  if (version === "v2" && resource === "ledger_objects" && id !== undefined && sub === undefined) return dataApiError(404, "ledger object not found");
+  // D3's NFT and collection routes, and everything below them (an NFT's history and offers, a collection's NFTs, holders, sales and stats): the routes' own not-found messages.
+  // `/v2/nfts` has no list, and the lists of the network (`nft_collections`, `nft_sales`, `network/nft_volume`) never answer 404: they stay missing routes, `Cannot GET`.
+  if (version === "v2" && resource === "nfts" && id !== undefined) return dataApiError(404, "nft not found");
+  if (version === "v2" && resource === "nft_collections" && id !== undefined) return dataApiError(404, "collection not found");
+  // D6's token and its holders: the routes' own not-found message. Its transfers never answer 404 (the list does not look the token up): an empty page with the feature's coverage. The list
+  // of tokens (`/v2/tokens`) has no such thing: it stays a missing route, `Cannot GET`, and so does anything else below a token.
+  if (version === "v2" && resource === "tokens" && id !== undefined) {
+    if (sub === undefined || (sub === "holders" && segments.length === 4)) return dataApiError(404, "token not found");
+    if (sub === "transfers" && segments.length === 4) {
+      return new Response(JSON.stringify({ result: "success", coverage: TOKEN_COVERAGE[net], count: 0, transfers: [] }), { status: 200, headers: JSON_HEADERS });
+    }
   }
   // D1's validator and its validations (`summary` is a route of its own), and one amendment: the routes' own not-found messages.
   if (version === "v2" && resource === "network") {
@@ -284,7 +378,36 @@ function dataApiAbsent(segments: string[]): Response {
   // A pool that does not exist (feat/amm-data): the pool route, its pair form and everything below it answer `pool not found`. The list (`/v2/amm/pools`) has no such thing,
   // and neither has `/v2/network/amm_volume`: they stay missing routes, `Cannot GET`. A test of an API without feat/amm-data names that body (`dataApiError(404, "Cannot GET …")`).
   if (version === "v2" && resource === "amm" && id === "pools" && sub !== undefined) return dataApiError(404, "pool not found");
+  // D4's toml of a domain the store has no row for (never checked). Nothing is below a domain, and `/v2/toml` alone is no route.
+  if (version === "v2" && resource === "toml" && id !== undefined && sub === undefined) return dataApiError(404, "toml not found");
   return dataApiError(404, `Cannot GET /${segments.join("/")}`);
+}
+
+// ---- The names batch -------------------------------------------------------------------------------------------------
+
+/** The most addresses one names call asks for (D4's `MAX_ADDRESSES`). */
+const NAMES_MAX_ADDRESSES = 100;
+
+/** The override key that stands for every names call of a network, whatever addresses it asks for. */
+const ACCOUNT_NAMES_KEY = "GET /v2/account_names";
+
+/** A network's names, by address: its `data-api/account_names.json` (scripts/names-fixtures.ts writes it), or none. */
+type NamesTable = Record<string, unknown>;
+
+/**
+ * `GET /v2/account_names?addresses=…` as D4 answers it (data-api-new `feat/explorer-data-2` at 3feb11a, `parseAddresses` and the controller of
+ * apps/api/src/names/account-names.controller.ts): the first `addresses` parameter, split on `,` with nothing trimmed; 400 `addresses is required` when it
+ * is missing or empty, `too many addresses - at most 100` for 101 elements or more (valid or not), `invalid ripple address` for any element that is no
+ * classic address; else one entry for each address in the order asked (a repeated one at each place), the network's entry or the address alone.
+ */
+function composeAccountNames(search: URLSearchParams, names: NamesTable): Response {
+  const raw = search.get("addresses");
+  if (raw === null || raw === "") return dataApiError(400, "addresses is required");
+  const addresses = raw.split(",");
+  if (addresses.length > NAMES_MAX_ADDRESSES) return dataApiError(400, `too many addresses - at most ${NAMES_MAX_ADDRESSES}`);
+  if (!addresses.every((address) => isValidClassicAddress(address))) return dataApiError(400, "invalid ripple address");
+  const account_names = addresses.map((address) => (Object.hasOwn(names, address) ? names[address] : { address }));
+  return new Response(JSON.stringify({ result: "success", count: account_names.length, account_names }), { status: 200, headers: JSON_HEADERS });
 }
 
 const NODE_ABSENT: Record<string, string> = {
@@ -295,6 +418,11 @@ const NODE_ABSENT: Record<string, string> = {
   server_state: "noNetwork",
   // A pair or an account that is no pool. (`book_offers` has no code: a book nobody offers in is an empty one, see `createUpstream`.)
   amm_info: "actNotFound",
+  // An NFT the node has none of (Clio), and an entry it has none of (a URIToken on xahaud, an object of E10 on either). The offers of an NFT with none are `objectNotFound` too.
+  nft_info: "objectNotFound",
+  nft_sell_offers: "objectNotFound",
+  nft_buy_offers: "objectNotFound",
+  ledger_entry: "entryNotFound",
 };
 
 function nodeAbsent(method: string, params: NodeParams): Response {
@@ -402,6 +530,7 @@ export function createUpstream({ files, bases, primary, overrides = {}, requests
   const keyed = parseOverrides(primary, overrides);
   const used = new Set<string>();
   const hashes = new Map<NetworkName, Promise<Record<string, number>>>();
+  const nameTables = new Map<NetworkName, Promise<NamesTable>>();
 
   const targets = NETWORK_NAMES.map((net) => ({
     net,
@@ -417,6 +546,16 @@ export function createUpstream({ files, bases, primary, overrides = {}, requests
       hashes.set(net, table);
     }
     return table.then((entries) => entries[hash.toUpperCase()]);
+  }
+
+  /** The names of a network, from its `data-api/account_names.json`: none when it has no such file. */
+  function namesTableOf(net: NetworkName): Promise<NamesTable> {
+    let table = nameTables.get(net);
+    if (!table) {
+      table = files.read(`${net}/data-api/account_names.json`).then((json) => (json === undefined ? {} : (JSON.parse(json) as NamesTable)));
+      nameTables.set(net, table);
+    }
+    return table;
   }
 
   /** The index of the newest ledger the network's fixtures record: that of its `data-api/last_validated.json`. */
@@ -491,8 +630,23 @@ export function createUpstream({ files, bases, primary, overrides = {}, requests
           override.get(key),
           request,
           (body) => new Response(JSON.stringify(body), { status: 200, headers: JSON_HEADERS }),
-          () => dataApiAbsent(segments),
+          () => dataApiAbsent(net, segments, url.searchParams),
         );
+      }
+
+      // The names batch: an override of every names call of the network, else D4's answer composed from the network's names.
+      if (segments.length === 2 && segments[0] === "v2" && segments[1] === "account_names") {
+        if (override.has(ACCOUNT_NAMES_KEY)) {
+          used.add(`${net} ${ACCOUNT_NAMES_KEY}`);
+          seen.source = "override";
+          return overridden(
+            override.get(ACCOUNT_NAMES_KEY),
+            request,
+            (body) => new Response(JSON.stringify(body), { status: 200, headers: JSON_HEADERS }),
+            () => dataApiAbsent(net, segments),
+          );
+        }
+        return composeAccountNames(url.searchParams, await namesTableOf(net));
       }
 
       // A ledger asked for by its hash is the file of its index.
@@ -505,7 +659,7 @@ export function createUpstream({ files, bases, primary, overrides = {}, requests
       const body = file === undefined ? undefined : await files.read(file);
       if (body === undefined) {
         seen.source = "absent";
-        return dataApiAbsent(segments);
+        return dataApiAbsent(net, segments, url.searchParams);
       }
       return new Response(body, { status: 200, headers: JSON_HEADERS });
     };

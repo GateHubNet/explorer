@@ -1,0 +1,12 @@
+{
+  "count": 2,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "events": [
+    {"account":"rN2JdMJp8P3f34oacGsKoud7YPcnJjAEgN","event":"mint","event_index":0,"executed_time":"2026-10-24T15:28:02Z","issuer":"rN2JdMJp8P3f34oacGsKoud7YPcnJjAEgN","kind":"uritoken","ledger_index":26763629,"nft_id":"E8DEB6969E2C6ED622DEC014CA4095EE078EBC1496ED5CB3F896F3086D9E9D13","to":"rN2JdMJp8P3f34oacGsKoud7YPcnJjAEgN","tx_hash":"DCFDF8525F10215C6722D24B6CC0DE3A84173B4E45B59263FADBD7B228268D9A","tx_index":2,"tx_type":"URITokenMint","uri":"5A585A79624756686332564D56465941415141424341466E667279793932373566564D5653646979665650446A58366B786F41414C614645544141414141414141414141414141414141414141414141"},
+    {"account":"rN2JdMJp8P3f34oacGsKoud7YPcnJjAEgN","event":"burn","event_index":0,"executed_time":"2026-10-24T15:27:22Z","from":"rN2JdMJp8P3f34oacGsKoud7YPcnJjAEgN","issuer":"rN2JdMJp8P3f34oacGsKoud7YPcnJjAEgN","kind":"uritoken","ledger_index":26763618,"nft_id":"E8DEB6969E2C6ED622DEC014CA4095EE078EBC1496ED5CB3F896F3086D9E9D13","tx_hash":"56C99633D10A37CD32DFC3F475AE3B7B6D23DDD6AF87B0BD8C3D365A2DD9F26B","tx_index":6,"tx_type":"URITokenBurn"}
+  ],
+  "result": "success"
+}

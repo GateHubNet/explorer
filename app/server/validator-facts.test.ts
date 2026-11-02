@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import { amendmentsSample, SAMPLE_KEYS, validatorRowSample } from "../../test/support/d1-samples";
 import { statusWord as domainStatusWord } from "../domain/amendments-params";
+import {
+  listedByText as domainListedByText,
+  LOCAL_PUBLISHER as DOMAIN_LOCAL_PUBLISHER,
+  onListsText as domainOnListsText,
+  publisherLabel as domainPublisherLabel,
+  unlTagWords as domainUnlTagWords,
+} from "../domain/publishers";
 import { joinAnd as domainJoinAnd } from "../domain/time-words";
+import { featuresOf, NO_FEATURES } from "../ui/features";
 import type { AmendmentRow, DomainVerification } from "./api-types";
 import {
   accountLinks,
@@ -17,16 +25,25 @@ import {
   joinAnd,
   ledgerLink,
   ledgersText,
+  listedByText,
+  LOCAL_PUBLISHER,
   moreThan,
   nativeText,
+  onListsText,
   percentText,
+  publisherLabel,
   scoreText,
   scoreValue,
   shareText,
   statusWord,
+  tomlCurrencyHref,
   tomlFileOf,
   tomlLink,
+  tomlNetworkName,
   unixOf,
+  unlHostOf,
+  unlIntro,
+  unlTagWords,
   valueOf,
   verificationNote,
   versionText,
@@ -367,6 +384,96 @@ describe("tomlLink", () => {
   });
 });
 
+describe("tomlNetworkName", () => {
+  it.each([
+    ["main", "rippled", "XRPL mainnet", "mainnet"],
+    ["mainnet", "rippled", "XRPL mainnet", "mainnet"],
+    ["testnet", "rippled", "XRPL Testnet", "testnet"],
+    ["devnet", "rippled", "XRPL Devnet", "devnet"],
+    ["main", "xahaud", "Xahau mainnet", "mainnet"],
+    ["mainnet", "xahaud", "Xahau mainnet", "mainnet"],
+    ["xahau", "xahaud", "Xahau mainnet", "mainnet"],
+    ["21337", "xahaud", "Xahau mainnet", "mainnet"],
+    ["testnet", "xahaud", "Xahau Testnet", "testnet"],
+    ["21338", "xahaud", "Xahau Testnet", "testnet"],
+  ] as const)("names %s on %s %s (%s)", (value, software, name, kind) => {
+    expect(tomlNetworkName(value, software)).toEqual({ name, kind });
+  });
+
+  it.each(["MAIN", "Mainnet", "TestNet", "DEVNET"])("compares %s in lower case", (value) => {
+    expect(tomlNetworkName(value, "rippled")).not.toBeNull();
+  });
+
+  it("compares Xahau's values in lower case too", () => {
+    expect(tomlNetworkName("XAHAU", "xahaud")).toEqual({ name: "Xahau mainnet", kind: "mainnet" });
+    expect(tomlNetworkName("Testnet", "xahaud")).toEqual({ name: "Xahau Testnet", kind: "testnet" });
+  });
+
+  it.each([
+    ["foo", "rippled"],
+    ["21337", "rippled"],
+    ["21338", "rippled"],
+    ["xahau", "rippled"],
+    ["devnet", "xahaud"],
+    ["foo", "xahaud"],
+    ["", "rippled"],
+    [" main", "rippled"],
+  ] as const)("has no name for %j on %s", (value, software) => {
+    expect(tomlNetworkName(value, software)).toBeNull();
+  });
+});
+
+describe("unlHostOf", () => {
+  it("is the host of an https URL", () => {
+    expect(unlHostOf("https://vl.ripple.com/x")).toBe("vl.ripple.com");
+    expect(unlHostOf("https://vl.xahau.org")).toBe("vl.xahau.org");
+    expect(unlHostOf("https://vl.example:8443/list")).toBe("vl.example:8443");
+  });
+
+  it.each(["not a url", "", "vl.ripple.com", "mailto:a@b", "http://x.example", "ftp://x.example", "javascript:alert(1)", "https://"])("is null for %j", (unl) => {
+    expect(unlHostOf(unl)).toBeNull();
+  });
+});
+
+describe("tomlCurrencyHref", () => {
+  const ISSUER = "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De";
+  const TOKENS_ON = featuresOf({ TOKENS: "on" });
+  const XRPL = { native: "XRP" } as const;
+  const LP = "03AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+
+  it("leads to the token's page with TOKENS on, only through tokenLink", () => {
+    expect(tomlCurrencyHref("xrpl", { code: "USD", issuer: ISSUER }, XRPL, TOKENS_ON)).toBe(`/xrpl/token/USD.${ISSUER}`);
+    expect(tomlCurrencyHref("xahau", { code: "EVR", issuer: ISSUER }, { native: "XAH" }, TOKENS_ON)).toBe(`/xahau/token/EVR.${ISSUER}`);
+  });
+
+  it("leads nowhere while TOKENS is off", () => {
+    expect(tomlCurrencyHref("xrpl", { code: "USD", issuer: ISSUER }, XRPL, NO_FEATURES)).toBeNull();
+    expect(tomlCurrencyHref("xrpl", { code: "USD", issuer: ISSUER }, XRPL, featuresOf({ AMM_PAGES: "on" }))).toBeNull();
+  });
+
+  it("links a 40-hex code the way the token page names it", () => {
+    const hex = "524C555344000000000000000000000000000000";
+    expect(tomlCurrencyHref("xrpl", { code: hex, issuer: ISSUER }, XRPL, TOKENS_ON)).toBe(`/xrpl/token/RLUSD.${ISSUER}`);
+  });
+
+  it("leads nowhere without an issuer, for the native code, and for an LP token", () => {
+    expect(tomlCurrencyHref("xrpl", { code: "EUR" }, XRPL, TOKENS_ON)).toBeNull();
+    expect(tomlCurrencyHref("xrpl", { code: "XRP", issuer: ISSUER }, XRPL, TOKENS_ON)).toBeNull();
+    expect(tomlCurrencyHref("xrpl", { code: LP, issuer: ISSUER }, XRPL, TOKENS_ON)).toBeNull();
+    expect(tomlCurrencyHref("xrpl", { code: LP, issuer: ISSUER }, XRPL, featuresOf({ TOKENS: "on", AMM_PAGES: "on" }))).toBeNull();
+  });
+
+  it("leads nowhere for an issuer that is no address, or a code the token page would not read", () => {
+    expect(tomlCurrencyHref("xrpl", { code: "USD", issuer: "rNotAnAddress" }, XRPL, TOKENS_ON)).toBeNull();
+    expect(tomlCurrencyHref("xrpl", { code: "US", issuer: ISSUER }, XRPL, TOKENS_ON)).toBeNull();
+    expect(tomlCurrencyHref("xrpl", { code: "", issuer: ISSUER }, XRPL, TOKENS_ON)).toBeNull();
+  });
+
+  it("writes the link of the token the code reads as, not the code as the toml spelled it", () => {
+    expect(tomlCurrencyHref("xrpl", { code: "usd", issuer: ISSUER }, XRPL, TOKENS_ON)).toBe(`/xrpl/token/USD.${ISSUER}`);
+  });
+});
+
 describe("xlsLink", () => {
   const repo = "https://github.com/XRPLF/XRPL-Standards/";
 
@@ -579,9 +686,85 @@ describe("amendmentStatusView", () => {
   });
 });
 
+// ---- The publishers of the UNL (sandbox 7.6) -------------------------------------------------------------------------------------------------
+
+describe("the fixed list", () => {
+  it("is the publisher local", () => expect(LOCAL_PUBLISHER).toBe("local"));
+
+  it("labels the fixed list", () => expect([publisherLabel("local"), publisherLabel("vl.ripple.com")]).toEqual(["Fixed list", "vl.ripple.com"]));
+
+  it("says who lists", () => {
+    expect([[], ["local"], ["vl.ripple.com", "unl.xrplf.org"], ["vl.altnet.rippletest.net", "local"]].map(listedByText)).toEqual([
+      "",
+      "on the fixed list",
+      "listed by vl.ripple.com and unl.xrplf.org",
+      "listed by vl.altnet.rippletest.net and on the fixed list",
+    ]);
+  });
+
+  it("puts the fixed list last, whatever the order of the ids, and keeps a comma list", () => {
+    expect(listedByText(["local", "vl.altnet.rippletest.net"])).toBe("listed by vl.altnet.rippletest.net and on the fixed list");
+    expect(listedByText(["a.example", "local", "b.example"])).toBe("listed by a.example, b.example and on the fixed list");
+  });
+
+  it("says which lists a tally is on: mainnet as ever, the fixed list as 'the fixed list'", () => {
+    expect([[], ["vl.ripple.com"], ["unl.xrplf.org", "vl.ripple.com"], ["a.example", "b.example", "c.example"], ["local"], ["vl.altnet.rippletest.net", "local"], ["local", "a.example", "b.example"]].map(onListsText)).toEqual([
+      "",
+      "on vl.ripple.com",
+      "on unl.xrplf.org and vl.ripple.com",
+      "on a.example, b.example and c.example",
+      "on the fixed list",
+      "on vl.altnet.rippletest.net and the fixed list",
+      "on a.example, b.example and the fixed list",
+    ]);
+  });
+
+  it("words the UNL tag: mainnet as ever, the fixed list as 'the fixed list'", () => {
+    expect([[], ["vl.ripple.com"], ["unl.xrplf.org", "vl.ripple.com"], ["a.example", "b.example", "c.example"], ["local"], ["vl.altnet.rippletest.net", "local"]].map(unlTagWords)).toEqual([
+      "",
+      "Listed by vl.ripple.com",
+      "Listed by unl.xrplf.org and vl.ripple.com",
+      "Listed by a.example, b.example and c.example",
+      "Listed by the fixed list",
+      "Listed by vl.altnet.rippletest.net and the fixed list",
+    ]);
+  });
+
+  it("words the intro per kind", () => {
+    const rippled = { kind: "mainnet", name: "XRPL", software: "rippled" } as const;
+    const xahaud = { kind: "mainnet", name: "Xahau", software: "xahaud" } as const;
+    const xrplTestnet = { kind: "testnet", name: "XRPL Testnet", software: "rippled" } as const;
+    const xahauTestnet = { kind: "testnet", name: "Xahau Testnet", software: "xahaud" } as const;
+    expect(unlIntro(rippled, ["vl.ripple.com", "unl.xrplf.org"])).toBe("The default UNL is the list of validators rippled trusts out of the box, published by vl.ripple.com and unl.xrplf.org.");
+    expect(unlIntro(xahaud, ["vl.xahau.org"])).toBe("The default UNL is the list of validators xahaud trusts out of the box, published by vl.xahau.org.");
+    expect(unlIntro(xrplTestnet, ["vl.altnet.rippletest.net"])).toBe("The default UNL is the list of validators the nodes of XRPL Testnet trust, published by vl.altnet.rippletest.net.");
+    expect(unlIntro(xahauTestnet, ["local"])).toBe("The default UNL is the list of validators the nodes of Xahau Testnet trust, fixed in their configuration.");
+  });
+
+  it("words the intro for a fixed list beside published ones, and for none", () => {
+    const xrplTestnet = { kind: "testnet", name: "XRPL Testnet", software: "rippled" } as const;
+    expect(unlIntro(xrplTestnet, ["vl.altnet.rippletest.net", "local"])).toBe(
+      "The default UNL is the list of validators the nodes of XRPL Testnet trust, published by vl.altnet.rippletest.net and fixed in their configuration.",
+    );
+    expect(unlIntro(xrplTestnet, ["local", "a.example", "b.example"])).toBe(
+      "The default UNL is the list of validators the nodes of XRPL Testnet trust, published by a.example and b.example and fixed in their configuration.",
+    );
+    expect(unlIntro({ kind: "mainnet", name: "XRPL", software: "rippled" }, [])).toBe("The default UNL is the list of validators rippled trusts out of the box.");
+    expect(unlIntro(xrplTestnet, [])).toBe("The default UNL is the list of validators the nodes of XRPL Testnet trust.");
+  });
+});
+
 describe("the words the browser needs too", () => {
   it("are the ones of the domain files, re-exported (their tests are there)", () => {
     expect(joinAnd).toBe(domainJoinAnd);
     expect(statusWord).toBe(domainStatusWord);
+  });
+
+  it("include the publishers' words: the tags of a validator's page are made in the browser, which may not import this file", () => {
+    expect(LOCAL_PUBLISHER).toBe(DOMAIN_LOCAL_PUBLISHER);
+    expect(publisherLabel).toBe(domainPublisherLabel);
+    expect(listedByText).toBe(domainListedByText);
+    expect(onListsText).toBe(domainOnListsText);
+    expect(unlTagWords).toBe(domainUnlTagWords);
   });
 });

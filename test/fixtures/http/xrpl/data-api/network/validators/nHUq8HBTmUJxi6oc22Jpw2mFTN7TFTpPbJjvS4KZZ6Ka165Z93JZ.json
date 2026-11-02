@@ -94,6 +94,12 @@
   "partial": false,
   "result": "success",
   "signing_key": "n9KeY8TxfRKudHAzeh9Kg5oxpQzGGQb2qFMQrUcdo2pLvCVfUZJq",
+  "toml": {
+    "network": "main",
+    "owner_country": "ES",
+    "server_country": "ES",
+    "unl": "https://vl.ripple.com"
+  },
   "unl": false,
   "unl_lists": [],
   "validation_public_key": "nHUq8HBTmUJxi6oc22Jpw2mFTN7TFTpPbJjvS4KZZ6Ka165Z93JZ"

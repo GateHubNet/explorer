@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Escrows</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.xp{--bg:#F5F6F8;--surface:#FFFFFF;--sunken:#EEF0F3;--border:#E1E4E9;--border-strong:#CDD2D9;--fg:#0F1217;--muted:#4F5864;--faint:#646D7A;--link:var(--accent);--ok:#17733F;--ok-bg:#E3F3E9;--bad:#B42318;--bad-bg:#FCEBE9;--grid:#EEF0F3;--axis:#CDD2D9;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s-other:#A7AEB8;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.xp.dark{--bg:#0B0E12;--surface:#12161C;--sunken:#181D24;--border:#232A33;--border-strong:#323B46;--fg:#E7EBF0;--muted:#A3ACB9;--faint:#8D97A5;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--ok:#5BD08F;--ok-bg:#10281B;--bad:#F28B80;--bad-bg:#30161A;--grid:#1D232B;--axis:#323B46;--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s-other:#58616C}
+.xp a{color:var(--link);text-decoration:none}
+.xp a:hover{text-decoration:underline}
+.xp button,.xp input,.xp select{font:inherit;color:inherit}
+.xp :focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{border:0;background:transparent;padding:6px 12px;border-radius:7px;display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:500;color:var(--muted);min-height:32px;white-space:nowrap;position:relative}
+.seg::after{content:'';position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.seg.on{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--border)}
+.segs{display:flex;padding:3px;background:var(--sunken);border:1px solid var(--border);border-radius:9px}
+.nav{padding:8px 10px;border-radius:7px;color:var(--muted)!important;font-weight:500;display:inline-flex;align-items:center}
+.nav:hover{background:var(--sunken);text-decoration:none!important;color:var(--fg)!important}
+.nav.cur{color:var(--fg)!important;background:var(--sunken)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.src{font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--faint)}
+.xl{position:absolute;top:6px;transform:translateX(-50%);font-size:11px;color:var(--faint);white-space:nowrap}
+.tip{position:absolute;z-index:3;top:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 28px -14px rgba(0,0,0,.4);padding:10px 12px;font-size:12px;min-width:180px;pointer-events:none;display:flex;flex-direction:column;gap:4px}
+.tip b{font-weight:600;font-variant-numeric:tabular-nums}
+.plot{position:relative;height:200px}
+.gl{position:absolute;left:0;right:0;border-top:1px solid var(--grid)}
+.gl.base{border-top-color:var(--axis)}
+.yl{position:absolute;right:10px;transform:translateY(50%);font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap}
+.col{flex:1 1 0;height:100%;display:flex;align-items:flex-end;justify-content:center;border:0;background:transparent;padding:0;min-width:0;cursor:default}
+.col:focus-visible{outline:2px solid var(--link);outline-offset:-2px;border-radius:4px}
+.bar{width:min(28px,56%);border-radius:3px 3px 0 0;min-height:1px;background:var(--accent)}
+.col.dim .bar{opacity:.45}
+.tr{display:grid;grid-template-columns:var(--cols);align-items:center;column-gap:16px;padding:0 16px;min-height:46px;border-top:1px solid var(--border);font-size:13px}
+.th{min-height:36px;font-size:12px;font-weight:500;color:var(--faint);border-top:0}
+.tb .tr:hover{background:var(--sunken)}
+.r{text-align:right;justify-self:end}
+.st{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;white-space:nowrap}
+.st.good{color:var(--ok)}
+.st.quiet{color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:0 12px;min-height:36px;color:var(--fg)!important;font-weight:500;font-size:13px;cursor:pointer;position:relative}
+.btn:hover{border-color:var(--border-strong);text-decoration:none!important}
+.btn:disabled{opacity:.5;cursor:default}
+.sel{border:1px solid var(--border);background:var(--surface);border-radius:9px;padding:0 10px;min-height:44px;max-width:100%}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);cursor:pointer;min-height:40px}
+.chk input{width:16px;height:16px;accent-color:var(--accent)}
+.acct{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:100%}
+.acct>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct .mono{font-size:12.5px}
+.unv{font-size:11px;color:var(--muted);border:1px dashed var(--border-strong);border-radius:5px;padding:0 5px;white-space:nowrap}
+.menu{position:relative;display:inline-flex}.menu>summary{list-style:none;cursor:pointer}.menu>summary::-webkit-details-marker{display:none}.menu-panel{position:absolute;z-index:20;top:calc(100% + 6px);left:0;min-width:230px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px -16px rgba(0,0,0,.35);padding:6px;display:flex;flex-direction:column;gap:2px}.menu-panel a{display:flex;align-items:center;min-height:36px;padding:0 10px;border-radius:7px;color:var(--fg)!important;font-weight:500}.menu-panel a:hover{background:var(--sunken);text-decoration:none!important}.menu-panel a[aria-current="page"]{background:var(--sunken)}
+</style>
+</helmet>
+<div class="xp {{themeClass}}" style="--accent: {{accentNow}};">
+
+<header style="background: var(--surface); border-bottom: 1px solid var(--border);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 12px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: var(--fg);" aria-label="Explorer home">
+      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" style="fill: var(--accent)"></rect><path d="M8 10h7M8 14h12M8 18h9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"></path></svg>
+      <span style="font-weight: 650; font-size: 17px; letter-spacing: -0.01em;">explorer</span>
+    </a>
+    <div role="group" aria-label="Network" class="segs">
+      <button type="button" class="seg {{xrplCls}}" aria-pressed="{{isXrpl}}" onClick="{{pickXrpl}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xrplDot}};"></span>XRPL</button>
+      <button type="button" class="seg {{xahauCls}}" aria-pressed="{{isXahau}}" onClick="{{pickXahau}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xahauDot}};"></span>Xahau</button>
+    </div>
+    <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 2px; align-items: center;">
+      <a class="nav" href="Ledger.dc.html">Ledgers</a>
+      <a class="nav" href="Transaction.dc.html">Transactions</a>
+      <a class="nav" href="Account.dc.html">Accounts</a>
+      <a class="nav" href="Tokens.dc.html">Tokens</a>
+      <details class="menu">
+        <summary class="nav cur">Network<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 4px;"><path d="m6 9 6 6 6-6"></path></svg></summary>
+        <div class="menu-panel">
+          <a href="Network.dc.html">Overview</a>
+          <a href="Validators.dc.html">Validators</a>
+          <a href="Nodes.dc.html">Nodes</a>
+          <a href="Amendments.dc.html">Amendments</a>
+          <a href="Supply.dc.html" aria-current="page">Supply &amp; distribution</a>
+        </div>
+      </details>
+      <a class="nav" href="Markets.dc.html">Markets</a>
+      <a class="nav" href="Amm.dc.html">AMM</a>
+      <a class="nav" href="Nfts.dc.html">NFTs</a>
+    </nav>
+    <form role="search" style="flex: 1 1 240px; display: flex; align-items: center; gap: 8px; background: var(--sunken); border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; min-height: 40px;">
+      <label for="hdr-q" class="sr">Search</label>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint); flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <input id="hdr-q" type="search" placeholder="Address, hash, ledger or CTID" style="flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px;">
+    </form>
+  </div>
+</header>
+
+<main style="max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; display: flex; flex-direction: column; gap: 18px;">
+
+  <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--faint); display: flex; gap: 8px; flex-wrap: wrap;">
+    <a href="Main.dc.html">{{netName}}</a><span aria-hidden="true">/</span><a href="Network.dc.html">Network</a><span aria-hidden="true">/</span><a href="Supply.dc.html">Supply &amp; distribution</a><span aria-hidden="true">/</span><span aria-current="page" style="color: var(--muted);">Escrows</span>
+  </nav>
+
+  <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 16px;">
+    <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 520px;">
+      <h1 style="margin: 0; font-size: 30px; letter-spacing: -0.02em; font-weight: 650;">Escrows</h1>
+      <p style="margin: 0; color: var(--muted);">Every escrow on {{netName}}: {{cur}} an account sets aside until a time passes or a condition is met. Finished and cancelled escrows leave the ledger, so only pending ones and those that can be finished or cancelled are listed.</p>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+      <a href="Supply.dc.html" style="font-size: 13px; font-weight: 500; min-height: 32px; display: inline-flex; align-items: center;">Supply →</a>
+      <span class="src">/v2/escrows?order=amount</span>
+    </div>
+  </div>
+
+  <section aria-label="Escrow totals" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px;">
+    <sc-for list="{{tiles}}" as="t" hint-placeholder-count="4">
+      <div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+        <span style="font-size: 12px; color: var(--faint); font-weight: 500;">{{t.label}}</span>
+        <span class="num" style="font-size: 24px; font-weight: 600; letter-spacing: -0.015em;">{{t.value}}</span>
+        <sc-if value="{{t.hasExact}}" hint-placeholder-val="{{false}}"><span class="mono num" style="font-size: 12px; color: var(--fg); overflow-wrap: anywhere;">{{t.exact}}</span></sc-if>
+        <span style="font-size: 12px; color: var(--muted);">{{t.sub}}</span>
+      </div>
+    </sc-for>
+  </section>
+
+  <section class="card" aria-labelledby="rel-title" style="padding: 16px 18px 14px; display: flex; flex-direction: column; gap: 12px;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="rel-title" style="margin: 0; font-size: 15px; font-weight: 600;">Upcoming releases</h2>
+        <span class="src">/v2/escrows/releases?interval=month</span>
+      </div>
+      <span style="font-size: 13px; color: var(--muted);">{{relSum}} {{cur}} can be finished in the next 12 months</span>
+    </div>
+    <span style="font-size: 13px; color: var(--muted);">{{cur}} in escrows that can be finished from each month on. Escrows with a crypto-condition also need their fulfillment.</span>
+    <div style="display: flex;">
+      <div style="position: relative; width: 52px; flex: none;" aria-hidden="true"><div class="plot"><sc-for list="{{relAxis}}" as="a" hint-placeholder-count="5"><span class="yl" style="bottom: {{a.pos}};">{{a.label}}</span></sc-for></div></div>
+      <div style="flex: 1 1 auto; min-width: 0;">
+        <div class="plot" onMouseLeave="{{leaveRel}}">
+          <sc-for list="{{relAxis}}" as="a" hint-placeholder-count="5"><span class="gl {{a.cls}}" style="bottom: {{a.pos}};"></span></sc-for>
+          <div style="position: absolute; inset: 0; display: flex; align-items: flex-end;">
+            <sc-for list="{{relCols}}" as="c" hint-placeholder-count="12">
+              <button type="button" class="col {{c.cls}}" aria-label="{{c.aria}}" onMouseEnter="{{c.enter}}" onFocus="{{c.enter}}" onBlur="{{leaveRel}}"><span class="bar" style="height: {{c.h}};"></span></button>
+            </sc-for>
+          </div>
+          <sc-if value="{{relTip.show}}" hint-placeholder-val="{{false}}">
+            <div class="tip" style="left: {{relTip.left}}; transform: {{relTip.tf}};">
+              <span style="color: var(--faint);">{{relTip.month}}</span>
+              <span class="mono num"><b>{{relTip.v}} {{cur}}</b></span>
+              <span style="color: var(--muted);">can be finished, from {{relTip.n}}</span>
+            </div>
+          </sc-if>
+        </div>
+        <div style="position: relative; height: 24px;" aria-hidden="true"><sc-for list="{{relXl}}" as="d" hint-placeholder-count="12"><span class="xl" style="left: {{d.pos}};">{{d.label}}</span></sc-for></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="list-title" style="overflow: hidden;">
+    <div style="padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px;">
+        <h2 id="list-title" style="margin: 0; font-size: 15px; font-weight: 600;">All escrows</h2>
+        <span class="src">{{listSrc}}</span>
+      </div>
+      <div role="group" aria-label="Order and filters" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px;">
+        <div class="segs" role="group" aria-label="Order">
+          <sc-for list="{{sorts}}" as="s" hint-placeholder-count="2"><button type="button" class="seg {{s.cls}}" aria-pressed="{{s.on}}" onClick="{{s.pick}}">{{s.label}}</button></sc-for>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <label for="esc-state" style="font-size: 13px; color: var(--faint);">State</label>
+          <select id="esc-state" class="sel" value="{{fstate}}" onChange="{{onState}}"><option value="">any state</option><option value="pending">pending</option><option value="finish">can be finished</option><option value="cancel">can be cancelled</option></select>
+        </div>
+        <label class="chk"><input type="checkbox" checked="{{fcond}}" onChange="{{toggleCond}}">Has a crypto-condition</label>
+      </div>
+    </div>
+
+    <div style="overflow-x: auto;">
+      <div role="table" aria-label="Escrows" style="min-width: 1080px; --cols: minmax(170px, 1.4fr) minmax(170px, 1.4fr) minmax(150px, 1.1fr) 132px 132px 136px 140px;">
+        <div role="row" class="tr th">
+          <span role="columnheader">Owner</span>
+          <span role="columnheader">Destination</span>
+          <span role="columnheader" class="r">Amount, {{cur}}</span>
+          <span role="columnheader">Finish after, UTC</span>
+          <span role="columnheader">Cancel after, UTC</span>
+          <span role="columnheader">Condition</span>
+          <span role="columnheader">State</span>
+        </div>
+        <div class="tb">
+          <sc-for list="{{rows}}" as="e" hint-placeholder-count="20">
+            <div role="row" class="tr">
+              <span role="cell" style="min-width: 0;">
+                <a class="acct" href="Account.dc.html" title="{{e.owner.title}}">
+                  <sc-if value="{{e.owner.plain}}" hint-placeholder-val="{{true}}"><span class="mono">{{e.owner.short}}</span></sc-if>
+                  <sc-if value="{{e.owner.verified}}" hint-placeholder-val="{{false}}"><span>{{e.owner.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></sc-if>
+                  <sc-if value="{{e.owner.curated}}" hint-placeholder-val="{{false}}"><span>{{e.owner.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></sc-if>
+                  <sc-if value="{{e.owner.unverified}}" hint-placeholder-val="{{false}}"><span>{{e.owner.label}}</span><span class="unv">not verified</span></sc-if>
+                </a>
+              </span>
+              <span role="cell" style="min-width: 0;">
+                <sc-if value="{{e.same}}" hint-placeholder-val="{{false}}"><span style="color: var(--muted);">same as owner</span></sc-if>
+                <sc-if value="{{e.other}}" hint-placeholder-val="{{true}}">
+                  <a class="acct" href="Account.dc.html" title="{{e.dest.title}}">
+                    <sc-if value="{{e.dest.plain}}" hint-placeholder-val="{{true}}"><span class="mono">{{e.dest.short}}</span></sc-if>
+                    <sc-if value="{{e.dest.verified}}" hint-placeholder-val="{{false}}"><span>{{e.dest.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></sc-if>
+                    <sc-if value="{{e.dest.curated}}" hint-placeholder-val="{{false}}"><span>{{e.dest.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></sc-if>
+                    <sc-if value="{{e.dest.unverified}}" hint-placeholder-val="{{false}}"><span>{{e.dest.label}}</span><span class="unv">not verified</span></sc-if>
+                  </a>
+                </sc-if>
+              </span>
+              <span role="cell" class="r"><a class="mono num" href="Escrow.dc.html" title="Escrow {{e.id}}"><span class="sr">Escrow of </span>{{e.amount}}<span class="sr"> {{cur}}</span></a></span>
+              <span role="cell" class="num">{{e.fin}}</span>
+              <span role="cell" class="num" style="color: var(--muted);">{{e.can}}</span>
+              <span role="cell">
+                <sc-if value="{{e.cond}}" hint-placeholder-val="{{false}}"><span class="st"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>crypto-condition</span></sc-if>
+                <sc-if value="{{e.noCond}}" hint-placeholder-val="{{true}}"><span style="color: var(--faint);">—<span class="sr">no condition</span></span></sc-if>
+              </span>
+              <span role="cell">
+                <sc-if value="{{e.isPending}}" hint-placeholder-val="{{true}}"><span class="st quiet"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>pending</span></sc-if>
+                <sc-if value="{{e.isFinish}}" hint-placeholder-val="{{false}}"><span class="st good"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8 12.5 2.7 2.7L16 9.8"></path></svg>can be finished</span></sc-if>
+                <sc-if value="{{e.isCancel}}" hint-placeholder-val="{{false}}"><span class="st"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path></svg>can be cancelled</span></sc-if>
+              </span>
+            </div>
+          </sc-for>
+          <sc-if value="{{empty}}" hint-placeholder-val="{{false}}">
+            <div style="padding: 28px 16px; color: var(--faint); border-top: 1px solid var(--border);">No escrows match these filters.</div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 13px; color: var(--faint);">
+      <span>{{pageNote}}</span>
+      <div style="display: flex; gap: 8px;">
+        <button type="button" class="btn" disabled="{{prevOff}}" onClick="{{prevPage}}">← Previous</button>
+        <button type="button" class="btn" disabled="{{nextOff}}" onClick="{{nextPage}}">Next →</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer style="border-top: 1px solid var(--border); background: var(--surface);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 22px 20px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--faint);">
+    <span>explorer · by GateHub</span>
+    <span>History from validated ledgers. Balances and account state read live from the network.</span>
+    <span style="display: flex; gap: 16px;"><a href="#">API</a><a href="#">Status</a><a href="#">Privacy</a></span>
+  </div>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"accent":{"editor":"color","options":["#2F5BEA","#0F766E","#6D28D9","#111827"],"default":"#2F5BEA","section":"Network colors"},"xahauAccent":{"editor":"color","options":["#B45309","#C2410C","#A16207"],"default":"#B45309","section":"Network colors"},"$preview":{"width":1440,"height":2050}}'>
+class Component extends DCLogic {
+  state = { net: 'xrpl', sort: 'amount', fstate: '', fcond: false, page: 0, hovR: -1 };
+
+  renderVals() {
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const accent = this.props.accent ?? '#2F5BEA';
+    const xahauAccent = this.props.xahauAccent ?? '#B45309';
+    const x = this.state.net === 'xrpl';
+    const st = this.state;
+    const net = x ? 'xrpl' : 'xahau';
+    const cur = x ? 'XRP' : 'XAH';
+    const fmt = (n) => n.toLocaleString('en-US');
+    const seedRng = (s) => () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    const DAY = 86400000, NOW = Date.UTC(2026, 9, 24, 21, 0);
+    const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const six = (drops) => fmt(Math.floor(drops / 1e6)) + '.' + String(drops % 1e6).padStart(6, '0');
+    const compact = (n) => { const a = Math.abs(n); const t = (v, u) => (+v.toFixed(2)).toLocaleString('en-US') + ' ' + u; return a >= 1e9 ? t(n / 1e9, 'B') : a >= 1e6 ? t(n / 1e6, 'M') : a >= 1e3 ? t(n / 1e3, 'K') : (+n.toFixed(2)).toLocaleString('en-US'); };
+    const niceAxis = (max) => {
+      const rough = max / 4;
+      const mag = Math.pow(10, Math.floor(Math.log10(rough || 1)));
+      const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= rough);
+      const top = Math.ceil(max / step) * step;
+      const ticks = [];
+      for (let v = 0; v <= top + 1e-9; v += step) ticks.push({ pos: (v / top * 100).toFixed(2) + '%', label: compact(v), cls: v === 0 ? 'base' : '' });
+      return { top, ticks };
+    };
+    const tipAt = (i, count) => { const left = (i + 0.5) / count * 100; return { left: left.toFixed(2) + '%', tf: left < 22 ? 'translateX(-8px)' : left > 78 ? 'translateX(calc(-100% + 8px))' : 'translateX(-50%)' }; };
+
+    // Account names
+    const addrOf = (seed) => { const Q = seedRng(seed); let a = 'r'; const n = 24 + Math.floor(Q() * 11); for (let i = 0; i < n; i++) a += B58[Math.floor(Q() * 58)]; return a; };
+    const hash = (s) => { let h = 7; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; };
+    const SEEDS = { 'Northpeak Treasury': 1101, 'Harborline Exchange · hot wallet': 1201, 'lowtide.example': 1301, 'Copperfield Payments': 1401, 'Hooksmith Labs': 1451, 'Kestrel Exchange · cold wallet': 1501 };
+    const addrFor = (name) => addrOf((SEEDS[name] ?? hash(name)) + (x ? 0 : 1000));
+    const acct = (address, kind, text) => ({ address, short: address.slice(0, 5) + '…' + address.slice(-4), label: text || '', verified: kind === 'v', curated: kind === 'c', unverified: kind === 'u', plain: !kind, title: kind === 'v' ? 'Verified name · ' + address : kind === 'c' ? 'Named by GateHub · ' + address : kind === 'u' ? 'Domain not verified · ' + address : address });
+    const named = (n) => acct(addrFor(n[1]), n[0], n[1]);
+    const known = (x
+      ? [['v', 'Harborline Capital'], ['v', 'Stonebridge Custody'], ['c', 'Kestrel Exchange · cold wallet'], ['v', 'Northpeak Treasury'], ['u', 'lowtide.example'], ['v', 'Quietfjord Bank']]
+      : [['v', 'Hooksmith Labs'], ['v', 'Pinecrest Fund'], ['c', 'Saltgrass Exchange · cold wallet'], ['u', 'emberfield.example'], ['v', 'Wolfbay Treasury']]).map(named);
+    const meridian = named(['v', 'Meridian Labs']);
+
+    // Escrows still in the ledger: amounts, dates and conditions (the same book as Supply.dc.html)
+    const escrowCore = (xr) => {
+      const R = seedRng(xr ? 9101 : 9202);
+      const list = [];
+      if (xr) {
+        for (let m = 0; m < 32; m++) list.push({ xrp: 1e9, drops: 0, fin: Date.UTC(2026, 10 + m, 1), can: null, cond: false, big: 'm' });
+        list.push({ xrp: 1250000000, drops: 0, fin: Date.UTC(2027, 2, 1, 12), can: Date.UTC(2028, 2, 1, 12), cond: false, big: 'h' });
+        list.push({ xrp: 1100000000, drops: 0, fin: null, can: Date.UTC(2027, 11, 31), cond: true, big: 's' });
+      }
+      const n = xr ? 12845 : 2140;
+      let S = 0, maxI = -1;
+      for (let i = 0; i < n; i++) {
+        let v = Math.round(Math.pow(10, 1.7 + (xr ? 4.3 : 3.9) * Math.pow(R(), xr ? 8 : 6)));
+        if (R() < 0.7) { const p = Math.pow(10, Math.max(0, Math.floor(Math.log10(v)) - 1)); v = Math.round(v / p) * p; }
+        const d = R() < 0.25 ? Math.floor(R() * 1e6) : 0;
+        const cond = R() < 0.09;
+        let fin = R() < 0.05 ? NOW - (1 + R() * 420) * DAY : NOW + Math.pow(R(), 1.7) * 5 * 365 * DAY + 3600000;
+        fin = Math.floor(fin / 3600000) * 3600000;
+        if (cond && R() < 0.3) fin = null;
+        let can = null;
+        if (fin === null || R() < 0.5) can = Math.floor(((fin === null ? NOW - R() * 300 * DAY : fin) + (20 + R() * 700) * DAY) / 3600000) * 3600000;
+        if (maxI < 0 || v > list[maxI].xrp) maxI = list.length;
+        S += v * 1e6 + d;
+        list.push({ xrp: v, drops: d, fin, can, cond, big: '' });
+      }
+      const T = xr ? 862847105402318 : 18406227318004;
+      const a = list[maxI], t = a.xrp * 1e6 + a.drops + (T - S);
+      a.xrp = Math.floor(t / 1e6); a.drops = t % 1e6;
+      list.forEach((e, i) => { e.i = i; e.state = e.can !== null && e.can <= NOW ? 'cancel' : e.fin === null || e.fin <= NOW ? 'finish' : 'pending'; });
+      return list;
+    };
+    this._books = this._books || {};
+    const book = this._books[net] || (this._books[net] = escrowCore(x));
+    const sortKey = net + ':' + st.sort;
+    if (!this._books[sortKey]) {
+      const byAmount = (a, b) => (b.xrp - a.xrp) || (b.drops - a.drops) || ((a.fin ?? 0) - (b.fin ?? 0)) || (a.i - b.i);
+      const when = (e) => e.state === 'finish' ? (e.fin ?? 0) : e.state === 'pending' ? e.fin : 9e15 + e.can;
+      this._books[sortKey] = book.slice().sort(st.sort === 'soon' ? (a, b) => (when(a) - when(b)) || byAmount(a, b) : byAmount);
+    }
+    const sorted = this._books[sortKey];
+
+    // Totals
+    let nP = 0, nF = 0, nC = 0, nCond = 0, n30 = 0, d30 = 0;
+    book.forEach((e) => {
+      if (e.state === 'pending') nP++; else if (e.state === 'finish') nF++; else nC++;
+      if (e.cond) nCond++;
+      if (e.state === 'pending' && e.fin <= NOW + 30 * DAY) { n30++; d30 += e.xrp * 1e6 + e.drops; }
+    });
+    const tiles = [
+      { label: 'Escrows', value: fmt(book.length), hasExact: false, exact: '', sub: fmt(nP) + ' pending · ' + fmt(nF) + ' can be finished · ' + fmt(nC) + ' can be cancelled' },
+      { label: cur + ' escrowed', value: x ? '35.21 B ' + cur : '18.41 M ' + cur, hasExact: true, exact: (x ? '35,212,847,105.402318' : '18,406,227.318004') + ' ' + cur, sub: 'in all escrows, at ledger #' + (x ? '107,747,456' : '17,482,656') },
+      { label: 'Releasing in the next 30 days', value: compact(d30 / 1e6) + ' ' + cur, hasExact: true, exact: six(d30) + ' ' + cur, sub: 'in ' + fmt(n30) + ' escrows that can be finished by 23 Nov 2026' },
+      { label: 'Conditional escrows', value: fmt(nCond), hasExact: false, exact: '', sub: 'finish only with the fulfillment of their crypto-condition' }
+    ];
+
+    // Upcoming releases, the next 12 months
+    const months = [];
+    for (let m = 0; m < 12; m++) {
+      const s = Date.UTC(2026, 10 + m, 1), e = Date.UTC(2026, 11 + m, 1);
+      let dr = 0, n = 0;
+      book.forEach((q) => { if (q.state === 'pending' && q.fin >= s && q.fin < e) { dr += q.xrp * 1e6 + q.drops; n++; } });
+      const d = new Date(s);
+      months.push({ y: d.getUTCFullYear(), mo: d.getUTCMonth(), dr, n });
+    }
+    const rAx = niceAxis(Math.max.apply(null, months.map((m) => m.dr / 1e6)));
+    const hR = st.hovR;
+    const relCols = months.map((m, i) => ({ h: (m.dr / 1e6 / rAx.top * 100).toFixed(2) + '%', cls: hR < 0 || hR === i ? '' : 'dim', aria: MON[m.mo] + ' ' + m.y + ': ' + six(m.dr) + ' ' + cur + ' from ' + fmt(m.n) + ' escrows', enter: () => this.setState({ hovR: i }) }));
+    const relXl = months.map((m, i) => ({ label: MON[m.mo] + (i === 0 || m.mo === 0 ? ' ' + m.y : ''), pos: ((i + 0.5) / 12 * 100).toFixed(2) + '%' }));
+    const relTip = hR >= 0 && hR < 12 ? Object.assign({ show: true, month: MON[months[hR].mo] + ' ' + months[hR].y, v: six(months[hR].dr), n: fmt(months[hR].n) + ' escrows' }, tipAt(hR, 12)) : { show: false, left: '0%', tf: '', month: '', v: '', n: '' };
+    const relSum = compact(months.reduce((a, m) => a + m.dr, 0) / 1e6);
+
+    // The list
+    let rows = sorted;
+    if (st.fstate) rows = rows.filter((e) => e.state === st.fstate);
+    if (st.fcond) rows = rows.filter((e) => e.cond);
+    const per = 20;
+    const pages = Math.max(1, Math.ceil(rows.length / per));
+    const page = Math.min(st.page, pages - 1);
+    const date = (t) => { if (t === null) return '—'; const d = new Date(t); return d.getUTCDate() + ' ' + MON[d.getUTCMonth()] + ' ' + d.getUTCFullYear() + ', ' + String(d.getUTCHours()).padStart(2, '0') + ':00'; };
+    const ident = (e) => {
+      if (e.big) {
+        const Q = seedRng(7700 + e.i);
+        let id = '';
+        for (let i = 0; i < 64; i++) id += '0123456789ABCDEF'[Math.floor(Q() * 16)];
+        if (e.big === 'h') return { owner: known[0], dest: known[2], id };
+        if (e.big === 's') return { owner: known[1], dest: acct(addrOf(5400001), '', ''), id };
+        return { owner: meridian, dest: meridian, id };
+      }
+      const Q = seedRng((x ? 3100000 : 3700000) + e.i);
+      const owner = Q() < (e.xrp >= (x ? 250000 : 50000) ? 0.35 : 0.06) ? known[Math.floor(Q() * known.length)] : acct(addrOf((x ? 5000000 : 6000000) + e.i * 2), '', '');
+      const k = Q();
+      const dest = k < 0.45 ? owner : k < 0.52 ? known[Math.floor(Q() * known.length)] : acct(addrOf((x ? 5000000 : 6000000) + e.i * 2 + 1), '', '');
+      let id = '';
+      for (let i = 0; i < 64; i++) id += '0123456789ABCDEF'[Math.floor(Q() * 16)];
+      return { owner, dest, id };
+    };
+    const shown = rows.slice(page * per, page * per + per).map((e) => {
+      const p = ident(e);
+      const same = p.dest === p.owner;
+      return {
+        owner: Object.assign({}, p.owner), dest: Object.assign({}, p.dest), same, other: !same, id: p.id,
+        amount: fmt(e.xrp) + (e.drops ? '.' + String(e.drops).padStart(6, '0') : ''),
+        fin: date(e.fin), can: date(e.can), cond: e.cond, noCond: !e.cond,
+        isPending: e.state === 'pending', isFinish: e.state === 'finish', isCancel: e.state === 'cancel'
+      };
+    });
+    const filtered = !!st.fstate || st.fcond;
+    const pageNote = rows.length === 0 ? 'No matches' : 'Showing ' + fmt(page * per + 1) + '–' + fmt(page * per + shown.length) + ' of ' + fmt(rows.length) + (filtered ? ' matching escrows' : ' escrows') + ' · page ' + fmt(page + 1) + ' of ' + fmt(pages);
+    const sorts = [['amount', 'Largest first'], ['soon', 'Soonest release']].map((s) => ({ label: s[1], on: st.sort === s[0], cls: st.sort === s[0] ? 'on' : '', pick: () => this.setState({ sort: s[0], page: 0 }) }));
+
+    const reset = { fstate: '', fcond: false, page: 0, hovR: -1 };
+    return {
+      themeClass: dark ? 'dark' : '',
+      accentNow: x ? accent : xahauAccent,
+      xrplDot: accent, xahauDot: xahauAccent,
+      isXrpl: x, isXahau: !x,
+      xrplCls: x ? 'on' : '', xahauCls: x ? '' : 'on',
+      pickXrpl: () => this.setState(Object.assign({ net: 'xrpl' }, reset)),
+      pickXahau: () => this.setState(Object.assign({ net: 'xahau' }, reset)),
+      netName: x ? 'XRPL' : 'Xahau', cur,
+      tiles,
+      relAxis: rAx.ticks, relCols, relXl, relTip, relSum,
+      leaveRel: () => this.setState({ hovR: -1 }),
+      listSrc: st.sort === 'soon' ? '/v2/escrows?order=finish_after' : '/v2/escrows?order=amount',
+      sorts,
+      fstate: st.fstate, onState: (e) => this.setState({ fstate: e.target.value, page: 0 }),
+      fcond: !!st.fcond, toggleCond: (e) => this.setState({ fcond: !!e.target.checked, page: 0 }),
+      rows: shown, empty: shown.length === 0, pageNote,
+      prevOff: page === 0, nextOff: page >= pages - 1,
+      prevPage: () => this.setState({ page: Math.max(0, page - 1) }),
+      nextPage: () => this.setState({ page: Math.min(pages - 1, page + 1) })
+    };
+  }
+}
+</script>
+</body>
+</html>

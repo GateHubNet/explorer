@@ -93,6 +93,12 @@
   "result": "success",
   "server_version": "1745992596280311808",
   "signing_key": "n9M3hhKXF8j7Nb8GcVWj2LBMPeqBhoN41zLMWN1v8dYynr5zLSgn",
+  "toml": {
+    "network": "main",
+    "owner_country": "AU",
+    "server_country": "AU",
+    "unl": "https://vl.ripple.com"
+  },
   "unl": false,
   "unl_lists": [],
   "validation_public_key": "nHBTSC2P4nCFeUi718kVeFXzjBBXc3Vy9oep9b2z5MrCSEeqwS5m",

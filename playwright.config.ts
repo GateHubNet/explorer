@@ -4,7 +4,7 @@ import { chromiumToUse } from "./scripts/e2e-env";
 
 // The end-to-end suite (spec 12). It runs against the BUILT Worker under `wrangler dev`, with the data API and the nodes replaced by the
 // fixture server unless E2E_DATA_API_URL and E2E_NODE_URL name a real stack; test/e2e/stack.ts starts and stops all of it, and README.md
-// ("End-to-end tests") has the switches. `E2E_BASE_URL` skips that and tests a Worker that is already running (a deployed staging).
+// ("End-to-end tests") has the switches. `E2E_BASE_URL` skips that and tests a deployed Worker that is already running.
 
 // The specs that change what the fixture server answers while they run. They are the `live` project's and no other's: a later plan's
 // `*-live.spec.ts` is in it without an edit here.

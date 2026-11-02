@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Validator</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.xp{--bg:#F5F6F8;--surface:#FFFFFF;--sunken:#EEF0F3;--border:#E1E4E9;--border-strong:#CDD2D9;--fg:#0F1217;--muted:#4F5864;--faint:#646D7A;--link:var(--accent);--ok:#17733F;--ok-bg:#E3F3E9;--bad:#B42318;--bad-bg:#FCEBE9;--grid:#EEF0F3;--axis:#CDD2D9;--s1:#2a78d6;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.xp.dark{--bg:#0B0E12;--surface:#12161C;--sunken:#181D24;--border:#232A33;--border-strong:#323B46;--fg:#E7EBF0;--muted:#A3ACB9;--faint:#8D97A5;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--ok:#5BD08F;--ok-bg:#10281B;--bad:#F28B80;--bad-bg:#30161A;--grid:#1D232B;--axis:#323B46;--s1:#3987e5}
+.xp a{color:var(--link);text-decoration:none}
+.xp a:hover{text-decoration:underline}
+.xp button,.xp input{font:inherit;color:inherit}
+.xp :focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{border:0;background:transparent;padding:6px 12px;border-radius:7px;display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:500;color:var(--muted);min-height:32px;white-space:nowrap;position:relative}
+.seg::after{content:'';position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.seg.on{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--border)}
+.segs{display:flex;padding:3px;background:var(--sunken);border:1px solid var(--border);border-radius:9px}
+.nav{padding:8px 10px;border-radius:7px;color:var(--muted)!important;font-weight:500;display:inline-flex;align-items:center}
+.nav:hover{background:var(--sunken);text-decoration:none!important;color:var(--fg)!important}
+.nav.cur{color:var(--fg)!important;background:var(--sunken)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.src{font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--faint)}
+.amt{font-family:'Geist Mono',ui-monospace,monospace;font-weight:500;font-variant-numeric:tabular-nums}
+.copy{border:0;background:transparent;color:var(--faint);cursor:pointer;padding:4px;border-radius:5px;vertical-align:middle;min-width:30px;min-height:30px;position:relative}
+.copy::after{content:'';position:absolute;inset:-7px}
+.copy:hover{color:var(--fg);background:var(--sunken)}
+.plot{position:relative;height:200px}
+.gl{position:absolute;left:0;right:0;border-top:1px solid var(--grid)}
+.gl.base{border-top-color:var(--axis)}
+.yl{position:absolute;right:10px;transform:translateY(50%);font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap}
+.xl{position:absolute;top:6px;transform:translateX(-50%);font-size:11px;color:var(--faint);white-space:nowrap}
+.hit{position:absolute;inset:0;border:0;background:transparent;padding:0;cursor:crosshair;width:100%;height:100%}
+.xh{position:absolute;top:0;bottom:0;width:1px;background:var(--border-strong);pointer-events:none}
+.dot{position:absolute;width:8px;height:8px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 2px var(--surface);pointer-events:none;background:var(--s1)}
+.tip{position:absolute;z-index:3;top:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 28px -14px rgba(0,0,0,.4);padding:10px 12px;font-size:12px;min-width:160px;pointer-events:none;display:flex;flex-direction:column;gap:4px}
+.tip .k{display:inline-block;width:12px;height:2px;border-radius:1px;margin-right:8px;vertical-align:middle;background:var(--s1)}
+.tip b{font-weight:600;font-variant-numeric:tabular-nums}
+.tbl{max-height:300px;overflow:auto;border-top:1px solid var(--border)}
+.trow{display:grid;grid-template-columns:var(--cols);column-gap:12px;padding:0 12px;min-height:34px;align-items:center;border-bottom:1px solid var(--border);font-size:12.5px;font-variant-numeric:tabular-nums;min-width:460px}
+.trow span{text-align:right;white-space:nowrap}
+.trow span:first-child{text-align:left}
+.trow.th{position:sticky;top:0;background:var(--surface);font-weight:500;color:var(--faint);z-index:1}
+.tr{display:grid;grid-template-columns:var(--cols);align-items:center;column-gap:16px;padding:0 16px;min-height:46px;border-top:1px solid var(--border);font-size:13px}
+.th{min-height:36px;font-size:12px;font-weight:500;color:var(--faint);border-top:0}
+.tb .tr:hover{background:var(--sunken)}
+.r{text-align:right;justify-self:end}
+.tag{font-size:11px;font-weight:500;padding:1px 6px;border-radius:5px;background:var(--sunken);border:1px solid var(--border);white-space:nowrap;display:inline-flex;align-items:center;gap:4px;color:var(--fg)}
+.st{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:500;white-space:nowrap}
+.st.good{color:var(--ok)}
+.st.quiet{color:var(--muted)}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.ok{color:var(--ok);background:var(--ok-bg)}
+.bad{color:var(--bad);background:var(--bad-bg)}
+.neu{color:var(--fg);background:var(--sunken)}
+.stat{display:flex;flex-direction:column;gap:2px;padding:14px 16px}
+.kv{display:flex;flex-direction:column;gap:3px;min-width:0}
+.kv > span:first-child{font-size:12px;color:var(--faint);font-weight:500}
+.acct{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:100%}
+.acct>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct .mono{font-size:12.5px}
+.unv{font-size:11px;color:var(--muted);border:1px dashed var(--border-strong);border-radius:5px;padding:0 5px;white-space:nowrap}
+.kv .acct{min-height:32px}
+.chk{display:flex;align-items:flex-start;gap:8px;font-size:13px}
+.chk svg{flex:none;margin-top:1px;color:var(--ok)}
+.menu{position:relative;display:inline-flex}.menu>summary{list-style:none;cursor:pointer}.menu>summary::-webkit-details-marker{display:none}.menu-panel{position:absolute;z-index:20;top:calc(100% + 6px);left:0;min-width:230px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px -16px rgba(0,0,0,.35);padding:6px;display:flex;flex-direction:column;gap:2px}.menu-panel a{display:flex;align-items:center;min-height:36px;padding:0 10px;border-radius:7px;color:var(--fg)!important;font-weight:500}.menu-panel a:hover{background:var(--sunken);text-decoration:none!important}.menu-panel a[aria-current="page"]{background:var(--sunken)}
+</style>
+</helmet>
+<div class="xp {{themeClass}}" style="--accent: {{accentNow}};">
+
+<header style="background: var(--surface); border-bottom: 1px solid var(--border);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 12px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: var(--fg);" aria-label="Explorer home">
+      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" style="fill: var(--accent)"></rect><path d="M8 10h7M8 14h12M8 18h9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"></path></svg>
+      <span style="font-weight: 650; font-size: 17px; letter-spacing: -0.01em;">explorer</span>
+    </a>
+    <div role="group" aria-label="Network" class="segs">
+      <button type="button" class="seg {{xrplCls}}" aria-pressed="{{isXrpl}}" onClick="{{pickXrpl}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xrplDot}};"></span>XRPL</button>
+      <button type="button" class="seg {{xahauCls}}" aria-pressed="{{isXahau}}" onClick="{{pickXahau}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xahauDot}};"></span>Xahau</button>
+    </div>
+    <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 2px; align-items: center;">
+      <a class="nav" href="Ledger.dc.html">Ledgers</a>
+      <a class="nav" href="Transaction.dc.html">Transactions</a>
+      <a class="nav" href="Account.dc.html">Accounts</a>
+      <a class="nav" href="Tokens.dc.html">Tokens</a>
+      <details class="menu">
+        <summary class="nav cur">Network<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 4px;"><path d="m6 9 6 6 6-6"></path></svg></summary>
+        <div class="menu-panel">
+          <a href="Network.dc.html">Overview</a>
+          <a href="Validators.dc.html" aria-current="page">Validators</a>
+          <a href="Nodes.dc.html">Nodes</a>
+          <a href="Amendments.dc.html">Amendments</a>
+          <a href="Supply.dc.html">Supply &amp; distribution</a>
+        </div>
+      </details>
+      <a class="nav" href="Markets.dc.html">Markets</a>
+      <a class="nav" href="Amm.dc.html">AMM</a>
+      <a class="nav" href="Nfts.dc.html">NFTs</a>
+    </nav>
+    <form role="search" style="flex: 1 1 240px; display: flex; align-items: center; gap: 8px; background: var(--sunken); border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; min-height: 40px;">
+      <label for="hdr-q" class="sr">Search</label>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint); flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <input id="hdr-q" type="search" placeholder="Address, hash, ledger or CTID" style="flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px;">
+    </form>
+  </div>
+</header>
+
+<main style="max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; display: flex; flex-direction: column; gap: 18px;">
+
+  <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--faint); display: flex; gap: 8px; flex-wrap: wrap;">
+    <a href="Main.dc.html">{{netName}}</a><span aria-hidden="true">/</span><a href="Network.dc.html">Network</a><span aria-hidden="true">/</span><a href="Validators.dc.html">Validators</a><span aria-hidden="true">/</span><span aria-current="page" style="color: var(--muted);">northpeak.example</span>
+  </nav>
+
+  <section class="card" aria-label="Validator" style="padding: 20px 22px; display: flex; flex-direction: column; gap: 18px;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px 16px;">
+      <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+        <span style="font-size: 12px; color: var(--faint); font-weight: 500;">Validator</span>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;">
+          <h1 style="margin: 0; font-size: 26px; letter-spacing: -0.02em; font-weight: 650;">northpeak.example</h1>
+          <span class="st good"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8 12.5 2.7 2.7L16 9.8"></path></svg>Domain verified</span>
+          <span class="tag" title="{{unlTitle}}"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.4 3 8.3 7 9.5 4-1.2 7-5.1 7-9.5V6z"></path></svg>UNL<span class="sr">, {{unlTitle}}</span></span>
+        </div>
+        <span style="font-size: 13px; color: var(--muted);">{{verifyNote}}</span>
+      </div>
+      <span class="src">/v2/network/validators/{key}</span>
+    </div>
+
+    <div class="kv">
+      <span>Master public key</span>
+      <span class="mono" style="font-size: 14px; overflow-wrap: anywhere;">{{masterKey}}<button type="button" class="copy" aria-label="Copy master public key"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h8"></path></svg></button></span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 16px 24px;">
+      <div class="kv"><span>Current signing key</span><span class="mono" style="font-size: 13px;" title="{{signKey}}">{{signShort}}<button type="button" class="copy" aria-label="Copy signing key"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h8"></path></svg></button></span></div>
+      <div class="kv"><span>Manifest sequence</span><span class="mono num">4</span><span style="font-size: 12px; color: var(--muted);">signing key rotated 3 times</span></div>
+      <div class="kv">
+        <span>UNL membership</span>
+        <sc-for list="{{pubs}}" as="p" hint-placeholder-count="2">
+          <span style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;"><span class="mono" style="font-size: 13px;">{{p.name}}</span><span class="st good" style="font-size: 12px;"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>listed</span></span>
+        </sc-for>
+      </div>
+      <div class="kv"><span>Version</span><span style="display: flex; align-items: center; gap: 8px;"><span class="mono">{{ver}}</span><span class="st good" style="font-size: 12px;"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V8M6.5 13.5 12 8l5.5 5.5M6 4h12"></path></svg>latest</span></span></div>
+      <div class="kv"><span>First seen</span><span class="num">{{firstSeen}}</span></div>
+      <div class="kv"><span>Last seen</span><span class="num">{{lastSeen}}</span><span style="font-size: 12px; color: var(--muted);">last validation, ledger <a class="mono" href="Ledger.dc.html">#{{latestIdx}}</a></span></div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="toml-title" style="padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 16px;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px 16px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="toml-title" style="margin: 0; font-size: 15px; font-weight: 600;">From northpeak.example's toml</h2>
+        <span class="src">/v2/toml/{domain}</span>
+      </div>
+      <a href="{{tomlUrl}}" style="font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; min-height: 32px;">View toml<span class="sr">, {{tomlFile}}</span> →</a>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 16px 32px;">
+      <div class="kv" style="flex: 1 1 300px;">
+        <span>Domain, verified both ways</span>
+        <ul style="list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px;">
+          <li class="chk"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8 12.5 2.7 2.7L16 9.8"></path></svg><span><span class="sr">Passed: </span>The validator's manifest names northpeak.example.</span></li>
+          <li class="chk"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8 12.5 2.7 2.7L16 9.8"></path></svg><span><span class="sr">Passed: </span>The <span class="mono" style="font-size: 12.5px;">[[VALIDATORS]]</span> list in northpeak.example's <span class="mono" style="font-size: 12.5px;">{{tomlFile}}</span> includes this master key.</span></li>
+        </ul>
+      </div>
+      <div style="flex: 2 1 560px; min-width: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 16px 24px;">
+        <div class="kv"><span>Owner country</span><span>{{toml.owner}}</span></div>
+        <div class="kv"><span>Server country</span><span>{{toml.server}}</span></div>
+        <div class="kv"><span>Network</span><span class="mono" style="font-size: 13px;">{{toml.network}}</span><span style="font-size: 12px; color: var(--muted);">{{toml.networkNote}}</span></div>
+        <div class="kv"><span>On a UNL, says the toml</span><span>Yes · <span class="mono" style="font-size: 13px;">{{toml.unl}}</span></span><span style="font-size: 12px; color: var(--muted);">its own claim; UNL membership above is from the lists</span></div>
+        <div class="kv"><span>Principals</span><span>{{toml.principals}}</span></div>
+        <div class="kv"><span>Last modified</span><span class="num">{{toml.modified}}</span><span style="font-size: 12px; color: var(--muted);">from <span class="mono">[METADATA]</span></span></div>
+      </div>
+    </div>
+    <div style="border-top: 1px solid var(--border); padding-top: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 16px 24px;">
+      <div class="kv">
+        <span>Accounts <span class="mono" style="font-weight: 400;">[[ACCOUNTS]]</span></span>
+        <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-width: 0;"><span class="num">{{toml.acctCount}}</span><sc-for list="{{tomlAccts}}" as="a" hint-placeholder-count="2"><span style="display: flex; min-width: 0; max-width: 100%;"><sc-if value="{{a.verified}}" hint-placeholder-val="{{true}}"><a class="acct" href="AccountNames.dc.html" title="{{a.title}}"><span>{{a.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></a></sc-if><sc-if value="{{a.curated}}" hint-placeholder-val="{{false}}"><a class="acct" href="AccountNames.dc.html" title="{{a.title}}"><span>{{a.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></a></sc-if><sc-if value="{{a.unverified}}" hint-placeholder-val="{{false}}"><a class="acct" href="AccountNames.dc.html" title="{{a.title}}"><span>{{a.label}}</span><span class="unv">not verified</span></a></sc-if><sc-if value="{{a.plain}}" hint-placeholder-val="{{false}}"><a class="acct" href="AccountNames.dc.html" title="{{a.title}}"><span class="mono">{{a.short}}</span></a></sc-if></span></sc-for><sc-if value="{{toml.hasMore}}" hint-placeholder-val="{{true}}"><span style="color: var(--muted);">{{toml.more}}</span></sc-if></span>
+      </div>
+      <div class="kv"><span>Servers <span class="mono" style="font-weight: 400;">[[SERVERS]]</span></span><a href="Nodes.dc.html">{{toml.servers}}</a></div>
+      <div class="kv">
+        <span>Currencies <span class="mono" style="font-weight: 400;">[[CURRENCIES]]</span></span>
+        <span style="display: flex; flex-wrap: wrap; gap: 4px 12px;"><sc-for list="{{tomlCur}}" as="c" hint-placeholder-count="2"><a class="mono" href="Token.dc.html" style="font-size: 13px;">{{c.code}}</a></sc-for></span>
+      </div>
+    </div>
+  </section>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 18px; align-items: stretch;">
+    <section aria-label="Agreement" style="flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+      <sc-for list="{{agreeTiles}}" as="t" hint-placeholder-count="3">
+        <div class="card stat" style="flex: 1 1 auto;">
+          <span>Agreement, {{t.label}}</span>
+          <span class="num" style="font-size: 24px; font-weight: 600; letter-spacing: -0.015em;">{{t.value}}</span>
+          <span style="font-size: 12px; color: var(--muted);">{{t.sub}}</span>
+        </div>
+      </sc-for>
+    </section>
+
+    <section class="card" aria-labelledby="ag-title" style="flex: 999 1 600px; min-width: 0; padding: 16px 18px 12px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <h2 id="ag-title" style="margin: 0; font-size: 15px; font-weight: 600;">Daily agreement with validated ledgers, last 30 days</h2>
+          <span class="src">/v2/network/validators/{key}</span>
+        </div>
+        <div class="segs">
+          <button type="button" class="seg {{chartCls}}" aria-pressed="{{isChart}}" onClick="{{showChart}}">Chart</button>
+          <button type="button" class="seg {{tableCls}}" aria-pressed="{{isTable}}" onClick="{{showTable}}">Table</button>
+        </div>
+      </div>
+      <sc-if value="{{isChart}}" hint-placeholder-val="{{true}}">
+        <div style="display: flex;">
+          <div style="position: relative; width: 56px; flex: none;" aria-hidden="true"><div class="plot"><sc-for list="{{aAxis}}" as="a" hint-placeholder-count="5"><span class="yl" style="bottom: {{a.pos}};">{{a.label}}</span></sc-for></div></div>
+          <div style="flex: 1 1 auto; min-width: 0;">
+            <div class="plot">
+              <sc-for list="{{aAxis}}" as="a" hint-placeholder-count="5"><span class="gl {{a.cls}}" style="bottom: {{a.pos}};"></span></sc-for>
+              <svg aria-hidden="true" viewBox="0 0 1000 200" preserveAspectRatio="none" style="position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible;">
+                <path d="{{aLine}}" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" style="stroke: var(--s1);"></path>
+              </svg>
+              <span class="dot" style="left: 100%; top: {{aEnd}};"></span>
+              <sc-if value="{{aTip.show}}" hint-placeholder-val="{{false}}">
+                <span class="xh" style="left: {{aTip.left}};"></span>
+                <span class="dot" style="left: {{aTip.left}}; top: {{aTip.top}};"></span>
+                <div class="tip" style="left: {{aTip.left}}; transform: {{aTip.tf}};">
+                  <span style="color: var(--faint);">{{aTip.date}}</span>
+                  <span><span class="k"></span><b>{{aTip.v}}</b> agreement</span>
+                  <span style="color: var(--muted);">{{aTip.missed}} missed of {{aTip.total}}</span>
+                </div>
+              </sc-if>
+              <button type="button" class="hit" aria-label="Daily agreement chart. Use the arrow keys to read values." onMouseMove="{{aMove}}" onMouseLeave="{{aLeave}}" onBlur="{{aLeave}}" onFocus="{{aFocus}}" onKeyDown="{{aKey}}"></button>
+            </div>
+            <div style="position: relative; height: 24px;" aria-hidden="true"><sc-for list="{{aXl}}" as="x" hint-placeholder-count="5"><span class="xl" style="left: {{x.pos}};">{{x.label}}</span></sc-for></div>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{isTable}}" hint-placeholder-val="{{false}}">
+        <div class="tbl" role="table" aria-label="Daily agreement" style="--cols: minmax(90px, 1fr) repeat(3, minmax(90px, 1fr)); max-height: 236px;">
+          <div role="row" class="trow th"><span role="columnheader">Day (UTC)</span><span role="columnheader">Agreement</span><span role="columnheader">Validated ledgers</span><span role="columnheader">Missed</span></div>
+          <sc-for list="{{aRows}}" as="r" hint-placeholder-count="8"><div role="row" class="trow"><span role="cell">{{r.date}}</span><span role="cell">{{r.v}}</span><span role="cell">{{r.total}}</span><span role="cell">{{r.missed}}</span></div></sc-for>
+        </div>
+      </sc-if>
+      <span style="font-size: 12px; color: var(--faint);">Share of validated ledgers this validator signed with the same hash. The axis starts at 99%.</span>
+    </section>
+  </div>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 18px; align-items: stretch;">
+    <section class="card" aria-labelledby="fee-title" style="flex: 1 1 380px; min-width: 0; overflow: hidden;">
+      <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="fee-title" style="margin: 0; font-size: 15px; font-weight: 600;">Fee votes</h2>
+        <span class="src">/v2/network/validators/{key}</span>
+      </div>
+      <div style="overflow-x: auto;">
+        <div role="table" aria-label="Fee votes" style="min-width: 380px; --cols: minmax(110px, 1fr) 96px 96px 100px;">
+          <div role="row" class="tr th"><span role="columnheader">Setting</span><span role="columnheader" class="r">Its vote</span><span role="columnheader" class="r">Now</span><span role="columnheader">Against now</span></div>
+          <div class="tb">
+            <sc-for list="{{feeRows}}" as="f" hint-placeholder-count="3">
+              <div role="row" class="tr">
+                <span role="cell">{{f.label}}</span>
+                <span role="cell" class="r amt">{{f.vote}}</span>
+                <span role="cell" class="r amt" style="font-weight: 400; color: var(--muted);">{{f.now}}</span>
+                <span role="cell">
+                  <sc-if value="{{f.same}}" hint-placeholder-val="{{true}}"><span class="pill neu"><svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 9.5h12M6 14.5h12"></path></svg>Same</span></sc-if>
+                  <sc-if value="{{f.up}}" hint-placeholder-val="{{false}}"><span class="pill neu"><svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"></path></svg>Higher</span></sc-if>
+                  <sc-if value="{{f.down}}" hint-placeholder-val="{{false}}"><span class="pill neu"><svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"></path></svg>Lower</span></sc-if>
+                </span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <div style="padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--faint);">Fee votes are counted on flag ledgers, every 256 ledgers.</div>
+    </section>
+
+    <section class="card" aria-labelledby="amd-title" style="flex: 1 1 480px; min-width: 0; overflow: hidden;">
+      <div style="padding: 14px 16px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <h2 id="amd-title" style="margin: 0; font-size: 15px; font-weight: 600;">Amendment votes</h2>
+          <span class="src">/v2/network/validators/{key}</span>
+        </div>
+        <a href="Amendments.dc.html" style="font-size: 13px; font-weight: 500;">All amendments →</a>
+      </div>
+      <div style="overflow-x: auto;">
+        <div role="table" aria-label="Amendment votes" style="min-width: 440px; --cols: minmax(150px, 1.3fr) minmax(150px, 1fr) 80px;">
+          <div role="row" class="tr th"><span role="columnheader">Amendment</span><span role="columnheader">Status</span><span role="columnheader">Its vote</span></div>
+          <div class="tb">
+            <sc-for list="{{amdRows}}" as="a" hint-placeholder-count="5">
+              <div role="row" class="tr">
+                <span role="cell"><a class="mono" href="Amendment.dc.html">{{a.name}}</a></span>
+                <span role="cell" style="color: var(--muted);">{{a.status}}</span>
+                <span role="cell">
+                  <sc-if value="{{a.yes}}" hint-placeholder-val="{{true}}"><span class="pill ok"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Yes</span></sc-if>
+                  <sc-if value="{{a.no}}" hint-placeholder-val="{{false}}"><span class="pill neu"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>No</span></sc-if>
+                </span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <div style="padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--faint);">Amendments still being voted on. A validator that does not vote yes counts as no.</div>
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="vl-title" style="overflow: hidden;">
+    <div style="padding: 14px 16px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; border-bottom: 1px solid var(--border);">
+      <h2 id="vl-title" style="margin: 0; font-size: 15px; font-weight: 600;">Recent validations</h2>
+      <span class="src">/v2/network/validators/{key}/validations</span>
+    </div>
+    <div style="overflow-x: auto;">
+      <div role="table" aria-label="Recent validations" style="min-width: 720px; --cols: 140px minmax(170px, 1fr) 150px 90px 190px;">
+        <div role="row" class="tr th"><span role="columnheader">Ledger</span><span role="columnheader">Ledger hash</span><span role="columnheader">Signed, {{today}} (UTC)</span><span role="columnheader">Kind</span><span role="columnheader">Matches validated ledger</span></div>
+        <div class="tb">
+          <sc-for list="{{vals}}" as="v" hint-placeholder-count="10">
+            <div role="row" class="tr">
+              <span role="cell"><a class="mono num" href="Ledger.dc.html">#{{v.idx}}</a></span>
+              <span role="cell" class="mono" style="color: var(--muted);">{{v.hash}}</span>
+              <span role="cell" class="mono num">{{v.time}}</span>
+              <span role="cell">{{v.kind}}</span>
+              <span role="cell">
+                <sc-if value="{{v.ok}}" hint-placeholder-val="{{true}}"><span class="pill ok"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Matches</span></sc-if>
+                <sc-if value="{{v.bad}}" hint-placeholder-val="{{false}}"><span class="pill bad"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>Different hash</span></sc-if>
+              </span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 13px; color: var(--faint);">
+      <span>Newest first. Partial validations do not count toward agreement.</span>
+      <button type="button" style="border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 0 12px; min-height: 44px; cursor: pointer; font-weight: 500;">Older →</button>
+    </div>
+  </section>
+</main>
+
+<footer style="border-top: 1px solid var(--border); background: var(--surface);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 22px 20px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--faint);">
+    <span>explorer · by GateHub</span>
+    <span>History from validated ledgers. Balances and account state read live from the network.</span>
+    <span style="display: flex; gap: 16px;"><a href="#">API</a><a href="#">Status</a><a href="#">Privacy</a></span>
+  </div>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"accent":{"editor":"color","options":["#2F5BEA","#0F766E","#6D28D9","#111827"],"default":"#2F5BEA","section":"Network colors"},"xahauAccent":{"editor":"color","options":["#B45309","#C2410C","#A16207"],"default":"#B45309","section":"Network colors"},"$preview":{"width":1440,"height":2400}}'>
+class Component extends DCLogic {
+  state = { net: 'xrpl', view: 'chart', hov: -1 };
+
+  renderVals() {
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const accent = this.props.accent ?? '#2F5BEA';
+    const xahauAccent = this.props.xahauAccent ?? '#B45309';
+    const x = this.state.net === 'xrpl';
+    const st = this.state;
+    const cur = x ? 'XRP' : 'XAH';
+    const fmt = (n) => n.toLocaleString('en-US');
+
+    const seedRng = (s) => () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    const fleet = (xr) => {
+      const R = seedRng(xr ? 4242 : 5353);
+      const key = () => { let k = 'n9'; for (let i = 0; i < 50; i++) k += B58[Math.floor(R() * 58)]; return k; };
+      const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; };
+      const unlD = (xr ? 'val-01 northpeak ledgerworks harborline quietfjord cobaltgate tallpine meridian-labs stonebridge bluecanyon ninefold saltmarsh ironwood-nodes lowtide greyheron copperfield eastwick larchhill val-02 brightwater oakmoss redkite fernbank glasshouse millrace westerly kestrel-net sandpiper thornbury halcyon-labs quarrystone silverbirch val-03 driftwood amberline'
+        : 'hooksmith northpeak val-x1 coralreef saltgrass pinecrest tidewater emberfield dunmore cloudberry ravenhill mosswood ashgrove val-x2 starling-labs wolfbay juniper-node highmoor lanternfish bramble eastcliff rookery gullwing foxglove val-x3 seaholly marblearch nettlebed oxbow quillon windrush').split(' ');
+      const othD = xr ? ['', 'nodeyard', '', 'testbench', 'plainview', '', 'orchard-labs', 'skylark', '', 'val-07', 'hilltop', ''] : ['', 'hookbench', 'val-x9', '', 'seawall', '', 'tinker-labs', '', 'brookside', ''];
+      const othV = xr ? ['none', 'yes', 'none', 'no', 'yes', 'none', 'yes', 'no', 'none', 'yes', 'yes', 'none'] : ['none', 'yes', 'no', 'none', 'yes', 'none', 'yes', 'none', 'no', 'none'];
+      const vers = xr ? ['3.4.0', '3.3.1', '3.2.0', '3.1.2', '3.0.2'] : ['2026.9.30', '2026.6.2', '2026.3.11', '2025.12.4', '2025.7.1'];
+      const plan = xr ? [30, 4, 1] : [24, 5, 2];
+      const verIdx = [];
+      plan.forEach((c, k) => { for (let i = 0; i < c; i++) verIdx.push(k); });
+      shuffle(verIdx);
+      if (verIdx[1] !== 0) { const j = verIdx.indexOf(0); verIdx[j] = verIdx[1]; verIdx[1] = 0; }
+      const amds = xr ? [['fixCleanup3_4_0', 29, 0, 1], ['Batch', 25, 4, 1], ['PermissionedDEX', 22, 4, 1], ['TokenEscrow', 16, 4, -1], ['XChainBridge', 4, 4, -1]]
+        : [['fixReduceImport', 26, 1, 1], ['fixNSDelete', 19, 4, 1], ['fix240819', 12, 4, -1]];
+      const yes = unlD.map(() => []);
+      amds.forEach((a) => {
+        const order = shuffle(unlD.map((d, i) => i)).filter((i) => verIdx[i] <= a[2] && i !== 1);
+        if (a[3] > 0) order.unshift(1); else order.push(1);
+        order.slice(0, a[1]).forEach((i) => yes[i].push(a[0]));
+      });
+      const cur0 = [1, 0.2, 10];
+      const feeOf = (r) => r < 0.08 ? null : r < 0.7 ? cur0.slice() : r < 0.8 ? [1, 0.2, 12] : r < 0.9 ? [0.8, 0.15, 10] : [1, 0.1, 10];
+      const recs = unlD.map((d, i) => ({
+        domain: d + '.example', verify: i === (xr ? 23 : 17) ? 'no' : 'yes', key: key(), sign: key(), unl: true,
+        ver: vers[verIdx[i]], verI: verIdx[i], agree: i === (xr ? 12 : 9) ? 97.84 : 99.9 + R() * 0.1,
+        fee: i === 1 ? [1, 0.2, 12] : feeOf(R()), yes: yes[i], seen: Math.round(R() * 3)
+      }));
+      othD.forEach((d, i) => {
+        const vi = Math.min(4, Math.floor(R() * 5));
+        const ys = amds.filter((a) => vi <= a[2] && R() < a[1] / unlD.length).map((a) => a[0]);
+        recs.push({ domain: d ? d + '.example' : '', verify: othV[i], key: key(), sign: key(), unl: false, ver: vers[vi], verI: vi, agree: 88 + R() * 12, fee: feeOf(R()), yes: ys, seen: i === 5 ? 10800 : Math.round(1 + R() * 40) });
+      });
+      return { recs, amds, vers, cur: cur0 };
+    };
+
+    const F = fleet(x);
+    const me = F.recs[1];
+    const nUnl = F.recs.filter((r) => r.unl).length;
+    const ledgerNow = x ? 107748183 : 17482913;
+    const ago = (s) => s < 1 ? 'just now' : s < 60 ? s + ' s ago' : Math.round(s / 60) + ' min ago';
+    const pubNames = x ? ['vl.ripple.com', 'unl.xrplf.org'] : ['vl.xahau.org'];
+
+    const perHour = x ? 921 : 907, perDay = x ? 22096 : 21763;
+    const n = 30;
+    const endMs = Date.UTC(2026, 9, 18);
+    const dateOf = (i) => new Date(endMs - (n - 1 - i) * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    const R2 = seedRng(x ? 909 : 919);
+    const days = [];
+    for (let i = 0; i < n; i++) {
+      const a = i === 16 ? 99.31 : i === n - 1 ? me.agree : 99.93 + R2() * 0.07;
+      days.push({ a, missed: Math.round(perDay * (1 - a / 100)), total: perDay });
+    }
+    const m30 = days.reduce((p, d) => p + d.missed, 0), t30 = perDay * n;
+    const m24 = Math.round(perDay * (1 - me.agree / 100));
+    const agreeTiles = [
+      { label: '1 h', value: '100.00%', sub: '0 missed of ' + fmt(perHour) + ' validated ledgers' },
+      { label: '24 h', value: me.agree.toFixed(2) + '%', sub: fmt(m24) + ' missed of ' + fmt(perDay) },
+      { label: '30 days', value: ((1 - m30 / t30) * 100).toFixed(2) + '%', sub: fmt(m30) + ' missed of ' + fmt(t30) }
+    ];
+    const lo = 99, hi = 100;
+    const yOf = (a) => (1 - (a - lo) / (hi - lo));
+    const aAxis = [99, 99.25, 99.5, 99.75, 100].map((v) => ({ pos: ((v - lo) / (hi - lo) * 100).toFixed(2) + '%', label: v.toFixed(2) + '%', cls: v === lo ? 'base' : '' }));
+    const aLine = days.map((d, i) => (i ? 'L' : 'M') + (i / (n - 1) * 1000).toFixed(1) + ' ' + (yOf(d.a) * 200).toFixed(1)).join(' ');
+    const tf = (left) => left < 22 ? 'translateX(8px)' : left > 78 ? 'translateX(calc(-100% - 8px))' : 'translateX(-50%)';
+    const h = st.hov;
+    const hl = h >= 0 ? h / (n - 1) * 100 : 0;
+    const aTip = h >= 0 ? { show: true, left: hl.toFixed(2) + '%', tf: tf(hl), top: (yOf(days[h].a) * 100).toFixed(2) + '%', date: dateOf(h), v: days[h].a.toFixed(2) + '%', missed: fmt(days[h].missed), total: fmt(days[h].total) } : { show: false, left: '0%', tf: '', top: '0%', date: '', v: '', missed: '', total: '' };
+    const every = 6;
+    const aXl = days.map((d, i) => ({ i, label: dateOf(i), pos: (i / (n - 1) * 100).toFixed(2) + '%' })).filter((p) => (n - 1 - p.i) % every === 0);
+    const aRows = days.map((d, i) => ({ date: dateOf(i), v: d.a.toFixed(2) + '%', total: fmt(d.total), missed: fmt(d.missed) })).reverse();
+    const aMove = (e) => { const r = e.currentTarget.getBoundingClientRect(); const i = Math.max(0, Math.min(n - 1, Math.round((e.clientX - r.left) / r.width * (n - 1)))); if (i !== st.hov) this.setState({ hov: i }); };
+    const aKey = (e) => { const c = st.hov < 0 ? n - 1 : st.hov; if (e.key === 'ArrowLeft') { e.preventDefault(); this.setState({ hov: Math.max(0, c - 1) }); } if (e.key === 'ArrowRight') { e.preventDefault(); this.setState({ hov: Math.min(n - 1, c + 1) }); } };
+
+    const feeRows = [['Base reserve', me.fee[0], F.cur[0], cur], ['Owner reserve', me.fee[1], F.cur[1], cur], ['Base fee', me.fee[2], F.cur[2], 'drops']].map((f) => ({ label: f[0], vote: f[1] + ' ' + f[3], now: f[2] + ' ' + f[3], same: f[1] === f[2], up: f[1] > f[2], down: f[1] < f[2] }));
+
+    const statusOf = (a, k) => k === 0 ? (x ? 'Activating, in 4 days' : 'Activating, in 9 days') : 'Voting · ' + (a[1] / nUnl * 100).toFixed(1) + '% yes';
+    const amdRows = F.amds.map((a, k) => ({ name: a[0], status: statusOf(a, k), yes: me.yes.indexOf(a[0]) >= 0, no: me.yes.indexOf(a[0]) < 0 }));
+
+    const RV = seedRng(x ? 31337 : 31338);
+    const hex = () => { let s = ''; for (let i = 0; i < 64; i++) s += '0123456789ABCDEF'[Math.floor(RV() * 16)]; return s; };
+    const t0 = Date.UTC(2026, 9, 19, 15, 42, 51, 204);
+    const vals = [];
+    for (let k = 0; k < 10; k++) {
+      const hs = hex();
+      const d = new Date(t0 - k * (x ? 3910 : 3970) - Math.round(RV() * 300));
+      vals.push({ idx: fmt(ledgerNow - k), hash: hs.slice(0, 10) + '…' + hs.slice(-6), time: d.toISOString().slice(11, 23), kind: k === 6 ? 'Partial' : 'Full', ok: k !== 3, bad: k === 3 });
+    }
+    // northpeak.example's toml. Account seeds are shared with AccountNames and Delegation, so the addresses match.
+    const addrOf = (s) => { const R = seedRng(s); const n = 24 + Math.floor(R() * 11); let a = 'r'; for (let i = 0; i < n; i++) a += B58[Math.floor(R() * 58)]; return a; };
+    const pre = { verified: 'Verified name · ', curated: 'Named by GateHub · ', unverified: 'Domain not verified · ', plain: '' };
+    const acct = (kind, label, seed) => {
+      const address = addrOf(seed + (x ? 0 : 1000));
+      const short = address.slice(0, 5) + '…' + address.slice(-4);
+      return { address, short, label: label || short, verified: kind === 'verified', curated: kind === 'curated', unverified: kind === 'unverified', plain: kind === 'plain', title: pre[kind] + address };
+    };
+    const tomlFile = x ? 'xrp-ledger.toml' : 'xahau.toml';
+    const toml = x
+      ? { owner: 'Norway', server: 'Germany', network: 'main', networkNote: 'XRPL mainnet', unl: 'vl.ripple.com', principals: 'Mara Lindqvist, Tomas Okafor', modified: '2 Oct 2026', acctCount: '3 listed:', hasMore: true, more: 'and 1 more', servers: '2 nodes' }
+      : { owner: 'Norway', server: 'Finland', network: 'main', networkNote: 'Xahau mainnet', unl: 'vl.xahau.org', principals: 'Mara Lindqvist, Ines Varga', modified: '18 Aug 2026', acctCount: '2 listed:', hasMore: false, more: '', servers: '1 node' };
+    const tomlAccts = [acct('verified', 'Northpeak Treasury', 1101), acct('verified', 'Northpeak Payroll', 1102)];
+    const tomlCur = (x ? ['NPUSD', 'NPEUR'] : ['NPUSD']).map((c) => ({ code: c }));
+    const isChart = st.view === 'chart';
+
+    return {
+      themeClass: dark ? 'dark' : '',
+      accentNow: x ? accent : xahauAccent,
+      xrplDot: accent, xahauDot: xahauAccent,
+      isXrpl: x, isXahau: !x,
+      xrplCls: x ? 'on' : '', xahauCls: x ? '' : 'on',
+      pickXrpl: () => this.setState({ net: 'xrpl', hov: -1 }),
+      pickXahau: () => this.setState({ net: 'xahau', hov: -1 }),
+      netName: x ? 'XRPL' : 'Xahau',
+      unlTitle: 'Listed by ' + pubNames.join(' and '),
+      verifyNote: x ? 'The xrp-ledger.toml at northpeak.example lists this master key.' : 'The xahau.toml at northpeak.example lists this master key.',
+      masterKey: me.key, signKey: me.sign, signShort: me.sign.slice(0, 12) + '…' + me.sign.slice(-8),
+      pubs: pubNames.map((p) => ({ name: p })),
+      ver: me.ver, firstSeen: x ? '2 Feb 2022' : '30 Oct 2023', lastSeen: ago(me.seen), latestIdx: fmt(ledgerNow),
+      agreeTiles,
+      isChart, isTable: !isChart, chartCls: isChart ? 'on' : '', tableCls: isChart ? '' : 'on',
+      showChart: () => this.setState({ view: 'chart' }), showTable: () => this.setState({ view: 'table', hov: -1 }),
+      aAxis, aLine, aEnd: (yOf(days[n - 1].a) * 100).toFixed(2) + '%', aTip, aXl, aRows,
+      aMove, aLeave: () => this.setState({ hov: -1 }), aFocus: () => this.setState({ hov: n - 1 }), aKey,
+      feeRows, amdRows, vals, today: '19 Oct',
+      tomlFile, tomlUrl: 'https://northpeak.example/.well-known/' + tomlFile, toml, tomlAccts, tomlCur
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -4,13 +4,17 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 
 import { statusWord } from "../../app/domain/amendments-params";
 import { formatAmount, formatUtc, shortHash } from "../../app/domain/format";
+import { loader } from "../../app/routes/net.validators.$key";
 import { CACHE_CLASSES, HOME_CALL_TTL_SECONDS, VALIDATIONS_CALL_TTL_SECONDS, VALIDATORS_CALL_TTL_SECONDS } from "../../app/server/cache-class";
+import { COUNTRIES } from "../../app/server/countries";
 import { edgeCacheKey } from "../../app/server/edge-cache";
-import { cacheGeneration } from "../../app/server/env";
+import { cacheGeneration, createLoadContext, type Env } from "../../app/server/env";
 import type { NetworkId } from "../../app/server/networks";
+import type { ValidatorLoaderData } from "../../app/ui/pages/validator-beat";
 import xahauLastValidated from "../fixtures/http/xahau/data-api/last_validated.json";
 import xrplLastValidated from "../fixtures/http/xrpl/data-api/last_validated.json";
 import xrplList from "../fixtures/http/xrpl/data-api/network/validators@limit=1000&scope=all.json";
+import { expectAccountsDrawn, linkedAccounts, withoutNames } from "../support/names";
 import { anchors, hrefs, pageClient, tableRows, textOf } from "../support/pages";
 import { cold, SUBREQUESTS } from "../support/subrequest-miss";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
@@ -69,6 +73,9 @@ async function reserved(net: NetworkId): Promise<Set<string>> {
     for (const which of ["verified-unl", "signing-key"] as const) keys.add((await validatorCase(net, which)).key);
     keys.add(ONE_LIST.validation_public_key);
   }
+  // The validators the toml card's tests look at (E13): no other test may warm them.
+  for (const which of ["toml-full", "toml-not-read"] as const) keys.add((await validatorCase(net, which)).key);
+  if (net === "xrpl") keys.add((await validatorCase(net, "unverified")).key);
   kept.set(net, keys);
   return keys;
 }
@@ -107,7 +114,8 @@ async function expectDegraded(path: string, response: Response) {
 }
 
 const unavailable = () => dataApiError(503, "unavailable");
-const keysOf = (requests: UpstreamMock["requests"]) => requests.map((request) => request.key);
+/** The keys of the requests the mock saw but for the names call, which the names spec of the page (validator-page-names.spec.ts) asserts. */
+const keysOf = (requests: UpstreamMock["requests"]) => withoutNames(requests).map((request) => request.key);
 const urlOf = (request: RequestInfo | URL) => (request instanceof Request ? request.url : String(request));
 
 /**
@@ -442,6 +450,147 @@ describe("the stored page", () => {
     // What is there instead: absolute times, and the day an activation is expected.
     expect(html).toMatch(/<time[^>]*>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC<\/time>/);
     expect(textOf(html)).toMatch(/Activating, expected [A-Z][a-z]{2} \d{1,2}/);
+  });
+});
+
+// ---- The toml card (E13 spec 5) ---------------------------------------------------------------------------------------------------------
+
+/** The toml card of a page's HTML, as its visible text and its links; throws when the page has none. */
+function tomlCardOf(html: string) {
+  const card = /<section[^>]*validator__toml[\s\S]*?<\/section>/.exec(html)?.[0];
+  if (card === undefined) throw new Error("the page has no toml card");
+  return { html: card, text: textOf(card), anchors: anchors(card) };
+}
+
+describe("the toml card", () => {
+  it("draws the card of a verified validator from D: its facts, the link to the file, the accounts by name and the currencies", async () => {
+    const { key, domain } = await validatorCase("xrpl", "toml-full");
+    taken.add(key);
+    const detail = await fixtureValidator("xrpl", key);
+    mock = mockUpstream("xrpl");
+    const { response, html, text } = await render(`/xrpl/validators/${key}`);
+    const card = tomlCardOf(html);
+
+    expect(response.status).toBe(200);
+    expect(card.text).toContain(`From ${domain}'s toml /v2/network/validators/{key}`);
+    // The link to the file: the domain's own address, another site, nofollow, and the file's name for a screen reader.
+    const view = card.anchors.find((anchor) => anchor.text.startsWith("View toml"))!;
+    expect(view.attrs).toContain(`href="https://${domain}/.well-known/xrp-ledger.toml"`);
+    expect(view.attrs).toContain('rel="noopener noreferrer nofollow"');
+    expect(view.text).toContain(", xrp-ledger.toml");
+    expect(card.text).toContain("Domain, verified both ways");
+    expect(card.text).toContain(`Passed: The validator's manifest names ${domain}.`);
+    expect(card.text).toContain(`Passed: The [[VALIDATORS]] list in ${domain}'s xrp-ledger.toml includes this master key.`);
+    // The facts, in order, with their words.
+    const { toml } = detail;
+    expect(toml?.principals).toEqual(["Mara Lindqvist", "Tomas Okafor"]);
+    expect(card.text).toContain(`Owner country ${COUNTRIES[toml!.owner_country!]!.name} Server country ${COUNTRIES[toml!.server_country!]!.name} Network main XRPL mainnet On a UNL, says the toml Yes · vl.ripple.com its own claim; UNL membership above is from the lists Principals Mara Lindqvist and Tomas Okafor Last modified Oct 2, 2026 from [METADATA]`);
+    // The accounts line moved into the card: its list says how many the toml lists and how many of them are not shown, and each account is named as E9's fixtures name it.
+    expect(text).not.toContain(`Accounts ${domain} lists`);
+    const shown = detail.domain_verification!.accounts!;
+    expect(toml!.accounts_listed).toBe(shown.length + 2);
+    expect(card.text).toContain(`Accounts [[ACCOUNTS]] ${toml!.accounts_listed} listed:`);
+    expect(card.text).toContain("and 2 more");
+    expect(linkedAccounts(html, "xrpl").sort()).toEqual([...shown].sort());
+    const drawn = await expectAccountsDrawn(html, "xrpl");
+    expect(drawn.named.length).toBeGreaterThan(0);
+    // The currencies: a token page for each that names an issuer, text for the one that does not.
+    const first = shown[0]!;
+    const tokens = card.anchors.filter((anchor) => anchor.attrs.includes("/xrpl/token/"));
+    expect(tokens.map((anchor) => anchor.text)).toEqual(["USD", "NPUSD"]);
+    expect(tokens[0]!.attrs).toContain(`href="/xrpl/token/USD.${first}"`);
+    expect(card.text).toMatch(/Currencies \[\[CURRENCIES\]\] USD NPUSD EUR and 2 more/);
+  });
+
+  it("draws no card for an unverified validator, and no accounts line either", async () => {
+    const { key } = await validatorCase("xrpl", "unverified");
+    taken.add(key);
+    mock = mockUpstream("xrpl");
+    const { response, html, text } = await render(`/xrpl/validators/${key}`);
+
+    expect(response.status).toBe(200);
+    expect(html).not.toContain("validator__toml");
+    expect(text).not.toContain("'s toml");
+    expect(text).not.toMatch(/Accounts \S+ lists/);
+    expect(text).toContain("Recent validations");
+  });
+
+  it("says not read yet for a verified validator without toml, with its accounts all the same", async () => {
+    const { key, domain } = await validatorCase("xrpl", "toml-not-read");
+    taken.add(key);
+    const detail = await fixtureValidator("xrpl", key);
+    expect(detail.toml).toBeUndefined();
+    mock = mockUpstream("xrpl");
+    const { html } = await render(`/xrpl/validators/${key}`);
+    const card = tomlCardOf(html);
+
+    expect(card.text).toContain(`From ${domain}'s toml`);
+    expect(card.text).toContain("The data API has not read this toml's details yet.");
+    expect(card.text).not.toContain("Server country");
+    expect(card.text).not.toContain("Currencies");
+    expect(card.anchors.some((anchor) => anchor.text.startsWith("View toml"))).toBe(true);
+  });
+
+  it("is Xahau's: its file is xahau.toml and its ID 21337 is Xahau mainnet", async () => {
+    const { key, domain } = await validatorCase("xahau", "toml-network-id");
+    taken.add(key);
+    mock = mockUpstream("xahau");
+    const { html } = await render(`/xahau/validators/${key}`);
+    const card = tomlCardOf(html);
+
+    expect(card.anchors.find((anchor) => anchor.text.startsWith("View toml"))!.attrs).toContain(`href="https://${domain}/.well-known/xahau.toml"`);
+    expect(card.text).toContain(`The [[VALIDATORS]] list in ${domain}'s xahau.toml includes this master key.`);
+    expect(card.text).toContain("Network 21337 Xahau mainnet On a UNL");
+  });
+
+  it("draws no card on a page of older validations", async () => {
+    const { key, marker } = await validationsMarker("xrpl");
+    // The same validator's live page has a card (its domain is verified and D8 has read the file): it is the marker that takes it away.
+    const detail = await fixtureValidator("xrpl", key);
+    expect(detail.domain_verification?.status).toBe("verified");
+    expect(detail.toml).toBeDefined();
+    mock = mockUpstream("xrpl");
+    const { response, html } = await render(`/xrpl/validators/${key}?marker=${marker}`);
+
+    expect(response.status).toBe(200);
+    expect(html).not.toContain("validator__toml");
+    expect(tableRows(html, "Recent validations").length).toBeGreaterThan(1);
+  });
+});
+
+describe("with VALIDATORS_MAP off (the route's loader, with a load context of its own)", () => {
+  const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
+
+  /** What the route's loader gives the page for `key` of XRPL while the switch is `map`: the view builder's data. */
+  const dataOf = async (key: string, map: "on" | "off") =>
+    (
+      (await loader({
+        request: new Request(`https://explorer.test/xrpl/validators/${key}`),
+        params: { net: "xrpl", key },
+        context: createLoadContext({ ...(env as unknown as Env), VALIDATORS_MAP: map }, ctx),
+      } as never)) as unknown as { data: ValidatorLoaderData }
+    ).data;
+
+  it("has no toml card and keeps the accounts line, and makes the same calls either way", async () => {
+    const { key } = await validatorCase("xrpl", "toml-full");
+    taken.add(key);
+    mock = mockUpstream("xrpl");
+    // Every lookup of the subrequest cache misses, so that both renders reach the mock with all their calls.
+    cold();
+    const off = await dataOf(key, "off");
+    const offCalls = mock.requests.map((request) => request.key).sort();
+    expect(off.toml).toBeNull();
+    // E6's accounts line: the grid holds the addresses, which the page draws and the one names call asks for.
+    expect(off.grid.accounts?.length).toBeGreaterThan(0);
+    expect(offCalls.filter((call) => call.includes("account_names"))).toHaveLength(1);
+
+    const seen = mock.requests.length;
+    const on = await dataOf(key, "on");
+    expect(mock.requests.slice(seen).map((request) => request.key).sort()).toEqual(offCalls);
+    // The switch is the only difference: the same D has the card with it on, and the same accounts in the grid (named once, for the card).
+    expect(on.toml?.title).toMatch(/^From .+'s toml$/);
+    expect(on.grid.accounts).toEqual(off.grid.accounts);
+    expect(on.toml?.accounts?.addresses).toEqual(off.grid.accounts?.map((account) => account.address));
   });
 });
 

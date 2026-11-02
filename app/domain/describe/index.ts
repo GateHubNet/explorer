@@ -11,8 +11,9 @@ import { resultText } from "../results";
 import { accountHandlers } from "./account";
 import { ammHandlers } from "./amm";
 import { checkHandlers } from "./checks";
+import { delegationHandlers } from "./delegation";
 import { escrowHandlers } from "./escrow";
-import { account, genericDetails, mergeHandlers, seq, text, withArticle } from "./helpers";
+import { account, delegateOf, genericDetails, mergeHandlers, seq, text, withArticle } from "./helpers";
 import { nftHandlers } from "./nft";
 import { offerHandlers } from "./offers";
 import { paychanHandlers } from "./paychan";
@@ -20,6 +21,7 @@ import { paymentHandlers } from "./payment";
 import type { Description, Input, Summary } from "./types";
 import { xahauHandlers } from "./xahau";
 
+export { accountsIn, delegateOf, isInnerBatch } from "./helpers";
 export { headlineAmount, rowSentence } from "./row";
 export type { Description, Detail, FlowAmount, FlowStep, Handler, HandlerMap, Input, Segment, Summary } from "./types";
 
@@ -33,6 +35,7 @@ const HANDLERS = mergeHandlers(
   nftHandlers,
   ammHandlers,
   xahauHandlers,
+  delegationHandlers,
 );
 
 /** A type with no handler: "{account} submitted a {Type}." and a table of its fields. */
@@ -53,7 +56,8 @@ function lazily<T>(make: () => T): () => T {
 /**
  * What a transaction did, in words. `result` is its result code with the text of `resultText`, and `ok` whether it
  * succeeded; a failed transaction reads "{account} tried to …", then says why in the text of its result, and has no
- * flow, as nothing moved.
+ * flow, as nothing moved. A transaction a delegate sent (its `Delegate` field) names it: `delegate`, and `sentBy`,
+ * "{delegate} sent it on behalf of {account}.", whatever the type and the result.
  */
 export function describe(tx: TxJson, meta: TxMeta, ctx: { native: Native }): Description {
   const result = { code: meta.TransactionResult, ...resultText(meta.TransactionResult) };
@@ -84,5 +88,11 @@ export function describe(tx: TxJson, meta: TxMeta, ctx: { native: Native }): Des
     details: summary.details ?? [],
   };
   if (ok && summary.flow) description.flow = summary.flow;
+  const delegate = delegateOf(tx);
+  if (delegate !== undefined) {
+    description.delegate = delegate;
+    description.sentBy = seq(account(delegate), " sent it on behalf of ", account(tx.Account), ".");
+  }
+  if (summary.note !== undefined) description.note = summary.note;
   return description;
 }

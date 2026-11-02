@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 32570
+  },
+  "result": "success",
+  "sales": [
+    {"amount":"10","buyer":"rnKd8CYrXwMoGn4R48onJGLShh1PcrFrTx","converted_amount":"10","currency":"XRP","event_index":1,"executed_time":"2026-10-24T16:08:12Z","issuer":"r4PP7gwuVfxzLPWFiJXjLUtvzA7F97CzT3","kind":"nftoken","ledger_index":107874617,"mode":"direct","nft_id":"00081388EA968E3C54EE59C8FFBAF0944A3B8AD4797AB032EF22952605AD2A91","royalty_est":"0.5","seller":"rhv9jFwfWfH4Cd1uX4b3ACkdgDKASFz7Dz","serial":95234705,"taxon":10,"tx_hash":"BADF36AA20CD32067693C83EE5755BEFB8D1A1E82DEE83E1E67FFD6100712E56","tx_index":299}
+  ]
+}

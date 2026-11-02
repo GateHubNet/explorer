@@ -1,0 +1,30 @@
+{
+  "close_time": "2026-10-09T12:49:32Z",
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 8852809
+  },
+  "escrow": {
+    "account": "rKqZCLrHu8dMPj444xPrDQCXUpZr6U2VWi",
+    "amount": {
+      "currency": "XAH",
+      "value": "100"
+    },
+    "destination": "rKqZCLrHu8dMPj444xPrDQCXUpZr6U2VWi",
+    "escrow_id": "685D816CD83F38184E774ABB4A8C552F4C4C375931F200C954BA7972C3D2B19D",
+    "finish_after": "2026-01-21T05:00:00Z",
+    "removed": {
+      "ledger_index": 20555633,
+      "time": "2026-02-07T19:01:32Z",
+      "tx_hash": "E10D035E51F79BFD31417602241CAFFF07FBA0C25FD10B06EDA95E0A21F077FF",
+      "tx_type": "EscrowFinish"
+    },
+    "status": "finished",
+    "transfer_rate": 1000000000
+  },
+  "history": [
+    {"account":"rKqZCLrHu8dMPj444xPrDQCXUpZr6U2VWi","event":"finish","ledger_index":20555633,"result":"tesSUCCESS","time":"2026-02-07T19:01:32Z","tx_hash":"E10D035E51F79BFD31417602241CAFFF07FBA0C25FD10B06EDA95E0A21F077FF","tx_type":"EscrowFinish"}
+  ],
+  "ledger_index": 26399329,
+  "result": "success"
+}

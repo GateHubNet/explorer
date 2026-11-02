@@ -1,0 +1,23 @@
+{
+  "result": "success",
+  "transaction": {
+    "date": "2026-10-13T08:05:31+00:00",
+    "hash": "9C94C7F6B5B014B3DAE0EA98AE7C64A12D96C69D737B4BE209C459F820543A2B",
+    "ledger_index": 107624182,
+    "meta": {
+      "AffectedNodes": [{"DeletedNode":{"FinalFields":{"Account":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","Amount":"40000000","CancelAfter":845024600,"Destination":"rpUmPxLcZcmWAnjyiLPbg874wKGFgqKoDW","DestinationNode":"0","FinishAfter":844941800,"Flags":0,"OwnerNode":"0","PreviousTxnID":"ECE0557E9A0BFC1DA452493DCED2799F44E659798FFF05EAB5BD878AF7BB6D8D","PreviousTxnLgrSeq":107558036,"Sequence":97531438},"LedgerEntryType":"Escrow","LedgerIndex":"03256CCB3E90DBCFC6AE5E78E72095EB67595B0844BD85F152577C11B103C698"}}],
+      "TransactionIndex": 77,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "tx": {
+      "Account": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+      "Fee": "12",
+      "Flags": 0,
+      "LastLedgerSequence": 107624202,
+      "OfferSequence": 97531438,
+      "Owner": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+      "Sequence": 97531445,
+      "TransactionType": "EscrowCancel"
+    }
+  }
+}

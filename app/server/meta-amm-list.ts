@@ -8,8 +8,9 @@ import { ammListPath } from "../domain/amm-params";
 import type { AmmListFacts } from "./amm-view";
 import { absolute, sharing, suffixOf, type MetaContext } from "./meta";
 
-/** The list's description (spec 5.1). It has no number: the page is stored for seconds. Only the XRP Ledger has the list (Xahau has no AMM). */
-const DESCRIPTION = "Automated market maker pools on the XRP Ledger: the value, reserves, trading fee and swap volume of every pool.";
+/** The list's description (spec 5.1). It has no number: the page is stored for seconds. Only the networks with an AMM have the list (XRPL does, Xahau does not). */
+const descriptionOf = (network: MetaContext["network"]) =>
+  `Automated market maker pools on ${network.longName}: the value, reserves, trading fee and swap volume of every pool.`;
 
 /** What the tags of a page that is not for a search engine are: its title, its description and `noindex, follow` (E2's rule for non-default views). */
 const noindex = (title: string, description: string): MetaDescriptor[] => [
@@ -36,9 +37,10 @@ export function ammListMeta(facts: AmmListFacts | { none: true }, ctx: MetaConte
   }
 
   const { assetLabel, deleted, more, error } = facts;
-  if (error) return noindex(`AMM pools · ${suffix}`, DESCRIPTION);
+  const description = descriptionOf(network);
+  if (error) return noindex(`AMM pools · ${suffix}`, description);
   const lead = [more ? "More AMM pools" : "AMM pools", ...(assetLabel === undefined ? [] : [`with ${assetLabel}`]), ...(deleted ? ["(deleted included)"] : [])].join(" ");
   const title = `${lead} · ${suffix}`;
-  if (more || deleted || assetLabel !== undefined) return noindex(title, DESCRIPTION);
-  return sharing({ title, description: DESCRIPTION, url: absolute(origin, ammListPath(network.id)) });
+  if (more || deleted || assetLabel !== undefined) return noindex(title, description);
+  return sharing({ title, description, url: absolute(origin, ammListPath(network.id)) });
 }

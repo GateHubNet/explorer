@@ -1,0 +1,40 @@
+{
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 107874617
+  },
+  "nft": {
+    "burned": false,
+    "flags": 25,
+    "issuer": "rLxc1bt5defiLJ9gaZEJqQWnNKYNawrwMy",
+    "kind": "nftoken",
+    "last_sale": {
+      "amount": "20",
+      "converted_amount": "20",
+      "currency": "XRP",
+      "executed_time": "2026-10-25T04:47:41Z",
+      "ledger_index": 107886163,
+      "tx_hash": "1311BC9E461278D841DE3D6D8CD68414A65EBEF751EA6F8C1B96CD63B6879ED6"
+    },
+    "minted": {
+      "by": "rLxc1bt5defiLJ9gaZEJqQWnNKYNawrwMy",
+      "executed_time": "2026-10-24T16:08:12Z",
+      "ledger_index": 107874617,
+      "to": "rLxc1bt5defiLJ9gaZEJqQWnNKYNawrwMy",
+      "tx_hash": "F7AED45B4EB7BA60457A92505BE934C4B561E46ED41A99E62BAA27C87A3BE7C9"
+    },
+    "nft_id": "00190BB8DAEF366CB05EE8DCC919EF9A1AA24DD22B3D62C937FFDB030669E968",
+    "owner": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+    "owner_since": {
+      "executed_time": "2026-10-25T04:47:41Z",
+      "ledger_index": 107886163,
+      "tx_hash": "1311BC9E461278D841DE3D6D8CD68414A65EBEF751EA6F8C1B96CD63B6879ED6"
+    },
+    "sale_count": 1,
+    "serial": 107604328,
+    "taxon": 0,
+    "transfer_fee": 3000,
+    "uri": "68747470733A2F2F6E66742E6578616D706C652F724C7863316274352F3130373630343332382E6A736F6E"
+  },
+  "result": "success"
+}

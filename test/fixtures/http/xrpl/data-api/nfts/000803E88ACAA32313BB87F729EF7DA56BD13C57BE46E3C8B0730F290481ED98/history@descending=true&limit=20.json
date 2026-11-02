@@ -1,0 +1,12 @@
+{
+  "count": 2,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 107874617
+  },
+  "events": [
+    {"account":"rDeizxSRo6JHjKnih9ivpPkyD2EgXQvhSB","amount":"0.000001","converted_amount":"0.000001","currency":"XRP","event":"sale","event_index":1,"executed_time":"2026-10-24T20:42:30Z","from":"rDeizxSRo6JHjKnih9ivpPkyD2EgXQvhSB","is_sell_offer":false,"issuer":"rDeizxSRo6JHjKnih9ivpPkyD2EgXQvhSB","kind":"nftoken","ledger_index":107878775,"nft_id":"000803E88ACAA32313BB87F729EF7DA56BD13C57BE46E3C8B0730F290481ED98","offer_id":"0ABE2264B31E8A9C7D483866EE1CCE4621E861F7D8A07F06E8B019F51CC54617","serial":75623832,"taxon":26,"to":"r47kUrvGHkHgxLi1KedaHzdUvbR9GTreEe","tx_hash":"695AC77970D720F644D8ED7EBB4C97DCC4093DC7EBFFE7A3984C87AC9D9E6DF9","tx_index":104,"tx_type":"NFTokenAcceptOffer"},
+    {"account":"r47kUrvGHkHgxLi1KedaHzdUvbR9GTreEe","amount":"0.000001","currency":"XRP","event":"offer_removed","event_index":0,"executed_time":"2026-10-24T20:42:30Z","is_sell_offer":false,"issuer":"rDeizxSRo6JHjKnih9ivpPkyD2EgXQvhSB","kind":"nftoken","ledger_index":107878775,"nft_id":"000803E88ACAA32313BB87F729EF7DA56BD13C57BE46E3C8B0730F290481ED98","offer_id":"0ABE2264B31E8A9C7D483866EE1CCE4621E861F7D8A07F06E8B019F51CC54617","removed_by":"sale","serial":75623832,"taxon":26,"tx_hash":"695AC77970D720F644D8ED7EBB4C97DCC4093DC7EBFFE7A3984C87AC9D9E6DF9","tx_index":104,"tx_type":"NFTokenAcceptOffer"}
+  ],
+  "result": "success"
+}

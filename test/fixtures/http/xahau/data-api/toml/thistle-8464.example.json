@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "thistle-8464.example",
+    "toml_url": "https://thistle-8464.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rKzuDWuyh9Entg8rBxxZMM8PiRgJdw2aUi",
+        "desc": "Thistle Holdings"
+      }
+    ]
+  }
+}

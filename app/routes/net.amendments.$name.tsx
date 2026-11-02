@@ -17,11 +17,11 @@ import { upstreamFailure, upstreamOutage } from "../server/loader-errors";
 import { logProblem } from "../server/logging";
 import { metaContext } from "../server/meta";
 import { amendmentMeta } from "../server/meta-amendment";
-import { requireNetwork } from "../server/network-route";
-import type { Network } from "../server/networks";
+import { networkInfoOf, requireNetwork } from "../server/network-route";
+import { networkOf, type Network } from "../server/networks";
 import { UpstreamError } from "../server/upstream";
 import { createLiveOnScreen, keepLoaded } from "../ui/live-page";
-import { findNetwork } from "../ui/networks";
+import { isNetworkId } from "../ui/networks";
 import { AmendmentPage } from "../ui/pages/AmendmentPage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
 import { useLiveControls } from "../ui/use-live-controls";
@@ -33,8 +33,8 @@ import type { Route } from "./+types/net.amendments.$name";
 // string (class `short`) and another spelling of the amendment (class `slow`); a 503 it throws is not stored but replaced by the stored copy.
 export const headers = forwardCacheClass;
 
-// The header marks its Network item as the section of the page (`aria-current="true"`: the page is inside the section, it is not its index).
-export const handle = { navSection: "network" } satisfies NetworkRouteHandle;
+// The header marks its Network menu as the section of the page (`aria-current="true"` on the summary) and the menu's Amendments item as the page (`"true"`: the page is under the item's own, it is not its index).
+export const handle = { navSection: "network", navPage: "amendments" } satisfies NetworkRouteHandle;
 
 /** What this route's loader answers: the view builder's page, the ledger it was built from and the Worker's build, for an open page to order its answers and to tell a deploy. */
 type AmendmentLoaderData = AmendmentPageData & { anchor: Anchor; build: string };
@@ -93,13 +93,12 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     logProblem("the amendment page has no anchor", error, request);
     return upstreamOutage(error, "the amendment");
   }
-  if (amendment.status === "rejected") return amendmentFailure(amendment.reason, net, ref, raw);
+  if (amendment.status === "rejected") return amendmentFailure(context, amendment.reason, net, ref, raw);
   const canonical = amendmentSegment(amendment.value);
   if (canonical !== raw) return redirect(amendmentHref(net.id, canonical), { status: 302, headers: cacheClassHeaders("slow") });
 
   // The network the page is given is what the browser may have: the facts the page draws, and not the data API's URL or the node's.
-  const { id, name, native, software } = net;
-  const page = amendmentPage({ network: { id, name, native, software }, amendment: amendment.value, summary: partOf(summary) });
+  const page = amendmentPage({ network: networkInfoOf(net), amendment: amendment.value, summary: partOf(summary) });
   if (summary.status === "rejected") {
     logProblem("the amendment page's summary could not be loaded", summary.reason, request);
     markDegraded(context, "amendment: summary");
@@ -108,11 +107,11 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 }
 
 /** AD's failure (spec 1.3, 6.6): its own not-found is the page's, with the offer of the other network; anything else is the API failing. */
-function amendmentFailure(error: unknown, net: Network, ref: { id: string } | { name: string }, raw: string): never {
+function amendmentFailure(context: Route.LoaderArgs["context"], error: unknown, net: Network, ref: { id: string } | { name: string }, raw: string): never {
   if (error instanceof UpstreamError && error.kind === "not_found") {
-    const other = findNetwork(net.other);
+    const other = networkOf(net.other, getEnv(context));
     const what = "id" in ref ? shortHash(ref.id) : ref.name;
-    return upstreamFailure(error, `amendment ${what}`, { href: `/${net.other}/amendments/${raw}`, label: `Look for it on ${other?.name ?? net.other}` });
+    return upstreamFailure(error, `amendment ${what}`, { href: `/${net.other}/amendments/${raw}`, label: `Look for it on ${other.name}` });
   }
   return upstreamOutage(error, "the amendment");
 }
@@ -138,10 +137,10 @@ const onScreen = createLiveOnScreen<AmendmentLoaderData>({
  * shows when that fails. The scope is the network and the segment of the URL, so that a refresh of one amendment never stands in for another.
  */
 export function clientLoader({ params, serverLoader }: Route.ClientLoaderArgs) {
-  const network = findNetwork(params.net);
+  const net = params.net ?? "";
   // A network that does not exist is the layout's 404: no page of it to keep.
-  if (!network) return serverLoader();
-  return onScreen.reload(scopeOf(network.id, params.name ?? ""), serverLoader);
+  if (!isNetworkId(net)) return serverLoader();
+  return onScreen.reload(scopeOf(net, params.name ?? ""), serverLoader);
 }
 
 export default function Amendment({ loaderData }: Route.ComponentProps) {

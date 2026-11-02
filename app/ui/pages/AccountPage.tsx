@@ -1,69 +1,58 @@
-import { lazy, Suspense, type ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { Await, Link } from "react-router";
 
-import { accountHref, ACCOUNT_TABS, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../../domain/account-tabs";
+import { accountHref, ACCOUNT_TABS, DELEGATIONS_WORD, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../../domain/account-tabs";
 import { analyticsHref, DEFAULT_ANALYTICS_PERIOD } from "../../domain/analytics-params";
-import { formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../domain/format";
+import { formatAmount, formatCurrency, formatUtc, shortAddress } from "../../domain/format";
+import { nftWords } from "../../domain/nft-words";
 import { poolLink } from "../../domain/pool-link";
-import type {
-  AccountAnalyticsPageData,
-  AccountHeader,
-  AccountListPageData,
-  AccountPageData,
-  ChangeView,
-  NeverActivatedData,
-  ObjectRow,
-  OfferRow,
-  PaymentRow,
-  RowAmount,
-  TabList,
-  Token,
-  TradeRow,
-  TxRow,
-} from "../../server/account-view";
+import type { DomainLine } from "../../server/account-name-view";
+import type { AccountAnalyticsPageData, AccountHeader, AccountListPageData, AccountPageData, NeverActivatedData, TabList, Token } from "../../server/account-view";
 import { AccountLink } from "../components/AccountLink";
+import { AccountNameBlock, DomainText, LabelBanners, titleTextOf } from "../components/AccountNameBlock";
 import { Amount } from "../components/Amount";
 import { Breadcrumbs } from "../components/Breadcrumbs";
 import { Card } from "../components/Card";
-import { CopyButton } from "../components/CopyButton";
-import { DataTable, type Column } from "../components/DataTable";
-import { Identicon } from "../components/Identicon";
+// The table of the lists and of the analytics view, both chunks of their own that the account route loads with `import()`. Every other page of the budget
+// draws it, so it is in the shell (scripts/shell-chunks.ts: what all of them reach statically) while the account route reaches it too: without this line it
+// is a file of its own, one more on every page, and one the analytics view loads beyond the account page's (`pnpm check:bundle` fails on it).
+import "../components/DataTable";
 import { CheckIcon } from "../components/icons";
 import { LiveStateNotice } from "../components/LiveStateNotice";
 import { Notice } from "../components/Notice";
-import { Pager } from "../components/Pager";
-import { QrButton } from "../components/QrButton";
 import { RelativeTime } from "../components/RelativeTime";
 import { SectionError } from "../components/SectionError";
-import { Sentence } from "../components/Sentence";
 import { Tabs, type TabItem } from "../components/Tabs";
-import { TypeTag } from "../components/TypeTag";
-import { When } from "../components/WhenCell";
-import { ResultPill } from "../components/Pill";
+import { cx } from "../cx";
 import type { Features } from "../features";
+import { lazyChunk } from "../lazy-chunk";
 import type { NetworkInfo } from "../networks";
 import { useFeatures } from "../use-network";
 import { useRetry } from "../use-retry";
+import { count, ListFailed, plural } from "./account-list-words";
 import { AnalyticsFilters } from "./AnalyticsFilters";
 import { NotFoundPage } from "./NotFoundPage";
 
 /** Tokens listed before "Show N more". */
 const TOKENS_SHOWN = 10;
 
-const TAB_LABELS: Record<AccountTab, string> = {
+/** The labels of the tabs that are the same on both networks; the NFTs tab's is the network's word for them (`nftWords`). */
+const TAB_LABELS: Record<Exclude<AccountTab, "nfts">, string> = {
   transactions: "Transactions",
   payments: "Payments",
   trades: "Trades",
   offers: "Offers",
   objects: "Objects",
+  delegation: "Delegation",
   analytics: "Analytics",
 };
 
 /**
  * The analytics view, a chunk of its own (spec 5): the other tabs load none of it. On the server it resolves during the render, so the HTML
- * holds the view; in the browser, hydration keeps that HTML until the chunk has loaded.
+ * holds the view; in the browser, hydration keeps that HTML until the chunk has loaded. Like the list panels below, it loads through `lazyChunk`, which
+ * reloads the page once when the chunk will not load (a deploy took the build away).
  */
-const AccountAnalytics = lazy(() => import("./AccountAnalytics"));
+const AccountAnalytics = lazyChunk("AccountAnalytics", () => import("./AccountAnalytics"));
 
 /**
  * The Analytics tab's `onIntent`: the pointer entered it or it took the focus, so its chunk is fetched ahead of the click. Only the chunk: its
@@ -71,17 +60,24 @@ const AccountAnalytics = lazy(() => import("./AccountAnalytics"));
  */
 const warmAnalytics = () => void import("./AccountAnalytics").catch(() => {});
 
-const count = (n: number) => formatAmount(String(n));
-const plural = (n: number, one: string, many: string) => `${count(n)} ${n === 1 ? one : many}`;
+/**
+ * The list of a tab (`AccountListPanels.tsx`: the list drawn by its own names, its tables or objects, the pager), a chunk of its own: the analytics view
+ * never draws a list, so its first load holds none of it. It has no `Suspense` of its own, so that no placeholder shows where none did. On a first page it
+ * is drawn inside the list's `Suspense` and `Await`: the server streams the rows when the list and the chunk are in, and in the browser, hydration keeps
+ * that HTML until the chunk has loaded. A list that is not a promise (a page behind a marker, the Objects tab) is drawn where it always was: the server's
+ * render waits for the chunk, so the HTML holds the rows, and the browser hydrates the page once the chunk is in, as a client-side navigation shows the
+ * page it leads to once it is.
+ */
+const TabPanel = lazyChunk("AccountListPanels", () => import("./AccountListPanels"));
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // The page
 
 /**
  * The account page: the address with its picture, copy button and QR code, when and by whom it was activated, its flags, the balance
- * with the reserve, the tokens and owned objects, and the tabs (transactions, payments with a CSV link, trades, offers, objects, and
- * analytics while `ACCOUNT_ANALYTICS` is on, the "soon" label otherwise). Takes what the loader made of the account (`AccountPageData`) and
- * never fetches.
+ * with the reserve, the tokens and owned objects, and the tabs (transactions, payments with a CSV link, trades, offers, objects, the NFTs while
+ * `NFTS` is on, the "soon" label otherwise, the delegations where the network has them, as a link while `DELEGATION` is on and the "soon" label otherwise, and analytics while
+ * `ACCOUNT_ANALYTICS` is on, the "soon" label otherwise). Takes what the loader made of the account (`AccountPageData`) and never fetches.
  *
  * - On the first page the header is read live. The tab's list is a promise: it streams in after the header, and when it could not be
  *   loaded the page says "Couldn't load transactions" with a Retry that fetches it again.
@@ -113,9 +109,11 @@ export function AccountPage({ network, data }: { network: NetworkInfo; data: Acc
         items={[
           { label: network.name, href: `/${net}` },
           { label: "Accounts" },
-          { label: shortAddress(data.address), mono: true },
+          // A name is the link text, cut by the stylesheet; without one the short address, as always.
+          header.name?.title ? { label: <span className="acct__name">{titleTextOf(header.name.title)}</span> } : { label: shortAddress(data.address), mono: true },
         ]}
       />
+      <LabelBanners labels={header.name?.labels ?? []} />
 
       <AccountCard network={network} data={data} />
 
@@ -184,7 +182,11 @@ function AccountCard({ network, data }: { network: NetworkInfo; data: AccountPag
   const features = useFeatures();
   const activation = header.status === "history" ? null : header.activation;
   const live = header.status === "history" ? null : header.live;
-  const domain = live?.state === "ok" ? live.domain : null;
+  const name = header.name;
+  // The activation line says the account's domain, unless a title says it (the name's lines under the `<h1>` do). The builder's line has its state ("not checked yet"); without
+  // one (`NAMES` off, or the call failed) it is the node's domain as text.
+  const liveDomain = live?.state === "ok" ? live.domain : null;
+  const domain: DomainLine | null = name?.title ? null : (name?.domainLine ?? (liveDomain ? { text: liveDomain, state: "none" } : null));
   // A pool account's own page leads to its pool page while `AMM_PAGES` is on. The flag is the node's (`account_info`), so the line is there only when
   // the node answered.
   const isPool = live?.state === "ok" && live.flags.some((flag) => flag.id === "amm");
@@ -192,17 +194,7 @@ function AccountCard({ network, data }: { network: NetworkInfo; data: AccountPag
   return (
     <section className="card account-card" aria-label="Account">
       <div className="account-id">
-        <div className="account-id__top">
-          <Identicon address={address} />
-          <div className="account-id__name">
-            <span className="account-id__label">Account</span>
-            <div className="account-id__address">
-              <h1 className="mono">{address}</h1>
-              <CopyButton value={address} label="address" />
-              <QrButton address={address} qr={data.qr} />
-            </div>
-          </div>
-        </div>
+        <AccountNameBlock net={net} address={address} qr={data.qr} name={name} />
 
         {isPool && features.ammPages && (
           <p className="account-id__meta account-id__pool">
@@ -227,7 +219,7 @@ function AccountCard({ network, data }: { network: NetworkInfo; data: AccountPag
             {domain && (
               <>
                 {" "}
-                · domain <span className="mono">{domain}</span>
+                · <DomainText line={domain} />
               </>
             )}
           </p>
@@ -321,19 +313,29 @@ function BalancePanel({ network, data }: { network: NetworkInfo; data: AccountPa
 // The margin
 
 /**
- * A trust line of the Tokens card: its code, its issuer and its balance. An LP token's issuer is its AMM pool: "AMM pool r…", one link to the pool
- * page while `AMM_PAGES` is on, and "AMM pool" before the pool's account link while it is off.
+ * A trust line of the Tokens card: its code, its issuer and its balance. The code is a link to the token's page when the line has one (`token.href`, made by `tokenLink` while `TOKENS`
+ * is on), else text. An LP token's issuer is its AMM pool: "AMM pool r…", one link to the pool page while `AMM_PAGES` is on, and "AMM pool" before the pool's account link while it is off.
  */
 function TokenRow({ net, token, features }: { net: NetworkInfo["id"]; token: Token; features: Features }) {
   const name = formatCurrency(token.currency);
   const badge = token.lp ? "LP" : name.slice(0, 3);
+  // The whole code, where the text is not it (a hex code shown as its text).
+  const title = name === token.currency ? undefined : token.currency;
   return (
-    <div className="token">
+    <div className={cx("token", token.href !== null && "token--linked")}>
       <span className="token__badge mono" aria-hidden="true">
         {badge}
       </span>
       <div className="token__name">
-        <span title={name === token.currency ? undefined : token.currency}>{name}</span>
+        {token.href === null ? (
+          <span title={title}>{name}</span>
+        ) : (
+          <span>
+            <Link to={token.href} title={title}>
+              {name}
+            </Link>
+          </span>
+        )}
         <span className="token__issuer">
           {token.lp && features.ammPages ? (
             <Link to={poolLink(net, token.issuer, features)} title={token.issuer}>
@@ -426,15 +428,29 @@ function OwnedCard({ header }: { header: AccountHeader }) {
 
 /**
  * The Activity card: the tabs, then the list of a list tab, or the analytics view's filter row. The Analytics tab is a link while the switch is
- * on (`data.analyticsTab`), to the view's default period from every page of the account, history pages included (the view is live mode).
+ * on (`data.analyticsTab`), to the view's default period from every page of the account, history pages included (the view is live mode). The
+ * NFTs tab, called as the network calls them (NFTs, URITokens), is a link while `NFTS` is on (the layout's switches, as the NFT links read them)
+ * and the "soon" label while it is off. The Delegation tab is `data.delegationTab`'s: a link, the "soon" label, or none (the loader knows that the network has no delegation).
  */
 function Activity({ network, data }: { network: NetworkInfo; data: AccountPageData }) {
   const net = network.id;
-  const items: TabItem[] = ACCOUNT_TABS.map((id) => {
-    if (id !== "analytics") return { id, label: TAB_LABELS[id], href: accountHref(net, data.address, { tab: id }) };
-    return data.analyticsTab
-      ? { id, label: TAB_LABELS[id], href: analyticsHref(net, data.address, DEFAULT_ANALYTICS_PERIOD), rel: "nofollow", onIntent: warmAnalytics }
-      : { id, label: TAB_LABELS[id], soon: true };
+  const features = useFeatures();
+  const items: TabItem[] = ACCOUNT_TABS.flatMap((id): TabItem[] => {
+    if (id === "nfts") {
+      const label = nftWords(net).tokens;
+      return [features.nfts ? { id, label, href: accountHref(net, data.address, { tab: id }) } : { id, label, soon: true }];
+    }
+    if (id === "delegation") {
+      if (data.delegationTab === "none") return [];
+      const label = TAB_LABELS[id];
+      return [data.delegationTab === "link" ? { id, label, href: accountHref(net, data.address, { tab: id }) } : { id, label, soon: true }];
+    }
+    if (id !== "analytics") return [{ id, label: TAB_LABELS[id], href: accountHref(net, data.address, { tab: id }) }];
+    return [
+      data.analyticsTab
+        ? { id, label: TAB_LABELS[id], href: analyticsHref(net, data.address, DEFAULT_ANALYTICS_PERIOD), rel: "nofollow", onIntent: warmAnalytics }
+        : { id, label: TAB_LABELS[id], soon: true },
+    ];
   });
 
   return (
@@ -477,240 +493,26 @@ function isPromise(value: unknown): value is Promise<unknown> {
 function ListSection({ network, data }: { network: NetworkInfo; data: AccountListPageData }) {
   const { list } = data;
   if (!isPromise(list)) return <TabPanel network={network} data={data} list={list} />;
+  const word = listWord(data.tab, network.id);
   return (
-    <Suspense fallback={<ListLoading tab={data.tab} />}>
-      <Await resolve={list} errorElement={<ListFailed what={data.tab} />}>
+    <Suspense fallback={<ListLoading word={word} />}>
+      <Await resolve={list} errorElement={<ListFailed what={word} />}>
         {(resolved: TabList) => <TabPanel network={network} data={data} list={resolved} />}
       </Await>
     </Suspense>
   );
 }
 
-function ListLoading({ tab }: { tab: ListTab }) {
+/**
+ * What a tab's list is called in "Loading …" and in the error of a promise that was refused: the tab's name, the NFTs' in the network's words (`NFTs`, `URITokens`), and what the
+ * Delegation tab lists (`DELEGATIONS_WORD`, as the loader's `failedList` says).
+ */
+const listWord = (tab: ListTab, net: NetworkInfo["id"]): string => (tab === "nfts" ? nftWords(net).tokens : tab === "delegation" ? DELEGATIONS_WORD : tab);
+
+function ListLoading({ word }: { word: string }) {
   return (
     <div className="activity__loading" role="status">
-      {`Loading ${tab}…`}
+      {`Loading ${word}…`}
     </div>
-  );
-}
-
-function ListFailed({ what }: { what: string }) {
-  const { retry, retrying } = useRetry();
-  return (
-    <div className="activity__failed">
-      <SectionError what={what} onRetry={retry} retrying={retrying} />
-    </div>
-  );
-}
-
-function TabPanel({ network, data, list }: { network: NetworkInfo; data: AccountListPageData; list: TabList }) {
-  const net = network.id;
-  if (list.state === "failed") return <ListFailed what={list.what} />;
-
-  switch (list.tab) {
-    case "transactions":
-      return (
-        <Panel note="Newest first" foot={plural(list.rows.length, "transaction", "transactions")} paging={list.paging}>
-          <TransactionsTable net={net} native={network.native} rows={list.rows} />
-        </Panel>
-      );
-    case "payments":
-      return (
-        <Panel
-          note="Successful payments between this account and others"
-          action={
-            <a className="btn" href={list.csvHref} rel="nofollow" download>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-                <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
-              </svg>
-              Download CSV
-            </a>
-          }
-          foot={plural(list.rows.length, "payment", "payments")}
-          paging={list.paging}
-        >
-          <PaymentsTable net={net} rows={list.rows} />
-        </Panel>
-      );
-    case "trades":
-      return (
-        <Panel note="Trades this account took part in" foot={plural(list.rows.length, "trade", "trades")} paging={list.paging}>
-          <TradesTable net={net} rows={list.rows} />
-        </Panel>
-      );
-    case "offers":
-      return (
-        <Panel
-          note={list.ledgerIndex === null ? "Open offers, read live" : `Open offers, read live at ledger #${count(list.ledgerIndex)}`}
-          foot={
-            list.rows.length === 0
-              ? "No open offers"
-              : list.truncated
-                ? `Showing the first ${plural(list.rows.length, "open offer", "open offers")}`
-                : `All ${plural(list.rows.length, "open offer", "open offers")}`
-          }
-        >
-          <OffersTable rows={list.rows} />
-        </Panel>
-      );
-    case "objects":
-      return (
-        <Panel
-          note={`Objects this account owns, read live${list.ledgerIndex === null ? "" : ` at ledger #${count(list.ledgerIndex)}`}. Trust lines (${count(list.trustLines)}) and offers (${count(list.offers)}) have their own places.`}
-          foot={list.truncated ? `Showing the first ${count(OBJECTS_LIMIT)} objects` : plural(list.rows.length, "object", "objects")}
-        >
-          <ObjectsList net={net} rows={list.rows} />
-        </Panel>
-      );
-  }
-}
-
-/** A tab's panel: a note (and an action) above its content, a footer with the count and the pager below. */
-function Panel({
-  note,
-  action,
-  foot,
-  paging,
-  children,
-}: {
-  note: string;
-  action?: ReactNode;
-  foot: string;
-  paging?: { newerHref: string | null; olderHref: string | null };
-  children: ReactNode;
-}) {
-  return (
-    <div className="activity__panel">
-      <div className="activity__head">
-        <span className="faint">{note}</span>
-        {action}
-      </div>
-      {children}
-      <div className="card__foot">
-        <span>{foot}</span>
-        {paging && <Pager newerHref={paging.newerHref} olderHref={paging.olderHref} />}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------------------------------------------------------
-// The tables
-
-function Change({ change }: { change: ChangeView }) {
-  return (
-    <span className="change">
-      <Amount value={change.value} currency={change.currency} signed />
-      {change.more > 0 && <span className="faint">{`+${change.more} more`}</span>}
-    </span>
-  );
-}
-
-function RowAmountView({ amount, signed }: { amount: RowAmount; signed?: boolean }) {
-  return <Amount value={amount.value} currency={amount.currency} issuer={amount.issuer} signed={signed} />;
-}
-
-function TransactionsTable({ net, native, rows }: { net: NetworkInfo["id"]; native: string; rows: TxRow[] }) {
-  const columns: Column<TxRow>[] = [
-    { id: "when", header: "Date (UTC)", width: "120px", cell: (row) => <When net={net} hash={row.hash} time={row.time} /> },
-    { id: "type", header: "Type", width: "118px", cell: (row) => <TypeTag type={row.type} /> },
-    {
-      id: "what",
-      header: "What happened",
-      width: "minmax(240px, 2fr)",
-      ellipsis: true,
-      cell: (row) => (
-        <span className="muted">
-          <Sentence net={net} segments={row.what} compact />
-        </span>
-      ),
-    },
-    {
-      id: "change",
-      header: `Change (${native})`,
-      width: "minmax(150px, 1fr)",
-      align: "end",
-      cell: (row) => (row.change ? <Change change={row.change} /> : <span className="faint">—</span>),
-    },
-    { id: "result", header: "Result", width: "128px", cell: (row) => <ResultPill ok={row.ok} code={row.code} /> },
-  ];
-  // The tracks at their least, the gaps and the padding of a row.
-  return <DataTable label="Transactions" columns={columns} rows={rows} rowKey={(row) => row.hash} minWidth={852} empty="No transactions yet." />;
-}
-
-function PaymentsTable({ net, rows }: { net: NetworkInfo["id"]; rows: PaymentRow[] }) {
-  const columns: Column<PaymentRow>[] = [
-    { id: "when", header: "Date (UTC)", width: "120px", cell: (row) => <When net={net} hash={row.hash} time={row.time} /> },
-    { id: "direction", header: "Direction", width: "100px", cell: (row) => <span className="type">{row.direction === "sent" ? "Sent" : "Received"}</span> },
-    { id: "counterparty", header: "Counterparty", width: "minmax(150px, 1.4fr)", ellipsis: true, cell: (row) => <AccountLink net={net} address={row.counterparty} /> },
-    { id: "amount", header: "Delivered", width: "minmax(130px, 1fr)", align: "end", cell: (row) => <RowAmountView amount={row.amount} signed /> },
-    { id: "tag", header: "Tag", width: "90px", align: "end", cell: (row) => <span className="mono num muted">{row.tag === null ? "" : row.tag}</span> },
-  ];
-  return <DataTable label="Payments" columns={columns} rows={rows} rowKey={(row) => `${row.hash}:${row.counterparty}`} minWidth={690} empty="No payments yet." />;
-}
-
-function TradesTable({ net, rows }: { net: NetworkInfo["id"]; rows: TradeRow[] }) {
-  const columns: Column<TradeRow>[] = [
-    { id: "when", header: "Date (UTC)", width: "120px", cell: (row) => <When net={net} hash={row.hash} time={row.time} /> },
-    {
-      id: "pair",
-      header: "Pair",
-      width: "130px",
-      ellipsis: true,
-      cell: (row) => <span className="mono">{`${formatCurrency(row.pair.base.currency)}/${formatCurrency(row.pair.counter.currency)}`}</span>,
-    },
-    { id: "side", header: "Side", width: "70px", cell: (row) => (row.side === "buy" ? "Buy" : "Sell") },
-    { id: "amount", header: "Amount", width: "minmax(140px, 1fr)", align: "end", cell: (row) => <RowAmountView amount={row.amount} /> },
-    { id: "price", header: "Price", width: "minmax(120px, 1fr)", align: "end", cell: (row) => <RowAmountView amount={row.price} /> },
-    { id: "against", header: "Against", width: "minmax(150px, 1.2fr)", ellipsis: true, cell: (row) => <AccountLink net={net} address={row.counterparty} /> },
-  ];
-  return <DataTable label="Trades" columns={columns} rows={rows} rowKey={(row) => `${row.hash}:${row.amount.value}:${row.price.value}:${row.counterparty}`} minWidth={842} empty="No trades yet." />;
-}
-
-function OffersTable({ rows }: { rows: OfferRow[] }) {
-  const columns: Column<OfferRow>[] = [
-    { id: "side", header: "Side", width: "70px", cell: (row) => (row.side === "buy" ? "Buy" : "Sell") },
-    { id: "quantity", header: "Quantity", width: "minmax(140px, 1fr)", align: "end", cell: (row) => <RowAmountView amount={row.quantity} /> },
-    { id: "total", header: "Total price", width: "minmax(140px, 1fr)", align: "end", cell: (row) => <RowAmountView amount={row.total} /> },
-    {
-      id: "rate",
-      header: "Rate",
-      width: "minmax(130px, 1fr)",
-      align: "end",
-      cell: (row) =>
-        row.rate ? (
-          <span className="amt plain num">{`${formatAmount(row.rate.value)} ${formatCurrency(row.rate.quote)} / ${formatCurrency(row.rate.per)}`}</span>
-        ) : (
-          <span className="faint">—</span>
-        ),
-    },
-    { id: "sequence", header: "Sequence", width: "120px", align: "end", cell: (row) => <span className="mono num muted">{count(row.sequence)}</span> },
-  ];
-  return <DataTable label="Open offers" columns={columns} rows={rows} rowKey={(row) => String(row.sequence)} minWidth={696} empty="This account has no open offers." />;
-}
-
-function ObjectsList({ net, rows }: { net: NetworkInfo["id"]; rows: ObjectRow[] }) {
-  if (rows.length === 0) return <div className="table__empty">This account owns no other objects.</div>;
-  return (
-    <ul className="objectlist">
-      {rows.map((row) => (
-        <li key={row.key} className="object">
-          <TypeTag type={row.type} />
-          {row.fields.map((field) => (
-            <div key={field.label} className="object__field">
-              <span className="object__label">{field.label}</span>
-              <span className="object__value">
-                <Sentence net={net} segments={field.value} />
-              </span>
-            </div>
-          ))}
-          {row.tx && (
-            <Link to={`/${net}/tx/${row.tx}`} className="object__tx">
-              Last changed in {shortHash(row.tx)} →
-            </Link>
-          )}
-        </li>
-      ))}
-    </ul>
   );
 }

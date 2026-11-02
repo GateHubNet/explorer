@@ -1,0 +1,15 @@
+{
+  "result": {
+    "flags": 9,
+    "is_burned": true,
+    "issuer": "rGxWAWXg8okZh29ojBRvEMpN5peQRV16Xu",
+    "ledger_index": 107834578,
+    "nft_id": "00091388AF09C1D4B4D1E8031467F3508DFFADABEA73255F982A735A0655E613",
+    "nft_serial": 106292755,
+    "nft_taxon": 500,
+    "owner": "rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV",
+    "status": "success",
+    "transfer_fee": 5000,
+    "validated": true
+  }
+}

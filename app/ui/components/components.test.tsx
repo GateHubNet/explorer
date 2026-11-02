@@ -8,19 +8,24 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Segment } from "../../domain/describe";
 import { shortAddress, shortHash } from "../../domain/format";
 import { allSwitches } from "../../../test/support/switches";
-import { renderUnderNetwork } from "../../../test/support/under-network";
+import { NFTS_ON, renderUnderNetwork } from "../../../test/support/under-network";
+import { noAmmPage } from "../../server/amm-view";
+import type { CoverageNoteText } from "../../server/coverage";
 import { THEME_STORAGE_KEY } from "../theme-script";
 import { AccountLink } from "./AccountLink";
 import { Amount } from "./Amount";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { Card } from "./Card";
 import { CopyButton } from "./CopyButton";
+import { CoverageNote } from "./CoverageNote";
 import { DataTable } from "./DataTable";
 import { Footer } from "./Footer";
 import { Header } from "./Header";
 import { HashLink, LedgerLink } from "./HashLink";
 import { LinkedText } from "./LinkedText";
 import { NetworkSwitch } from "./NetworkSwitch";
+import { NftGlyph, collectionGlyph, nftGlyph } from "./NftGlyph";
+import { NftLink } from "./NftLink";
 import { Notice } from "./Notice";
 import { Pager } from "./Pager";
 import { PairCoins } from "./PairCoins";
@@ -35,16 +40,21 @@ import { ThemeToggle } from "./ThemeToggle";
 import { TypeTag } from "./TypeTag";
 import { LATEST_LEDGERS_ID, LATEST_TRANSACTIONS_ID } from "../anchors";
 import { LOGO_TEXT, PRODUCT_NAME } from "../brand";
+import { NoAmmPage } from "../pages/NoAmmPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { errorMeta, RouteErrorScreen } from "../pages/RouteErrorScreen";
+import type { Environment } from "../environment";
 import { FEATURE_VARS, featuresOf, NO_FEATURES, type Features } from "../features";
 import { navSectionOf, type NetworkRouteHandle } from "../route-handle";
 import { NETWORK_ROUTE_ID, useNetwork } from "../use-network";
 import { handle as validatorsHandle } from "../../routes/net.validators";
 import { DetailList } from "./DetailList";
 
-const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau" } as const;
-const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", ctidNetworkId: 21337, other: "xrpl" } as const;
+const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau", kind: "mainnet", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", displays: ["native", "usd"] } as const;
+const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", ctidNetworkId: 21337, other: "xrpl", kind: "mainnet", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", displays: ["native"] } as const;
+/** The networks of the sandbox: the same facts but the CTID network ids and the displays, in the testnets' words. */
+const XRPL_TESTNET = { id: "xrpl", name: "XRPL Testnet", native: "XRP", ctidNetworkId: 1, other: "xahau", kind: "testnet", label: "XRPL Testnet", longName: "XRPL Testnet", dexName: "the XRPL Testnet DEX", displays: ["native"] } as const;
+const XAHAU_TESTNET = { id: "xahau", name: "Xahau Testnet", native: "XAH", ctidNetworkId: 21338, other: "xrpl", kind: "testnet", label: "Xahau Testnet", longName: "Xahau Testnet", dexName: "the Xahau Testnet DEX", displays: ["native"] } as const;
 
 const ADDRESS = "rGz1sPmwvkaRyZido3CQB3ziVd9dwQ4Y6x";
 const HASH = "67F91E110D4E3E6C2E6DA3D42EDFB36D9860D024406F58A12CDDF09B65057C31";
@@ -85,6 +95,22 @@ describe("Pill", () => {
 
     rerender(<Pill tone="neutral" icon={<svg data-testid="own" aria-hidden="true" />}>Pending</Pill>);
     expect(screen.getByTestId("own")).toBeTruthy();
+  });
+
+  it("Pill testnet has no icon of its own", () => {
+    const { container } = render(<Pill tone="testnet">Testnet</Pill>);
+    expect(container.innerHTML).toBe('<span class="pill pill--testnet">Testnet</span>');
+  });
+
+  it("Pill warn is the amber pill of a state that needs attention, with the word and no icon of its own", () => {
+    const { container } = render(<Pill tone="warn">Can be cancelled</Pill>);
+    expect(container.innerHTML).toBe('<span class="pill pill--warn">Can be cancelled</span>');
+    expect(container.querySelector(".pill")!.classList.contains("pill--warn")).toBe(true);
+  });
+
+  it("takes an icon of its own on the warn tone, as the neutral and info tones do", () => {
+    render(<Pill tone="warn" icon={<svg data-testid="own" aria-hidden="true" />}>Expired</Pill>);
+    expect(screen.getByTestId("own").closest(".pill")!.className).toContain("pill--warn");
   });
 
   it("ResultPill says Success for tesSUCCESS and shows the code of a failure", () => {
@@ -185,6 +211,20 @@ describe("AccountLink, HashLink and LedgerLink", () => {
     expect(ledger!.textContent).toBe(HASH);
   });
 
+  it("name a hash link by a label that holds the text it shows (WCAG 2.5.3), and leave the name to its text without one", () => {
+    renderInRouter(
+      <>
+        <HashLink net="xrpl" kind="tx" hash={HASH} label={`EscrowFinish transaction ${HASH.slice(0, 6)}…${HASH.slice(-4)}`} />
+        <HashLink net="xrpl" kind="tx" hash={HASH} />
+      </>,
+    );
+    const [named, plain] = screen.getAllByRole("link");
+    expect(named!.getAttribute("aria-label")).toBe(`EscrowFinish transaction ${HASH.slice(0, 6)}…${HASH.slice(-4)}`);
+    expect(named!.textContent).toBe(`${HASH.slice(0, 6)}…${HASH.slice(-4)}`);
+    expect(screen.getByRole("link", { name: `EscrowFinish transaction ${HASH.slice(0, 6)}…${HASH.slice(-4)}` })).toBe(named);
+    expect(plain!.hasAttribute("aria-label")).toBe(false);
+  });
+
   it("link a ledger index with thousands separators", () => {
     renderInRouter(<LedgerLink net="xrpl" index={107695660} />);
     const link = screen.getByRole("link");
@@ -266,6 +306,90 @@ describe("Sentence", () => {
       renderInRouter(<Sentence net="xrpl" segments={pool} />);
       expect(screen.getByRole("link", { name: "XRP/RLUSD" }).getAttribute("href")).toBe(`/xrpl/account/${POOL}`);
     });
+  });
+
+  describe("an nft segment is an NftLink (a link while NFTS is on)", () => {
+    const ID = "000813886E50B2960CF48DCB644E85B412C660B4E1B01A87C283F9E6066AB54B";
+    const minted: Segment[] = [{ t: "text", v: "minted NFT " }, { t: "nft", v: ID }, { t: "text", v: ", taxon 0." }];
+    const on = { ...NO_FEATURES, nfts: true };
+
+    it("is the short id in mono, linking to the NFT's page on the network of the sentence, with the full id as its title", async () => {
+      const { container } = renderUnderNetwork(<Sentence net="xrpl" segments={minted} />, on);
+      const link = await screen.findByRole("link", { name: "00081388…B54B" });
+      expect(link.getAttribute("href")).toBe(`/xrpl/nft/${ID}`);
+      expect(link.getAttribute("title")).toBe(ID);
+      expect(link.classList.contains("mono")).toBe(true);
+      expect(container.textContent).toBe("minted NFT 00081388…B54B, taxon 0.");
+      cleanup();
+      renderUnderNetwork(<Sentence net="xahau" segments={minted} compact />, on, { network: XAHAU });
+      expect((await screen.findByRole("link", { name: "00081388…B54B" })).getAttribute("href")).toBe(`/xahau/nft/${ID}`);
+    });
+
+    it("is the same short id as text in mono, with the full id as its title and no link, while NFTS is off", async () => {
+      const { container } = renderUnderNetwork(<Sentence net="xrpl" segments={minted} />, { ...NO_FEATURES, nfts: false });
+      const shown = await screen.findByText("00081388…B54B");
+      expect(container.querySelector("a")).toBeNull();
+      expect(shown.getAttribute("title")).toBe(ID);
+      expect(shown.classList.contains("mono")).toBe(true);
+      expect(container.textContent).toBe("minted NFT 00081388…B54B, taxon 0.");
+    });
+
+    it("is text outside the layout's data (NO_FEATURES), as NftLink is", () => {
+      const { container } = renderInRouter(<Sentence net="xrpl" segments={minted} />);
+      expect(container.querySelector("a")).toBeNull();
+      expect(container.textContent).toBe("minted NFT 00081388…B54B, taxon 0.");
+    });
+
+    it("shows '#serial' when the segment has one", async () => {
+      renderUnderNetwork(<Sentence net="xrpl" segments={[{ t: "nft", v: ID, serial: 4127 }]} />, on);
+      const link = await screen.findByRole("link", { name: "#4,127" });
+      expect(link.getAttribute("href")).toBe(`/xrpl/nft/${ID}`);
+      expect(link.getAttribute("title")).toBe(ID);
+    });
+  });
+  // An escrow, a check or a payment channel a sentence or a detail names (ledger object pages spec 7): its words, linking to its page on the network of the sentence while LEDGER_OBJECTS is on
+  // (objectHref), by its ID or, for an escrow a failed transaction names, by its owner and sequence; the same words as text while it is off.
+  it("draws an object as a link, and as text while LEDGER_OBJECTS is off", async () => {
+    const ESCROW = "8993DA09444641A6BDA272A292157A0E8AF79F040AA4E551C48257F493228455";
+    const CHANNEL = "E22CCE8FA636C8BDF1C3C4AA17FD604B8FDE268E4F6BF9022B5336536F5B69EA";
+    const objects: Segment[] = [
+      { t: "text", v: "released " },
+      { t: "object", kind: "escrow", ref: { id: ESCROW }, v: "escrow 57978925" },
+      { t: "text", v: ", tried " },
+      { t: "object", kind: "escrow", ref: { owner: ADDRESS, sequence: 12 }, v: "escrow 12" },
+      { t: "text", v: ", cashed " },
+      { t: "object", kind: "check", ref: { id: HASH }, v: "a check" },
+      { t: "text", v: " and claimed from " },
+      { t: "object", kind: "payment-channel", ref: { id: CHANNEL }, v: "channel E22CCE…69EA" },
+    ];
+    const words = "released escrow 57978925, tried escrow 12, cashed a check and claimed from channel E22CCE…69EA";
+    const on = { ...NO_FEATURES, ledgerObjects: true };
+
+    const { container } = renderUnderNetwork(<Sentence net="xrpl" segments={objects} />, on);
+    const links = await screen.findAllByRole("link");
+    expect(links.map((a) => [a.textContent, a.getAttribute("href"), a.getAttribute("title")])).toEqual([
+      ["escrow 57978925", `/xrpl/escrows/${ESCROW}`, ESCROW],
+      ["escrow 12", `/xrpl/escrows/${ADDRESS}/12`, null],
+      ["a check", `/xrpl/checks/${HASH}`, HASH],
+      ["channel E22CCE…69EA", `/xrpl/payment-channels/${CHANNEL}`, CHANNEL],
+    ]);
+    expect(container.textContent).toBe(words);
+    // Told from the words round it by more than its colour: the class pages-css.test.ts pins the underline of.
+    expect(links.map((a) => a.className)).toEqual(Array(4).fill("objectlink"));
+    cleanup();
+
+    // On the sentence's network, and the same in a table's cell.
+    renderUnderNetwork(<Sentence net="xahau" segments={objects} compact />, on, { network: XAHAU });
+    const compact = await screen.findByRole("link", { name: "a check" });
+    expect(compact.getAttribute("href")).toBe(`/xahau/checks/${HASH}`);
+    expect(compact.className).toBe("objectlink");
+    cleanup();
+
+    // Off, whatever the other switches are (DELEGATION, NFTS): the words, and no link.
+    const off = renderUnderNetwork(<Sentence net="xrpl" segments={objects} />, { ...featuresOf(allSwitches("on")), ledgerObjects: false });
+    await screen.findByText(/released escrow 57978925/);
+    expect(off.container.querySelector("a")).toBeNull();
+    expect(off.container.textContent).toBe(words);
   });
 });
 
@@ -448,6 +572,32 @@ describe("Card and StatTile", () => {
       unmount();
     }
   });
+
+  it("shows its aside right of the label, in a head of their own, and the label is as it was", () => {
+    const { container } = render(<StatTile figure label="Total supply" aside="≈ 99.99B" value="99,985,312,374.716318 XRP" sub="= 100,000,000,000 − burned" />);
+    const tile = container.firstElementChild!;
+    expect(Array.from(tile.children, (part) => part.className)).toEqual(["stat__head", "stat__value", "stat__sub"]);
+    const head = tile.querySelector(".stat__head")!;
+    expect(Array.from(head.children, (part) => [part.className, part.textContent])).toEqual([
+      ["stat__label", "Total supply"],
+      ["stat__aside", "≈ 99.99B"],
+    ]);
+  });
+
+  it("takes any node as its aside, and draws no head and no aside without one", () => {
+    const { container } = render(<StatTile label="Burned" aside={<b>≈ 14.69M</b>} value="14,687,625.283682 XRP" />);
+    expect(container.querySelector(".stat__aside b")!.textContent).toBe("≈ 14.69M");
+    cleanup();
+    const { container: bare } = render(<StatTile label="Burned" value="14,687,625.283682 XRP" />);
+    expect(bare.querySelector(".stat__head")).toBeNull();
+    expect(bare.querySelector(".stat__aside")).toBeNull();
+    expect(Array.from(bare.firstElementChild!.children, (part) => part.className)).toEqual(["stat__label", "stat__value"]);
+    // A page that has none says null for it.
+    cleanup();
+    const { container: nothing } = render(<StatTile label="Burned" aside={null} value="14,687,625.283682 XRP" />);
+    expect(nothing.querySelector(".stat__head")).toBeNull();
+    expect(nothing.querySelector(".stat__aside")).toBeNull();
+  });
 });
 
 describe("DataTable", () => {
@@ -519,6 +669,31 @@ describe("DataTable", () => {
     expect(region.style.maxHeight).toBe("300px");
     expect(region.classList.contains("table-scroll--capped")).toBe(true);
     expect(region.getAttribute("tabindex")).toBe("0");
+  });
+
+  it("spreads rowProps on each body row: its class beside the row's own, and its pointer handlers", () => {
+    const enter = vi.fn();
+    const leave = vi.fn();
+    render(
+      <DataTable
+        label="Transactions"
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.hash}
+        rowProps={(row, index) => ({ className: row.hash === "BBBB" ? "is-picked" : undefined, onPointerEnter: () => enter(row.hash, index), onPointerLeave: () => leave(row.hash) })}
+      />,
+    );
+    const [head, first, second] = within(screen.getByRole("table", { name: "Transactions" })).getAllByRole("row") as [HTMLElement, HTMLElement, HTMLElement];
+    expect([first, second].map((row) => row.classList.contains("is-picked"))).toEqual([false, true]);
+    expect(second.classList.contains("table__row")).toBe(true);
+    expect(head.className).toBe("table__row table__head");
+    fireEvent.pointerEnter(second, { pointerType: "mouse" });
+    expect(enter).toHaveBeenCalledWith("BBBB", 1);
+    fireEvent.pointerLeave(second, { pointerType: "mouse" });
+    expect(leave).toHaveBeenCalledWith("BBBB");
+    // The head row has none.
+    fireEvent.pointerEnter(head, { pointerType: "mouse" });
+    expect(enter).toHaveBeenCalledTimes(1);
   });
 
   // axe: landmark-unique. A card is a `section` named by its title, which is a region landmark, and the scroll region of a table in it
@@ -810,6 +985,22 @@ describe("NetworkSwitch", () => {
     expect(links[1]!.getAttribute("aria-current")).toBe("true");
     expect(links[0]!.getAttribute("aria-current")).toBeNull();
   });
+
+  // The switch has no network data of its own to read (the unknown network's error page and the not-found route have none): it names the networks of the
+  // root's environment (`useEnvironment()`), and the paths are the same in every environment.
+  it.each([
+    ["sandbox", { environment: "sandbox" as const }, ["XRPL Testnet", "Xahau Testnet"]],
+    ["production", { environment: "production" as const }, ["XRPL", "Xahau"]],
+    ["development", { environment: "development" as const }, ["XRPL", "Xahau"]],
+    ["no root", {}, ["XRPL", "Xahau"]],
+  ])("names the networks of the environment: %s", async (_case, options, names) => {
+    renderUnderNetwork(<NetworkSwitch net="xahau" />, NO_FEATURES, options);
+    const group = await screen.findByRole("group", { name: "Network" });
+    const links = within(group).getAllByRole("link");
+    expect(links.map((a) => a.textContent)).toEqual(names);
+    expect(links.map((a) => a.getAttribute("href"))).toEqual(["/xrpl", "/xahau"]);
+    expect(links[1]!.getAttribute("aria-current")).toBe("true");
+  });
 });
 
 describe("SearchBox", () => {
@@ -860,6 +1051,72 @@ describe("SearchBox", () => {
     expect(ctid.getAttribute("href")).toBe("/xrpl/search?q=C66B4E4C00450000");
   });
 
+  it("keeps its words while NFTS is off: the placeholders of before and the hash's hint", async () => {
+    for (const [variant, placeholder] of [
+      ["header", "Address, hash, ledger or CTID"],
+      ["hero", "Address, transaction hash, ledger index or CTID"],
+    ] as const) {
+      renderUnderNetwork(<SearchBox net={XRPL} variant={variant} />, NO_FEATURES);
+      const input = await screen.findByRole("searchbox");
+      expect(input.getAttribute("placeholder"), variant).toBe(placeholder);
+      cleanup();
+    }
+    renderUnderNetwork(<SearchBox net={XRPL} />, NO_FEATURES);
+    fireEvent.change(await screen.findByRole("searchbox"), { target: { value: HASH } });
+    expect((await screen.findByRole("link", { name: /Transaction or ledger/ })).getAttribute("href")).toBe(`/xrpl/search?q=${HASH}`);
+  });
+
+  it("names the NFT in its placeholders and in the hint of a hash while NFTS is on, the token of the network", async () => {
+    for (const [variant, placeholder] of [
+      ["header", "Address, hash, ledger, CTID or NFT id"],
+      ["hero", "Address, transaction hash, ledger index, CTID or NFT id"],
+    ] as const) {
+      renderUnderNetwork(<SearchBox net={XRPL} variant={variant} />, NFTS_ON);
+      expect((await screen.findByRole("searchbox")).getAttribute("placeholder"), variant).toBe(placeholder);
+      cleanup();
+    }
+
+    renderUnderNetwork(<SearchBox net={XRPL} />, NFTS_ON);
+    fireEvent.change(await screen.findByRole("searchbox"), { target: { value: HASH.toLowerCase() } });
+    const hint = await screen.findByRole("link", { name: /Transaction, ledger or NFT/ });
+    expect(hint.getAttribute("href")).toBe(`/xrpl/search?q=${HASH}`);
+    cleanup();
+
+    renderUnderNetwork(<SearchBox net={XAHAU} />, NFTS_ON, { network: { id: "xahau", name: "Xahau" }, path: "/xahau" });
+    fireEvent.change(await screen.findByRole("searchbox"), { target: { value: HASH } });
+    expect(await screen.findByRole("link", { name: /Transaction, ledger or URIToken/ })).toBeTruthy();
+  });
+
+  it("names the objects in its placeholders and in the hint of a hash while LEDGER_OBJECTS is on, each part only while its switch is on (E10)", async () => {
+    const objects = { ...NO_FEATURES, ledgerObjects: true };
+    const both = { ...NFTS_ON, ledgerObjects: true };
+    for (const [features, variant, placeholder] of [
+      [objects, "header", "Address, hash, ledger, CTID or object id"],
+      [objects, "hero", "Address, transaction hash, ledger index, CTID or object id"],
+      [both, "header", "Address, hash, ledger, CTID, NFT id or object id"],
+      [both, "hero", "Address, transaction hash, ledger index, CTID, NFT id or object id"],
+    ] as const) {
+      renderUnderNetwork(<SearchBox net={XRPL} variant={variant} />, features);
+      expect((await screen.findByRole("searchbox")).getAttribute("placeholder"), `${variant} ${JSON.stringify(features)}`).toBe(placeholder);
+      cleanup();
+    }
+
+    for (const [features, words] of [
+      [objects, "Transaction, ledger, escrow, check or payment channel"],
+      [both, "Transaction, ledger, NFT, escrow, check or payment channel"],
+    ] as const) {
+      renderUnderNetwork(<SearchBox net={XRPL} />, features);
+      fireEvent.change(await screen.findByRole("searchbox"), { target: { value: HASH.toLowerCase() } });
+      const hint = await screen.findByRole("link", { name: new RegExp(`^${words}`) });
+      expect(hint.getAttribute("href")).toBe(`/xrpl/search?q=${HASH}`);
+      cleanup();
+    }
+
+    renderUnderNetwork(<SearchBox net={XAHAU} />, both, { network: { id: "xahau", name: "Xahau" }, path: "/xahau" });
+    fireEvent.change(await screen.findByRole("searchbox"), { target: { value: HASH } });
+    expect(await screen.findByRole("link", { name: /^Transaction, ledger, URIToken, escrow, check or payment channel/ })).toBeTruthy();
+  });
+
   it("says what it can search for when the input is none of those, and shows no hints for an empty box", async () => {
     renderInRouter(<SearchBox net={XRPL} variant="hero" />);
     const input = screen.getByRole("searchbox");
@@ -869,6 +1126,29 @@ describe("SearchBox", () => {
     expect(screen.getByText(/looks like that/).textContent).toContain("XRPL");
     fireEvent.change(input, { target: { value: "" } });
     await waitFor(() => expect(screen.queryByText(/looks like that/)).toBeNull());
+  });
+
+  it("names a 64-character hash by what the search can find, as its hint does: with NFTS on an NFT too (a URIToken on Xahau), off the words of before", async () => {
+    const said = async (ui: ReactElement, features: Features, options?: Parameters<typeof renderUnderNetwork>[2]) => {
+      renderUnderNetwork(ui, features, options);
+      fireEvent.change(await screen.findByRole("searchbox"), { target: { value: "hello" } });
+      const text = (await screen.findByText(/looks like that/)).textContent;
+      cleanup();
+      return text;
+    };
+    const tail = " Enter an address (r…), a 64-character HASH hash, a ledger index, or a CTID (C followed by 15 hex digits).";
+
+    expect(await said(<SearchBox net={XRPL} />, NO_FEATURES)).toBe(`Nothing on XRPL looks like that.${tail.replace("HASH", "transaction or ledger")}`);
+    expect(await said(<SearchBox net={XRPL} />, NFTS_ON)).toBe(`Nothing on XRPL looks like that.${tail.replace("HASH", "transaction, ledger or NFT")}`);
+    expect(await said(<SearchBox net={XAHAU} />, NFTS_ON, { network: { id: "xahau", name: "Xahau" }, path: "/xahau" })).toBe(
+      `Nothing on Xahau looks like that.${tail.replace("HASH", "transaction, ledger or URIToken")}`,
+    );
+    expect(await said(<SearchBox net={XRPL} />, { ...NFTS_ON, ledgerObjects: true })).toBe(
+      `Nothing on XRPL looks like that.${tail.replace("HASH", "transaction, ledger, NFT, escrow, check or payment channel")}`,
+    );
+    expect(await said(<SearchBox net={XRPL} />, { ...NO_FEATURES, ledgerObjects: true })).toBe(
+      `Nothing on XRPL looks like that.${tail.replace("HASH", "transaction, ledger, escrow, check or payment channel")}`,
+    );
   });
 
   it("closes the hints when focus leaves the box or Escape is pressed, and opens them again on return", async () => {
@@ -1064,6 +1344,27 @@ describe("Header and Shell", () => {
       return within(await screen.findByRole("navigation", { name: "Main" }));
     }
 
+    /**
+     * The label of each item of the navigation, in order: a link's text, a "soon" item's own label without its tag, or the summary of the Network menu. Only the navigation's own items:
+     * the menu's panel has its items in `listitem`s too (Header.test.tsx has those).
+     */
+    function labelsOf(nav: ReturnType<typeof within>) {
+      return nav
+        .getAllByRole("listitem", { hidden: true })
+        .filter((item: HTMLElement) => item.parentElement!.parentElement!.tagName === "NAV")
+        .map((item: HTMLElement) => (item.querySelector("summary.nav-item") ?? item.querySelector(".nav-item.is-soon > span:first-child") ?? item.querySelector("a.nav-item"))!.textContent);
+    }
+
+    /** The summary of the Network menu: the item that stands for the section, which was a link to the network page. */
+    function networkSummary(nav: ReturnType<typeof within>) {
+      return nav.getByText("Network", { selector: "summary" });
+    }
+
+    /** The menu's links, by name: closed, so they are hidden to the role query. */
+    function menuLink(nav: ReturnType<typeof within>, name: string) {
+      return nav.getByRole("link", { name, hidden: true });
+    }
+
     function expectSoon(nav: ReturnType<typeof within>, label: string) {
       const item = nav.getByText(label).closest(".nav-item")!;
       expect(item.classList.contains("is-soon")).toBe(true);
@@ -1073,49 +1374,53 @@ describe("Header and Shell", () => {
       expect(nav.queryByRole("link", { name: new RegExp(`^${label}`) })).toBeNull();
     }
 
-    it("links Network to the network page and marks it as the current page there", () => {
-      const nav = renderHeaderAt("/xrpl/network", { navSection: "network" });
-      const link = nav.getByRole("link", { name: "Network" });
-      expect(link.getAttribute("href")).toBe("/xrpl/network");
-      expect(link.getAttribute("aria-current")).toBe("page");
-      expect(link.classList.contains("is-current")).toBe(true);
-      expect(link.classList.contains("is-soon")).toBe(false);
+    it("draws Network as a menu whose summary is current on the network page, and Overview is the page", () => {
+      const nav = renderHeaderAt("/xrpl/network", { navSection: "network", navPage: "overview" });
+      expect(nav.queryByRole("link", { name: "Network" })).toBeNull();
+      const summary = networkSummary(nav);
+      expect(summary.getAttribute("aria-current")).toBe("true");
+      expect(summary.classList.contains("is-current")).toBe(true);
+      expect(summary.classList.contains("is-soon")).toBe(false);
+      const overview = menuLink(nav, "Overview");
+      expect(overview.getAttribute("href")).toBe("/xrpl/network");
+      expect(overview.getAttribute("aria-current")).toBe("page");
     });
 
-    it("links Network to the page of the network the header is on", () => {
-      const nav = renderHeaderAt("/xahau/network", { navSection: "network" }, XAHAU);
-      expect(nav.getByRole("link", { name: "Network" }).getAttribute("href")).toBe("/xahau/network");
+    it("leads the menu's Overview to the page of the network the header is on", () => {
+      const nav = renderHeaderAt("/xahau/network", { navSection: "network", navPage: "overview" }, XAHAU);
+      expect(menuLink(nav, "Overview").getAttribute("href")).toBe("/xahau/network");
     });
 
     it("keeps the network page current under any query", () => {
-      const nav = renderHeaderAt("/xrpl/network?period=1y", { navSection: "network" });
-      const link = nav.getByRole("link", { name: "Network" });
-      expect(link.getAttribute("aria-current")).toBe("page");
-      expect(link.classList.contains("is-current")).toBe(true);
+      const nav = renderHeaderAt("/xrpl/network?period=1y", { navSection: "network", navPage: "overview" });
+      expect(menuLink(nav, "Overview").getAttribute("aria-current")).toBe("page");
+      const summary = networkSummary(nav);
+      expect(summary.getAttribute("aria-current")).toBe("true");
+      expect(summary.classList.contains("is-current")).toBe(true);
     });
 
-    it('names the section on its other pages with aria-current="true"', () => {
+    it('names the section on its other pages with aria-current="true" on the summary, and no item of the menu', () => {
       const nav = renderHeaderAt("/xrpl/validators", { navSection: "network" });
-      const link = nav.getByRole("link", { name: "Network" });
-      expect(link.getAttribute("href")).toBe("/xrpl/network");
-      expect(link.getAttribute("aria-current")).toBe("true");
-      expect(link.classList.contains("is-current")).toBe(true);
+      const summary = networkSummary(nav);
+      expect(summary.getAttribute("aria-current")).toBe("true");
+      expect(summary.classList.contains("is-current")).toBe(true);
+      expect(menuLink(nav, "Overview").hasAttribute("aria-current")).toBe(false);
     });
 
     it("names the section on the validators list too, through that route's own handle", () => {
       const nav = renderHeaderAt("/xrpl/validators", validatorsHandle);
-      const link = nav.getByRole("link", { name: "Network" });
-      expect(link.getAttribute("href")).toBe("/xrpl/network");
-      expect(link.getAttribute("aria-current")).toBe("true");
-      expect(link.classList.contains("is-current")).toBe(true);
+      const summary = networkSummary(nav);
+      expect(summary.getAttribute("aria-current")).toBe("true");
+      expect(summary.classList.contains("is-current")).toBe(true);
+      expect(menuLink(nav, "Overview").getAttribute("href")).toBe("/xrpl/network");
     });
 
-    it("leaves Network a plain link on a page that names no section", () => {
+    it("leaves Network unmarked on a page that names no section", () => {
       const nav = renderHeaderAt("/xrpl/ledger/1");
-      const link = nav.getByRole("link", { name: "Network" });
-      expect(link.getAttribute("href")).toBe("/xrpl/network");
-      expect(link.hasAttribute("aria-current")).toBe(false);
-      expect(link.classList.contains("is-current")).toBe(false);
+      const summary = networkSummary(nav);
+      expect(summary.hasAttribute("aria-current")).toBe(false);
+      expect(summary.classList.contains("is-current")).toBe(false);
+      expect(menuLink(nav, "Overview").getAttribute("href")).toBe("/xrpl/network");
     });
 
     it("takes the section from a parent route when the deepest route names none", () => {
@@ -1136,16 +1441,17 @@ describe("Header and Shell", () => {
         { initialEntries: ["/xrpl/deeper"] },
       );
       render(<RouterProvider router={router} />);
-      const link = within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Network" });
-      expect(link.classList.contains("is-current")).toBe(true);
-      expect(link.getAttribute("aria-current")).toBe("true");
+      const summary = networkSummary(within(screen.getByRole("navigation", { name: "Main" })));
+      expect(summary.classList.contains("is-current")).toBe(true);
+      expect(summary.getAttribute("aria-current")).toBe("true");
     });
 
     it("marks no section by the path alone: a route has to say so", () => {
       const nav = renderHeaderAt("/xrpl/network");
-      const link = nav.getByRole("link", { name: "Network" });
-      expect(link.hasAttribute("aria-current")).toBe(false);
-      expect(link.classList.contains("is-current")).toBe(false);
+      const summary = networkSummary(nav);
+      expect(summary.hasAttribute("aria-current")).toBe(false);
+      expect(summary.classList.contains("is-current")).toBe(false);
+      expect(menuLink(nav, "Overview").hasAttribute("aria-current")).toBe(false);
     });
 
     it("keeps the hrefs of Ledgers and Transactions, and marks neither as current", () => {
@@ -1205,7 +1511,7 @@ describe("Header and Shell", () => {
       expect(link.getAttribute("aria-current")).toBe("page");
       expect(link.classList.contains("is-current")).toBe(true);
       // The section is Markets alone: Network is not current.
-      const network = nav.getByRole("link", { name: "Network" });
+      const network = networkSummary(nav);
       expect(network.hasAttribute("aria-current")).toBe(false);
       expect(network.classList.contains("is-current")).toBe(false);
     });
@@ -1231,13 +1537,13 @@ describe("Header and Shell", () => {
       const markets = network.getByRole("link", { name: "Markets" });
       expect(markets.hasAttribute("aria-current")).toBe(false);
       expect(markets.classList.contains("is-current")).toBe(false);
-      expect(network.getByRole("link", { name: "Network" }).getAttribute("aria-current")).toBe("page");
+      expect(networkSummary(network).getAttribute("aria-current")).toBe("true");
     });
 
     it("marks nothing current on a markets page while MARKETS is off (the item is a label)", async () => {
       const nav = await renderHeaderWithFeatures({ ...featuresOf(allSwitches("on")), markets: false }, "/xrpl/markets", { navSection: "markets" });
       expectSoon(nav, "Markets");
-      expect(nav.getByRole("link", { name: "Network" }).hasAttribute("aria-current")).toBe(false);
+      expect(networkSummary(nav).hasAttribute("aria-current")).toBe(false);
     });
 
     it("links Markets to the page of the network the header is on", async () => {
@@ -1299,7 +1605,7 @@ describe("Header and Shell", () => {
           expect(link.getAttribute("aria-current"), path).toBe("page");
           expect(link.classList.contains("is-current"), path).toBe(true);
           // The section is AMM alone.
-          expect(nav.getByRole("link", { name: "Network" }).hasAttribute("aria-current")).toBe(false);
+          expect(networkSummary(nav).hasAttribute("aria-current")).toBe(false);
           cleanup();
         }
       });
@@ -1323,9 +1629,163 @@ describe("Header and Shell", () => {
       });
     });
 
-    it("links Network with every switch off, since it has none", async () => {
+    describe("NFTs, while NFTS is off and on", () => {
+      const NFT_ID = "000B013A95F14B0044F78A264E41713C64B5F89242540EE208C3098E00000D65";
+      const NFTS_ON = { ...NO_FEATURES, nfts: true };
+
+      it("is the last item, after AMM, whether it is a link or the label", async () => {
+        expect(labelsOf(await renderHeaderWithFeatures(NFTS_ON))).toEqual(["Ledgers", "Transactions", "Tokens", "Network", "Markets", "AMM", "NFTs"]);
+        cleanup();
+        expect(labelsOf(await renderHeaderWithFeatures(featuresOf(allSwitches("on"))))).toEqual(["Ledgers", "Transactions", "Tokens", "Network", "Markets", "AMM", "NFTs"]);
+        cleanup();
+        expect(labelsOf(await renderHeaderWithFeatures(NO_FEATURES))).toEqual(["Ledgers", "Transactions", "Tokens", "Network", "Markets", "AMM", "NFTs"]);
+      });
+
+      it("is a label with a soon tag, not a link, without the layout's data (NO_FEATURES), even on an NFT page", () => {
+        const nav = renderHeaderAt("/xrpl/nfts", { navSection: "nfts" });
+        expectSoon(nav, "NFTs");
+        expect(nav.getByText("NFTs").closest(".nav-item.is-soon")).not.toBeNull();
+      });
+
+      it("is a label with a soon tag while NFTS is off, whatever the other switches are", async () => {
+        expectSoon(await renderHeaderWithFeatures({ ...featuresOf(allSwitches("on")), nfts: false }), "NFTs");
+        cleanup();
+        // An NFT page names its section, but the item it would mark is a label: nothing is current.
+        const nav = await renderHeaderWithFeatures({ ...featuresOf(allSwitches("on")), nfts: false }, "/xrpl/nfts", { navSection: "nfts" });
+        expectSoon(nav, "NFTs");
+        expect(nav.queryAllByRole("link").filter((link) => link.hasAttribute("aria-current"))).toEqual([]);
+      });
+
+      it("links the NFTs page of the network while only NFTS is on, on either network", async () => {
+        const nav = await renderHeaderWithFeatures(NFTS_ON);
+        const link = nav.getByRole("link", { name: "NFTs" });
+        expect(link.getAttribute("href")).toBe("/xrpl/nfts");
+        expect(link.classList.contains("nav-item")).toBe(true);
+        expect(link.classList.contains("is-soon")).toBe(false);
+        expect(link.hasAttribute("aria-disabled")).toBe(false);
+        expect(link.hasAttribute("aria-current")).toBe(false);
+        expect(link.classList.contains("is-current")).toBe(false);
+        // The switches of the other items stay as they are: they are the labels.
+        expectSoon(nav, "Markets");
+        expectSoon(nav, "AMM");
+        cleanup();
+
+        renderUnderNetwork(<Header net={XAHAU} />, NFTS_ON, { network: XAHAU });
+        const xahau = within(await screen.findByRole("navigation", { name: "Main" }));
+        expect(xahau.getByRole("link", { name: "NFTs" }).getAttribute("href")).toBe("/xahau/nfts");
+      });
+
+      it('is the current page on the list, under any query: .is-current and aria-current="page"', async () => {
+        for (const path of ["/xrpl/nfts", "/xrpl/nfts?sort=supply", "/xrpl/nfts?marker=abc"]) {
+          const nav = await renderHeaderWithFeatures(NFTS_ON, path, { navSection: "nfts" });
+          const link = nav.getByRole("link", { name: "NFTs" });
+          expect(link.getAttribute("aria-current"), path).toBe("page");
+          expect(link.classList.contains("is-current"), path).toBe(true);
+          // The section is NFTs alone.
+          expect(networkSummary(nav).hasAttribute("aria-current")).toBe(false);
+          cleanup();
+        }
+      });
+
+      it('names the section on an NFT page with aria-current="true"', async () => {
+        const nav = await renderHeaderWithFeatures(NFTS_ON, `/xrpl/nft/${NFT_ID}`, { navSection: "nfts" });
+        const link = nav.getByRole("link", { name: "NFTs" });
+        expect(link.getAttribute("href")).toBe("/xrpl/nfts");
+        expect(link.getAttribute("aria-current")).toBe("true");
+        expect(link.classList.contains("is-current")).toBe(true);
+      });
+
+      it("is a plain link on a page that names no section, and on the AMM page", async () => {
+        const elsewhere = await renderHeaderWithFeatures(featuresOf(allSwitches("on")), "/xrpl/nfts");
+        expect(elsewhere.getByRole("link", { name: "NFTs" }).hasAttribute("aria-current")).toBe(false);
+        cleanup();
+        const amm = await renderHeaderWithFeatures(featuresOf(allSwitches("on")), "/xrpl/amm", { navSection: "amm" });
+        const nfts = amm.getByRole("link", { name: "NFTs" });
+        expect(nfts.hasAttribute("aria-current")).toBe(false);
+        expect(nfts.classList.contains("is-current")).toBe(false);
+      });
+    });
+
+    describe("Tokens, while TOKENS is off and on", () => {
+      const TOKEN = "RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De";
+      const TOKENS_ON = { ...NO_FEATURES, tokens: true };
+
+      it("puts Tokens after Transactions and before Network, a link with TOKENS on", async () => {
+        const nav = await renderHeaderWithFeatures(TOKENS_ON);
+        expect(labelsOf(nav)).toEqual(["Ledgers", "Transactions", "Tokens", "Network", "Markets", "AMM", "NFTs"]);
+        const link = nav.getByRole("link", { name: "Tokens" });
+        expect(link.getAttribute("href")).toBe("/xrpl/tokens");
+        expect(link.classList.contains("nav-item")).toBe(true);
+        expect(link.classList.contains("is-soon")).toBe(false);
+        expect(link.hasAttribute("aria-disabled")).toBe(false);
+        expect(link.hasAttribute("aria-current")).toBe(false);
+        expect(link.classList.contains("is-current")).toBe(false);
+        expect(link.textContent).not.toContain("soon");
+        // The other items' switches are off, and they stay the labels; Tokens is no switch of theirs.
+        expectSoon(nav, "Markets");
+        expectSoon(nav, "AMM");
+        expectSoon(nav, "NFTs");
+        cleanup();
+
+        renderUnderNetwork(<Header net={XAHAU} />, TOKENS_ON, { network: XAHAU });
+        const xahau = within(await screen.findByRole("navigation", { name: "Main" }));
+        expect(xahau.getByRole("link", { name: "Tokens" }).getAttribute("href")).toBe("/xahau/tokens");
+      });
+
+      it("keeps its place whether it is a link or the label", async () => {
+        expect(labelsOf(await renderHeaderWithFeatures(featuresOf(allSwitches("on"))))).toEqual(["Ledgers", "Transactions", "Tokens", "Network", "Markets", "AMM", "NFTs"]);
+        cleanup();
+        expect(labelsOf(await renderHeaderWithFeatures(NO_FEATURES))).toEqual(["Ledgers", "Transactions", "Tokens", "Network", "Markets", "AMM", "NFTs"]);
+      });
+
+      it("draws Tokens as the soon label with TOKENS off, whatever the other switches are, and without the layout's data", async () => {
+        expectSoon(await renderHeaderWithFeatures({ ...featuresOf(allSwitches("on")), tokens: false }), "Tokens");
+        cleanup();
+        // A token page names its section, but the item it would mark is a label: nothing is current.
+        const nav = await renderHeaderWithFeatures({ ...featuresOf(allSwitches("on")), tokens: false }, "/xrpl/tokens", { navSection: "tokens" });
+        expectSoon(nav, "Tokens");
+        expect(nav.getByText("Tokens").closest(".nav-item.is-soon")).not.toBeNull();
+        expect(nav.queryAllByRole("link").filter((link) => link.hasAttribute("aria-current"))).toEqual([]);
+        cleanup();
+        expectSoon(renderHeaderAt("/xrpl/tokens", { navSection: "tokens" }), "Tokens");
+      });
+
+      it('marks Tokens aria-current="page" on the list and "true" on a token page', async () => {
+        for (const path of ["/xrpl/tokens", "/xrpl/tokens?q=USD&all=1", "/xrpl/tokens?marker=abc"]) {
+          const nav = await renderHeaderWithFeatures(TOKENS_ON, path, { navSection: "tokens" });
+          const link = nav.getByRole("link", { name: "Tokens" });
+          expect(link.getAttribute("aria-current"), path).toBe("page");
+          expect(link.classList.contains("is-current"), path).toBe(true);
+          // The section is Tokens alone.
+          expect(networkSummary(nav).hasAttribute("aria-current")).toBe(false);
+          cleanup();
+        }
+        for (const path of [`/xrpl/token/${TOKEN}`, `/xrpl/token/${TOKEN}/holders`]) {
+          const nav = await renderHeaderWithFeatures(TOKENS_ON, path, { navSection: "tokens" });
+          const link = nav.getByRole("link", { name: "Tokens" });
+          expect(link.getAttribute("href")).toBe("/xrpl/tokens");
+          expect(link.getAttribute("aria-current"), path).toBe("true");
+          expect(link.classList.contains("is-current"), path).toBe(true);
+          cleanup();
+        }
+      });
+
+      it("is a plain link on a page that names no section, and on the other sections' pages", async () => {
+        const elsewhere = await renderHeaderWithFeatures(featuresOf(allSwitches("on")), "/xrpl/tokens");
+        expect(elsewhere.getByRole("link", { name: "Tokens" }).hasAttribute("aria-current")).toBe(false);
+        cleanup();
+        const nfts = await renderHeaderWithFeatures(featuresOf(allSwitches("on")), "/xrpl/nfts", { navSection: "nfts" });
+        const tokens = nfts.getByRole("link", { name: "Tokens" });
+        expect(tokens.hasAttribute("aria-current")).toBe(false);
+        expect(tokens.classList.contains("is-current")).toBe(false);
+        expect(nfts.getByRole("link", { name: "NFTs" }).getAttribute("aria-current")).toBe("page");
+      });
+    });
+
+    it("draws Network as the menu with every switch off, and its Overview a link, since Overview has no switch", async () => {
       const nav = await renderHeaderWithLayout(false);
-      expect(nav.getByRole("link", { name: "Network" }).getAttribute("href")).toBe("/xrpl/network");
+      expect(networkSummary(nav).closest("details")!.getAttribute("data-menu")).toBe("network");
+      expect(menuLink(nav, "Overview").getAttribute("href")).toBe("/xrpl/network");
     });
   });
 
@@ -1358,6 +1818,35 @@ describe("Header and Shell", () => {
     renderInRouter(<Header net={XAHAU} />);
     const home = screen.getByRole("link", { name: `${LOGO_TEXT} home` });
     expect(home.getAttribute("href")).toBe("/xahau");
+  });
+
+  describe("the Testnet badge", () => {
+    /** The header under the `/:net` layout, whose root holds `environment` (none: no root route, as in a test of a component on its own). */
+    async function renderBrandGroup(environment?: Environment) {
+      const sandbox = environment === "sandbox";
+      renderUnderNetwork(<Header net={sandbox ? XRPL_TESTNET : XRPL} />, NO_FEATURES, { environment, network: sandbox ? XRPL_TESTNET : undefined });
+      await screen.findByRole("navigation", { name: "Main" });
+      return document.querySelector(".hdr__brandgroup")!;
+    }
+
+    it("shows after the brand under a sandbox root, with no title: the group is the link, then the pill", async () => {
+      const group = await renderBrandGroup("sandbox");
+      expect([...group.children].map((child) => child.tagName)).toEqual(["A", "SPAN"]);
+      expect(group.children[0]!.classList.contains("hdr__brand")).toBe(true);
+      const badge = group.children[1]!;
+      expect(badge.className).toBe("pill pill--testnet");
+      expect(badge.textContent).toBe("Testnet");
+      expect(badge.querySelector("svg")).toBeNull();
+      expect(badge.hasAttribute("title")).toBe(false);
+      expect(group.hasAttribute("title")).toBe(false);
+    });
+
+    it.each([["production" as const], ["development" as const], [undefined]])("is not there under the root of %s: the group is the brand alone", async (environment) => {
+      const group = await renderBrandGroup(environment);
+      expect([...group.children].map((child) => child.className)).toEqual(["hdr__brand"]);
+      expect(document.querySelector(".pill--testnet")).toBeNull();
+      expect(document.body.textContent).not.toContain("Testnet");
+    });
   });
 
   it("has the logo in both colours, for the CSS to show the theme's: the dark one and the white one", () => {
@@ -1431,6 +1920,16 @@ describe("StatGrid and DetailList", () => {
     );
     expect(container.firstElementChild!.className).toBe("stat-grid stat-grid--narrow");
     expect(screen.getByRole("region", { name: "Totals" })).toBe(container.firstElementChild);
+  });
+
+  it("is wide for tiles that hold a formula and a definition: fewer of them in a row", () => {
+    const { container } = render(
+      <StatGrid label="Supply figures" wide>
+        <StatTile figure label="Total supply" value="99,985,312,374.716318 XRP" />
+      </StatGrid>,
+    );
+    expect(container.firstElementChild!.className).toBe("stat-grid stat-grid--wide");
+    expect(screen.getByRole("region", { name: "Supply figures" })).toBe(container.firstElementChild);
   });
 
   it("lists labels and values as a description list", () => {
@@ -1602,6 +2101,14 @@ describe("RouteErrorScreen", () => {
     expect(screen.queryByText(/on XRPL/)).toBeNull();
   });
 
+  it("names the networks of the environment's kind as the ones the explorer covers", () => {
+    renderInRouter(<RouteErrorScreen error={response(404, { notFound: 'network "doge"' })} net={XRPL} unknownNetwork="doge" />);
+    expect(screen.getByText("There is no network called “doge”. This explorer covers XRPL and Xahau.")).toBeTruthy();
+    cleanup();
+    renderInRouter(<RouteErrorScreen error={response(404, { notFound: 'network "doge"' })} net={XRPL_TESTNET} unknownNetwork="doge" />);
+    expect(screen.getByText("There is no network called “doge”. This explorer covers XRPL Testnet and Xahau Testnet.")).toBeTruthy();
+  });
+
   it("shows a 503 as temporarily unavailable, with a way to try again", () => {
     renderInRouter(<RouteErrorScreen error={response(503, { unavailable: "ledger 99" })} net={XRPL} />);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Temporarily unavailable");
@@ -1658,5 +2165,141 @@ describe("RouteErrorScreen", () => {
     renderInRouter(<RouteErrorScreen error={new Error("secret internal detail")} net={XRPL} />);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Something went wrong");
     expect(document.body.textContent).not.toContain("secret internal detail");
+  });
+});
+
+describe("NoAmmPage, in the words of the network it is under", () => {
+  const FEATURES = { ...NO_FEATURES, ammPages: true, markets: true };
+  const data = (markets: boolean) => noAmmPage({ id: "xahau", features: { ...FEATURES, markets } });
+
+  it("says the testnet's name where the mainnet's page says Xahau, and offers the other testnet's pools", async () => {
+    renderUnderNetwork(<NoAmmPage data={data(true)} />, FEATURES, { path: "/xahau/amm", network: XAHAU_TESTNET });
+    expect(await screen.findByRole("heading", { level: 2, name: "Xahau Testnet has no AMM" })).toBeTruthy();
+    expect(screen.getByText("The AMM amendment is not part of Xahau Testnet, so there are no pools to show. Trades on Xahau Testnet are order-book crossings.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "See Xahau Testnet markets →" }).getAttribute("href")).toBe("/xahau/markets");
+    expect(screen.getByRole("link", { name: "Switch to XRPL Testnet pools" }).getAttribute("href")).toBe("/xrpl/amm");
+    expect(document.body.textContent).not.toMatch(/Xahau(?! Testnet)/);
+  });
+
+  it("says it in the header's soon style while the markets are off", async () => {
+    renderUnderNetwork(<NoAmmPage data={data(false)} />, { ...FEATURES, markets: false }, { path: "/xahau/amm", network: XAHAU_TESTNET });
+    const soon = (await screen.findByText("See Xahau Testnet markets →")).closest(".nav-item")!;
+    expect(soon.className).toBe("nav-item is-soon");
+    expect(screen.getByRole("link", { name: "Switch to XRPL Testnet pools" })).toBeTruthy();
+  });
+
+  it("says the mainnet's words under the mainnet", async () => {
+    renderUnderNetwork(<NoAmmPage data={data(true)} />, FEATURES, { path: "/xahau/amm", network: XAHAU });
+    expect(await screen.findByRole("heading", { level: 2, name: "Xahau has no AMM" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "See Xahau markets →" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Switch to XRPL pools" })).toBeTruthy();
+  });
+});
+
+describe("CoverageNote", () => {
+  const NOTE: CoverageNoteText = { before: "Covers ledger ", ledger: 96100001, after: " onwards: earlier NFT sales are not in the index yet." };
+
+  it("draws one faint line with the info icon, the ledger as a link to its page", () => {
+    renderInRouter(<CoverageNote net="xrpl" note={NOTE} />);
+    const note = screen.getByRole("note");
+    expect(note.className).toBe("coverage-note");
+    expect(note.textContent).toBe("Covers ledger #96,100,001 onwards: earlier NFT sales are not in the index yet.");
+    const link = within(note).getByRole("link", { name: "#96,100,001" });
+    expect(link.getAttribute("href")).toBe("/xrpl/ledger/96100001");
+    // The icon is decoration: the words are the note.
+    expect(note.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("links the ledger on the network it is under", () => {
+    renderInRouter(<CoverageNote net="xahau" note={NOTE} />);
+    expect(screen.getByRole("link", { name: "#96,100,001" }).getAttribute("href")).toBe("/xahau/ledger/96100001");
+  });
+
+  it("draws the line of an index with no history yet without a link", () => {
+    renderInRouter(<CoverageNote net="xrpl" note={{ before: "The index does not hold this history yet.", ledger: null, after: "" }} />);
+    expect(screen.getByRole("note").textContent).toBe("The index does not hold this history yet.");
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("draws nothing for a complete coverage (null)", () => {
+    const { container } = renderInRouter(<CoverageNote net="xrpl" note={null} />);
+    expect(container.innerHTML).toBe("");
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+});
+
+describe("NftLink", () => {
+  const ID = "000813886E50B2960CF48DCB644E85B412C660B4E1B01A87C283F9E6066AB54B";
+  const on = { ...NO_FEATURES, nfts: true };
+
+  it("is a link to the NFT's page while NFTS is on: '#4,127' for a serial, the full id on hover", async () => {
+    renderUnderNetwork(<NftLink net="xrpl" id={ID} serial={4127} />, on);
+    const link = await screen.findByRole("link", { name: "#4,127" });
+    expect(link.getAttribute("href")).toBe(`/xrpl/nft/${ID}`);
+    expect(link.getAttribute("title")).toBe(ID);
+  });
+
+  it("is the short id in mono without a serial, on the network of the link", async () => {
+    renderUnderNetwork(<NftLink net="xahau" id={ID} />, on, { network: XAHAU });
+    const link = await screen.findByRole("link", { name: "00081388…B54B" });
+    expect(link.getAttribute("href")).toBe(`/xahau/nft/${ID}`);
+    expect(link.classList.contains("mono")).toBe(true);
+    expect(link.getAttribute("title")).toBe(ID);
+  });
+
+  it("writes a serial's digits in groups, as every number of a page", async () => {
+    renderUnderNetwork(<NftLink net="xrpl" id={ID} serial={1234567} />, on);
+    expect(await screen.findByRole("link", { name: "#1,234,567" })).toBeTruthy();
+  });
+
+  it("is plain text, with the same words and the full id in title, while NFTS is off", async () => {
+    const { container } = renderUnderNetwork(<NftLink net="xrpl" id={ID} />, { ...NO_FEATURES, nfts: false });
+    const text = await screen.findByText("00081388…B54B");
+    expect(container.querySelector("a")).toBeNull();
+    expect(text.getAttribute("title")).toBe(ID);
+    expect(text.classList.contains("mono")).toBe(true);
+    cleanup();
+    const { container: withSerial } = renderUnderNetwork(<NftLink net="xrpl" id={ID} serial={4127} />, { ...NO_FEATURES, nfts: false });
+    expect((await screen.findByText("#4,127")).getAttribute("title")).toBe(ID);
+    expect(withSerial.querySelector("a")).toBeNull();
+  });
+
+  it("is plain text outside the layout (NO_FEATURES)", () => {
+    const { container } = render(<NftLink net="xrpl" id={ID} />);
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.textContent).toBe("00081388…B54B");
+  });
+});
+
+describe("NftGlyph", () => {
+  it("shows its characters, hidden from assistive technology, and large on request", () => {
+    const { container } = render(
+      <>
+        <NftGlyph chars="LU" />
+        <NftGlyph chars="27" large />
+      </>,
+    );
+    const [small, large] = Array.from(container.querySelectorAll(".nft-glyph"));
+    expect(small!.textContent).toBe("LU");
+    expect(small!.getAttribute("aria-hidden")).toBe("true");
+    expect(small!.classList.contains("nft-glyph--large")).toBe(false);
+    expect(large!.textContent).toBe("27");
+    expect(large!.getAttribute("aria-hidden")).toBe("true");
+    expect(large!.classList.contains("nft-glyph--large")).toBe(true);
+  });
+
+  it("gives a collection the issuer's characters 2 and 3", () => {
+    expect(collectionGlyph("rLULtFbMBnAbSVrGgQr5FeYD8Y5oRuLmB3R")).toBe("LU");
+    expect(collectionGlyph("rEvRt8Lk2PHhCBiLqhHhFnLzuMkL8UQbyH")).toBe("Ev");
+    expect(collectionGlyph("")).toBe("");
+  });
+
+  it("gives an NFT its serial's last two digits, zero-padded, else its id's first two characters", () => {
+    const ID = "A1F0813886E50B2960CF48DCB644E85B412C660B4E1B01A87C283F9E6066AB54";
+    expect(nftGlyph(ID, 4127)).toBe("27");
+    expect(nftGlyph(ID, 5)).toBe("05");
+    expect(nftGlyph(ID, 0)).toBe("00");
+    expect(nftGlyph(ID, 1234567)).toBe("67");
+    expect(nftGlyph(ID)).toBe("A1");
   });
 });

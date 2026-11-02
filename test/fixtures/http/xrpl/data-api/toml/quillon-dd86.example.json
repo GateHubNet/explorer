@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "quillon-dd86.example",
+    "toml_url": "https://quillon-dd86.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rhgzn5joWe4BpQunGZVJypT1T3aCGus8FK",
+        "desc": "Quillon Custody"
+      }
+    ]
+  }
+}

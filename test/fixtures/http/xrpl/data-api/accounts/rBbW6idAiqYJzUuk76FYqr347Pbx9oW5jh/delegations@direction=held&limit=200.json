@@ -1,0 +1,14 @@
+{
+  "close_time": "2026-10-29T03:50:41Z",
+  "count": 2,
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 102145584
+  },
+  "delegations": [
+    {"account":"rwzUz9i822B3MGRnogyQkJFu3zWc6HYek1","authorize":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","created":{"ledger_index":106651608,"time":"2026-08-30T19:42:10Z","tx_hash":"B073266F590704168475EFAA7CC9D45D33DCA49B76CC6C3913FF8CAF83686E94"},"delegation_id":"34538970DF9C8A99512EEAAE508DAC52009EF8A4CC57207318B2275781157B35","permissions":[{"kind":"transaction","permission":"Payment"}],"updated":{"ledger_index":106651608,"time":"2026-08-30T19:42:10Z","tx_hash":"B073266F590704168475EFAA7CC9D45D33DCA49B76CC6C3913FF8CAF83686E94"}},
+    {"account":"r4CxvmYahDYfTjxCo5YNu6YsLUo6eTFzbX","authorize":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","created":{"ledger_index":104850488,"time":"2026-06-11T05:36:02Z","tx_hash":"3BD2DC6A58404CA60E0EA2F7A67B8CC807CEEA24EE1C17283EAC1385F8F5F82D"},"delegation_id":"5AC14FD812691563D1CC0820700C477F9BD5F4EEF8F2FB89AD15CA22AE854186","permissions":[{"kind":"transaction","permission":"TrustSet"},{"kind":"transaction","permission":"OfferCreate"},{"kind":"transaction","permission":"OfferCancel"}],"updated":{"ledger_index":104850488,"time":"2026-06-11T05:36:02Z","tx_hash":"3BD2DC6A58404CA60E0EA2F7A67B8CC807CEEA24EE1C17283EAC1385F8F5F82D"}}
+  ],
+  "ledger_index": 107972102,
+  "result": "success"
+}

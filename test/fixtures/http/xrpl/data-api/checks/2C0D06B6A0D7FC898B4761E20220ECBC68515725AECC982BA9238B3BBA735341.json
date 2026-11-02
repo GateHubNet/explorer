@@ -1,0 +1,30 @@
+{
+  "check": {
+    "account": "rPP3R33zpehB5hTy2jSYZek5ntq3HQym68",
+    "check_id": "2C0D06B6A0D7FC898B4761E20220ECBC68515725AECC982BA9238B3BBA735341",
+    "destination": "rJNAZcLDDGgVoQxDeANvUHZCDs6T6P3kzk",
+    "removed": {
+      "ledger_index": 107968411,
+      "time": "2026-10-28T23:45:11Z",
+      "tx_hash": "BC27613BAFC8E4A3B198A1458E1CF9EC28BDD0E8AFCE02C733C484F9F3979C77",
+      "tx_type": "CheckCancel"
+    },
+    "send_max": {
+      "currency": "4652495A5A590000000000000000000000000000",
+      "issuer": "rQHU5KQJytJW8Yv1JdGmdhLPNRG7T6LztR",
+      "value": "135584318.6204475"
+    },
+    "sequence": 86212965,
+    "status": "cancelled"
+  },
+  "close_time": "2026-10-29T03:50:41Z",
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 102145584
+  },
+  "history": [
+    {"account":"rPP3R33zpehB5hTy2jSYZek5ntq3HQym68","event":"cancel","ledger_index":107968411,"result":"tesSUCCESS","time":"2026-10-28T23:45:11Z","tx_hash":"BC27613BAFC8E4A3B198A1458E1CF9EC28BDD0E8AFCE02C733C484F9F3979C77","tx_type":"CheckCancel"}
+  ],
+  "ledger_index": 107972102,
+  "result": "success"
+}

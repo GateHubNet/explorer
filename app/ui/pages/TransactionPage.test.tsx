@@ -4,14 +4,18 @@ import { renderToString } from "react-dom/server";
 import { createMemoryRouter, RouterProvider, StaticRouter } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { LAYOUT_XAHAU, renderUnderNetwork } from "../../../test/support/under-network";
 import { formatUtc, shortAddress } from "../../domain/format";
+import { NO_NAMES } from "../../domain/names";
 import type { TransactionPageData } from "../../server/transaction-view";
+import { NO_FEATURES, type Features } from "../features";
+import { NamesProvider } from "../names";
 import { OBJECTS_SHOWN, TransactionPage } from "./TransactionPage";
 
 afterEach(cleanup);
 
-const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" } as const;
-const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" } as const;
+const XRPL = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" } as const;
+const XAHAU = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", software: "xahaud" } as const;
 const ALICE = "rJF2XanJQGFLS5ZUdcqEzwJcTJ7aFfQvg";
 const BOB = "rNYbL8WZKKNNni5rb2MzcxnAEgkQC5Kq5";
 const POOL = "rAtRwrVakWQaGpzxtqgJZDb3Tg7t32rXT";
@@ -43,6 +47,10 @@ function transaction(extra: Partial<TransactionPageData> = {}): TransactionPageD
       { t: "text", v: "." },
     ],
     summary: "rJF2Xa…Qvg paid 1,250.00 USD to rNYbL8…Kq5.",
+    delegate: null,
+    sentBy: null,
+    note: null,
+    innerBatch: false,
     flow: [
       { role: "sender", account: ALICE, label: "Sender", amount: { value: "512.402115", currency: "XRP" } },
       { role: "pool", account: POOL, label: "XRP/USD AMM pool", amount: { value: "1250.00", ...USD } },
@@ -75,6 +83,7 @@ function transaction(extra: Partial<TransactionPageData> = {}): TransactionPageD
       meta: '{\n  "TransactionResult": "tesSUCCESS"\n}',
       binary: { state: "ready", tx: "12000022000000002402BFB59E", meta: "201C0000000C6012" },
     },
+    names: NO_NAMES,
     ...extra,
   };
 }
@@ -270,6 +279,144 @@ describe("TransactionPage: the details", () => {
   });
 });
 
+// A transaction a delegate sent (ledger object pages spec 6.2): the words after the sentence, the "Sent by" row after Account with the link to the delegation while DELEGATION is on, and
+// the Fee row's words. None of it is gated (decision 5) but the link.
+describe("TransactionPage: a transaction a delegate sent", () => {
+  const CAROL = "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh";
+  const delegated = (extra: Partial<TransactionPageData> = {}) =>
+    transaction({
+      delegate: CAROL,
+      sentBy: [{ t: "account", v: CAROL }, { t: "text", v: " sent it on behalf of " }, { t: "account", v: ALICE }, { t: "text", v: "." }],
+      ...extra,
+    });
+  const DELEGATION_ON: Features = { ...NO_FEATURES, delegation: true };
+  /** The page under the `/:net` layout, whose data holds the switches `useFeatures()` reads. */
+  const renderWith = (data: TransactionPageData, features: Features, network: typeof XRPL | typeof XAHAU = XRPL) =>
+    renderUnderNetwork(<TransactionPage network={network} data={data} />, features, {
+      path: `/${network.id}/tx/${data.hash}`,
+      hydrated: true,
+      ...(network.id === "xahau" ? { network: LAYOUT_XAHAU } : {}),
+    });
+  const sentByRow = () => [...detailsCard().querySelectorAll(".kv")].find((row) => row.querySelector("dt")!.textContent === "Sent by") as HTMLElement | undefined;
+
+  it("draws the Sent by row with View the delegation, and the Fee words", () => {
+    renderWith(delegated(), DELEGATION_ON);
+    expect(Object.keys(detailRows(detailsCard())).slice(4, 7)).toEqual(["Account", "Sent by", "Destination"]);
+    const row = sentByRow()!;
+    // The delegate in full, on a line of its own, linked to its page.
+    expect(within(row).getByRole("link", { name: CAROL }).getAttribute("href")).toBe(`/xrpl/account/${CAROL}`);
+    expect(row.querySelector(".sentby__why")!.textContent).toBe(
+      `The delegate signed this transaction and paid its fee, using a permission ${shortAddress(ALICE)} gave it. View the delegation`,
+    );
+    // The delegation is on the Delegation tab of the account that gave it.
+    expect(within(row).getByRole("link", { name: "View the delegation" }).getAttribute("href")).toBe(`/xrpl/account/${ALICE}?tab=delegation`);
+    expect(detailRows(detailsCard()).Fee).toBe("0.000012 XRP · paid by the delegate, burned");
+    // The delegate's balance carries the fee, not the sender's, and its row says whose it is.
+    expect(screen.getByText(/the delegate.s XRP change includes the fee/i)).toBeTruthy();
+  });
+
+  it("shows Sent by without the link while DELEGATION is off", () => {
+    renderWith(delegated(), NO_FEATURES);
+    const row = sentByRow()!;
+    expect(row.querySelector(".sentby__why")!.textContent).toBe(`The delegate signed this transaction and paid its fee, using a permission ${shortAddress(ALICE)} gave it.`);
+    expect(within(row).queryByRole("link", { name: "View the delegation" })).toBeNull();
+    expect(within(row).getByRole("link", { name: CAROL })).toBeTruthy();
+    expect(detailRows(detailsCard()).Fee).toBe("0.000012 XRP · paid by the delegate, burned");
+  });
+
+  it("writes the plain name of the account that gave the permission, as the Delegation tab does", () => {
+    const names = { [ALICE]: { name: { text: "Northpeak Treasury", kind: "verified" as const }, domain: "northpeak.example", labels: [] } };
+    renderUnderNetwork(
+      <NamesProvider names={names}>
+        <TransactionPage network={XRPL} data={delegated()} />
+      </NamesProvider>,
+      DELEGATION_ON,
+      { path: `/xrpl/tx/${HASH}`, hydrated: true },
+    );
+    expect(sentByRow()!.querySelector(".sentby__why")!.textContent).toContain("using a permission Northpeak Treasury gave it.");
+  });
+
+  it("says a delegated inner transaction of a Batch was sent within it, and leaves its fee to the Batch", () => {
+    renderWith(delegated({ innerBatch: true, fee: "0" }), DELEGATION_ON);
+    const row = sentByRow()!;
+    expect(row.querySelector(".sentby__why")!.textContent).toBe(`The delegate sent this within its Batch, using a permission ${shortAddress(ALICE)} gave it. View the delegation`);
+    expect(detailRows(detailsCard()).Fee).toBe("0 XRP · burned");
+    expect(screen.getByText(/the sender.s XRP change includes the fee/i)).toBeTruthy();
+  });
+
+  it("puts who sent it after the sentence, in the same paragraph", () => {
+    renderWith(delegated(), DELEGATION_ON);
+    const sentence = screen.getByRole("region", { name: "Summary" }).querySelector("p.sentence")!;
+    expect(sentence.textContent).toBe(`${shortAddress(ALICE)} paid 1,250.00 USD to ${shortAddress(BOB)}. ${shortAddress(CAROL)} sent it on behalf of ${shortAddress(ALICE)}.`);
+    expect(within(sentence as HTMLElement).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([
+      `/xrpl/account/${ALICE}`,
+      `/xrpl/account/${BOB}`,
+      `/xrpl/account/${CAROL}`,
+      `/xrpl/account/${ALICE}`,
+    ]);
+  });
+
+  it("has no Sent by row, no words after the sentence and the plain fee for a transaction the account sent itself", () => {
+    renderWith(transaction(), DELEGATION_ON);
+    expect(sentByRow()).toBeUndefined();
+    expect(screen.getByRole("region", { name: "Summary" }).querySelector("p.sentence")!.textContent).not.toContain("on behalf of");
+    expect(detailRows(detailsCard()).Fee).toBe("0.000012 XRP · burned");
+  });
+});
+
+describe("TransactionPage: a DelegateSet", () => {
+  const DELEGATE = "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh";
+  const chip = (name: string, kind: "transaction" | "granular", words: string) => ({ t: "permission" as const, name, kind, words });
+  const delegateSet = transaction({
+    type: "DelegateSet",
+    title: "Delegation",
+    flow: null,
+    sentence: [
+      { t: "account", v: ALICE },
+      { t: "text", v: " let " },
+      { t: "account", v: DELEGATE },
+      { t: "text", v: " send " },
+      chip("Payment", "transaction", "Any Payment transaction"),
+      { t: "text", v: " and " },
+      chip("TrustlineFreeze", "granular", "Only freezing trust lines, within TrustSet"),
+      { t: "text", v: " on its behalf." },
+    ],
+    note: [
+      { t: "text", v: "This replaces any permissions " },
+      { t: "account", v: ALICE },
+      { t: "text", v: " had given " },
+      { t: "account", v: DELEGATE },
+      { t: "text", v: " before; it does not add to them." },
+    ],
+    details: [
+      { label: "Delegate", value: [{ t: "account", v: DELEGATE }] },
+      { label: "Permissions", value: [chip("Payment", "transaction", "Any Payment transaction"), { t: "text", v: " " }, chip("TrustlineFreeze", "granular", "Only freezing trust lines, within TrustSet"), { t: "text", v: " · 2 of 10" }] },
+    ],
+  });
+
+  it("draws each permission of the sentence and of the details as a chip, with its words as the title and for a screen reader", () => {
+    renderPage(delegateSet);
+    const sentence = screen.getByRole("region", { name: "Summary" }).querySelector("p.sentence")!;
+    const chips = [...sentence.querySelectorAll(".permchip")];
+    expect(chips.map((each) => each.className)).toEqual(["permchip", "permchip permchip--granular"]);
+    expect(chips.map((each) => each.getAttribute("title"))).toEqual(["Transaction type. Any Payment transaction", "Narrower right. Only freezing trust lines, within TrustSet"]);
+    expect(chips[1]!.querySelector(".sr")!.textContent).toContain("Only freezing trust lines, within TrustSet");
+    expect(detailsCard().querySelectorAll(".permchip")).toHaveLength(2);
+    expect(detailRows(detailsCard()).Permissions).toContain("· 2 of 10");
+  });
+
+  it("shows the note under the sentence, its accounts as links", () => {
+    renderPage(delegateSet);
+    const note = screen.getByRole("region", { name: "Summary" }).querySelector("p.summary__note")!;
+    expect(note.textContent).toBe(`This replaces any permissions ${shortAddress(ALICE)} had given ${shortAddress(DELEGATE)} before; it does not add to them.`);
+    expect(within(note as HTMLElement).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([`/xrpl/account/${ALICE}`, `/xrpl/account/${DELEGATE}`]);
+    // A transaction without a note has none.
+    cleanup();
+    renderPage(transaction());
+    expect(screen.getByRole("region", { name: "Summary" }).querySelector(".summary__note")).toBeNull();
+  });
+});
+
 describe("TransactionPage: the balance changes", () => {
   const table = () => screen.getByRole("table", { name: "Balance changes" });
   const cells = (row: HTMLElement) => within(row).getAllByRole("cell");
@@ -305,6 +452,22 @@ describe("TransactionPage: the balance changes", () => {
     expect(cells(rows[1]!)[0]!.textContent).toBe(`${shortAddress(POOL)}AMM pool`);
     expect(cells(rows[3]!)[0]!.textContent).toBe(`${shortAddress(BOB)}destination`);
     expect(within(cells(rows[0]!)[0]!).getByRole("link").getAttribute("href")).toBe(`/xrpl/account/${ALICE}`);
+  });
+
+  it("marks the delegate of a transaction a delegate sent, whose change the caption says holds the fee", () => {
+    const CAROL = "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh";
+    renderPage(
+      transaction({
+        delegate: CAROL,
+        changes: [
+          { account: ALICE, currency: "XRP", value: "-5", after: "100", role: "sender" },
+          { account: CAROL, currency: "XRP", value: "-0.000012", after: "20", role: "delegate" },
+        ],
+      }),
+    );
+    const rows = within(table()).getAllByRole("row").slice(1);
+    expect(cells(rows[1]!)[0]!.textContent).toBe(`${shortAddress(CAROL)}delegate`);
+    expect(screen.getByText(/the delegate.s XRP change includes the fee/i)).toBeTruthy();
   });
 
   it("shows the other side of the trust line of an issued currency in the open, so that two currencies of one code can be told apart", () => {
@@ -420,6 +583,62 @@ describe("TransactionPage: the context", () => {
   it("says so when it touched nothing", () => {
     renderPage(transaction({ objects: [] }));
     expect(context().textContent).toContain("No ledger objects.");
+  });
+
+  // Where a touched object leads (ledger object pages spec 7): an escrow, a check or a payment channel to its page by its index while LEDGER_OBJECTS is on, a delegation to the Delegation tab
+  // of the account that gave it while DELEGATION is on; any other, a Delegate with no account and an index that is no ID nowhere. The page has no loader validating the index.
+  describe("where a touched object leads", () => {
+    const CHANNEL = "E22CCE8FA636C8BDF1C3C4AA17FD604B8FDE268E4F6BF9022B5336536F5B69EA";
+    const ON: Features = { ...NO_FEATURES, ledgerObjects: true, delegation: true };
+    const touched = async (objects: TransactionPageData["objects"], features: Features = ON) => {
+      renderUnderNetwork(<TransactionPage network={XRPL} data={transaction({ objects })} />, features, { path: `/xrpl/tx/${HASH}` });
+      return within(await screen.findByRole("list", { name: "Ledger objects touched" })).getAllByRole("listitem");
+    };
+
+    it("links a PayChannel to its page, and its type's link keeps its own width beside a long name", async () => {
+      const [item] = await touched([{ change: "modified", type: "PayChannel", index: CHANNEL, account: ALICE }]);
+      const link = within(item!).getByRole("link", { name: "PayChannel" });
+      expect(link.getAttribute("href")).toBe(`/xrpl/payment-channels/${CHANNEL}`);
+      expect(link.classList.contains("mono")).toBe(true);
+      expect(link.classList.contains("objects__type")).toBe(true);
+    });
+
+    it("links a Delegate to the Delegation tab of the account that gave it, and nowhere when it has no account", async () => {
+      const [given, unknown] = await touched([
+        { change: "created", type: "Delegate", index: CHANNEL, account: ALICE },
+        { change: "deleted", type: "Delegate", index: CHANNEL },
+      ]);
+      expect(within(given!).getByRole("link", { name: "Delegate" }).getAttribute("href")).toBe(`/xrpl/account/${ALICE}?tab=delegation`);
+      expect(unknown!.textContent).toBe("DeletedDelegate");
+      expect(within(unknown!).queryByRole("link")).toBeNull();
+    });
+
+    it("links none of a kind with a page whose index is no ID: its type is text, and its account still a link", async () => {
+      const items = await touched([
+        { change: "modified", type: "Escrow", index: "nope", account: ALICE },
+        { change: "modified", type: "Check", index: "AB".repeat(31) },
+        { change: "modified", type: "PayChannel", index: `${CHANNEL}0` },
+      ]);
+      expect(items.map((item) => item.textContent)).toEqual([`ModifiedEscrow${shortAddress(ALICE)}`, "ModifiedCheck", "ModifiedPayChannel"]);
+      expect(within(items[0]!).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([`/xrpl/account/${ALICE}`]);
+      expect(within(items[1]!).queryByRole("link")).toBeNull();
+      expect(within(items[2]!).queryByRole("link")).toBeNull();
+    });
+
+    it("links an index in lower case in capitals, and follows each switch: off, the type is text", async () => {
+      const [lower] = await touched([{ change: "modified", type: "Check", index: CHANNEL.toLowerCase() }]);
+      expect(within(lower!).getByRole("link", { name: "Check" }).getAttribute("href")).toBe(`/xrpl/checks/${CHANNEL}`);
+      cleanup();
+      const off = await touched(
+        [
+          { change: "modified", type: "Check", index: CHANNEL },
+          { change: "created", type: "Delegate", index: CHANNEL, account: ALICE },
+        ],
+        NO_FEATURES,
+      );
+      expect(within(off[0]!).queryByRole("link")).toBeNull();
+      expect(within(off[1]!).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([`/xrpl/account/${ALICE}`]);
+    });
   });
 });
 

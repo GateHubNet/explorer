@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import { objectCase } from "../../test/support/object-cases";
 import { encodeCtid } from "../domain/ctid";
 import { dropsToNative, shortAddress, shortHash } from "../domain/format";
+import { shortNftId } from "../domain/nft-params";
 import type { TxJson, TxMeta } from "../domain/parse/types";
 import type { TxBinary, TxObject, TxStoredJson } from "./api-types";
 import type { NodeTx } from "./node-rpc";
@@ -29,6 +31,8 @@ const PAYMENT = "AACAFCFEBB5C970049A576CBFE6EF544A47EE3ADBA99122FA43234D18D5FFD4
 const SWAP = "52E2AD5B382D4588BECF6A743E7AE5C84D49A5C06968EC7700E8333BF41E1C60";
 const KILLED = "D05D52934A382E975B131A3E729CDA7CA3C59E94CE9F3DC3DC91A6ADFC5C140F";
 const REMIT = "8C50C44787A12B785AA62377D0AFA6C4711E8E07EF68BA6E83DC286F7EE79AAF";
+// A recorded NFTokenMint: the page of its minter gained the NFT 00081388…E758.
+const MINT = "7D16D6C749CAB260C906BEC2D9CF9B37F7D1D36F26421873CF838C9BCDF056AD";
 
 const XRPL = { native: "XRP", ctidNetworkId: 0 } as const;
 const XAHAU = { native: "XAH", ctidNetworkId: 21337 } as const;
@@ -39,7 +43,7 @@ const neighbours = (count: number, position: number) => ({
   next: position < count - 1 ? { position: position + 1, hash: "22".repeat(32) } : null,
 });
 
-function page(hash: string, net: "xrpl" | "xahau" = "xrpl", count = 70): TransactionPageData {
+function page(hash: string, net: "xrpl" | "xahau" = "xrpl", count = 70): Omit<TransactionPageData, "names"> {
   const object = fixtureTx(net, hash);
   const source = txFromIndex(object);
   return transactionPage(source, {
@@ -151,6 +155,51 @@ describe("plainText", () => {
         { t: "text", v: " AMM pool." },
       ]),
     ).toBe(`${shortAddress("rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh")} paid 1,250.5 RLUSD through the XRP/RLUSD AMM pool.`);
+  });
+});
+
+describe("plainText with a permission", () => {
+  it("writes a permission of a delegation by its name, as its chip shows it", () => {
+    expect(
+      plainText([
+        { t: "account", v: "rnt8PbBFT7idcLyj9PNgxjZi9Z1RiRX3QL" },
+        { t: "text", v: " let " },
+        { t: "account", v: "rw2X2GFePFiLDdcQw6iELFfUEw1hPqAGcK" },
+        { t: "text", v: " send " },
+        { t: "permission", name: "Payment", kind: "transaction", words: "Any Payment transaction" },
+        { t: "text", v: " and " },
+        { t: "permission", name: "Permission 70001", kind: "unknown", words: "A permission this explorer does not know (value 70001)" },
+        { t: "text", v: " on its behalf." },
+      ]),
+    ).toBe(`${shortAddress("rnt8PbBFT7idcLyj9PNgxjZi9Z1RiRX3QL")} let ${shortAddress("rw2X2GFePFiLDdcQw6iELFfUEw1hPqAGcK")} send Payment and Permission 70001 on its behalf.`);
+  });
+});
+
+describe("plainText with an NFT", () => {
+  const ID = "00081388AF09C1D4B4D1E8031467F3508DFFADABEA73255FA9ECC9070655E758";
+
+  it("writes an NFT as its short id (shortNftId), never as 'undefined'", () => {
+    expect(
+      plainText([
+        { t: "account", v: "rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV" },
+        { t: "text", v: " minted NFT " },
+        { t: "nft", v: ID },
+        { t: "text", v: ", taxon 500." },
+      ]),
+    ).toBe(`${shortAddress("rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV")} minted NFT ${shortNftId(ID)}, taxon 500.`);
+    expect(shortNftId(ID)).toBe("00081388…E758");
+  });
+
+  it("writes it the same with a serial: the text of the summary and the link-preview card has no '#serial'", () => {
+    expect(plainText([{ t: "nft", v: ID, serial: 4127 }])).toBe("00081388…E758");
+  });
+
+  it("is the summary of a recorded NFTokenMint's page, which the title and the link-preview card carry", () => {
+    const data = page(MINT);
+    expect(data.summary).toBe(`${shortAddress("rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV")} minted NFT 00081388…E758, taxon 500, transfer fee 5%.`);
+    expect(data.summary).not.toMatch(/undefined/);
+    expect(data.sentence.some((segment) => segment.t === "nft" && segment.v === ID)).toBe(true);
+    expect(data.details.find((detail) => detail.label === "NFT")).toStrictEqual({ label: "NFT", value: [{ t: "nft", v: ID }] });
   });
 });
 
@@ -366,6 +415,73 @@ describe("transactionPage, the pieces a transaction can have or lack", () => {
     expect(data.neighbours).toBeNull();
     expect(data.position).toEqual({ index: 12, count: null });
     expect(data.raw.binary).toEqual({ state: "pending" });
+  });
+});
+
+// Delegation (ledger object pages spec 6.2): C9's synthetic delegated Payment of the http fixtures (its `Delegate` paid the fee from its own root) and the recorded DelegateSet.
+describe("transactionPage over a transaction a delegate sent, and a DelegateSet", () => {
+  const sourceOf = async (which: "delegated-payment" | "delegate-set-failed"): Promise<TransactionSource> => txFromIndex(fixtureTx("xrpl", (await objectCase("xrpl", which)).id));
+  const build = (source: TransactionSource) => transactionPage(source, { network: XRPL, neighbours: null, binary: { state: "failed" } });
+  const DELEGATE_SET = "4250B72A5AB63CEB5501CFDDA3B4C9765B85941BB6AECE9720FC6C0D5F524B66";
+
+  it("carries the delegate and the words that it sent the transaction on behalf of the account, after the sentence", async () => {
+    const source = await sourceOf("delegated-payment");
+    const delegate = source.tx.Delegate as string;
+    const data = build(source);
+    expect(data.delegate).toBe(delegate);
+    expect(data.account).toBe(source.tx.Account);
+    expect(data.sentBy).toStrictEqual([
+      { t: "account", v: delegate },
+      { t: "text", v: " sent it on behalf of " },
+      { t: "account", v: source.tx.Account },
+      { t: "text", v: "." },
+    ]);
+    expect(data.note).toBeNull();
+    expect(data.innerBatch).toBe(false);
+    // The fee is the transaction's, whoever paid it.
+    expect(data.fee).toBe(dropsToNative(source.tx.Fee));
+    expect(data.details.map((detail) => detail.label)).not.toContain("Delegate");
+    // The summary is the sentence alone, as before.
+    expect(data.summary).toBe(plainText(data.sentence));
+  });
+
+  it("marks the delegate's balance change, which holds the fee it paid", async () => {
+    const source = await sourceOf("delegated-payment");
+    const data = build(source);
+    expect(data.changes.map((change) => [change.account, change.value, change.role])).toEqual([
+      [source.tx.Account, "-373", "sender"],
+      [source.tx.Destination, "373", "destination"],
+      [source.tx.Delegate, `-${dropsToNative(source.tx.Fee)}`, "delegate"],
+    ]);
+  });
+
+  it("has none of it for a transaction the account sent itself", () => {
+    expect(page(PAYMENT)).toMatchObject({ delegate: null, sentBy: null, note: null, innerBatch: false });
+  });
+
+  it("knows a delegated inner transaction of a Batch, which the Batch paid the fee of: the delegated Payment with tfInnerBatchTxn", async () => {
+    const source = await sourceOf("delegated-payment");
+    const flags = source.tx.Flags as number;
+    const data = build({ ...source, tx: { ...source.tx, Flags: (flags | 0x40000000) >>> 0 } });
+    expect(data.innerBatch).toBe(true);
+    expect(data.delegate).toBe(source.tx.Delegate);
+    expect(data.sentBy).not.toBeNull();
+  });
+
+  it("carries the note of a DelegateSet, and writes its permissions by name in the summary", async () => {
+    const data = build(txFromIndex(fixtureTx("xrpl", DELEGATE_SET)));
+    const [sender, delegate] = [data.account, data.details[0]!.value[0]!];
+    expect(data.title).toBe("Delegation");
+    expect(data.note).toStrictEqual([
+      { t: "text", v: "This replaces any permissions " },
+      { t: "account", v: sender },
+      { t: "text", v: " had given " },
+      delegate,
+      { t: "text", v: " before; it does not add to them." },
+    ]);
+    expect(data.summary).toBe(`${shortAddress(sender)} let ${shortAddress((delegate as { v: string }).v)} send OfferCreate and OfferCancel on its behalf.`);
+    // A failed one has no note: nothing was replaced.
+    expect(build(await sourceOf("delegate-set-failed")).note).toBeNull();
   });
 });
 

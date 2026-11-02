@@ -1,0 +1,24 @@
+{
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 107874617
+  },
+  "nft": {
+    "burned": true,
+    "burned_at": {
+      "by": "ravC5cZreMZuKEWSrpra5nkWnfzPmrabec",
+      "executed_time": "2026-10-25T02:00:52Z",
+      "ledger_index": 107883610,
+      "tx_hash": "12FE6B5DF2CC2E269A188BACDFCA9A71BC5483A6AB5CACF254569E375569D7A1"
+    },
+    "flags": 25,
+    "issuer": "ravC5cZreMZuKEWSrpra5nkWnfzPmrabec",
+    "kind": "nftoken",
+    "nft_id": "0019000040FEFE9E7C73D4F8A4DC7A7A09DD13B724827F9442666327061B0D8C",
+    "sale_count": 0,
+    "serial": 102436236,
+    "taxon": 0,
+    "transfer_fee": 0
+  },
+  "result": "success"
+}

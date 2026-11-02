@@ -2,11 +2,13 @@ import { useId, type ReactNode } from "react";
 import { Link } from "react-router";
 
 import { amendmentsHref } from "../../domain/amendments-params";
-import { formatUtc, shortAddress, shortHash } from "../../domain/format";
+import { formatUtc, shortHash } from "../../domain/format";
+import { LOCAL_PUBLISHER, publisherLabel } from "../../domain/publishers";
 import type { Anchor } from "../../server/anchor";
 import type { DailyRow, LedgerLink, ValidationRowView, ValidatorHistoryData, ValidatorIdentity, ValidatorLiveData } from "../../server/validator-view";
 import { ChartCard } from "../charts/ChartCard";
 import { LineChart } from "../charts/LineChart";
+import { AccountLink } from "../components/AccountLink";
 import { Breadcrumbs } from "../components/Breadcrumbs";
 import { CopyButton } from "../components/CopyButton";
 import { DataTable, type Column } from "../components/DataTable";
@@ -24,6 +26,7 @@ import { useHolds, type HoldHandlers } from "../use-hold";
 import type { LiveControls } from "../use-live-controls";
 import { useRefetching } from "../use-refetching";
 import { useRetry } from "../use-retry";
+import { ValidatorTomlCard } from "./ValidatorTomlCard";
 
 const DASH = "—";
 
@@ -80,7 +83,7 @@ function Heading({ identity }: { identity: ValidatorIdentity }) {
       <div className="validator__marks">
         <h1 className={cx("validator__title", identity.heading.mono && "mono")}>{identity.heading.text}</h1>
         {identity.domainStatus !== null && <DomainStatus status={identity.domainStatus} page />}
-        {identity.unl && <UnlTag publishers={identity.unlPublishers} />}
+        {identity.unl && <UnlTag listedBy={identity.listedBy} />}
         {identity.negativeUnl && <NegativeUnlTag />}
       </div>
     </>
@@ -101,11 +104,14 @@ function Fact({ label, children, sub }: { label: string; children: ReactNode; su
   );
 }
 
-/** On a publisher's list: a check and "listed"; off it: a dash and "not listed" (spec 2.5). */
+/** What the view calls the fixed list: it is words, so it is not set in mono like a publisher's id. */
+const FIXED_LIST = publisherLabel(LOCAL_PUBLISHER);
+
+/** On a publisher's list: a check and "listed"; off it: a dash and "not listed" (spec 2.5). A publisher's id is in mono; the fixed list's name is not. */
 function Membership({ publisher, listed }: { publisher: string; listed: boolean }) {
   return (
     <span className="validator__member">
-      <span className="mono">{publisher}</span>
+      <span className={publisher === FIXED_LIST ? undefined : "mono"}>{publisher}</span>
       {listed ? (
         <span className="st st--ok">
           <CheckIcon />
@@ -219,13 +225,15 @@ function Identity({ data }: { data: Data }) {
         </Fact>
         <Fact label="First seen">{grid.firstSeen ?? DASH}</Fact>
         <LastSeen data={data} />
-        {grid.accounts && (
+        {/* While the toml card is drawn the accounts are its: its list names the same addresses (E13 spec 5.1). */}
+        {grid.accounts && data.toml === null && (
           <Fact label={`Accounts ${identity.heading.text} lists`}>
-            {grid.accounts.map((account) => (
-              <Link key={account.address} to={account.href} className="validator__account mono" title={account.address}>
-                {shortAddress(account.address)}
-              </Link>
-            ))}
+            {/* The accounts' names come from the page's `NamesProvider` (the route's): `AccountLink` draws a name with its mark, else the short address. */}
+            <span className="validator__accounts">
+              {grid.accounts.map((account) => (
+                <AccountLink key={account.address} net={data.network.id} address={account.address} />
+              ))}
+            </span>
           </Fact>
         )}
       </div>
@@ -467,8 +475,8 @@ function RecentCard({
 // The pages
 
 /**
- * One validator (`/{net}/validators/{key}`, spec 4.1), in the board's order: the breadcrumb, E2's live row, the identity with its facts, the agreement tiles
- * beside the 30-day chart, the fee votes beside the amendment votes, and the recent validations. Takes what the view builder made of the data API's answers
+ * One validator (`/{net}/validators/{key}`, spec 4.1), in the board's order: the breadcrumb, E2's live row, the identity with its facts, the toml card of a
+ * verified domain (E13 spec 5.1: only with VALIDATORS_MAP on, and it takes the accounts line from the identity), the agreement tiles beside the 30-day chart, the fee votes beside the amendment votes, and the recent validations. Takes what the view builder made of the data API's answers
  * (`validatorPage`) and never fetches: every label, href and figure is text in `data`. D is the page; each of VV, S and A stands or fails alone (spec 4.4):
  * the recent validations are a section error and last seen comes from D, coarse; the fee votes lose Now and Against now; the amendment votes keep D's statuses.
  *
@@ -487,6 +495,7 @@ export function ValidatorPage({ data, live }: { data: Data; live: LiveControls }
       <Crumbs net={data.network.id} name={data.network.name} identity={data.identity} />
       <LiveRow label="Live · updates every ledger" live={live} heldNote="Paused while you look at the table" />
       <Identity data={data} />
+      {data.toml !== null && <ValidatorTomlCard card={data.toml} net={data.network.id} />}
       <div className="validator__pair">
         <AgreementTiles tiles={data.agreement.tiles} />
         <DailyCard agreement={data.agreement} />

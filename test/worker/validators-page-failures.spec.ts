@@ -179,10 +179,10 @@ describe("a call the list cannot be built without", () => {
     await expectDegraded(path, response);
     expect(statusesOf(mock, LIST)).toEqual([503]);
 
-    // The card says so in place of the table, with a Retry; it is the page's only error.
+    // The card says so in place of the table, with a Retry; the countries card, which is counted from L, says so too: the page's two errors.
     expect(text).toContain("Couldn’t load the validators.");
     expect(html).toMatch(/<button[^>]*>Retry<\/button>/);
-    expect(alerts(html)).toBe(1);
+    expect(alerts(html)).toBe(2);
     expect(tableRows(html, "Validators")).toEqual([]);
 
     // The filters stay: the search text, "Votes yes for" with the amendment of the address, and the scope links with no counts.
@@ -209,6 +209,40 @@ describe("a call the list cannot be built without", () => {
     const negative = tiles(html).find((tile) => tile.label === "Negative UNL")!;
     expect(negative.sub).toContain(shortHash(discounted));
     expect(negative.sub).not.toContain("embermill.example");
+  });
+
+  it("xahau: L failing hides the Country select and keeps ?country=FI in a hidden field", async () => {
+    // The hold of the test before is over; S and A are in the Cache API, and L, which no test of this file has had answer for Xahau, asks the mock.
+    mock = mockUpstream("xahau", { [LIST]: unavailable() });
+    const path = "/xahau/validators?country=FI";
+    const { response, html } = await render(path);
+
+    await expectDegraded(path, response);
+    expect(statusesOf(mock, LIST)).toEqual([503]);
+    // The countries are L's: no select, and no place; the country of the address rides in a hidden field, so that Apply does not drop what the address applies as given.
+    expect(hasField(html, "Country")).toBe(false);
+    expect(html).not.toContain("validators__place");
+    expect(html).toMatch(/<input[^>]*type="hidden"[^>]*name="country"[^>]*value="FI"|<input[^>]*name="country"[^>]*type="hidden"[^>]*value="FI"/);
+    // The other filters are the page's: "Votes yes for" is A's, which loaded.
+    expect(hasField(html, "Votes yes for")).toBe(true);
+  });
+
+  it("xahau: L failing says Couldn’t load where validators are, in the countries card, degraded", async () => {
+    mock = mockUpstream("xahau", { [LIST]: unavailable() });
+    const path = "/xahau/validators?scope=all";
+    const { response, html, text } = await render(path);
+
+    await expectDegraded(path, response);
+    expect(statusesOf(mock, LIST)).toEqual([503]);
+    // The card keeps its heading and says so, with a Retry, in place of the map and the table; the list's card says its own.
+    const card = /<section[^>]*aria-labelledby="validators-map-title"[^>]*>([\s\S]*?)<\/section>/.exec(html)![1]!;
+    expect(textOf(card)).toContain("Where validators are");
+    expect(textOf(card)).toContain("Couldn’t load where validators are.");
+    expect(card).toMatch(/<button[^>]*>Retry<\/button>/);
+    expect(card).not.toContain("vmap__circle");
+    expect(card).not.toContain('aria-label="Validators by country"');
+    expect(text).toContain("Couldn’t load the validators.");
+    expect(alerts(html)).toBe(2);
   });
 
   it("xahau: L past the 4.5 s deadline is that card, 'took too long', and the rest of the page is there", async () => {

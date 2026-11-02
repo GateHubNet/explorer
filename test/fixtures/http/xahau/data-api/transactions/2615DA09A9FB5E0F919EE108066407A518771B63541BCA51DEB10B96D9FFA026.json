@@ -1,0 +1,29 @@
+{
+  "result": "success",
+  "transaction": {
+    "date": "2026-10-09T12:49:32+00:00",
+    "hash": "2615DA09A9FB5E0F919EE108066407A518771B63541BCA51DEB10B96D9FFA026",
+    "ledger_index": 26399329,
+    "meta": {
+      "AffectedNodes": [{"ModifiedNode":{"FinalFields":{"Account":"rU1MTfFx4Fphm941qDPDzv8nLs7Vo463Z","AccountIndex":"17b42","Balance":"14603357","Flags":0,"OwnerCount":4,"Sequence":785838713,"TouchCount":"f"},"LedgerEntryType":"AccountRoot","LedgerIndex":"039F4660BDA80FDB47447F2E432D0252E94444857E48F4A2D85810E81D208C0E","PreviousFields":{"Balance":"14603395","OwnerCount":3,"Sequence":785838712,"TouchCount":"e"},"PreviousTxnID":"63271E14273F22599E5CF7BC87B423DF342AA126145E433964E806DF9B092980","PreviousTxnLgrSeq":26349131}},{"ModifiedNode":{"FinalFields":{"Flags":0,"Owner":"r3P95p78ACnB7BKDiZKyeHTmwSNRaYSJ3H","RootIndex":"25CFF4511BC963230A8E2E8918BAA1E884D171056381E677C7E3E7FD91A76F9D"},"LedgerEntryType":"DirectoryNode","LedgerIndex":"25CFF4511BC963230A8E2E8918BAA1E884D171056381E677C7E3E7FD91A76F9D","PreviousTxnID":"B579EFDACF002461F80D59ED03D49166C054ABA0149847A173065DD770BA8872","PreviousTxnLgrSeq":26349164}},{"CreatedNode":{"LedgerEntryType":"RippleState","LedgerIndex":"2C0F1D2C644C10536D12C232792A7BDFE771FF7E1D7A3BBEAD225D8AB033F87F","NewFields":{"Balance":{"currency":"EVR","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"0.001"},"Flags":1114112,"HighLimit":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","value":"0"},"HighNode":"960","LowLimit":{"currency":"EVR","issuer":"rU1MTfFx4Fphm941qDPDzv8nLs7Vo463Z","value":"0"}}}},{"ModifiedNode":{"FinalFields":{"Flags":0,"Owner":"rU1MTfFx4Fphm941qDPDzv8nLs7Vo463Z","RootIndex":"75BC629B3EC896BAEF8ED575E4AEBF2C4823436D3554BC4EE217B38A5032A2E2"},"LedgerEntryType":"DirectoryNode","LedgerIndex":"75BC629B3EC896BAEF8ED575E4AEBF2C4823436D3554BC4EE217B38A5032A2E2","PreviousTxnID":"63271E14273F22599E5CF7BC87B423DF342AA126145E433964E806DF9B092980","PreviousTxnLgrSeq":26349131}},{"DeletedNode":{"FinalFields":{"Account":"r3P95p78ACnB7BKDiZKyeHTmwSNRaYSJ3H","Destination":"rU1MTfFx4Fphm941qDPDzv8nLs7Vo463Z","DestinationNode":"0","Flags":0,"OwnerNode":"0","PreviousTxnID":"EDFD4DDC7F91D1B103305C1D74D7BE806E57EA7961C16832C00E5B77E8CEF6BF","PreviousTxnLgrSeq":26348090,"SendMax":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","value":"0.001"},"Sequence":844160555},"LedgerEntryType":"Check","LedgerIndex":"789B10B1CB6CC875D569AC6FF17B4AB7F60EBA180305665AB6AC5FF4A321139E"}},{"ModifiedNode":{"FinalFields":{"Flags":0,"IndexPrevious":"95f","Owner":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","RootIndex":"2F4B05CDC75C5C877575E6E3217AE01D20B20429AFFA938A54259BA20EB88C3A"},"LedgerEntryType":"DirectoryNode","LedgerIndex":"A3CA0658222F55FFFAA559A446159946B9F5E65B5800620D2451D92C79D17E9E","PreviousTxnID":"2C241B2B2F65C6A58A508E464C17915D396D2A22102425431D87C3D73476BFC8","PreviousTxnLgrSeq":26385879}},{"ModifiedNode":{"FinalFields":{"Account":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","AccountIndex":"6e","Balance":"9999988","Domain":"657665726E6F64652E6F7267","EmailHash":"591EEFF8BC898292B0594A4D8696AD59","Flags":10092544,"OwnerCount":0,"RegularKey":"rrrrrrrrrrrrrrrrrrrrBZbvji","Sequence":753450306,"TouchCount":"3f2a5ef"},"LedgerEntryType":"AccountRoot","LedgerIndex":"A9659A4E11A4FC227009EBBD9C41768301FC7E8CD7FC7D915107E38802536DB0","PreviousFields":{"TouchCount":"3f2a5ee"},"PreviousTxnID":"B6FC63B21B80FAA299A45743008D7CA94903270B2C1C78E7AD142AE8B2014047","PreviousTxnLgrSeq":26399321}},{"ModifiedNode":{"FinalFields":{"Account":"r3P95p78ACnB7BKDiZKyeHTmwSNRaYSJ3H","AccountIndex":"346b6","Balance":"3454626","Flags":0,"OwnerCount":3,"Sequence":844160557,"TouchCount":"12"},"LedgerEntryType":"AccountRoot","LedgerIndex":"C6FC33E8A8783F533809EDB1F50A29915F2E3ED4B2B70D5C796EE517C7AB5C8E","PreviousFields":{"OwnerCount":4,"TouchCount":"11"},"PreviousTxnID":"B579EFDACF002461F80D59ED03D49166C054ABA0149847A173065DD770BA8872","PreviousTxnLgrSeq":26349164}},{"ModifiedNode":{"FinalFields":{"Balance":{"currency":"EVR","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"0.06603813162258862"},"Flags":1114112,"HighLimit":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","value":"0"},"HighNode":"95d","LowLimit":{"currency":"EVR","issuer":"r3P95p78ACnB7BKDiZKyeHTmwSNRaYSJ3H","value":"72252731"},"LowNode":"0"},"LedgerEntryType":"RippleState","LedgerIndex":"E43315889F112D08E2715B07DB754D212249E2BB3008F8DCE96A09F29279DD32","PreviousFields":{"Balance":{"currency":"EVR","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"0.06703813162258862"}},"PreviousTxnID":"532387982AB224073538E14AFED1D99C2A9F98A780A5F4BF8A2F31FE98BBD017","PreviousTxnLgrSeq":26204102}}],
+      "DeliveredAmount": {"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","value":"0.001"},
+      "TransactionIndex": 1,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "tx": {
+      "Account": "rU1MTfFx4Fphm941qDPDzv8nLs7Vo463Z",
+      "Amount": {"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","value":"0.001"},
+      "CheckID": "789B10B1CB6CC875D569AC6FF17B4AB7F60EBA180305665AB6AC5FF4A321139E",
+      "Fee": "38",
+      "Flags": 0,
+      "LastLedgerSequence": 26399526,
+      "Memos": [{"Memo":{"MemoData":"78616861756578706C6F7265722E636F6D"}}],
+      "NetworkID": 21337,
+      "Sequence": 785838712,
+      "SigningPubKey": "02B6C706972E42851F11B5107273D7808CED9B6AAF1F2C77BD10BA6FDE0967F6F9",
+      "SourceTag": 2606210014,
+      "TransactionType": "CheckCash",
+      "TxnSignature": "30440220158EBED785156E85A77C0ADE16A1C2BDFE7AB5F557078C248ABD87327EDD4F920220798A055F3DD5CFF6EA04D01CC3C40B6B53E5069A2213FD66418FF37B30874D7F"
+    }
+  }
+}

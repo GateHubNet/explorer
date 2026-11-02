@@ -1,6 +1,8 @@
 import { useId } from "react";
 import { Link } from "react-router";
 
+import { InfoIcon } from "./icons";
+
 export interface SegmentLink {
   label: string;
   href: string;
@@ -8,6 +10,11 @@ export interface SegmentLink {
   current: boolean;
   /** The link's `rel`: `nofollow` for a view crawlers are kept off (the account's analytics). */
   rel?: string;
+  /**
+   * A view that cannot be chosen yet (the token list's MPT tab): to be drawn as text, not as a link, with `tag` beside its label and `note` as the reason a screen reader is
+   * given. `href` is still the view's own, which keys the segment.
+   */
+  disabled?: { tag?: string; note?: string };
 }
 
 /**
@@ -20,6 +27,9 @@ export interface SegmentLink {
  *
  * `hideLabel` keeps the label for screen readers only (`.sr`), where the place of the control says what it is (the candle interval in a
  * chart card): the group is still named by it, and there is no other group around it.
+ *
+ * A `disabled` segment is a view that cannot be chosen yet: a span (`aria-disabled`), not a link, with its `tag` after the label. Its `note` is drawn beside the control, and the
+ * segment is described by it.
  */
 export function SegmentedLinks({ label, links, hideLabel = false }: { label: string; links: readonly SegmentLink[]; hideLabel?: boolean }) {
   const labelId = useId();
@@ -29,19 +39,35 @@ export function SegmentedLinks({ label, links, hideLabel = false }: { label: str
         {label}
       </span>
       <div role="group" aria-labelledby={labelId} className="netswitch">
-        {links.map((link) => (
-          <Link
-            key={link.href}
-            to={link.href}
-            preventScrollReset
-            rel={link.rel}
-            className="netswitch__item"
-            aria-current={link.current ? "true" : undefined}
-          >
-            {link.label}
-          </Link>
-        ))}
+        {links.map((link, at) =>
+          link.disabled ? (
+            <span key={link.href} className="netswitch__item is-disabled" aria-disabled="true" aria-describedby={link.disabled.note ? `${labelId}-${at}` : undefined}>
+              {link.label}
+              {link.disabled.tag && <span className="soon">{link.disabled.tag}</span>}
+            </span>
+          ) : (
+            <Link
+              key={link.href}
+              to={link.href}
+              preventScrollReset
+              rel={link.rel}
+              className="netswitch__item"
+              aria-current={link.current ? "true" : undefined}
+            >
+              {link.label}
+            </Link>
+          ),
+        )}
       </div>
+      {links.map(
+        (link, at) =>
+          link.disabled?.note && (
+            <span key={link.href} id={`${labelId}-${at}`} className="seglinks__note">
+              <InfoIcon size={14} />
+              {link.disabled.note}
+            </span>
+          ),
+      )}
     </div>
   );
 }

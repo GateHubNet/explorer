@@ -1,30 +1,75 @@
 import { describe, expect, it } from "vitest";
 
+import {
+  coverageSample,
+  NFT_ID,
+  nftAnswerSample,
+  nftCollectionAnswerSample,
+  nftEventsPageSample,
+  nftSample,
+  nodeNftInfoSample,
+  nodeUriTokenSample,
+  NODE_NFT_ID,
+  uriTokenSample,
+  URI_TOKEN_ID,
+  URI_TOKEN_OWNER,
+  nftCollectionsPageSample,
+  nftSalesPageSample,
+  nftsPageSample,
+  NFT_ISSUER,
+  NFT_OWNER,
+  URI_TOKEN_ISSUER,
+  uriTokenCollectionSample,
+} from "../../test/support/nft-samples";
+import { holdersSample, tokenDetailSample, tokenSample, TOKEN_SAMPLE_CURRENCY, TOKEN_SAMPLE_ISSUER, transfersSample } from "../../test/support/token-samples";
 import { AMM_ID, amendmentDetailSample, amendmentsSample, SAMPLE_KEYS, UNKNOWN_ID, validationsSample, validatorDetailSample } from "../../test/support/d1-samples";
 import type { AmendmentStatus } from "../domain/amendments-params";
+import type { CollectionKey, CollectionQuery, NftsQuery } from "../domain/nft-params";
 import type { FlowStep } from "../domain/describe";
-import { shortHash } from "../domain/format";
+import { shortAddress, shortHash } from "../domain/format";
+import { NAMES_OFF, NO_NAMES, type NameMap, type NamesPart, type NameView } from "../domain/names";
+import { tokenHoldersHref, tokenHref, tokensHref } from "../domain/token-params";
 import type { ValidatorsParams } from "../domain/validators-params";
+import { NO_FEATURES } from "../ui/features";
 import type { NetworkInfo } from "../ui/networks";
 import { amendmentPage } from "./amendment-view";
 import { amendmentsPage } from "./amendments-view";
 import type { AmmListFacts, AmmPoolMeta } from "./amm-view";
 import type { AmendmentDetail } from "./api-types";
-import { imageUrl, metaContext, type MetaContext } from "./meta";
+import type { CheckMeta } from "./check-view";
+import type { EscrowMeta } from "./escrow-view";
+import { imageUrl, metaContext, suffixOf, type MetaContext } from "./meta";
 import { accountMeta } from "./meta-account";
 import { amendmentMeta } from "./meta-amendment";
 import { amendmentsMeta } from "./meta-amendments";
 import { ammListMeta } from "./meta-amm-list";
 import { ammPoolMeta } from "./meta-amm-pool";
+import { checkMeta } from "./meta-check";
+import { escrowMeta } from "./meta-escrow";
+import { nftMeta } from "./meta-nft";
+import { nftCollectionMeta } from "./meta-nft-collection";
+import { nftSalesMeta } from "./meta-nft-sales";
+import { nftsMeta } from "./meta-nfts";
+import { tokenMeta } from "./meta-token";
+import { tokenHoldersMeta } from "./meta-token-holders";
+import { supplyMeta } from "./meta-supply";
+import { tokensMeta } from "./meta-tokens";
 import { homeMeta } from "./meta-home";
 import { ledgerMeta } from "./meta-ledger";
 import { marketsMeta } from "./meta-markets";
 import { networkMeta } from "./meta-network";
 import { pairMeta } from "./meta-pair";
+import { paymentChannelMeta } from "./meta-payment-channel";
 import { transactionDescription, transactionMeta } from "./meta-transaction";
 import { validatorMeta } from "./meta-validator";
 import { validatorsMeta } from "./meta-validators";
-import { validatorHistoryPage, validatorPage } from "./validator-view";
+import { collectionMarkerPage, nftCollectionPage, type CollectionNet, type NftCollectionPageData } from "./nft-collection-view";
+import { nftMarkerPage, nftPage, type NftNet, type NftPageData } from "./nft-view";
+import { nftSalesPage, nftsListPage, nftsMarkerPage, type NftSalesPageData, type NftsNet, type NftsPageData } from "./nfts-view";
+import { pairPage } from "./pair-view";
+import { tokenFacts, tokenHoldersPage, tokenPage, type TokenHoldersMetaFacts, type TokenMetaFacts, type TokensMetaFacts } from "./token-view";
+import type { PaymentChannelMeta } from "./payment-channel-view";
+import { validatorHistoryPage, validatorPage, type ValidatorLiveData } from "./validator-view";
 import { validatorsPage } from "./validators-view";
 
 // The tags of the pages (spec 9) as pure functions over the page data and the origin of the request. The data below is what the
@@ -32,8 +77,24 @@ import { validatorsPage } from "./validators-view";
 // recorded transaction to the HTML. Each page's builder is in a module of its own (`meta-<page>.ts`, beside meta.ts, which has the
 // helpers): test/unit/meta-bundle.test.ts says why.
 
-const XRPL: MetaContext = { network: { id: "xrpl", name: "XRPL" }, origin: "https://explorer.test" };
-const XAHAU: MetaContext = { network: { id: "xahau", name: "Xahau" }, origin: "https://explorer.test" };
+const XRPL: MetaContext = {
+  network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX" },
+  origin: "https://explorer.test",
+};
+const XAHAU: MetaContext = {
+  network: { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX" },
+  origin: "https://explorer.test",
+};
+
+/** The sandbox's networks: the testnets' names, as the layout's loader reads them in the sandbox. */
+const XRPL_TESTNET: MetaContext = {
+  network: { id: "xrpl", kind: "testnet", name: "XRPL Testnet", label: "XRPL Testnet", longName: "XRPL Testnet", dexName: "the XRPL Testnet DEX" },
+  origin: "https://explorer.test",
+};
+const XAHAU_TESTNET: MetaContext = {
+  network: { id: "xahau", kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", longName: "Xahau Testnet", dexName: "the Xahau Testnet DEX" },
+  origin: "https://explorer.test",
+};
 
 type Tag = Record<string, string>;
 const tags = (list: ReadonlyArray<unknown>) => list as Tag[];
@@ -210,6 +271,7 @@ const account = (over: Record<string, unknown> = {}) => ({
   address: "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
   native: "XRP" as const,
   tab: "transactions" as const,
+  names: NO_NAMES,
   header: {
     status: "active" as const,
     activation: { time: 1752604243, parent: "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ", initialBalance: "25", txHash: "9B10" },
@@ -256,6 +318,96 @@ describe("accountMeta", () => {
       expect(content(history, "description"), tab).toBe(`Older ${tab} of the account ${ADDRESS} on XRPL.`);
       expect(keys(history).filter((key) => /^(og|twitter):/.test(key)), tab).toEqual([]);
     }
+  });
+
+  it("words the older rows of the NFTs tab as the network does: 'Older NFTs', and 'Older URITokens' on Xahau", () => {
+    const older = (ctx: MetaContext) => accountMeta(account({ header: { status: "history" }, tab: "nfts" }), ctx);
+    expect(content(older(XRPL), "description")).toBe(`Older NFTs of the account ${ADDRESS} on XRPL.`);
+    expect(content(older(XAHAU), "description")).toBe(`Older URITokens of the account ${ADDRESS} on Xahau.`);
+    // The testnets take their mainnet's words (and say their own name).
+    expect(content(older(XRPL_TESTNET), "description")).toBe(`Older NFTs of the account ${ADDRESS} on XRPL Testnet.`);
+    expect(content(older(XAHAU_TESTNET), "description")).toBe(`Older URITokens of the account ${ADDRESS} on Xahau Testnet.`);
+    expect(content(older(XRPL), "robots")).toBe("noindex, follow");
+    expect(link(older(XRPL), "canonical")).toBeUndefined();
+  });
+
+  it("names the NFTs tab in the canonical URL of its first page", () => {
+    expect(link(accountMeta(account({ tab: "nfts" }), XRPL), "canonical")).toBe(`https://explorer.test/xrpl/account/${ADDRESS}?tab=nfts`);
+  });
+
+  describe("for an account that has a name or a label (display names spec 7)", () => {
+    const NORTHPEAK: NameView = { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] };
+    const HARBORLINE: NameView = { name: { text: "Harborline Exchange", kind: "account" }, network: "hot wallet", labels: [] };
+    const LABELLED_HARBORLINE: NameView = { ...HARBORLINE, labels: ["advisory"] };
+    const LOWTIDE: NameView = { name: { text: "lowtide.example", kind: "domain" }, domain: "lowtide.example", labels: [] };
+    const named = (view: NameView, over: Record<string, unknown> = {}) => account({ names: { state: "ok", map: { [ADDRESS]: view } }, ...over });
+    const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+    const TODAYS = `${ADDRESS} on XRPL: Balance 10.001625 XRP, activated 2025-07-15. Transactions, payments, trades, offers and objects.`;
+
+    it("puts a verified name in the title, the short address after it, and says who verified it at the end of the description", () => {
+      const list = accountMeta(named(NORTHPEAK), XRPL);
+      expect(title(list)).toBe(`Account Northpeak Treasury (${shortAddress(ADDRESS)}) · XRPL · explorer`);
+      expect(content(list, "description")).toBe(`${TODAYS} Verified by northpeak.example.`);
+      // The tags that repeat them, and the image, are the page's own.
+      expect(content(list, "og:title")).toBe(title(list));
+      expect(content(list, "og:description")).toBe(content(list, "description"));
+      expect(content(list, "og:image")).toBe(`https://explorer.test/og/xrpl/account/${ADDRESS}.png`);
+      expect(content(list, "og:image:alt")).toBe(`Account ${shortAddress(ADDRESS)} on XRPL`);
+    });
+
+    it("does the same for a name GateHub gave, with the account network name as a link has it, and for the description of a deleted account", () => {
+      const list = accountMeta(named(HARBORLINE), XRPL);
+      expect(title(list)).toBe(`Account Harborline Exchange · hot wallet (${shortAddress(ADDRESS)}) · XRPL · explorer`);
+      expect(content(list, "description")).toBe(`${TODAYS} Named by GateHub.`);
+      const deleted = accountMeta(named(HARBORLINE, { header: { status: "deleted", activation: null, balance: null } }), XRPL);
+      expect(content(deleted, "description")).toBe(`${ADDRESS} on XRPL: Deleted account. Transactions, payments, trades, offers and objects. Named by GateHub.`);
+    });
+
+    it("keeps today's title for a labelled account whose name it has, and says the label in words before the description", () => {
+      const list = accountMeta(named(LABELLED_HARBORLINE), XRPL);
+      expect(title(list)).toBe(`Account ${shortAddress(ADDRESS)} · XRPL · explorer`);
+      expect(content(list, "description")).toBe(`GateHub has labelled this address advisory. ${TODAYS} Named by GateHub.`);
+      expect(content(list, "og:title")).toBe(`Account ${shortAddress(ADDRESS)} · XRPL · explorer`);
+    });
+
+    it("says every label of an account with labels only, before today's description and with nothing after it", () => {
+      const list = accountMeta(named({ labels: ["scam", "spam", "advisory"] }), XRPL);
+      expect(title(list)).toBe(`Account ${shortAddress(ADDRESS)} · XRPL · explorer`);
+      expect(content(list, "description")).toBe(`GateHub has labelled this address scam, spam and advisory. ${TODAYS}`);
+      expect(content(accountMeta(named({ labels: ["scam", "spam"] }), XRPL), "description")).toBe(`GateHub has labelled this address scam and spam. ${TODAYS}`);
+    });
+
+    it("has today's tags for a name only the account's domain gives, for a network name alone, and for an address with no entry", () => {
+      const today = accountMeta(account(), XRPL);
+      expect(accountMeta(named(LOWTIDE), XRPL)).toEqual(today);
+      expect(accountMeta(named({ network: "cold", labels: [] }), XRPL)).toEqual(today);
+      expect(accountMeta(account({ names: { state: "ok", map: { rPzx7uasocDdgSNWoWxFytF8VRsAdLU9SC: NORTHPEAK } } }), XRPL)).toEqual(today);
+    });
+
+    it("has today's tags with NAMES off, and when the names call failed", () => {
+      const today = accountMeta(account(), XRPL);
+      expect(accountMeta(account({ names: NAMES_OFF }), XRPL)).toEqual(today);
+      expect(accountMeta(account({ names: { state: "failed", map: {} } }), XRPL)).toEqual(today);
+    });
+
+    it("says the names of the account's own entry, not of another's on the page", () => {
+      const list = accountMeta(account({ names: { state: "ok", map: { rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ: { labels: ["spam"] }, [ADDRESS]: NORTHPEAK } } }), XRPL);
+      expect(title(list)).toBe(`Account Northpeak Treasury (${shortAddress(ADDRESS)}) · XRPL · explorer`);
+      expect(content(list, "description")).not.toContain("labelled");
+    });
+
+    it("names the account in the title of a page of old history and of the Analytics view, and leaves their descriptions as they are", () => {
+      const history = accountMeta(named(NORTHPEAK, { header: { status: "history" } }), XRPL);
+      expect(title(history)).toBe(`Account Northpeak Treasury (${shortAddress(ADDRESS)}) · XRPL · explorer`);
+      expect(content(history, "description")).toBe(`Older transactions of the account ${ADDRESS} on XRPL.`);
+      const analytics = accountMeta(named(LABELLED_HARBORLINE, { tab: "analytics", analytics: { period: "90d" } }), XRPL);
+      expect(title(analytics)).toBe(`Analytics, last 90 days · Account ${shortAddress(ADDRESS)} · XRPL · explorer`);
+      const namedAnalytics = accountMeta(named(NORTHPEAK, { tab: "analytics", analytics: { period: "90d" } }), XRPL);
+      expect(title(namedAnalytics)).toBe(`Analytics, last 90 days · Account Northpeak Treasury (${shortAddress(ADDRESS)}) · XRPL · explorer`);
+      expect(content(namedAnalytics, "description")).toBe(
+        `Account value, transactions sent, balances, money in and out, counterparties and DEX trading of ${ADDRESS} on XRPL.`,
+      );
+    });
   });
 
   describe("on the Analytics tab", () => {
@@ -400,6 +552,17 @@ describe("marketsMeta", () => {
     expect(link(list, "canonical")).toBe("https://explorer.test/xahau/markets");
   });
 
+  it("names the network's DEX in the sandbox's words: the XRPL Testnet DEX, the Xahau Testnet DEX", () => {
+    const xrpl = marketsMeta(DEFAULT, XRPL_TESTNET);
+    expect(title(xrpl)).toBe("XRPL Testnet markets · explorer");
+    expect(content(xrpl, "description")).toBe(DESCRIPTION("the XRPL Testnet DEX"));
+    expect(content(xrpl, "og:description")).toBe(DESCRIPTION("the XRPL Testnet DEX"));
+    expect(link(xrpl, "canonical")).toBe("https://explorer.test/xrpl/markets");
+    const xahau = marketsMeta({ ...DEFAULT, indexable: false }, XAHAU_TESTNET);
+    expect(title(xahau)).toBe("Xahau Testnet markets · explorer");
+    expect(content(xahau, "description")).toBe(DESCRIPTION("the Xahau Testnet DEX"));
+  });
+
   it("names the view in the title of any other, in the view builder's words, and its period (periodWords) in the description", () => {
     const list = marketsMeta({ view: ["last 7 days", "USD", "AMM swaps"], periodWords: "last 7 days", indexable: false }, XRPL);
     expect(title(list)).toBe("XRPL markets · last 7 days · USD · AMM swaps · explorer");
@@ -446,7 +609,7 @@ describe("pairMeta", () => {
     heading: "XRP / RLUSD",
     base: "XRP",
     counter: "RLUSD",
-    issuers: [{ code: "RLUSD", address: RLUSD, href: `/xrpl/account/${RLUSD}` }],
+    issuers: [{ code: "RLUSD", address: RLUSD, href: `/xrpl/account/${RLUSD}`, tokenHref: null }],
     natives: ["XRP"],
     issued: ["RLUSD rMxCKb…m5De"],
     issuedBy: "RLUSD issued by rMxCKb…m5De",
@@ -539,6 +702,59 @@ describe("pairMeta", () => {
     expect(link(xahau, "canonical")).toBe(`https://explorer.test/xahau/markets/EVR.${EVR}/XAH`);
   });
 
+  it("names the network's DEX in the sandbox's words: the XRPL Testnet DEX, the Xahau Testnet DEX", () => {
+    const xrpl = pairMeta(LIVE, XRPL_TESTNET);
+    expect(title(xrpl)).toBe("XRP/RLUSD · RLUSD rMxCKb…m5De · XRPL Testnet market · explorer");
+    expect(content(xrpl, "description")).toBe(
+      "Price, candles, recent trades, order book and most active traders of XRP/RLUSD on the XRPL Testnet DEX. RLUSD issued by rMxCKb…m5De.",
+    );
+    const evr = { ...HEAD, title: "EVR/XAH", issued: ["EVR rEvern…HXr8"], issuedBy: "EVR issued by rEvern…HXr8", firstPage: "/xahau/markets/EVR.rEvernodee8dJLaFsujS6q1EiXvZYmHXr8/XAH" };
+    expect(content(pairMeta({ head: evr, view: [], mode: "live", indexable: true }, XAHAU_TESTNET), "description")).toBe(
+      "Price, candles, recent trades, order book and most active traders of EVR/XAH on the Xahau Testnet DEX. EVR issued by rEvern…HXr8.",
+    );
+  });
+
+  describe("for a pair whose issuer has a name (display names spec 7)", () => {
+    // The page is built with the names of its accounts, the issuer's among them (verified, which the body of a page would write by name), and its tags are read from what the
+    // view builder made: the short issuers stay in the title and the description, which are shared out of context, with no room for a mark.
+    const NORTHPEAK = { name: { text: "Northpeak Treasury", kind: "verified" as const }, domain: "northpeak.example", labels: [] };
+    const NAMES: NameMap = { [RLUSD]: NORTHPEAK };
+    const NETWORK = { id: "xrpl" as const, name: "XRPL", native: "XRP" as const, hasAmm: true, features: { ...NO_FEATURES, ammData: true, markets: true } };
+    const input = {
+      network: NETWORK,
+      base: { currency: "XRP" },
+      counter: { currency: "RLUSD", issuer: RLUSD },
+      params: { interval: "1h" as const, trades: null, back: [] },
+      closeTime: 1_792_256_472,
+      trades: { result: "success" as const, count: 0, exchanges: [] },
+      hasTrade: true,
+      stats: { state: "failed" as const },
+      candles: { state: "failed" as const },
+      traders: { state: "failed" as const },
+      asks: { state: "failed" as const },
+      bids: { state: "failed" as const },
+      pool: null,
+      share: null,
+    };
+
+    it("keeps the short issuer in the title and the description of the live page built with the issuer's name", () => {
+      const { page } = pairPage({ ...input, names: NAMES });
+      const list = pairMeta({ head: page.head, view: page.view, mode: page.mode, indexable: page.indexable }, XRPL);
+      const short = `XRP/RLUSD · RLUSD ${shortAddress(RLUSD)} · XRPL market · explorer`;
+      expect(title(list)).toBe(short);
+      expect(content(list, "description")).toBe(DESCRIPTION);
+      expect(content(list, "description")).toContain(`RLUSD issued by ${shortAddress(RLUSD)}.`);
+      expect(content(list, "og:title")).toBe(short);
+      expect(content(list, "og:description")).toBe(DESCRIPTION);
+      expect(JSON.stringify(list)).not.toContain("Northpeak");
+      // The page itself draws the issuer in full, through the names (`AccountLink full`); its head holds the whole address, which the tags do not.
+      expect(page.head.issuers).toEqual([{ code: "RLUSD", address: RLUSD, href: `/xrpl/account/${RLUSD}`, tokenHref: null }]);
+      // The tags are the same as those of the page built without names.
+      const plain = pairPage(input).page;
+      expect(pairMeta({ head: plain.head, view: plain.view, mode: plain.mode, indexable: plain.indexable }, XRPL)).toEqual(list);
+    });
+  });
+
   it("puts no number of the data in the description: the page is stored for a second", () => {
     const description = content(pairMeta(LIVE, XRPL), "description")!;
     // The one digit is the issuer's own (its short address); no price, volume or count.
@@ -551,15 +767,28 @@ describe("imageUrl", () => {
     expect(imageUrl("https://explorer.test", "xrpl", "tx", HASH)).toBe(`https://explorer.test/og/xrpl/tx/${HASH}.png`);
     expect(imageUrl("https://explorer.test", "xahau", "ledger", "26540187")).toBe("https://explorer.test/og/xahau/ledger/26540187.png");
     expect(imageUrl("https://explorer.test", "xrpl", "validator", SAMPLE_KEYS[0])).toBe(`https://explorer.test/og/xrpl/validator/${SAMPLE_KEYS[0]}.png`);
+    expect(imageUrl("https://explorer.test", "xahau", "nft", URI_TOKEN_ID)).toBe(`https://explorer.test/og/xahau/nft/${URI_TOKEN_ID}.png`);
   });
 });
 
 describe("metaContext", () => {
-  const layout = { id: "routes/net", loaderData: { network: { id: "xrpl", name: "XRPL" }, origin: "https://explorer.test" } };
+  // What the /:net layout's loader gives `meta`: its `PublicNetwork` (the words of the environment's kind) and the origin of the request.
+  const layoutOf = (network: unknown) => ({ id: "routes/net", loaderData: { network, origin: "https://explorer.test" } });
+  const layout = layoutOf(XRPL.network);
+  const TESTNET = { id: "xrpl", kind: "testnet", name: "XRPL Testnet", label: "XRPL Testnet", longName: "XRPL Testnet", dexName: "the XRPL Testnet DEX" };
 
-  it("is the network of the URL and the origin the /:net layout read from the request", () => {
-    expect(metaContext("xrpl", [{ id: "root" }, layout, { id: "routes/net.tx.$id" }])).toEqual({ network: { id: "xrpl", name: "XRPL" }, origin: "https://explorer.test" });
-    expect(metaContext("xahau", [layout])?.network).toEqual({ id: "xahau", name: "Xahau" });
+  it("is the network the /:net layout read, and the origin it read from the request", () => {
+    expect(metaContext("xrpl", [{ id: "root" }, layout, { id: "routes/net.tx.$id" }])).toEqual({ network: XRPL.network, origin: "https://explorer.test" });
+    expect(metaContext("xahau", [layoutOf(XAHAU.network)])).toEqual({ network: XAHAU.network, origin: "https://explorer.test" });
+  });
+
+  it("takes the layout's network, with its testnet names", () => {
+    const ctx = metaContext("xrpl", [{ id: "root" }, layoutOf(TESTNET), { id: "routes/net.tx.$id" }]);
+    expect(ctx?.network.name).toBe("XRPL Testnet");
+    expect(suffixOf(ctx!.network)).toBe("XRPL Testnet · explorer");
+    const list = transactionMeta({ ...payment(), ledgerIndex: 102186243 }, ctx!);
+    expect(content(list, "description")).toMatch(/ · XRPL Testnet ledger 102,186,243$/);
+    expect(tags(list).find((tag) => "title" in tag)?.title).toBe("Payment 67F91E…7C31 · XRPL Testnet · explorer");
   });
 
   it("is nothing without a network, a layout, or an origin in it", () => {
@@ -569,6 +798,13 @@ describe("metaContext", () => {
     expect(metaContext("xrpl", [undefined])).toBeUndefined();
     expect(metaContext("xrpl", [{ id: "routes/net", loaderData: { network: {} } }])).toBeUndefined();
     expect(metaContext("xrpl", [{ id: "routes/net", loaderData: { origin: 5 } }])).toBeUndefined();
+  });
+
+  it("is nothing when the layout is of another network than the URL's", () => {
+    expect(metaContext("xahau", [layout])).toBeUndefined();
+    expect(metaContext("xrpl", [layoutOf(XAHAU.network)])).toBeUndefined();
+    // A layout with no id in its network does not stand in for an absent segment either.
+    expect(metaContext(undefined, [{ id: "routes/net", loaderData: { network: {}, origin: "https://explorer.test" } }])).toBeUndefined();
   });
 });
 
@@ -620,8 +856,25 @@ describe("validatorsMeta", () => {
     expect(keys(list).sort()).toEqual(["description", "robots"]);
   });
 
+  // A country view (E13 spec 2 and 8) is a view of the page, whatever else the query holds: the UNL scope alone would be indexable, and the country is all that makes this not.
+  it("makes a country view noindex, follow without canonical or og", () => {
+    for (const params of [{ scope: "unl", country: "DE" }, { scope: "unl", country: "unknown" }, { scope: "all", country: "DE" }, { scope: "unl", country: "DE", q: "example" }] satisfies ValidatorsParams[]) {
+      for (const ctx of [XRPL, XAHAU]) {
+        const list = validatorsMeta(view(params), ctx);
+        const label = `${ctx.network.id} ${JSON.stringify(params)}`;
+        expect(content(list, "robots"), label).toBe("noindex, follow");
+        expect(tags(list).some((tag) => tag.tagName === "link"), label).toBe(false);
+        expect(keys(list).filter((key) => /^(og|twitter):/.test(key)), label).toEqual([]);
+        expect(keys(list).sort(), label).toEqual(["description", "robots"]);
+      }
+    }
+    // The default view beside it is still the indexable one.
+    expect(content(validatorsMeta(DEFAULT, XRPL), "robots")).toBeUndefined();
+    expect(link(validatorsMeta(DEFAULT, XRPL), "canonical")).toBe("https://explorer.test/xrpl/validators");
+  });
+
   it("takes the whole page's data as well as its params, since a route hands it the loader's answer", () => {
-    const data = validatorsPage({ network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" }, params: { scope: "unl" }, summary: { state: "failed" }, list: { state: "failed" }, amendments: { state: "failed" } });
+    const data = validatorsPage({ network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" }, params: { scope: "unl" }, summary: { state: "failed" }, list: { state: "failed" }, amendments: { state: "failed" }, features: { validatorsMap: false } });
     expect(link(validatorsMeta(data, XRPL), "canonical")).toBe("https://explorer.test/xrpl/validators");
   });
 
@@ -631,10 +884,12 @@ describe("validatorsMeta", () => {
 });
 
 describe("validatorMeta", () => {
-  const NET: NetworkInfo = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" };
+  const NET: NetworkInfo = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" };
   const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
-  const live = (validator = validatorDetailSample(), network = NET) =>
-    validatorPage({ network, validator, recent: { state: "failed" }, summary: { state: "failed" }, amendments: { state: "failed" }, anchor: { lastValidated: 107748183, closeTime: 1792252452 } });
+  const live = (validator = validatorDetailSample(), network = NET): ValidatorLiveData => ({
+    ...validatorPage({ network, validator, recent: { state: "failed" }, summary: { state: "failed" }, amendments: { state: "failed" }, anchor: { lastValidated: 107748183, closeTime: 1792252452 }, features: NO_FEATURES }),
+    names: NO_NAMES,
+  });
   const KEY = SAMPLE_KEYS[0];
   const TAIL = "Agreement, fee and amendment votes, and recent validations.";
 
@@ -669,9 +924,20 @@ describe("validatorMeta", () => {
     const off = validatorDetailSample({ unl: false, unl_lists: [], version: undefined, version_latest: undefined });
     expect(content(validatorMeta(live(off), XRPL), "description")).toBe(`northpeak.example is a validator of XRPL. Its domain is verified. ${TAIL}`);
     const one = validatorDetailSample({ unl_lists: ["vl.xahau.org"], version: "2026.10.13", version_build: 4119 });
-    expect(content(validatorMeta(live(one, { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" }), XAHAU), "description")).toBe(
+    expect(content(validatorMeta(live(one, { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", software: "xahaud" }), XAHAU), "description")).toBe(
       `northpeak.example is a validator of Xahau, on the default UNL (listed by vl.xahau.org), running xahaud 2026.10.13. Its domain is verified. ${TAIL}`,
     );
+  });
+
+  it("words a validator on Xahau Testnet's fixed list as 'on the fixed list', and one on a testnet's published list as listed by it", () => {
+    const xahauTestnet: NetworkInfo = { id: "xahau", kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", longName: "Xahau Testnet", dexName: "the Xahau Testnet DEX", native: "XAH", software: "xahaud" };
+    const fixed = validatorDetailSample({ unl_lists: ["local"], version: "2026.10.13", version_build: 4119 });
+    expect(content(validatorMeta(live(fixed, xahauTestnet), XAHAU_TESTNET), "description")).toBe(
+      `northpeak.example is a validator of Xahau Testnet, on the default UNL (on the fixed list), running xahaud 2026.10.13. Its domain is verified. ${TAIL}`,
+    );
+    const xrplTestnet: NetworkInfo = { id: "xrpl", kind: "testnet", name: "XRPL Testnet", label: "XRPL Testnet", longName: "XRPL Testnet", dexName: "the XRPL Testnet DEX", native: "XRP", software: "rippled" };
+    const published = validatorDetailSample({ unl_lists: ["vl.altnet.rippletest.net"] });
+    expect(content(validatorMeta(live(published, xrplTestnet), XRPL_TESTNET), "description")).toContain("on the default UNL (listed by vl.altnet.rippletest.net), running rippled 3.4.1.");
   });
 
   it("is noindex, follow on a page of older validations, with no canonical URL and no Open Graph or card tags", () => {
@@ -687,6 +953,15 @@ describe("validatorMeta", () => {
   it("puts no age and no number that moves with the chain in the description", () => {
     // The version's figures are the only digits: no agreement, no ledger, no time.
     expect(content(validatorMeta(live(), XRPL), "description")!.match(/\d+/g)).toEqual(["3", "4", "1"]);
+  });
+
+  it("reads no name (display names spec 7): the tags of a page that names the accounts it lists are those of one that does not", () => {
+    const listed = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh";
+    const names: NamesPart = { state: "ok", map: { [listed]: { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] } } };
+    expect(live().grid.accounts?.map((account) => account.address)).toEqual([listed]);
+    const list = validatorMeta({ ...live(), names }, XRPL);
+    expect(list).toEqual(validatorMeta(live(), XRPL));
+    expect(JSON.stringify(list)).not.toContain("Northpeak Treasury");
   });
 });
 
@@ -734,9 +1009,9 @@ describe("amendmentsMeta", () => {
   );
 
   it("takes the whole page's data as well as its status, since a route hands it the loader's answer", () => {
-    const data = amendmentsPage({ network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" }, amendments: amendmentsSample() });
+    const data = amendmentsPage({ network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" }, amendments: amendmentsSample() });
     expect(link(amendmentsMeta(data, XRPL), "canonical")).toBe("https://explorer.test/xrpl/amendments");
-    const voting = amendmentsPage({ network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" }, amendments: amendmentsSample(), status: "voting" });
+    const voting = amendmentsPage({ network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" }, amendments: amendmentsSample(), status: "voting" });
     expect(content(amendmentsMeta(voting, XRPL), "robots")).toBe("noindex, follow");
   });
 
@@ -746,7 +1021,7 @@ describe("amendmentsMeta", () => {
 });
 
 describe("amendmentMeta", () => {
-  const NET: NetworkInfo = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" };
+  const NET: NetworkInfo = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" };
   const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
   /** The sample (XChainBridge, with a majority) as `over` makes it, without D1's description and the keys `absent` (D1 leaves a key out; it never sends `null`). */
   function amendment(over: Partial<AmendmentDetail> = {}, ...absent: (keyof AmendmentDetail)[]): AmendmentDetail {
@@ -823,7 +1098,7 @@ describe("amendmentMeta", () => {
   });
 
   it("is Xahau's on Xahau, on the request's origin", () => {
-    const xahau: NetworkInfo = { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" };
+    const xahau: NetworkInfo = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", software: "xahaud" };
     const list = amendmentMeta(page(amendment({ name: "Remit" }), xahau), { ...XAHAU, origin: "https://explorer.example" });
     expect(title(list)).toBe("Amendment Remit · Xahau · explorer");
     expect(content(list, "description")).toMatch(/^Remit has had a majority of Xahau's default UNL since /);
@@ -842,6 +1117,7 @@ describe("amendmentMeta", () => {
 
 describe("ammListMeta", () => {
   const DESCRIPTION = "Automated market maker pools on the XRP Ledger: the value, reserves, trading fee and swap volume of every pool.";
+  const TESTNET_DESCRIPTION = "Automated market maker pools on XRPL Testnet: the value, reserves, trading fee and swap volume of every pool.";
   const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
   /** The facts of a view as the view builder writes them (`AmmListPageData.meta`): the first page, no filter. */
   const facts = (more: Partial<AmmListFacts> = {}): AmmListFacts => ({ deleted: false, more: false, error: false, ...more });
@@ -860,6 +1136,17 @@ describe("ammListMeta", () => {
     expect(keys(list)).not.toContain("og:image");
     expect(keys(list)).not.toContain("twitter:image");
     expect(keys(list)).not.toContain("robots");
+  });
+
+  it("names the network of the sandbox in its description: XRPL Testnet, in every view", () => {
+    const list = ammListMeta(facts(), XRPL_TESTNET);
+    expect(title(list)).toBe("AMM pools · XRPL Testnet · explorer");
+    expect(content(list, "description")).toBe(TESTNET_DESCRIPTION);
+    expect(content(list, "og:description")).toBe(TESTNET_DESCRIPTION);
+    expect(link(list, "canonical")).toBe("https://explorer.test/xrpl/amm");
+    for (const view of [facts({ assetLabel: "RLUSD" }), facts({ deleted: true }), facts({ more: true }), facts({ error: true })]) {
+      expect(content(ammListMeta(view, XRPL_TESTNET), "description")).toBe(TESTNET_DESCRIPTION);
+    }
   });
 
   it("is on the request's origin", () => {
@@ -897,9 +1184,616 @@ describe("ammListMeta", () => {
     expect(keys(list).sort()).toEqual(["description", "robots"]);
   });
 
+  it("is Xahau Testnet's explanation on Xahau Testnet", () => {
+    const list = ammListMeta({ none: true }, XAHAU_TESTNET);
+    expect(title(list)).toBe("AMM pools · Xahau Testnet · explorer");
+    expect(content(list, "description")).toBe("Xahau Testnet has no AMM: the AMM amendment is not part of Xahau Testnet, so there are no pools to show.");
+  });
+
   it("puts no number in the description: the page is stored for seconds", () => {
     expect(content(ammListMeta(facts(), XRPL), "description")).not.toMatch(/\d/);
     expect(content(ammListMeta({ none: true }, XAHAU), "description")).not.toMatch(/\d/);
+  });
+});
+
+describe("nftsMeta", () => {
+  const DESCRIPTION = "NFTs on the XRP Ledger: the sales volume, the largest collections and the latest sales.";
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  const failed = (): PromiseRejectedResult => ({ status: "rejected", reason: new Error("not asked in this test") });
+  /** The page data of a view of the list, as the view builder writes it: the tags read what the page says of its view. */
+  const view = (query: Partial<NftsQuery> = {}, net: NftsNet = { id: "xrpl", native: "XRP", longName: "the XRP Ledger" }): NftsPageData => ({
+    ...nftsListPage({ net, query: { period: "day", sort: "volume", order: "desc", back: [], ...query }, last: failed(), live: failed(), daily: null, sales: failed(), collections: failed() }),
+    names: NO_NAMES,
+  });
+  const marked = (query: Partial<NftsQuery> = {}, net: NftsNet = { id: "xrpl", native: "XRP", longName: "the XRP Ledger" }): NftsPageData => ({
+    ...nftsMarkerPage(net, { period: "day", sort: "volume", order: "desc", marker: "M1", back: [], ...query }, nftCollectionsPageSample({ collections: [], count: 0, total: 0 })),
+    names: NO_NAMES,
+  });
+
+  it("has the tags of the default view: a canonical URL on the origin, Open Graph, a summary card and no image", () => {
+    const list = nftsMeta(view(), XRPL);
+    expect(title(list)).toBe("NFTs · XRPL · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(link(list, "canonical")).toBe("https://explorer.test/xrpl/nfts");
+    expect(content(list, "og:title")).toBe("NFTs · XRPL · explorer");
+    expect(content(list, "og:description")).toBe(DESCRIPTION);
+    expect(content(list, "og:url")).toBe("https://explorer.test/xrpl/nfts");
+    expect(content(list, "og:type")).toBe("website");
+    expect(content(list, "og:site_name")).toBe("explorer");
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("is Xahau's on Xahau: URITokens, in the network's words", () => {
+    const list = nftsMeta(view({}, { id: "xahau", native: "XAH", longName: "Xahau" }), XAHAU);
+    expect(title(list)).toBe("URITokens · Xahau · explorer");
+    expect(content(list, "description")).toBe("URITokens on Xahau: the sales volume, the largest collections and the latest sales.");
+    expect(link(list, "canonical")).toBe("https://explorer.test/xahau/nfts");
+  });
+
+  it("names the network of the sandbox, in the title and in the description", () => {
+    const list = nftsMeta(view({}, { id: "xrpl", native: "XRP", longName: "XRPL Testnet" }), XRPL_TESTNET);
+    expect(title(list)).toBe("NFTs · XRPL Testnet · explorer");
+    expect(content(list, "description")).toBe("NFTs on XRPL Testnet: the sales volume, the largest collections and the latest sales.");
+    expect(link(list, "canonical")).toBe("https://explorer.test/xrpl/nfts");
+    expect(title(nftsMeta(view({}, { id: "xahau", native: "XAH", longName: "Xahau Testnet" }), XAHAU_TESTNET))).toBe("URITokens · Xahau Testnet · explorer");
+  });
+
+  it("is on the request's origin", () => {
+    const list = nftsMeta(view(), { ...XRPL, origin: "https://explorer.example" });
+    expect(link(list, "canonical")).toBe("https://explorer.example/xrpl/nfts");
+    expect(content(list, "og:url")).toBe("https://explorer.example/xrpl/nfts");
+  });
+
+  it.each([
+    ["another period", view({ period: "7day" }), "NFTs · XRPL · explorer"],
+    ["an issuer", view({ issuer: "rLxc1bt5defiLJ9gaZEJqQWnNKYNawrwMy" }), "NFTs · XRPL · explorer"],
+    ["an issuer that is no address", view({ issuer: "nope" }), "NFTs · XRPL · explorer"],
+    ["another sort", view({ sort: "supply" }), "NFTs · XRPL · explorer"],
+    ["the ascending order", view({ order: "asc" }), "NFTs · XRPL · explorer"],
+    ["a marker", marked(), "More NFT collections · XRPL · explorer"],
+    ["a marker and another sort", marked({ sort: "holders" }), "More NFT collections · XRPL · explorer"],
+  ] satisfies Array<[string, NftsPageData, string]>)("is noindex, follow, with no canonical URL and no Open Graph or card tags, with %s", (_name, data, expected) => {
+    const list = nftsMeta(data, XRPL);
+    expect(title(list)).toBe(expected);
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(list).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
+    expect(keys(list).sort()).toEqual(["description", "robots"]);
+  });
+
+  it("says URIToken collections behind a marker on Xahau", () => {
+    const list = nftsMeta(marked({}, { id: "xahau", native: "XAH", longName: "Xahau" }), XAHAU);
+    expect(title(list)).toBe("More URIToken collections · Xahau · explorer");
+    expect(content(list, "robots")).toBe("noindex, follow");
+  });
+
+  it("puts no number in the description: the page is stored for a minute", () => {
+    expect(content(nftsMeta(view(), XRPL), "description")).not.toMatch(/\d/);
+    expect(content(nftsMeta(view({}, { id: "xahau", native: "XAH", longName: "Xahau" }), XAHAU), "description")).not.toMatch(/\d/);
+  });
+});
+
+describe("tokensMeta", () => {
+  const DESCRIPTION = "Issued tokens on the XRP Ledger, ranked by holders: supply, price, 24-hour volume and whether each issuer's toml lists it.";
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  /** The facts of a view as the view builder writes them (`TokensPageData.meta`): the first page, no search. */
+  const facts = (more: Partial<TokensMetaFacts> = {}): TokensMetaFacts => ({ all: false, more: false, error: false, ...more });
+
+  it("has the tags of the default view: a canonical URL on the origin, Open Graph, a summary card and no image", () => {
+    const list = tokensMeta(facts(), XRPL);
+    expect(title(list)).toBe("Tokens · XRPL · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(link(list, "canonical")).toBe("https://explorer.test/xrpl/tokens");
+    expect(content(list, "og:title")).toBe("Tokens · XRPL · explorer");
+    expect(content(list, "og:description")).toBe(DESCRIPTION);
+    expect(content(list, "og:url")).toBe("https://explorer.test/xrpl/tokens");
+    expect(content(list, "og:type")).toBe("website");
+    expect(content(list, "og:site_name")).toBe("explorer");
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("is the path the page's own links write", () => {
+    expect(new URL(link(tokensMeta(facts(), XAHAU), "canonical")!).pathname).toBe(tokensHref("xahau"));
+  });
+
+  it("is Xahau's on Xahau, in the network's words", () => {
+    const list = tokensMeta(facts(), XAHAU);
+    expect(title(list)).toBe("Tokens · Xahau · explorer");
+    expect(content(list, "description")).toBe("Issued tokens on Xahau, ranked by holders: supply, price, 24-hour volume and whether each issuer's toml lists it.");
+    expect(link(list, "canonical")).toBe("https://explorer.test/xahau/tokens");
+  });
+
+  it("names the network of the sandbox, in the title and in the description", () => {
+    const list = tokensMeta(facts(), XRPL_TESTNET);
+    expect(title(list)).toBe("Tokens · XRPL Testnet · explorer");
+    expect(content(list, "description")).toBe("Issued tokens on XRPL Testnet, ranked by holders: supply, price, 24-hour volume and whether each issuer's toml lists it.");
+    expect(title(tokensMeta(facts(), XAHAU_TESTNET))).toBe("Tokens · Xahau Testnet · explorer");
+  });
+
+  it("is on the request's origin", () => {
+    const list = tokensMeta(facts(), { ...XRPL, origin: "https://explorer.example" });
+    expect(link(list, "canonical")).toBe("https://explorer.example/xrpl/tokens");
+    expect(content(list, "og:url")).toBe("https://explorer.example/xrpl/tokens");
+  });
+
+  it.each([
+    ["a search", facts({ q: "USD" }), "Tokens matching “USD” · XRPL · explorer"],
+    ["all", facts({ all: true }), "All tokens · XRPL · explorer"],
+    ["a search and all", facts({ q: "USD", all: true }), "Tokens matching “USD” · XRPL · explorer"],
+    ["a marker", facts({ more: true }), "More tokens · XRPL · explorer"],
+    ["a marker and a search", facts({ more: true, q: "USD" }), "More tokens matching “USD” · XRPL · explorer"],
+    ["a marker and all", facts({ more: true, all: true }), "More tokens · XRPL · explorer"],
+    ["a search that was too long", facts({ error: true }), "Tokens · XRPL · explorer"],
+  ] satisfies Array<[string, TokensMetaFacts, string]>)("is noindex, follow, with no canonical URL and no Open Graph or card tags, with %s", (_name, view, expected) => {
+    const list = tokensMeta(view, XRPL);
+    expect(title(list)).toBe(expected);
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(list).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
+    expect(keys(list).sort()).toEqual(["description", "robots"]);
+  });
+
+  it("puts no figure of the data in the description: the page is stored for a minute", () => {
+    expect(content(tokensMeta(facts(), XRPL), "description")?.replace("24-hour", "")).not.toMatch(/\d/);
+  });
+});
+
+describe("tokenMeta", () => {
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  const ISSUER = TOKEN_SAMPLE_ISSUER;
+  const ASSET = { currency: TOKEN_SAMPLE_CURRENCY, issuer: ISSUER };
+  /** The facts of a token as the view builder writes them (`TokenPageData.meta`): RLUSD with its toml's name, listed. */
+  const facts = (over: Partial<TokenMetaFacts> = {}): TokenMetaFacts => ({ ...tokenFacts({ id: "xrpl" }, tokenDetailSample(), false), ...over });
+  const withoutName = (): TokenMetaFacts => {
+    const { name: _name, ...rest } = facts();
+    return rest;
+  };
+  const DESCRIPTION = `RLUSD, issued by ${shortAddress(ISSUER)} on XRPL: holders, supply, price, markets, the issuer's settings and recent transfers.`;
+  const IMAGE = `https://explorer.test/og/xrpl/token/RLUSD.${ISSUER}.png`;
+
+  it("has the tags of the token's page: the name and the code in the title, a description with no figure, the canonical URL on the origin, Open Graph, the image and a large card", () => {
+    const list = tokenMeta(facts(), XRPL);
+    expect(title(list)).toBe("Ripple USD (RLUSD) · XRPL · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(link(list, "canonical")).toBe(`https://explorer.test/xrpl/token/RLUSD.${ISSUER}`);
+    expect(content(list, "og:title")).toBe("Ripple USD (RLUSD) · XRPL · explorer");
+    expect(content(list, "og:description")).toBe(DESCRIPTION);
+    expect(content(list, "og:url")).toBe(`https://explorer.test/xrpl/token/RLUSD.${ISSUER}`);
+    expect(content(list, "og:type")).toBe("website");
+    expect(content(list, "og:site_name")).toBe("explorer");
+    expect(content(list, "og:image")).toBe(IMAGE);
+    expect(content(list, "og:image:width")).toBe("1200");
+    expect(content(list, "og:image:height")).toBe("630");
+    expect(content(list, "og:image:alt")).toBe(`Ripple USD, an issued token of ${shortAddress(ISSUER)} on XRPL`);
+    expect(content(list, "twitter:card")).toBe("summary_large_image");
+    expect(content(list, "twitter:image")).toBe(IMAGE);
+    expect(keys(list)).not.toContain("robots");
+    expect(content(list, "description")).not.toMatch(/\d{3}/);
+  });
+
+  it("is headed by the code and the short issuer when the toml gives no name", () => {
+    const list = tokenMeta(withoutName(), XRPL);
+    expect(title(list)).toBe(`RLUSD by ${shortAddress(ISSUER)} · XRPL · explorer`);
+    expect(content(list, "og:image:alt")).toBe(`RLUSD, an issued token of ${shortAddress(ISSUER)} on XRPL`);
+  });
+
+  it("is on the path the page's own links write and the image's, whatever the code holds", () => {
+    expect(new URL(link(tokenMeta(facts(), XRPL), "canonical")!).pathname).toBe(tokenHref("xrpl", ASSET));
+    const usd = { currency: "USD", issuer: ISSUER };
+    const list = tokenMeta({ ...tokenFacts({ id: "xrpl" }, tokenDetailSample({ currency: "USD", code: "USD" }), false) }, XRPL);
+    expect(new URL(link(list, "canonical")!).pathname).toBe(tokenHref("xrpl", usd));
+    expect(content(list, "og:image")).toBe(`https://explorer.test/og/xrpl/token/USD.${ISSUER}.png`);
+    // A text code that holds a character a path escapes: the segment is the path's, escaped once.
+    const odd = tokenDetailSample({ currency: "5A2F23405E2A2F2F000000000000000000000000" });
+    const escaped = tokenMeta(tokenFacts({ id: "xrpl" }, odd, false), XRPL);
+    expect(new URL(link(escaped, "canonical")!).pathname).toBe(tokenHref("xrpl", { currency: odd.currency, issuer: ISSUER }));
+    expect(new URL(content(escaped, "og:image")!).pathname).toBe(`/og/xrpl/token/${tokenFacts({ id: "xrpl" }, odd, false).segment}.png`);
+  });
+
+  it("is Xahau's on Xahau, and the sandbox's names, in the title and in the description", () => {
+    const xahau = tokenMeta(tokenFacts({ id: "xahau" }, tokenDetailSample(), false), XAHAU);
+    expect(title(xahau)).toBe("Ripple USD (RLUSD) · Xahau · explorer");
+    expect(content(xahau, "description")).toBe(`RLUSD, issued by ${shortAddress(ISSUER)} on Xahau: holders, supply, price, markets, the issuer's settings and recent transfers.`);
+    expect(link(xahau, "canonical")).toBe(`https://explorer.test/xahau/token/RLUSD.${ISSUER}`);
+    expect(content(xahau, "og:image")).toBe(`https://explorer.test/og/xahau/token/RLUSD.${ISSUER}.png`);
+    const testnet = tokenMeta(facts(), XRPL_TESTNET);
+    expect(title(testnet)).toBe("Ripple USD (RLUSD) · XRPL Testnet · explorer");
+    expect(content(testnet, "description")).toContain("on XRPL Testnet:");
+  });
+
+  it("is on the request's origin", () => {
+    const list = tokenMeta(facts(), { ...XRPL, origin: "https://explorer.example" });
+    expect(link(list, "canonical")).toBe(`https://explorer.example/xrpl/token/RLUSD.${ISSUER}`);
+    expect(content(list, "og:image")).toBe(`https://explorer.example/og/xrpl/token/RLUSD.${ISSUER}.png`);
+  });
+
+  it("is noindex, follow behind a marker, with no canonical URL and no Open Graph or card tags", () => {
+    const list = tokenMeta(facts({ more: true }), XRPL);
+    expect(title(list)).toBe("Older transfers of RLUSD · XRPL · explorer");
+    expect(content(list, "description")).toBe(`Older transfers of RLUSD, issued by ${shortAddress(ISSUER)} on XRPL.`);
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(list).sort()).toEqual(["description", "robots"]);
+    // Whether it has a name or not: the title is the code's.
+    expect(title(tokenMeta({ ...withoutName(), more: true }, XRPL))).toBe("Older transfers of RLUSD · XRPL · explorer");
+  });
+
+  it("is written from the page the builder made", () => {
+    const page = tokenPage({
+      net: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled", hasAmm: true, features: NO_FEATURES },
+      asset: ASSET,
+      answer: tokenSample(),
+      mode: "first",
+      params: { back: [] },
+      holders: { state: "ok", value: holdersSample() },
+      transfers: { state: "ok", value: transfersSample() },
+      pools: { state: "ok", value: { result: "success", count: 0, pools: [] } },
+      ammVolume: null,
+      accountInfo: null,
+      names: NO_NAMES,
+    }).page;
+    expect(title(tokenMeta(page.meta, XRPL))).toBe("Ripple USD (RLUSD) · XRPL · explorer");
+  });
+});
+
+describe("tokenHoldersMeta", () => {
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  const ISSUER = TOKEN_SAMPLE_ISSUER;
+  const ASSET = { currency: TOKEN_SAMPLE_CURRENCY, issuer: ISSUER };
+  /** The facts of the holders page as the view builder writes them (`TokenHoldersPageData.meta`): the first page of RLUSD's holders. */
+  const facts = (over: Partial<TokenHoldersMetaFacts> = {}): TokenHoldersMetaFacts => ({ code: "RLUSD", issuer: ISSUER, href: tokenHoldersHref("xrpl", ASSET), more: false, ...over });
+  const DESCRIPTION = `Every account that holds RLUSD, issued by ${shortAddress(ISSUER)} on XRPL, the largest balance first, with each holder's limit and status.`;
+
+  it("has the tags of an indexable first page: Holders of the code in the title, the canonical URL on the origin, Open Graph, a summary card and no image", () => {
+    const list = tokenHoldersMeta(facts(), XRPL);
+    expect(title(list)).toBe("Holders of RLUSD · XRPL · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(link(list, "canonical")).toBe(`https://explorer.test/xrpl/token/RLUSD.${ISSUER}/holders`);
+    expect(content(list, "og:title")).toBe("Holders of RLUSD · XRPL · explorer");
+    expect(content(list, "og:description")).toBe(DESCRIPTION);
+    expect(content(list, "og:url")).toBe(`https://explorer.test/xrpl/token/RLUSD.${ISSUER}/holders`);
+    expect(content(list, "og:type")).toBe("website");
+    expect(content(list, "og:site_name")).toBe("explorer");
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("puts no figure of the data in the description: the page is stored for a minute", () => {
+    expect(content(tokenHoldersMeta(facts(), XRPL), "description")?.replace(shortAddress(ISSUER), "")).not.toMatch(/\d/);
+  });
+
+  it("is on the path the page's own links write, whatever the code holds", () => {
+    expect(new URL(link(tokenHoldersMeta(facts(), XRPL), "canonical")!).pathname).toBe(tokenHoldersHref("xrpl", ASSET));
+    const odd = { currency: "5A2F23405E2A2F2F000000000000000000000000", issuer: ISSUER };
+    const list = tokenHoldersMeta(facts({ href: tokenHoldersHref("xrpl", odd) }), XRPL);
+    expect(new URL(link(list, "canonical")!).pathname).toBe(tokenHoldersHref("xrpl", odd));
+  });
+
+  it("is Xahau's on Xahau, and the sandbox's names, in the title and in the description", () => {
+    const xahau = tokenHoldersMeta(facts({ href: tokenHoldersHref("xahau", ASSET) }), XAHAU);
+    expect(title(xahau)).toBe("Holders of RLUSD · Xahau · explorer");
+    expect(content(xahau, "description")).toBe(`Every account that holds RLUSD, issued by ${shortAddress(ISSUER)} on Xahau, the largest balance first, with each holder's limit and status.`);
+    expect(link(xahau, "canonical")).toBe(`https://explorer.test/xahau/token/RLUSD.${ISSUER}/holders`);
+    const testnet = tokenHoldersMeta(facts(), XRPL_TESTNET);
+    expect(title(testnet)).toBe("Holders of RLUSD · XRPL Testnet · explorer");
+    expect(content(testnet, "description")).toContain("on XRPL Testnet,");
+  });
+
+  it("is on the request's origin", () => {
+    const list = tokenHoldersMeta(facts(), { ...XRPL, origin: "https://explorer.example" });
+    expect(link(list, "canonical")).toBe(`https://explorer.example/xrpl/token/RLUSD.${ISSUER}/holders`);
+    expect(content(list, "og:url")).toBe(`https://explorer.example/xrpl/token/RLUSD.${ISSUER}/holders`);
+  });
+
+  it("is noindex, follow behind a marker, with the same title, no canonical URL and no Open Graph or card tags", () => {
+    const list = tokenHoldersMeta(facts({ more: true }), XRPL);
+    expect(title(list)).toBe("Holders of RLUSD · XRPL · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(list).sort()).toEqual(["description", "robots"]);
+  });
+
+  it("is written from the page the builder made", () => {
+    const net = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled", hasAmm: true, features: NO_FEATURES } as const;
+    const first = tokenHoldersPage({ net, asset: ASSET, answer: tokenSample(), holders: { state: "ok", value: holdersSample() }, params: { back: [] }, names: NO_NAMES }).page;
+    expect(title(tokenHoldersMeta(first.meta, XRPL))).toBe("Holders of RLUSD · XRPL · explorer");
+    expect(link(tokenHoldersMeta(first.meta, XRPL), "canonical")).toBe(`https://explorer.test/xrpl/token/RLUSD.${ISSUER}/holders`);
+    const second = tokenHoldersPage({ net, asset: ASSET, answer: tokenSample(), holders: { state: "ok", value: holdersSample() }, params: { marker: "M2", back: [] }, names: NO_NAMES }).page;
+    expect(content(tokenHoldersMeta(second.meta, XRPL), "robots")).toBe("noindex, follow");
+  });
+});
+
+describe("nftSalesMeta", () => {
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  const sales = (net: NftsNet = { id: "xrpl", native: "XRP", longName: "the XRP Ledger" }): NftSalesPageData => ({
+    ...nftSalesPage(net, { back: [] }, nftSalesPageSample({ sales: [], count: 0 })),
+    names: NO_NAMES,
+  });
+
+  it("is noindex, follow with no canonical URL and no Open Graph or card tags, whichever page of the sales it is", () => {
+    const list = nftSalesMeta(sales(), XRPL);
+    expect(title(list)).toBe("NFT sales · XRPL · explorer");
+    expect(content(list, "description")).toBe("The latest NFT sales on the XRP Ledger, newest first.");
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(list).sort()).toEqual(["description", "robots"]);
+  });
+
+  it("is Xahau's on Xahau, and the sandbox's names", () => {
+    const list = nftSalesMeta(sales({ id: "xahau", native: "XAH", longName: "Xahau" }), XAHAU);
+    expect(title(list)).toBe("URIToken sales · Xahau · explorer");
+    expect(content(list, "description")).toBe("The latest URIToken sales on Xahau, newest first.");
+    expect(title(nftSalesMeta(sales(), XRPL_TESTNET))).toBe("NFT sales · XRPL Testnet · explorer");
+    expect(content(nftSalesMeta(sales({ id: "xrpl", native: "XRP", longName: "XRPL Testnet" }), XRPL_TESTNET), "description")).toBe("The latest NFT sales on XRPL Testnet, newest first.");
+  });
+
+  it("puts no number in the description", () => {
+    expect(content(nftSalesMeta(sales(), XRPL), "description")).not.toMatch(/\d/);
+  });
+});
+
+describe("nftCollectionMeta", () => {
+  const KEY: CollectionKey = { issuer: NFT_ISSUER, taxon: 10 };
+  const URI_KEY: CollectionKey = { issuer: URI_TOKEN_ISSUER };
+  const LABEL = "r4PP7g…CzT3 · taxon 10";
+  const URL = `https://explorer.test/xrpl/nfts/${NFT_ISSUER}/10`;
+  const DESCRIPTION = `NFT collection ${LABEL} on the XRP Ledger: its sales, NFTs and holders.`;
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  const failed = (): PromiseRejectedResult => ({ status: "rejected", reason: new Error("not asked in this test") });
+  const NET: CollectionNet = { id: "xrpl", name: "XRPL", native: "XRP", longName: "the XRP Ledger" };
+  const URI_NET: CollectionNet = { id: "xahau", name: "Xahau", native: "XAH", longName: "Xahau" };
+  const QUERY: CollectionQuery = { measure: "volume", tab: "sales", burned: false, back: [] };
+  const WHOLE = coverageSample({ complete: true });
+  /** The page data of a view of the collection, as the view builder writes it: the tags read what the page says of its view. */
+  const view = (query: Partial<CollectionQuery> = {}, over: { net?: CollectionNet; key?: CollectionKey; ownerError?: string } = {}): NftCollectionPageData => ({
+    ...nftCollectionPage({
+      net: over.net ?? NET,
+      key: over.key ?? KEY,
+      query: { ...QUERY, ...query },
+      ...(over.ownerError === undefined ? {} : { ownerError: over.ownerError }),
+      collection: nftCollectionAnswerSample({ ...(over.key === undefined ? {} : { collection: uriTokenCollectionSample() }), coverage: WHOLE }),
+      last: failed(),
+      stats: null,
+      list: query.tab === "nfts" ? { status: "fulfilled", value: nftsPageSample({ coverage: WHOLE }) } : { status: "fulfilled", value: nftSalesPageSample({ coverage: WHOLE }) },
+    }),
+    names: NO_NAMES,
+  });
+  const marked = (query: Partial<CollectionQuery> = {}, net: CollectionNet = NET, key: CollectionKey = KEY): NftCollectionPageData => ({
+    ...collectionMarkerPage({
+      net,
+      key,
+      query: { ...QUERY, marker: "M1", ...query },
+      collection: nftCollectionAnswerSample({ coverage: WHOLE }),
+      list: { status: "fulfilled", value: nftSalesPageSample({ coverage: WHOLE }) },
+    }),
+    names: NO_NAMES,
+  });
+
+  it("has the tags of the first page: the title, a canonical URL on the origin that names the collection, Open Graph, a summary card and no image", () => {
+    const tagsOf = nftCollectionMeta(view(), XRPL);
+    expect(title(tagsOf)).toBe(`Collection ${LABEL} · XRPL · explorer`);
+    expect(content(tagsOf, "description")).toBe(DESCRIPTION);
+    expect(link(tagsOf, "canonical")).toBe(URL);
+    expect(content(tagsOf, "og:title")).toBe(`Collection ${LABEL} · XRPL · explorer`);
+    expect(content(tagsOf, "og:description")).toBe(DESCRIPTION);
+    expect(content(tagsOf, "og:url")).toBe(URL);
+    expect(content(tagsOf, "og:type")).toBe("website");
+    expect(content(tagsOf, "twitter:card")).toBe("summary");
+    expect(keys(tagsOf)).not.toContain("og:image");
+    expect(keys(tagsOf)).not.toContain("twitter:image");
+    expect(keys(tagsOf)).not.toContain("robots");
+  });
+
+  it("keeps the issuer's short address (display names spec 7): a page that names its issuer has the tags of one that does not", () => {
+    const names: NamesPart = { state: "ok", map: { [NFT_ISSUER]: { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] } } };
+    const list = nftCollectionMeta({ ...view(), names }, XRPL);
+    expect(title(list)).toBe(`Collection ${LABEL} · XRPL · explorer`);
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(list).toEqual(nftCollectionMeta(view(), XRPL));
+    expect(JSON.stringify(list)).not.toContain("Northpeak Treasury");
+  });
+
+  it("keeps the tab in the canonical URL unless it is the first, and the measure and a filter's absence", () => {
+    expect(link(nftCollectionMeta(view({ tab: "sales" }), XRPL), "canonical")).toBe(URL);
+    expect(link(nftCollectionMeta(view({ tab: "nfts" }), XRPL), "canonical")).toBe(`${URL}?tab=nfts`);
+    expect(link(nftCollectionMeta(view({ tab: "holders" }), XRPL), "canonical")).toBe(`${URL}?tab=holders`);
+    expect(content(nftCollectionMeta(view({ tab: "nfts" }), XRPL), "robots")).toBeUndefined();
+  });
+
+  it("is on the request's origin", () => {
+    const tagsOf = nftCollectionMeta(view(), { ...XRPL, origin: "https://explorer.example" });
+    expect(link(tagsOf, "canonical")).toBe(`https://explorer.example/xrpl/nfts/${NFT_ISSUER}/10`);
+    expect(content(tagsOf, "og:url")).toBe(`https://explorer.example/xrpl/nfts/${NFT_ISSUER}/10`);
+  });
+
+  it("is Xahau's on Xahau: URITokens of the issuer, no taxon in the canonical URL, URIToken words in the description", () => {
+    const tagsOf = nftCollectionMeta(view({}, { net: URI_NET, key: URI_KEY }), XAHAU);
+    expect(title(tagsOf)).toBe("URITokens of rodinG…zKyb · Xahau · explorer");
+    expect(content(tagsOf, "description")).toBe("URIToken collection rodinG…zKyb on Xahau: its sales, URITokens and holders.");
+    expect(link(tagsOf, "canonical")).toBe(`https://explorer.test/xahau/nfts/${URI_TOKEN_ISSUER}`);
+    expect(link(nftCollectionMeta(view({ tab: "nfts" }, { net: URI_NET, key: URI_KEY }), XAHAU), "canonical")).toBe(`https://explorer.test/xahau/nfts/${URI_TOKEN_ISSUER}?tab=nfts`);
+  });
+
+  it("names the network of the sandbox, in the title and in the description", () => {
+    const tagsOf = nftCollectionMeta(view({}, { net: { ...NET, name: "XRPL Testnet", longName: "XRPL Testnet" } }), XRPL_TESTNET);
+    expect(title(tagsOf)).toBe(`Collection ${LABEL} · XRPL Testnet · explorer`);
+    expect(content(tagsOf, "description")).toBe(`NFT collection ${LABEL} on XRPL Testnet: its sales, NFTs and holders.`);
+    expect(title(nftCollectionMeta(view({}, { net: { ...URI_NET, name: "Xahau Testnet", longName: "Xahau Testnet" }, key: URI_KEY }), XAHAU_TESTNET))).toBe("URITokens of rodinG…zKyb · Xahau Testnet · explorer");
+  });
+
+  it.each([
+    ["another measure", view({ measure: "avg" }), `Collection ${LABEL} · XRPL · explorer`],
+    ["the lowest price", view({ measure: "low", tab: "holders" }), `Collection ${LABEL} · XRPL · explorer`],
+    ["an owner", view({ tab: "nfts", owner: NFT_OWNER }), `Collection ${LABEL} · XRPL · explorer`],
+    ["an owner that is no address", view({ tab: "nfts", owner: "rNope" }, { ownerError: "Write a classic address (r…)." }), `Collection ${LABEL} · XRPL · explorer`],
+    ["burned NFTs", view({ tab: "nfts", burned: true }), `Collection ${LABEL} · XRPL · explorer`],
+    ["a marker", marked(), `Older sales of ${LABEL} · XRPL · explorer`],
+    ["a marker on the NFTs tab", marked({ tab: "nfts", owner: NFT_OWNER }), `Older NFTs of ${LABEL} · XRPL · explorer`],
+  ] satisfies Array<[string, NftCollectionPageData, string]>)("is noindex, follow, with no canonical URL and no Open Graph or card tags, with %s", (_name, data, expected) => {
+    const tagsOf = nftCollectionMeta(data, XRPL);
+    expect(title(tagsOf)).toBe(expected);
+    expect(content(tagsOf, "description")).toBe(DESCRIPTION);
+    expect(content(tagsOf, "robots")).toBe("noindex, follow");
+    expect(tags(tagsOf).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(tagsOf).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
+    expect(keys(tagsOf).sort()).toEqual(["description", "robots"]);
+  });
+
+  it("says the tab's older rows behind a marker on Xahau", () => {
+    const tagsOf = nftCollectionMeta(marked({ tab: "holders" }, URI_NET, URI_KEY), XAHAU);
+    expect(title(tagsOf)).toBe("Older holders of rodinG…zKyb · Xahau · explorer");
+    expect(content(tagsOf, "robots")).toBe("noindex, follow");
+  });
+
+  it("puts no figure in the description, the taxon in the label aside: the page is stored for a minute", () => {
+    expect(content(nftCollectionMeta(view(), XRPL), "description")?.replace(LABEL, "")).not.toMatch(/\d/);
+    expect(content(nftCollectionMeta(view({}, { net: URI_NET, key: URI_KEY }), XAHAU), "description")).not.toMatch(/\d/);
+  });
+});
+
+describe("nftMeta", () => {
+  const NET: NftNet = { id: "xrpl", name: "XRPL", native: "XRP", longName: "the XRP Ledger", other: "xahau" };
+  const URI_NET: NftNet = { id: "xahau", name: "Xahau", native: "XAH", longName: "Xahau", other: "xrpl" };
+  const NOW = Date.UTC(2026, 9, 25) / 1000;
+  const LABEL = "r4PP7g…CzT3 · taxon 10";
+  const URL = `https://explorer.test/xrpl/nft/${NFT_ID}`;
+  const IMAGE = `https://explorer.test/og/xrpl/nft/${NFT_ID}.png`;
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  const ALT = `NFT #95,234,705 of ${LABEL} on XRPL`;
+
+  /** The page data of an indexed NFT (sold once for 10 XRP, held by the sample owner), as the view builder writes it: the tags read what the page says. */
+  const view = (over: Partial<Parameters<typeof nftPage>[0]> = {}): NftPageData => ({
+    ...nftPage({
+      net: NET,
+      id: NFT_ID,
+      query: { offers: false, back: [] },
+      mode: "indexed",
+      now: NOW,
+      index: nftAnswerSample(),
+      offers: { status: "fulfilled", value: { coverage: coverageSample(), count: 0, offers: [] } },
+      history: { status: "fulfilled", value: nftEventsPageSample() },
+      ...over,
+    }),
+    names: NO_NAMES,
+  });
+  /** The page the loader answers: the builder's page with its names part, which no tag reads. */
+  const named = (page: Omit<NftPageData, "names">): NftPageData => ({ ...page, names: NO_NAMES });
+
+  it("has the tags of an NFT: the title, the description with its owner and last sale, a canonical URL on the origin, Open Graph, the link-preview image and a large card", () => {
+    const tagsOf = nftMeta(view(), XRPL);
+    expect(title(tagsOf)).toBe(`NFT #95,234,705 of ${LABEL} · XRPL · explorer`);
+    expect(content(tagsOf, "description")).toBe("Owned by rnKd8C…FrTx · last sold for 10 XRP · XRPL");
+    expect(link(tagsOf, "canonical")).toBe(URL);
+    expect(content(tagsOf, "og:title")).toBe(`NFT #95,234,705 of ${LABEL} · XRPL · explorer`);
+    expect(content(tagsOf, "og:description")).toBe("Owned by rnKd8C…FrTx · last sold for 10 XRP · XRPL");
+    expect(content(tagsOf, "og:url")).toBe(URL);
+    expect(content(tagsOf, "og:type")).toBe("website");
+    expect(content(tagsOf, "og:image")).toBe(IMAGE);
+    expect(content(tagsOf, "og:image:width")).toBe("1200");
+    expect(content(tagsOf, "og:image:height")).toBe("630");
+    expect(content(tagsOf, "og:image:alt")).toBe(ALT);
+    expect(content(tagsOf, "twitter:card")).toBe("summary_large_image");
+    expect(content(tagsOf, "twitter:image")).toBe(IMAGE);
+    expect(content(tagsOf, "twitter:image:alt")).toBe(ALT);
+    expect(keys(tagsOf)).not.toContain("robots");
+  });
+
+  it("is on the request's origin", () => {
+    const tagsOf = nftMeta(view(), { ...XRPL, origin: "https://explorer.example" });
+    expect(link(tagsOf, "canonical")).toBe(`https://explorer.example/xrpl/nft/${NFT_ID}`);
+    expect(content(tagsOf, "og:image")).toBe(`https://explorer.example/og/xrpl/nft/${NFT_ID}.png`);
+  });
+
+  it("keeps the canonical URL of the NFT for the view with offer events, which is a view of the same NFT", () => {
+    const tagsOf = nftMeta(view({ query: { offers: true, back: [] } }), XRPL);
+    expect(link(tagsOf, "canonical")).toBe(URL);
+    expect(keys(tagsOf)).not.toContain("robots");
+  });
+
+  it("says '(burned)' after the name, and Burned in place of an owner", () => {
+    const burned = nftSample({ owner: undefined, owner_since: undefined, burned: true });
+    const tagsOf = nftMeta(view({ mode: "burned", index: nftAnswerSample({ nft: burned }) }), XRPL);
+    expect(title(tagsOf)).toBe(`NFT #95,234,705 (burned) of ${LABEL} · XRPL · explorer`);
+    expect(content(tagsOf, "description")).toBe("Burned · last sold for 10 XRP · XRPL");
+    expect(link(tagsOf, "canonical")).toBe(URL);
+  });
+
+  it("says that an NFT was never sold, or how often when no price is there, and leaves out an owner the index does not have", () => {
+    const never = nftSample({ sale_count: 0, last_sale: undefined });
+    expect(content(nftMeta(view({ index: nftAnswerSample({ nft: never }) }), XRPL), "description")).toBe("Owned by rnKd8C…FrTx · never sold · XRPL");
+    const unowned = nftSample({ owner: undefined, owner_since: undefined, sale_count: 3, last_sale: undefined });
+    expect(content(nftMeta(view({ mode: "indexed-owner-unknown", index: nftAnswerSample({ nft: unowned }) }), XRPL), "description")).toBe("sold 3 times · XRPL");
+    const read = nodeNftInfoSample();
+    expect(content(nftMeta(view({ mode: "indexed-network-owner", index: nftAnswerSample({ nft: unowned }), node: read }), XRPL), "description")).toBe(`Owned by ${shortAddress(read.owner)} · sold 3 times · XRPL`);
+  });
+
+  it("is Xahau's on Xahau: URIToken and its short id in the title, its token's price in XAH", () => {
+    const tagsOf = nftMeta(named(nftPage({ net: URI_NET, id: URI_TOKEN_ID, query: { offers: false, back: [] }, mode: "indexed", now: NOW, index: nftAnswerSample({ nft: uriTokenSample() }), offers: null, history: null })), XAHAU);
+    expect(title(tagsOf)).toBe("URIToken 96133366… of rodinG…zKyb · Xahau · explorer");
+    expect(content(tagsOf, "description")).toBe(`Owned by ${shortAddress(URI_TOKEN_OWNER)} · last sold for 4,200 XAH · Xahau`);
+    expect(link(tagsOf, "canonical")).toBe(`https://explorer.test/xahau/nft/${URI_TOKEN_ID}`);
+    expect(content(tagsOf, "og:image")).toBe(`https://explorer.test/og/xahau/nft/${URI_TOKEN_ID}.png`);
+  });
+
+  it("names the network of the sandbox, in the title and in the description", () => {
+    const tagsOf = nftMeta(view({ net: { ...NET, name: "XRPL Testnet", longName: "XRPL Testnet" } }), XRPL_TESTNET);
+    expect(title(tagsOf)).toBe(`NFT #95,234,705 of ${LABEL} · XRPL Testnet · explorer`);
+    expect(content(tagsOf, "description")).toBe("Owned by rnKd8C…FrTx · last sold for 10 XRP · XRPL Testnet");
+    expect(content(tagsOf, "og:image:alt")).toBe(`NFT #95,234,705 of ${LABEL} on XRPL Testnet`);
+    const xahau = nftMeta(named(nftPage({ net: { ...URI_NET, name: "Xahau Testnet", longName: "Xahau Testnet" }, id: URI_TOKEN_ID, query: { offers: false, back: [] }, mode: "indexed", now: NOW, index: nftAnswerSample({ nft: uriTokenSample() }), offers: null, history: null })), XAHAU_TESTNET);
+    expect(title(xahau)).toBe("URIToken 96133366… of rodinG…zKyb · Xahau Testnet · explorer");
+  });
+
+  it.each([
+    ["from the network", () => view({ mode: "network", index: undefined, node: nodeNftInfoSample(), id: NODE_NFT_ID, offers: null, history: null })],
+    ["a URIToken from the network", () => named(nftPage({ net: URI_NET, id: URI_TOKEN_ID, query: { offers: false, back: [] }, mode: "network", now: NOW, node: nodeUriTokenSample(), offers: null, history: null }))],
+  ])("is noindex, with no canonical URL and nothing to share, %s", (_name, make) => {
+    const tagsOf = nftMeta(make(), XRPL);
+    expect(content(tagsOf, "robots")).toBe("noindex");
+    expect(tags(tagsOf).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(tagsOf).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
+    expect(keys(tagsOf).sort()).toEqual(["description", "robots"]);
+    expect(title(tagsOf)).toMatch(/ · XRPL · explorer$/);
+  });
+
+  it("keeps the owner's short address (display names spec 7): the tags of a page that names its accounts are those of one that does not, the title and the description in out-of-context shares", () => {
+    const names: NamesPart = { state: "ok", map: { [NFT_OWNER]: { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] } } };
+    const list = nftMeta({ ...view(), names }, XRPL);
+    expect(content(list, "description")).toBe(`Owned by ${shortAddress(NFT_OWNER)} · last sold for 10 XRP · XRPL`);
+    expect(list).toEqual(nftMeta(view(), XRPL));
+    expect(JSON.stringify(list)).not.toContain("Northpeak Treasury");
+  });
+
+  it("says Owned by the node's owner from the network", () => {
+    const node = nodeNftInfoSample();
+    const tagsOf = nftMeta(view({ mode: "network", index: undefined, node, id: NODE_NFT_ID, offers: null, history: null }), XRPL);
+    expect(content(tagsOf, "description")).toBe(`Owned by ${shortAddress(node.owner)} · XRPL`);
+    const burned = nftMeta(view({ mode: "network-burned", index: undefined, node: nodeNftInfoSample({ is_burned: true }), id: NODE_NFT_ID, offers: null, history: null }), XRPL);
+    expect(title(burned)).toContain("(burned)");
+    expect(content(burned, "description")).toBe("Burned · XRPL");
+  });
+
+  it("is noindex, follow behind a marker, with no canonical URL or sharing tags, and titled for the older history", () => {
+    const marked = named(nftMarkerPage({ net: NET, id: NFT_ID, query: { offers: false, marker: "M1", back: [] }, index: nftAnswerSample(), history: nftEventsPageSample() }));
+    const tagsOf = nftMeta(marked, XRPL);
+    expect(title(tagsOf)).toBe("Older history of NFT #95,234,705 · XRPL · explorer");
+    expect(content(tagsOf, "description")).toBe(`Older history of NFT #95,234,705 of ${LABEL} on XRPL.`);
+    expect(content(tagsOf, "robots")).toBe("noindex, follow");
+    expect(tags(tagsOf).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(tagsOf).sort()).toEqual(["description", "robots"]);
+    const token = nftMeta(named(nftMarkerPage({ net: URI_NET, id: URI_TOKEN_ID, query: { offers: false, marker: "M1", back: [] }, index: nftAnswerSample({ nft: uriTokenSample() }), history: nftEventsPageSample() })), XAHAU);
+    expect(title(token)).toBe("Older history of URIToken 96133366… · Xahau · explorer");
   });
 });
 
@@ -1031,5 +1925,199 @@ describe("ammPoolMeta", () => {
 
   it("puts no figure of the pool's state in the description: its value changes with each swap", () => {
     expect(content(ammPoolMeta(facts(), XRPL), "description")).not.toContain("3.61M");
+  });
+});
+
+describe("escrowMeta", () => {
+  const ID = "5B9C0E2A0D5C8B7F6E1A3D4C5B6A79880F1E2D3C4B5A69788796A5B4C3D2D21F";
+  const URL = `https://explorer.test/xrpl/escrows/${ID}`;
+  const facts = (over: Partial<EscrowMeta> = {}): EscrowMeta => ({
+    id: ID,
+    amount: "1,000 XRP",
+    owner: "rJF2Xa…fQvg",
+    destination: "rNYbL8…UKq5",
+    status: "pending",
+    marker: false,
+    ...over,
+  });
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+
+  it("is the escrow's short ID in the title, and what it holds, from whom, to whom and its status in the description, with short addresses (C14)", () => {
+    const list = escrowMeta(facts(), XRPL);
+    expect(title(list)).toBe("Escrow 5B9C0E…D21F · XRPL · explorer");
+    expect(content(list, "description")).toBe("Escrow of 1,000 XRP from rJF2Xa…fQvg to rNYbL8…UKq5 · pending · XRPL");
+  });
+
+  it("reads well without an amount D5 could not read", () => {
+    expect(content(escrowMeta(facts({ amount: "" }), XRPL), "description")).toBe("Escrow from rJF2Xa…fQvg to rNYbL8…UKq5 · pending · XRPL");
+  });
+
+  it("has the canonical URL and the sharing tags with no image: a summary card (decision 9)", () => {
+    const list = escrowMeta(facts({ status: "can be cancelled" }), XRPL);
+    expect(link(list, "canonical")).toBe(URL);
+    expect(content(list, "og:url")).toBe(URL);
+    expect(content(list, "og:title")).toBe("Escrow 5B9C0E…D21F · XRPL · explorer");
+    expect(content(list, "og:description")).toBe("Escrow of 1,000 XRP from rJF2Xa…fQvg to rNYbL8…UKq5 · can be cancelled · XRPL");
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("is Xahau's on Xahau", () => {
+    const list = escrowMeta(facts({ amount: "200 XAH" }), XAHAU);
+    expect(title(list)).toBe("Escrow 5B9C0E…D21F · Xahau · explorer");
+    expect(content(list, "description")).toBe("Escrow of 200 XAH from rJF2Xa…fQvg to rNYbL8…UKq5 · pending · Xahau");
+    expect(link(list, "canonical")).toBe(`https://explorer.test/xahau/escrows/${ID}`);
+  });
+
+  it("is noindex, follow behind a marker, with no canonical URL and nothing to share", () => {
+    const list = escrowMeta(facts({ marker: true }), XRPL);
+    expect(title(list)).toBe("Escrow 5B9C0E…D21F · XRPL · explorer");
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(link(list, "canonical")).toBeUndefined();
+    expect(keys(list).filter((key) => key.startsWith("og:") || key.startsWith("twitter:"))).toEqual([]);
+  });
+});
+
+describe("checkMeta", () => {
+  const ID = "60FCB1E8C72A695CBB6BDF718D30AF2310A9BED6D3F6D92F54C0E429186D1A42";
+  const URL = `https://explorer.test/xrpl/checks/${ID}`;
+  const facts = (over: Partial<CheckMeta> = {}): CheckMeta => ({
+    id: ID,
+    amount: "1,000 XRP",
+    owner: "rJF2Xa…fQvg",
+    destination: "rNYbL8…UKq5",
+    status: "open",
+    marker: false,
+    ...over,
+  });
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+
+  it("is the check's short ID in the title, and what it allows, from whom, to whom and its status in the description, with short addresses (C14)", () => {
+    const list = checkMeta(facts(), XRPL);
+    expect(title(list)).toBe("Check 60FCB1…1A42 · XRPL · explorer");
+    expect(content(list, "description")).toBe("Check for up to 1,000 XRP from rJF2Xa…fQvg to rNYbL8…UKq5 · open · XRPL");
+  });
+
+  it("reads well without a SendMax D5 could not read", () => {
+    expect(content(checkMeta(facts({ amount: "" }), XRPL), "description")).toBe("Check from rJF2Xa…fQvg to rNYbL8…UKq5 · open · XRPL");
+  });
+
+  it("has the canonical URL and the sharing tags with no image: a summary card (decision 9)", () => {
+    const list = checkMeta(facts({ status: "expired" }), XRPL);
+    expect(link(list, "canonical")).toBe(URL);
+    expect(content(list, "og:url")).toBe(URL);
+    expect(content(list, "og:title")).toBe("Check 60FCB1…1A42 · XRPL · explorer");
+    expect(content(list, "og:description")).toBe("Check for up to 1,000 XRP from rJF2Xa…fQvg to rNYbL8…UKq5 · expired · XRPL");
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("is Xahau's on Xahau", () => {
+    const list = checkMeta(facts({ amount: "200 XAH" }), XAHAU);
+    expect(title(list)).toBe("Check 60FCB1…1A42 · Xahau · explorer");
+    expect(content(list, "description")).toBe("Check for up to 200 XAH from rJF2Xa…fQvg to rNYbL8…UKq5 · open · Xahau");
+    expect(link(list, "canonical")).toBe(`https://explorer.test/xahau/checks/${ID}`);
+  });
+
+  it("is noindex, follow behind a marker, with no canonical URL and nothing to share", () => {
+    const list = checkMeta(facts({ marker: true }), XRPL);
+    expect(title(list)).toBe("Check 60FCB1…1A42 · XRPL · explorer");
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(link(list, "canonical")).toBeUndefined();
+    expect(keys(list).filter((key) => key.startsWith("og:") || key.startsWith("twitter:"))).toEqual([]);
+  });
+});
+
+describe("paymentChannelMeta", () => {
+  const ID = "E22CCE8FA636C8BDF1C3C4AA17FD604B8FDE268E4F6BF9022B5336536F5B69EA";
+  const URL = `https://explorer.test/xrpl/payment-channels/${ID}`;
+  const facts = (over: Partial<PaymentChannelMeta> = {}): PaymentChannelMeta => ({
+    id: ID,
+    amount: "1 XRP",
+    owner: "rQQQrU…3ZrM",
+    destination: "rLggTE…KrtR",
+    status: "open",
+    marker: false,
+    ...over,
+  });
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+
+  it("is the channel's short ID in the title, and what was deposited, from whom, to whom and its status in the description, with short addresses (C14)", () => {
+    const list = paymentChannelMeta(facts(), XRPL);
+    expect(title(list)).toBe("Payment channel E22CCE…69EA · XRPL · explorer");
+    expect(content(list, "description")).toBe("Payment channel of 1 XRP from rQQQrU…3ZrM to rLggTE…KrtR · open · XRPL");
+  });
+
+  it("reads well without a deposit D5 could not read", () => {
+    expect(content(paymentChannelMeta(facts({ amount: "" }), XRPL), "description")).toBe("Payment channel from rQQQrU…3ZrM to rLggTE…KrtR · open · XRPL");
+  });
+
+  it("has the canonical URL and the sharing tags with no image: a summary card (decision 9)", () => {
+    const list = paymentChannelMeta(facts({ status: "closing" }), XRPL);
+    expect(link(list, "canonical")).toBe(URL);
+    expect(content(list, "og:url")).toBe(URL);
+    expect(content(list, "og:title")).toBe("Payment channel E22CCE…69EA · XRPL · explorer");
+    expect(content(list, "og:description")).toBe("Payment channel of 1 XRP from rQQQrU…3ZrM to rLggTE…KrtR · closing · XRPL");
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("is Xahau's on Xahau", () => {
+    const list = paymentChannelMeta(facts({ amount: "200 DHA" }), XAHAU);
+    expect(title(list)).toBe("Payment channel E22CCE…69EA · Xahau · explorer");
+    expect(content(list, "description")).toBe("Payment channel of 200 DHA from rQQQrU…3ZrM to rLggTE…KrtR · open · Xahau");
+    expect(link(list, "canonical")).toBe(`https://explorer.test/xahau/payment-channels/${ID}`);
+  });
+
+  it("is noindex, follow behind a marker, with no canonical URL and nothing to share", () => {
+    const list = paymentChannelMeta(facts({ marker: true }), XRPL);
+    expect(title(list)).toBe("Payment channel E22CCE…69EA · XRPL · explorer");
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(link(list, "canonical")).toBeUndefined();
+    expect(keys(list).filter((key) => key.startsWith("og:") || key.startsWith("twitter:"))).toEqual([]);
+  });
+});
+
+describe("supplyMeta", () => {
+  // What the view builder writes for the tags (`SupplyPageData.description`): the snapshot's own figures.
+  const DESCRIPTION = "XRP supply at ledger #107,720,688: 99.99B total, 14.69M burned, 35.21B escrowed, 64.77B circulating.";
+  const page = { description: DESCRIPTION };
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+
+  it("has the tags of the page: Supply, the network and the product, the snapshot's description, a canonical URL on the origin, Open Graph, a summary card and no image", () => {
+    const list = supplyMeta(page, XRPL);
+    expect(title(list)).toBe("Supply · XRPL · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(link(list, "canonical")).toBe("https://explorer.test/xrpl/supply");
+    expect(content(list, "og:title")).toBe("Supply · XRPL · explorer");
+    expect(content(list, "og:description")).toBe(DESCRIPTION);
+    expect(content(list, "og:url")).toBe("https://explorer.test/xrpl/supply");
+    expect(content(list, "og:type")).toBe("website");
+    expect(content(list, "og:site_name")).toBe("explorer");
+    // No image of its own, and the site has no default one (ruling C14): the plain summary card.
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("is Xahau's on Xahau, and the sandbox's names in the title", () => {
+    const list = supplyMeta({ description: "XAH supply at ledger #26,596,843: 613.40M total, 49.43M minted, 2.32K burned, 18.41M escrowed, 595.00M circulating." }, XAHAU);
+    expect(title(list)).toBe("Supply · Xahau · explorer");
+    expect(link(list, "canonical")).toBe("https://explorer.test/xahau/supply");
+    expect(title(supplyMeta(page, XRPL_TESTNET))).toBe("Supply · XRPL Testnet · explorer");
+    expect(title(supplyMeta(page, XAHAU_TESTNET))).toBe("Supply · Xahau Testnet · explorer");
+  });
+
+  it("is on the request's origin", () => {
+    const list = supplyMeta(page, { ...XRPL, origin: "https://explorer.example" });
+    expect(link(list, "canonical")).toBe("https://explorer.example/xrpl/supply");
+    expect(content(list, "og:url")).toBe("https://explorer.example/xrpl/supply");
   });
 });

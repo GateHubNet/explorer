@@ -1,0 +1,23 @@
+{
+  "result": {
+    "index": "CE63B218FE61DD71AC32E5A77992BD8B3FCFE54E50E3162552F27AD6D1FB414E",
+    "ledger_hash": "CD362D14BCEACBF65B9BFDE226CD393FC1F930FC814F21269935D7FA6DD5A697",
+    "ledger_index": 107972102,
+    "node": {
+      "Account": "rBqBtUTXD6EiWnwgAXyP9r3XkDUZwqg8hP",
+      "Amount": {"mpt_issuance_id":"0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8","value":"250"},
+      "Destination": "rDATSiHznRfEDYvoFxidAm9sJDQYgEDje8",
+      "DestinationNode": "0",
+      "FinishAfter": 959817600,
+      "Flags": 0,
+      "LedgerEntryType": "Escrow",
+      "OwnerNode": "0",
+      "PreviousTxnID": "3615FD664FF1E7EE14448D59D823AD38DBA5AB8E8025B82A6CB214A543032FF1",
+      "PreviousTxnLgrSeq": 107945438,
+      "Sequence": 96834331,
+      "index": "CE63B218FE61DD71AC32E5A77992BD8B3FCFE54E50E3162552F27AD6D1FB414E"
+    },
+    "status": "success",
+    "validated": true
+  }
+}

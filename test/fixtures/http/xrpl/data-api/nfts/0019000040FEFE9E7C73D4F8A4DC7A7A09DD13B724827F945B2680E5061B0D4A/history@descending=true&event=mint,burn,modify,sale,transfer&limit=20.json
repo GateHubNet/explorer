@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 107874617
+  },
+  "events": [
+    {"account":"ravC5cZreMZuKEWSrpra5nkWnfzPmrabec","event":"mint","event_index":0,"executed_time":"2026-10-24T20:42:50Z","issuer":"ravC5cZreMZuKEWSrpra5nkWnfzPmrabec","kind":"nftoken","ledger_index":107878781,"nft_id":"0019000040FEFE9E7C73D4F8A4DC7A7A09DD13B724827F945B2680E5061B0D4A","serial":102436170,"taxon":0,"to":"ravC5cZreMZuKEWSrpra5nkWnfzPmrabec","tx_hash":"32EA8E9E6663D9EF2FBC1FB575295A56BF5F60CE863082572DEC38E8447C824D","tx_index":52,"tx_type":"NFTokenMint","uri":"68747470733A2F2F696D672E61706C612E776F726C642F4E4654532F323638343335343638303030303030303139302E6A736F6E"}
+  ],
+  "result": "success"
+}

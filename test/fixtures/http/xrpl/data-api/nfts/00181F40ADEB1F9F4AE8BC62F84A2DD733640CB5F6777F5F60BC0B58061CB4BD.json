@@ -1,0 +1,18 @@
+{
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 107874617
+  },
+  "nft": {
+    "burned": false,
+    "flags": 24,
+    "issuer": "rGibZidpQ2hDc3K3Yrph3XecALxJut7N3V",
+    "kind": "nftoken",
+    "nft_id": "00181F40ADEB1F9F4AE8BC62F84A2DD733640CB5F6777F5F60BC0B58061CB4BD",
+    "sale_count": 0,
+    "serial": 102544573,
+    "taxon": 0,
+    "transfer_fee": 8000
+  },
+  "result": "success"
+}

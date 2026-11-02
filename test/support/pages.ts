@@ -75,6 +75,16 @@ export function hrefs(html: string): string[] {
   return anchors(html).flatMap((a) => /href="([^"]*)"/.exec(a.attrs)?.[1] ?? []);
 }
 
+/** The `href`s of the anchors as a browser reads them: `&amp;` is `&`. */
+export function hrefsRead(html: string): string[] {
+  return hrefs(html).map((href) => href.replace(/&amp;/g, "&"));
+}
+
+/** The tab bar of an account page (its `nav` "Account activity"): what is inside it, or `undefined` when the page has none. */
+export function accountTabsNav(html: string): string | undefined {
+  return /<nav class="tabs" aria-label="Account activity">([\s\S]*?)<\/nav>/.exec(html)?.[1];
+}
+
 /** The visible text of some HTML: no scripts, styles or tags, entities decoded, white space collapsed. */
 export function textOf(html: string): string {
   return html
@@ -130,4 +140,25 @@ export function tableRows(html: string, label: string): string[][] {
       // A chunk ends where the next cell's tag was cut: `<span class="table__cell" `.
       .map((chunk) => textOf(chunk.slice(chunk.indexOf(">") + 1).replace(/<span\s[^>]*$/, ""))),
   );
+}
+
+/**
+ * The rows of the Pairs table (its `role="row"` elements, the header first) as arrays of cell texts. A cell of this table holds a `div` (the
+ * AMM share's meter), so a row is cut at the next row and the table at the card's foot, not at a `</div>` (`tableRows`, above).
+ */
+export function pairRows(html: string): string[][] {
+  const start = html.indexOf('role="table" aria-label="Pairs"');
+  if (start < 0) return [];
+  const end = html.indexOf('class="card__foot', start);
+  const table = html.slice(start, end < 0 ? undefined : end);
+  return table
+    .split('<div role="row"')
+    .slice(1)
+    .map((row) =>
+      row
+        .split(/role="(?:cell|columnheader)"/)
+        .slice(1)
+        // A chunk ends where the next cell's tag was cut: `<span `.
+        .map((chunk) => textOf(chunk.slice(chunk.indexOf(">") + 1).replace(/<span\s[^>]*$/, ""))),
+    );
 }

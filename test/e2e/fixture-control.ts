@@ -5,7 +5,8 @@
 import { readFileSync } from "node:fs";
 
 import { fixturePort } from "../../scripts/e2e-env";
-import { XRPL_HEAD_LEDGER, XRPL_LEDGER } from "./fixtures";
+import type { NetworkSupply } from "../../app/server/api-types";
+import { XAHAU_ACCOUNT, XAHAU_SALTMARSH, XRPL_HEAD_LEDGER, XRPL_LEDGER } from "./fixtures";
 
 const url = () => `http://127.0.0.1:${fixturePort(process.env)}/__fixture/overrides`;
 
@@ -120,4 +121,73 @@ export function xrplNextDay(): Record<string, unknown> {
       close_time: "2026-10-18T00:00:05Z",
     },
   };
+}
+
+/**
+ * What the page of `XAHAU_SALTMARSH` needs, which the fixtures do not hold (they have its names entry and its toml only): the node's `account_info`, the recorded Xahau account's with the
+ * account and a Domain of saltmarsh.example (hex, as a ledger holds it), and an empty history, so that the page renders whole: a domain that is not verified (its toml's check failed),
+ * with nothing else failing. The data API has no creation of it ("Activation is not in the index"), which the page takes as the index being behind. Put them in with `fixtures.override`: one `PUT`
+ * replaces the overrides before it, so a spec that needs other answers too puts them in the same call.
+ */
+export function xahauSaltmarshPage(): Record<string, unknown> {
+  const { result } = JSON.parse(readFileSync(new URL(`../fixtures/http/xahau/node/account_info/${XAHAU_ACCOUNT}.json`, import.meta.url), "utf8")) as { result: { account_data: Record<string, unknown> } };
+  const domain = Buffer.from("saltmarsh.example").toString("hex").toUpperCase();
+  return {
+    [`xahau node account_info ${XAHAU_SALTMARSH}`]: { ...result, account_data: { ...result.account_data, Account: XAHAU_SALTMARSH, Domain: domain } },
+    [`xahau GET /v2/accounts/${XAHAU_SALTMARSH}/transactions?descending=true&limit=20`]: { result: "success", count: 0, transactions: [] },
+  };
+}
+
+// ---- The supply page's variants (E12) ----------------------------------------------------------------------------------------------------------------------------------
+
+/** What `supplyVariant` makes: the answers of D7 the supply page's tests need and the recordings lack. */
+export type SupplyVariantKind = "not-computed" | "route-missing" | "escrowed-incomplete" | "stale" | "minted-failing" | "wide-figures";
+
+/** XRPL's snapshot (`GET /v2/network/supply`) and Xahau's minted days of the page's 90-day window, as the fixture server names them. */
+const SUPPLY_CALL = "GET /v2/network/supply";
+const XAHAU_MINTED_CALL = "xahau GET /v2/network/supply/minted?end=2026-10-17&interval=day&limit=1000&start=2026-07-20";
+
+/**
+ * Overrides for `fixtures.override` that make XRPL's supply page say something the recordings do not (supply spec 11), from the generated snapshot (`scripts/supply-fixtures.ts`). The variants
+ * that change the snapshot compose, in one call, as the page would meet them together: `supplyVariant(["stale", "escrowed-incomplete"])` is one answer with both. The two that refuse
+ * the snapshot (`not-computed`, D7's 404 "supply not computed yet", and `route-missing`, a data API without D7: the framework's "Cannot GET") stand alone; `minted-failing` is Xahau's minted days
+ * answering 503 and adds its own key, so it composes with the rest.
+ *
+ * - `escrowed-incomplete`: the escrow history starts at ledger 99,413,505, in `escrowed` and in `circulating`, which is made of it;
+ * - `stale`: the snapshot closed 5 hours before the newest recorded ledger (17:01:12 on Oct 17, so 12:01:12), at a ledger about as many before it: the warning says 5 hours;
+ * - `wide-figures`: the AMM and reserves amounts 29 digits long, for the one check of a tile's and the bar's overflow at 375 px that the unit tests cannot make.
+ *
+ * Every variant is made of the snapshot the recordings hold, so a figure the page shows is that file's unless a variant changes it.
+ */
+export function supplyVariant(kinds: SupplyVariantKind | readonly SupplyVariantKind[]): Record<string, unknown> {
+  const asked = typeof kinds === "string" ? [kinds] : kinds;
+  if (asked.includes("not-computed")) return { [SUPPLY_CALL]: unavailable(404, "supply not computed yet") };
+  if (asked.includes("route-missing")) return { [SUPPLY_CALL]: unavailable(404, "Cannot GET /v2/network/supply") };
+
+  const overrides: Record<string, unknown> = {};
+  if (asked.includes("minted-failing")) overrides[XAHAU_MINTED_CALL] = unavailable();
+
+  const bodyKinds = asked.filter((kind) => kind !== "minted-failing");
+  if (bodyKinds.length === 0) return overrides;
+
+  const supply = recorded<NetworkSupply>("network/supply");
+  if (bodyKinds.includes("escrowed-incomplete")) {
+    const coverage = { from_ledger_index: 99_413_505, complete: false };
+    supply.escrowed = { ...supply.escrowed, coverage };
+    supply.circulating = { ...supply.circulating, coverage };
+  }
+  if (bodyKinds.includes("stale")) {
+    const newest = recorded<{ close_time: string }>("last_validated");
+    const closed = new Date(Date.parse(newest.close_time) - 5 * 3_600_000).toISOString().replace(".000Z", "Z");
+    supply.close_time = closed;
+    supply.computed_at = new Date(Date.parse(closed) + 107_000).toISOString().replace(".000Z", "Z");
+    // About 4 seconds a ledger, as the recordings' ledgers close.
+    supply.ledger_index = HEAD - 4_500;
+  }
+  if (bodyKinds.includes("wide-figures")) {
+    if (supply.amm) supply.amm = { ...supply.amm, amount: "46218377402915000000000000000.402915" };
+    if (supply.reserves) supply.reserves = { ...supply.reserves, amount: "9810004000000000000000000000.5" };
+  }
+  overrides[SUPPLY_CALL] = supply;
+  return overrides;
 }

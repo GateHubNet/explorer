@@ -19,7 +19,22 @@ last touched the source directory, which is the one that put these exact files t
 | `ledgers/xrpl/` (9 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xrpl/recorded/` | `75bea47e536ce4b0c4ce70d3bc70a40cb6f407d2` | `wss://s2.ripple.com` | 2026-10-15T11:53:06Z | 107671609 |
 | `ledgers/xrpl-amm/` (16 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xrpl/amm/` | `5418babdcebe24bc3545fd7cd1d1052342420d6b` | `wss://s2.ripple.com` | 2026-10-17T12:50:24Z | 107717584 |
 | `ledgers/xahau/` (6 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xahau/recorded/` | `75bea47e536ce4b0c4ce70d3bc70a40cb6f407d2` | `wss://xahau.network` | 2026-10-15T12:28:12Z | 26541064 |
+| `ledgers/xrpl-nft/` (11 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xrpl/nft/` at D3's `da5ce14ccfe9e429aacaf5ab6672eac15ce0d1de` (`PIN`, see below) | `f4789b565ed866939cee34d4a728cc2eff928751` | `wss://s2.ripple.com` | 2026-10-26T16:05:15Z | 107918450 |
+| `ledgers/xahau-nft/` (9 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xahau/uritoken/` at `PIN` | `ed8edd3fed57ac5b8b9cd120ae88e51a59f5a81b` | `wss://xahau.network` | 2026-10-26T15:30:01Z | 26811706 |
+| `ledgers/xrpl-objects/` (22 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xrpl/objects/` at D5's `0c2e58c3995cb3fdc240c3bf89dea9c4ab1e8adb` (`PIN` of E10, see below) | `c3fe181141f62cbabb24693f26771eb228f8c2d5` | `wss://s2.ripple.com` | 2026-10-29T04:51:57.628Z | 107973016 |
+| `ledgers/xahau-objects/` (12 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xahau/objects/` at the same commit | `9a56f23cc8693bedc00acd5ca494138a018396a2` | `wss://xahau.network` | 2026-10-29T04:56:33.429Z | 26873124 |
 | `runtime/amm-deposit.meta.json` | the metadata of AMMDeposit `83F332E0141EF2AD30427A8476FFD8469D678321F58E649F30761A862D880A4B`, taken from `xrpl/recorded/107671558.json.gz` | as `ledgers/xrpl/` | as `ledgers/xrpl/` | as `ledgers/xrpl/` | as `ledgers/xrpl/` |
+
+The two `-nft` sets were copied later and from another checkout: D3's worktree, branch `feat/explorer-data-2`, commit `da5ce14ccfe9e429aacaf5ab6672eac15ce0d1de` (`PIN`), read with
+`git show` (`git -C <D3 worktree> show da5ce14:packages/shared/test/fixtures/<xrpl/nft|xahau/uritoken>/<file>`), byte for byte, the `.json.gz` ledgers and `manifest.json` only: not
+`server_definitions.json`, `server_info.json` or `FINDINGS.md`. They are newer than every other set (mainnet 2026-10-24 and 25, where the rest end on 2026-10-17): see "NFT answers".
+
+The two `-objects` sets were copied for E10 (the ledger-object pages) from D5's worktree, branch `feat/explorer-data-2`, at commit `0c2e58c3995cb3fdc240c3bf89dea9c4ab1e8adb`
+(D5's last, E10's `PIN`), read with `git show` (`git -C <D5 worktree> show 0c2e58c:packages/shared/test/fixtures/<xrpl|xahau>/objects/<file>`, never `cp` from the tree, which another
+session was changing), byte for byte (each file's blob is the pin's), the `.json.gz` ledgers and `manifest.json` only: not `server_definitions.json`, `server_info.json` or `FINDINGS.md`.
+"Last changed in" is `git -C <D5 worktree> log -1 --format=%H 0c2e58c -- packages/shared/test/fixtures/<xrpl|xahau>/objects` for each directory. They are not among `SETS`
+(scripts/http-fixtures.ts): most of their ledgers are newer than the head of the other sets (2026-10-17), which `last_validated` and every page built on it would follow (plan
+Ruling 7); see "Ledger object answers".
 
 What each set holds (details in `data-api-new/packages/shared/test/fixtures/README.md`):
 
@@ -31,6 +46,22 @@ What each set holds (details in `data-api-new/packages/shared/test/fixtures/READ
   type and a note that says which pool moved and how; `txs` maps each hash to `{ledger, type, result}`.
 - `ledgers/xahau/`: one ledger per Xahau transaction type the recording looked for (ClaimReward, GenesisMint,
   Invoke, Remit, URITokenBuy, URITokenMint). `Import` and `SetHook` were not found in the window.
+- `ledgers/xrpl-nft/`: 11 ledgers, 107874617 to 107886233 (about 12 hours of 2026-10-24 and 25), each holding one named case of D3's NFT parser (a mint, with an offer, on behalf of
+  an issuer, with a page split; a burn, one that removes offers; a modify; a sell and a buy offer; a cancel; four sales: by a sell offer, by a buy offer, brokered with a royalty,
+  in an issued currency; a transfer with no price). The manifest's `cases` maps a case name to its ledger, hash, transaction type and a note; `txs` maps each hash to
+  `{ledger, type, result}`. The ledgers hold 121 `NFTokenCreateOffer`s, 12 mints, 5 accepts, 8 cancels, a burn pair and a modify.
+- `ledgers/xahau-nft/`: 9 ledgers, 26533927 to 26774724 (2026-10-21 to 25), the cases of D3's URIToken parser (a mint, a sell offer made and cancelled, a `URITokenBuy`, a burn that
+  removes an offer, a `Remit` that moves a token, a `Remit` that mints one, a burn and a re-mint of one id). `uritoken_mint_with_offer` was not found.
+
+- `ledgers/xrpl-objects/`: 22 ledgers, 102145584 to 107972102 (2026-02-10 to 10-29), each holding one of the 19 cases of D5's object parser or one of the three transactions that
+  support them (the manifest's `cases` and `txs`): escrows timed, conditional (a token), finished without a fulfillment, cancelled by a third party, of a token created and finished;
+  checks of XRP and of RLUSD created, cashed for an amount and of a token, cancelled by the source; channels created, funded with an `Expiration`, claimed for the first time,
+  asked to close by the source, closed by the destination, renewed, closed after expiring; the one `DelegateSet` found on the network (`rnt8Pb…` to `rw2X2G…`) and a delegated
+  Batch inner `OfferCreate`. Six of them are ledgers of the sets above too (107670360, 107671568, 107698980, 107699656, 107703707, 107711512), byte for byte. Ledger 106179366
+  holds 191 successful `EscrowCancel`s: the case's (a third party) and 190 of token-escrow testers.
+- `ledgers/xahau-objects/`: 12 ledgers, 8852809 to 26399329 (2024-09-30 to 2026-10-09), the 11 cases of Xahau (an escrow created to itself, finished by its owner, finished with an
+  `EscrowID`, cancelled by a third party, of a token; a check created and cashed with `DeliverMin`; a channel created and claimed, and a token channel created and claimed) and one
+  supporting token cash.
 
 To add a transaction that is not here (the plan's later tasks may need one), record it in `data-api-new` with
 `record-fixtures --txs <hash>`, copy the new ledger file and the merged manifest the same way, and add its row above.
@@ -84,7 +115,11 @@ So are the accounts' answers for the Analytics tab (`data-api/accounts/<address>
 aggregates").
 The validators and amendments pages' files are synthetic too ("Synthetic validators and amendments"). The AMM pages' files (`data-api/amm/`) and the featured pools'
 `amm_info` answers are derived from the recorded pools ("AMM answers"), but for the pool page's day rows, the pairs' AMM-only candles and the live AMM volume, which are
-synthetic (the same section, "The synthetic part").
+synthetic (the same section, "The synthetic part"). The NFT pages' files (`data-api/nfts/`, `data-api/accounts/<address>/nfts@…`, `data-api/nft_collections…`, `data-api/nft_sales@…`, `data-api/network/nft_volume@…`,
+`node/nft_info/`, `node/nft_sell_offers/`, `node/nft_buy_offers/`, `node/ledger_entry/`) are derived from the two `-nft` sets, around some synthetic and hand-made parts ("NFT answers"),
+the collections, the sales and the volume among them.
+The display names and the tomls (`data-api/account_names.json`, `data-api/toml/`) are synthetic, fictional names and `*.example` domains made up for the addresses the other
+files show ("Synthetic names and tomls").
 
 The account page asks the node for `account_objects` with `limit: 400` (the largest page), and a fixture is found by all the
 parameters of a request but its subject, so each active account has the same file twice: `node/account_objects/<ACCOUNT>.json`
@@ -306,7 +341,7 @@ generator rather than fall back to floats, as the API would (none does); a trade
 `change` of a market, which the reference computes from the exact rates, is worked out at both ends of what the 8 digits leave open: the generator stops if the two round
 apart (they agree for every recorded pair). The AMM fields of the markets tables follow D2's absent-field contract as in "Synthetic aggregates".
 
-## Recorded node answers: `http/<net>/node/book_offers/`
+## Recorded node answers: `http/<net>/node/book_offers/` and `http/xrpl/node/account_info/rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS.json`
 
 These six files are recorded, not derived and not made up: the markets pages read the order book of a pair from the node (`book_offers`), a book is the
 state of one ledger, and nothing in the recorded ledgers above gives it. `scripts/record-node-fixtures.ts` asked the public nodes for the six books below and
@@ -351,6 +386,20 @@ one ledger, when a file is not in `fixtureText`'s layout, and when a file is in 
 (`acceptAnswer`, `checkOneLedger`) are in `test/support/book-fixtures.ts`, which the recorder and the test share and the test tries without a network; this table is the
 independent pin of the pairs. `scripts/http-fixtures.test.ts` fails when the generator would write or report one of them.
 
+### The `account_info` of LIONS' issuer
+
+One more recorded answer, for the token pages (E11, "Token answers" below): D6 has no row for LIONS' issuer in the fixtures, so the token page reads its settings from the node. One JSON-RPC POST
+of `{"method":"account_info","params":[{"account":"rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS","ledger_index":"validated"}]}`, a read-only method, and the whole answer written with `fixtureText` at
+`nodeFile`'s path (keys sorted; nothing added, left out or edited, so the Clio server's `warnings` and `account_flags` are in the file). It was made once, by a throwaway script, not by
+`scripts/record-node-fixtures.ts`, which records the books; `pnpm fixtures:sync` leaves it alone (`node/account_info/` is `isHandWritten`). Run again, it would read another ledger.
+
+| Network | Node | Answered (UTC) | `result.ledger_index` | File below `http/` |
+|---|---|---|---|---|
+| XRPL | `https://s1.ripple.com:51234/` (a Clio server) | 2026-10-30, 21:01:25.503 | `108009034` | `xrpl/node/account_info/rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS.json` |
+
+That ledger is newer than the head of the recordings, and nothing relates the two, as with the books. The account is real: its `Domain` and flags are the node's, and the data API's answer for
+LIONS leaves out `domain` and `issuer_settings` on purpose, as an issuer the state tables do not hold yet.
+
 ## Synthetic validators and amendments: `http/<net>/data-api/network/validators…` and `…/amendments…`
 
 Nothing in these files is recorded or copied. The validators and amendments pages (E6) read the six routes of D1, which the data API builds from weeks of collected
@@ -365,7 +414,15 @@ the rules that tie one figure to another follow the data API's reference:
 | `apps/api/src/validators/*.ts`, `packages/shared/src/validators/consensus.ts`, `server-version.ts` | `data-api-new`, `feat/explorer-data` | `7d495ab50cc7ad9b1434ab8e28b2ca5f7cbde13e` | read for what the reference leaves to the builders: the windows of agreement, `sfServerVersion`, the votes of `unl_votes` and `other_votes` |
 
 Read with `git -C ../data-api-new show <commit>:<path>`, never checked out. The client's types (`app/server/api-types.ts`) and checks (`app/server/validators-shape.ts`) follow
-the same commit, and every file passes them.
+the same commit, and every file passes them. The `toml` of a validator (E13) follows D8, which is one commit of its own:
+
+| | Repository, ref | Commit | For |
+|---|---|---|---|
+| `docs/api-reference.md`, "Validators and amendments": `toml` on a validator row and on the answer for one | `data-api`, `feat/explorer-data-2` | `cbd6c51caccfdc28c678f8b620e2f8a4b45c5e09` | the keys of `toml` and their order ("Keys of toml on a validator row", "Keys of toml on the validator answer"), when a key or the whole `toml` is absent and when it is `{}`, what the detail adds from the toml store (D8 §4.1, §4.2) |
+| `docs/openapi.yaml` | the same commit | `cbd6c51caccfdc28c678f8b620e2f8a4b45c5e09` | `api/openapi.yaml` and `app/server/openapi.d.ts`, synced from this commit (`git show` into a scratch `docs/`, `DATA_API_REPO=<scratch> pnpm api:sync`) and not from the branch tip, which holds routes of later work (E13 Ruling C1) |
+
+`PIN` of E13 is that commit. The sync is not a clean addition: the document gains `/v2/network/validators/countries` and the `country` parameter of the list, and two path
+blocks (`/v2/account_names`, `/v2/toml/{domain}`) moved up (142 lines of diff); the explorer calls neither new route.
 
 **Generator and seeds.** `scripts/validators-fixtures.ts`, over `scripts/synthetic.ts`: one stream `mulberry32(seedOf(net, route))` for each network and each of
 `network/validators` (the fleet: keys, domains, accounts, first sightings, manifests), `network/validators/summary` (the publishers' keys and fetch times),
@@ -384,8 +441,30 @@ from its index.
 | `amendments.json` | XRPL: `MPTokensV1` (majority), `DynamicNFT`, `XChainBridge`, `PermissionedDomains` (voting), an unknown ID, `DID`, `AMM` (enabled by an indexed EnableAmendment), `fix1201` (enabled, as the metadata says), `fixNFTokenNegOffer` (obsolete). Xahau: `Remit` (majority), `URIToken` (voting), `Import` (indexed), `Hooks` (metadata), `XahauGenesis` (retired), `introduced` in xahaud's date versions. IDs are SHA-512Half of the names |
 | `amendments/<NAME>.json`, `amendments/<ID>.json` | each amendment's answer, by its name and, a byte copy, by its ID (the unknown one by its ID only), with the list's envelope (G3). XRPL's majority has 30 days of rounds (about 2,600) and a got/lost/got history, the last got 10 days before the anchor, so it activates in 4; the others not enabled have 3 days of rounds (the spec's "deployment that has run three days"); a tally holds from round to round and changes at a few points only (the runs of the got/lost/got story, half-way through a majority's 3 days, a third and two thirds of a vote's climb, where the trusted count moves, and the newest round: 4 changes in the majority's 30 days, 1 to 3 in 3 days), as a deployment records them and as the spec sizes the page (6.3, 7); Xahau's majority was got before the indexed history, so it has no `majority.ledger_index` or `tx_hash` (G5) and no history |
 
+**The `toml` of a verified validator (E13, `tomlsOf` in `scripts/validators-fixtures.ts`).** D8 gives `toml` to a validator whose domain is `verified` and has been read by its checker,
+and to no other, so only the verified validators have one, in both the list and the answer for one; the rest of the fleet has none. They are drawn from a stream of their own,
+`mulberry32(seedOf(net, "toml"))`, so nothing else in the files moves. The verified validators in the list's order get:
+
+| | `toml` of the row | The detail adds |
+|---|---|---|
+| **F**, the first verified validator with `[[ACCOUNTS]]` (`birchridge` on XRPL, `kestrelbay` on Xahau) | all four keys: `owner_country`, `server_country`, `network` `"main"`, `unl` | `principals` `["Mara Lindqvist", "Tomas Okafor"]`, `modified` `2026-10-02T00:00:00Z`, `accounts_listed` the served accounts + 2 (D8: the store's facts can be a check newer or older than the row's), `currencies` `USD` and the 40-hex `4E50555344…` (NPUSD) of its first account and `EUR` with no issuer, `currencies_listed` 5, `fetched` half an hour before the newest ledger |
+| no. 1 of the others | none: a verified domain whose file is not read yet | |
+| no. 2 | `{}`: the entry gives none of the four | |
+| no. 3 | a country and no `network` | `principals` `["North Peak Ops"]`, `fetched` |
+| no. 4 | `network` `"testnet"` on XRPL (the "not this network" case), `"21337"` on Xahau (its network ID, which is its mainnet) | |
+| no. 5 | XRPL only: `server_country` `XK` (Kosovo, which has no ISO code of its own) | |
+| no. 7, the long one (E13 C8, E11's I1) | `server_country` `GS` (a 38-character name), a 32-character `network`, a `unl` host of 200 characters in labels of up to 63, all `*.example` | `principals` of one name of 100 characters, one currency of a 40-character code without an issuer, `currencies_listed` 1, `fetched` |
+| no. 6 and every 6th after (12, 18, …) | no `server_country` (the other keys as drawn), so that "Unknown location" counts more than the validators whose domain does not verify | |
+| the others | drawn values: `network` `"main"`, `unl` the network's publisher list (`https://vl.ripple.com`, `https://vl.xahau.org`), `server_country` from the pool below, `owner_country` the same one 7 times in 10 and another of the pool otherwise | the row's `toml` alone |
+
+The pools are XRPL's `US DE NL GB FR CH SG JP CA FI SE IE AU HK KR ES PL NO IN XK` and Xahau's `NL DE FI SE US GB FR SG JP AU NO EE`, the first three of each weighing 10, 8 and 6 and the
+others 1 (the first three then lead: XRPL's US 9, DE 6, NL 4; Xahau's DE 6, FI 5, NL 4). The numbers are the plan's ("numbered from 1", F taken out). No address is new: F's currencies
+name its own first account, which E9's `names-fixtures.ts` already names, and `pnpm fixtures:check` shows `account_names.json` unchanged. No domain is new either; every `unl` is a publisher
+of the network or a `*.example` host. The cases are rules of `test/support/validators-case-rules.ts`: `toml-full`, `toml-not-read`, `toml-empty`, `toml-no-network`, `toml-other-network`
+(XRPL), `toml-network-id` (Xahau), `toml-xk` (XRPL), `toml-long` and `unknown-location`.
+
 **Invented, and not checked against anything real:** every key but the given validators', every domain (`*.example`, RFC 2606: no operator is implied), the accounts of G1, the
-publishers' keys, sequences and dates; the hours of agreement and their scores; the versions and their counts; the vote records and fee votes; the amendments' statuses,
+publishers' keys, sequences and dates; every `toml` (the countries, the principals' names, the currencies, the dates of `modified` and `fetched`); the hours of agreement and their scores; the versions and their counts; the vote records and fee votes; the amendments' statuses,
 votes, rounds, dates, ledgers, `introduced`, descriptions and `xls_url` paths (under `https://github.com/XRPLF/XRPL-Standards/`, as G2 wants), and the hashes of their
 EnableAmendment transactions and of every ledger but the recorded ones (no transaction or ledger page serves them). Where the rules leave a choice open: the files sort their
 keys as every generated fixture does (the generator builds every object in the reference's order, which the test checks); one hour of the 30 days has no final record, so
@@ -395,9 +474,9 @@ not files. Only an end-to-end run against a real stack (`E2E_DATA_API_URL`) chec
 
 **What keeps them true.** `test/unit/validators-fixtures.test.ts` works D1's rules out again from the answers (the validators' order and the summary's counts and versions, F7 for
 every round and tally, `pct`, the amendments' order, the envelope of every amendment answer, the votes against the records, the server versions decoded), checks every object's
-keys against the reference's order, runs the client's checks on every answer, and holds every case by the rules of `test/support/validators-case-rules.ts`, the ones
+keys against the reference's order (the `toml` of a row and of a detail too), runs the client's checks on every answer, and holds every case by the rules of `test/support/validators-case-rules.ts`, the ones
 `test/support/validators-cases.ts` finds a validator or an amendment of a case by for the worker specs (over the files, never by a fixed key). `scripts/http-fixtures.test.ts` fails when a file is not what the generator writes.
-`isValidatorsGenerated` names the files, and they have a budget of their own in `test/unit/http-fixtures.test.ts` (239 files, about 2.7 MiB).
+`isValidatorsGenerated` names the files, and they have a budget of their own in `test/unit/http-fixtures.test.ts` (239 files, 2,884,903 bytes, about 2.75 MiB; the `toml` added about 15.7 KB).
 
 ## AMM answers: `http/xrpl/data-api/amm/` and the featured pools' `http/xrpl/node/amm_info/`, with their synthetic day rows, candles and live volume
 
@@ -538,3 +617,421 @@ and each week against its days, the reserves' walk against the candles and the r
 computed range of every page of days, and the key orders.
 `scripts/http-fixtures.test.ts` fails when a file is not what the generator writes. `isAmmGenerated` (`scripts/http-fixtures.ts`) names the files, which have a size budget
 of their own in `test/unit/http-fixtures.test.ts` (231 files, 709,489 bytes, about 0.68 MiB, of which the 39 synthetic files are 516,361 bytes).
+
+## NFT answers: `http/<net>/data-api/nfts/`, `…/accounts/<address>/nfts@…`, the collections, the sales and the volume, and the nodes' `nft_info`, `nft_sell_offers`, `nft_buy_offers` and `ledger_entry`
+
+The data API's answers (D3: `GET /v2/nfts/{id}`, its `/history` and `/offers`, `GET /v2/accounts/{address}/nfts`, `GET /v2/nft_collections` and the routes of a collection,
+`GET /v2/nft_sales`, `GET /v2/network/nft_volume`) and the nodes' answers for the NFTs the index lacks (E8, the NFT pages).
+Not recorded: worked out from the NFT ledgers D3 recorded (`ledgers/xrpl-nft/`, `ledgers/xahau-nft/`, above), as D3's index would hold them, around some synthetic and hand-made parts
+below. Generated by `generate()` (`pnpm fixtures:sync`), from `scripts/nft-derive.ts` (the port) and `scripts/nft-fixtures.ts` (the files), which `scripts/http-fixtures.ts` joins
+as it joins the AMM pages' generator. The ledgers are read through `readLedgerSet` and are not among `SETS`: they are newer than T (2026-10-17, the UTC day of the newest ledger of
+the other sets, which `last_validated`, the lists of ledgers and transactions and every synthetic aggregate follow), so they are not served as ledgers or as transactions, and
+`last_validated` stays where it was. **The events keep their recorded times**, 2026-10-24 and 25 on XRPL and 2026-10-21 to 25 on Xahau, after T; so a link from an NFT's page to the
+ledger or the transaction of one of its events is a 404 in the fixtures. What is dated by T, the windows of the stats and of the volume (the 30 days to 2026-10-17), does not meet the
+events: the days of a collection's stats are its events moved into the window ("The synthetic parts").
+
+### The port
+
+`PIN` is `da5ce14ccfe9e429aacaf5ab6672eac15ce0d1de`, D3's `feat/explorer-data-2` (data-api-new), read with `git show <PIN>:<path>`, never checked out or imported:
+
+| Path at `PIN` | Last changed in | For |
+|---|---|---|
+| `packages/shared/src/parsers/nft.parser.ts` | `f4789b5` | the events of a transaction (§2), as D3's controller rulings amended them (below) |
+| `packages/shared/src/aggregate/nft-state.ts` | `4a5740c` | `foldNftEvents`: the owner, the burn, the URI, the sales and the creation of an NFT from its events |
+| `apps/api/src/nft/nft-objects.ts` | `6532806` | the objects (`toNftObject`, `toNftEventObject`, `toNftOfferObject`), their key orders and which keys are left out |
+| `apps/api/src/nft/nfts.service.ts` | `d0c1ab0` | the open offers: the newest event of each `offer_id` among the offer events, kept when it is an `offer_create`, newest first; the per-NFT coverage from the first event |
+| `apps/api/src/common/feature-coverage.service.ts` | `86391c4` | `itemCoverage`: the feature's coverage, complete also when the item's creation is indexed |
+| `packages/shared/src/query/nft-prices.ts` | `6532806` | the converted price of a sale: a price in the native currency is itself |
+| `packages/shared/src/parsers/nft.parser.spec.ts`, `packages/shared/test/synthetic-tec-expired-accept.ts` | `f4789b5` | the expected events of every recorded case (`test/unit/nft-fixtures.test.ts` writes them down again), and `synthetic-tec-expired-accept` |
+| `apps/api/src/nft/nft-collections.service.ts`, `apps/api/src/nft/nft-sales.service.ts` | `d0c1ab0` | the collections list's order (the value of the sort, then issuer and taxon ascending, whichever way it runs) and its marker `[value, issuer, taxon_key]`, the lists of a collection (its NFTs by serial then id, `[serial, nft_id]`; its holders by `held` descending then owner, `[held, owner]`; its sales and the network's by `(ledger_index, tx_index, event_index)`), the stats' days (`toCollectionDayObject`'s average and lowest price) |
+| `packages/shared/src/aggregate/nft-collections.job.ts` | `ae3af9a` | what a collection row counts: `supply` the NFTs not burned, `holders` the distinct non-empty owners of those, `minted` and `burned` the mint and burn events, `first_mint` and `last_mint` the oldest and newest mint (left out with none), `sales_count` every sale, `volume_native` the converted prices summed, `last_ledger` the newest event |
+| `apps/api/src/network/volume-object.ts` | `d0c1ab0` | the NFT volume's row: a component for each collection with a rated sale (`issuer, taxon?, count, amount, rate, converted_amount`, `rate` `1.0000000`, the largest first), the row's `count` every sale of the window, its `total` the components' sum |
+| `docs/api-reference.md` ("NFTs", "Coverage") | `da5ce14` | the key orders, the coverage rules, the examples the tests compare with |
+
+The amendments the port has: a failed (`tec`) transaction gives only its deleted `NFTokenOffer` nodes, each an `offer_removed` by `other` (rippled deletes the expired offers a failed
+accept met; the recorded Xahau `URITokenMint` that failed, `tecINSUFFICIENT_RESERVE`, touches no URIToken and gives no event); the before ids of a modified or deleted `NFTokenPage` are
+its `PreviousFields.NFTokens` when it has them, else its `FinalFields.NFTokens` (the neighbour of a split changes only a link); `removed_by` is named by the removing transaction
+(`sale`, `burn`, `transfer`, else `other`); an MPT amount skips its event and counts it; an `Amount` added to a URIToken, which is not in `PreviousFields`, is an `offer_create` only in a
+`URITokenCreateSellOffer`, and a `URITokenMint` whose entry leaves out a native zero offers it at the transaction's `Amount`. What is not ported, because no fixture reads it: the
+roles an event gives an account (the account history, `GET /v2/accounts/{address}/nft_history`, which no page shows), and the owners an NFT ever had.
+
+Where the port differs from the data API: **a sale in an issued currency has no `converted_amount`** (the data API converts it at the issued asset's rate of the day, `native_rates_daily`,
+which the recordings do not give: the XRPlay and EVR sales are the "no rate that day" state), and a sale in the native currency is its own price.
+
+What the recordings give: XRPL 275 NFTs and 295 events (131 offers created, 137 cancelled, 12 mints, 7 removals, 4 sales, a transfer, 2 burns and a modify), Xahau 18 URITokens and 26
+events; with the synthetic parts below, 282 NFTs (275 + 3 + 4) and 388 events on XRPL, 24 (18 + 2 + 4) and 113 on Xahau. 12 of the recorded XRPL NFTs and 4 of the Xahau ones start with
+their mint (19 and 10 with the holdings and the traded NFTs below): the others' histories start in the middle.
+
+### The files
+
+| Files below `http/<net>/` | What |
+|---|---|
+| `data-api/nfts/<ID>.json` | `{ result, coverage, nft }` for each NFT |
+| `data-api/nfts/<ID>/history@descending=true&limit=20.json`, `…&event=mint,burn,modify,sale,transfer&limit=20.json` (each also `…&marker=<M>.json` when it has a second page) | the whole history, and the history without the offer events (what the NFT page asks for unless it shows them), newest first, 20 to a page; a marker is the base64url JSON `[ledger_index, tx_index, event_index]` of the last row |
+| `data-api/nfts/<ID>/offers@limit=50.json` | the open offers (an empty list for an NFT with none) |
+| `data-api/accounts/<A>/nfts@limit=20.json` | the NFTs an account holds, ordered by collection (issuer, taxon) and serial, a last sale without `converted_amount` (D3's list rule); for the three hand-written accounts of each network, empty for the deleted and the never-funded ones |
+| `data-api/nft_collections@limit=20&sort=<volume\|supply\|holders>[&descending=false][&marker=<M>].json` | the collections list: every collection, in each sort, descending and (with the text `descending=false`, C2) ascending, 20 to a page; XRPL 46 collections in 3 pages, Xahau 22 in 2; the marker is the base64url JSON `[sort value, issuer, taxon]` (the taxon 0 on Xahau) |
+| `data-api/nft_collections@issuer=<I>&limit=20&sort=…[&descending=false].json` | the list filtered by issuer, for each sort and way: the featured NFT's issuer (two collections on XRPL, one on Xahau) and an account that issued none (`NFT_ACCOUNTS.unfunded`: `total: 0`) |
+| `data-api/nft_collections/<issuer>[/<taxon>].json` and below it `stats@end=<T>&start=<W₀>.json`, `sales@descending=true&limit=20[&marker=<M>].json`, `nfts@limit=20.json` (also `include_burned=true&limit=20` for the featured one, and `limit=20&owner=<A>` for each), `holders@limit=20.json` | the three collections that have a page of their own: the featured NFT's, one that was never sold and one that was ("The cases of the pages"); the collection, its 30 days of stats, its sales newest first, its NFTs by serial (a last sale without `converted_amount`, C10), its NFTs held by the active account (C12), its holders |
+| `data-api/nft_sales@descending=true&limit=10.json`, `…&limit=20[&marker=<M>].json` | the sales of the network, newest first: the list page's ten (its marker, the one "Older sales" carries), the pages of twenty from the start, and the pages of twenty behind the ten's marker |
+| `data-api/network/nft_volume@live=day.json`, `…@live=7day.json`, `…@live=30day.json`, `…@end=2026-10-17&interval=day&limit=1000&start=2026-09-18.json` | the NFT volume: the three rolling periods to the minute of T's close (2026-10-17T17:01:00Z on XRPL, 17:47:00Z on Xahau), and the 29 computed days of the 30 to T (not the running day) |
+| XRPL `node/nft_info/<ID>.json`, `node/nft_sell_offers/<ID>@limit=50.json`, `node/nft_buy_offers/<ID>@limit=50.json`; Xahau `node/ledger_entry/<ID>.json` | the nodes' answers below |
+
+1,349 files, 1,008,932 bytes (about 0.96 MiB, under the budget of 1.0 MiB): XRPL 1,195 files of 756,075 bytes (1,129 of 282 NFTs, 575,554 bytes: a detail, two histories and the offers each, and
+the featured NFT's second page; 58 aggregates, 175,404; 3 account lists; 5 node answers), Xahau 154 of 252,857 (97 of 24 NFTs, 123,307; 52 aggregates, 125,981; 3 lists; 2 node answers). Of the
+aggregates, the collections lists are most (XRPL 30 files of 92,177 bytes, Xahau 24 of 52,955). They
+are `isNftGenerated` in `scripts/http-fixtures.ts`, which `isHandWritten` leaves to the generator (an account's directory is hand-written, but for its analytics answers and these), and they
+have a size budget of their own in `test/unit/http-fixtures.test.ts` (at most 1.0 MiB, outside the recorded files'). A row of a list is a line (`fixtureText`'s `rowLists`: `events`, `offers`,
+`nfts`, `collections`, `sales`, `holders`, `days`, `rows`).
+
+**Coverage.** A per-NFT file (the detail, the history with and without the offer events, the offers) has D3's item coverage over the recorded world: `from_ledger_index` is the first
+recorded ledger of the set (XRPL 107874617, Xahau 26533927; D3 never sends `{ complete: true }` alone) and `complete` is whether the NFT's first indexed event is its mint
+(`itemCoverage`). **Every other answer of a network agrees** (C5 and the ruling on Task 5's fourth concern): the aggregates (the collections, a collection and its lists, the sales, the
+volume), an account's NFT list, and the upstream mock's empty page for an address with no file (`NFT_COVERAGE` in `test/support/upstream-core.ts`) all carry the feature's coverage,
+`FEATURE_COVERAGE` in `scripts/nft-fixtures.ts`: XRPL `{ from_ledger_index: 32570, complete: true }` ("a feature as old as the network" in D3's "Coverage": the network's first ledger,
+32,570), Xahau `{ from_ledger_index: 26533927, complete: false }` (D3 would need its ledger 1), so that both states are drawn. D3 itself would not mix XRPL's complete feature coverage with
+the incomplete per-NFT coverage the item rule gives over these recordings (which start at 107874617): the two never meet in one D3, so the XRPL files are invented answers in that respect;
+`test/unit/nft-fixtures.test.ts` checks that every file of a network says the same and compares the mock's page with the files'.
+
+### The synthetic parts (seeded with `mulberry32(seedOf(<net>, "nfts", <what>))`, `scripts/synthetic.ts`)
+
+- **The featured NFT** (`brokered_sale_royalty`'s on XRPL, `00190BB8…E96F`; `uritoken_buy_above_ask`'s on Xahau, `96133366…AAE9`) has older offer events (`"padding"`) before its first recorded
+  one, so that its history has two pages (no recorded NFT has more than three events: Ruling 6) and its `marker` file exists. Each has a place of its own in one of the
+  recorded ledgers before the sale (a random ledger, its time the ledger's close time, its hash drawn; the transaction index is the place's, below). XRPL, 24 events: ten offers made and cancelled
+  (four sell offers of the seller relisting it, six bids), two bids that stay open (the first expired an hour after it was made, which is before the recordings end; the second lasts a
+  year), and last the creation of the two offers the recorded sale removed, with their recorded owners, amounts and destinations: the history then has 27 events (20 and 7) and the offers
+  file the two open bids; the filtered history is the sale alone. Xahau, 20 events: the owner listing the token, relisting it and cancelling the offer, ending with the offer at 4,200 XAH
+  that the recorded sale removed (a URIToken has one sell offer, all of its events name the token as the offer, so none is open after the sale): 22 events, 20 and 2.
+- **The active account's holdings** (C12; `"holdings"`): the account of `holderCase` (`rBbW6id…` on XRPL, `rHktfGU…` on Xahau) has no NFT in the recordings, so its list and the NFT pages of
+  what it holds are seeded, each NFT with a history of its own in the recorded ledgers. XRPL, three: two of the featured NFT's collection (one minted by its issuer, listed for 20 XRP and
+  bought by the account, the issuer being the seller so no royalty; one minted to the account), and one the account issued itself (taxon 7) and changed the URI of. Xahau, two: a token
+  of the featured token's issuer, minted, listed at 1,500 XAH and bought by the account, and one the account issued itself. Their ids are computed (XRPL `encodeNftId`; a URIToken's
+  is the SHA-512Half of `0x0055`, the issuer and the URI, which every recorded token's is), their URIs are `https://nft.example/…` (and `odinseyes:raven:v2:00…` for the issuer who
+  uses it), their digests drawn.
+- **The places of the synthetic events** (a review finding of Task 5, done here): a synthetic event goes in a recorded ledger at a transaction index **no recorded transaction has**, the
+  next one past the ledger's own transactions (the ledger's count, then one more for each place the world has given in it, whichever NFT it is for: `drawSlots`), so that
+  `(ledger_index, tx_index, event_index)` is a unique key over every NFT of the world and a `(ledger_index, tx_index)` is one transaction, with one hash, whichever NFT's event names it
+  (the events of one transaction, an offer's removal and the sale that took it, share a place and a hash). The sales lists, which join the NFTs' events on that key, need it. Task 5 drew
+  the index among the ledger's own, which could be one a recorded event had; the generator was changed, so the featured NFT's padding and the holdings have other indexes (and every
+  draw after the first has moved: their hashes, amounts and offers are others), the featured NFT's second page of history is behind another marker (its file was renamed), and the
+  files were regenerated. `test/unit/nft-fixtures.test.ts` ("the places of the events") checks the key, the hash and the indexes.
+- **The featured collection's traded NFTs** (`"traded"`): so that the featured NFT's collection has a list of sales with a page behind its marker (the recordings give it two sales, the
+  holdings one) and the network's has a second page, four more NFTs of the collection change hands. XRPL: siblings of the featured NFT (serials 11, 13, 15 and 17 below it, its flags and
+  3% transfer fee), minted to the issuer, listed by their owner and bought, 4, 5, 5 and 5 times (19 sales; each sale is three events: the offer, its removal and the sale, so 14 to 16
+  events an NFT, one page of history), by six accounts that buy more than one of them; the royalty (D3's `royaltyOf`) is there from the second sale on, the issuer being the first seller;
+  the second NFT's third sale is priced in the XRPlay token, which has no rate (a sale in no volume), and the one with four sales is burned by its owner after them, so that the collection
+  has a burned NFT. Xahau: the same for URITokens of the featured token's issuer (their ids from their URIs, burnable, the token's one offer named by every event), the third sale of
+  the second priced in EVR. Their sales are in the newest of the recorded ledgers, after the newest sale of any other collection, so the newest sales of the network are the featured
+  collection's: its sales list and the network's have the same first twenty rows, and one marker leads to the second page of both (`salesMarker`).
+- **The synthetic collections** (`"collections"`): the list has the world's collections (XRPL 26, Xahau 15, each counted from its NFTs and their events by D3's rules) and some made up,
+  XRPL 20 and Xahau 7 (46 and 22 in all), so that the list has more than a page and the sorts have a long tail and ties: a supply from a tier (1 to 25,000, a third exactly the tier's, so
+  that several share it), holders at most the supply, burned NFTs, an average price from a tier (1 to 400 coins) and a quarter of them unsold (a volume of 0), minted before the index
+  began (no indexed mint, no `first_mint` and `last_mint`) or with the mints in the recorded ledgers, a last ledger there too. The first synthetic collection of XRPL is another taxon of the
+  featured NFT's issuer, so that the filter by issuer finds two. A collection that is made up has no page of its own, and no NFT of it is in the files: its link is the 404 `collection
+  not found`. The list has 46 and 22 collections where the plan said about 60 and 12: the world's own are 26 and 15, and the budget (1.0 MiB) is the other bound.
+- **The days of the stats** (`"days"`): the recordings are dated after T, so none of a collection's events is in the 30 days to T; each of the three collections' sales, mints and burns is
+  moved into the window, to a day drawn for it, so that the days add up to the collection's own totals (sales, volume, mints and burns). The featured collection's days are drawn so that the
+  average and the lowest price of a day, which the collection page's 30-day figures and chart read, are put to work (E8 Task 9; a day with one sale has an average equal to its lowest price):
+  every day with an event is a row and every row has an event, three days have several (one with two rated sales, one with a rated sale and a sale in an issued
+  currency, which has no rate, so that `sales_count` is 2 and the average is over the one price, and one with two rated sales and a mint; the two rated sales of the first and of the third have different prices, so that the lowest price is less than the average), and the days with no row (6, never the first or the last, which are
+  2026-09-18 and T) are the days that those three took from the events. The two other collections' few events are on days drawn the same way, a sale in an issued currency alone on its
+  day: a row with `sales_count: 1`, `volume_native: "0"` and no price.
+- **The volume** (`"volume"`): a model of sales over the 31 days to the minute of T's close for the most traded collections of the list (XRPL 6, Xahau 5; 32 sales to the first, fewer to
+  the others), at times and prices around each collection's own average price, one in sixteen priced in an issued currency, which has no rate. Every row is a view of it: the live
+  periods count the sales since their start (so the 7-day row has the day's, the 30-day row the 7-day's), and each day of the window up to the last the route has computed (the newest
+  ledger closes after 01:00 UTC, so the day before T; the running day is not there) counts its own. A component is a collection's rated sales; the row's `count` is every sale, so it can
+  be more than the components'. Its collections are the list's, but its sales are not the NFTs': they are a market the NFT files do not hold (as the days of the stats are dated before
+  the recordings), and not part of the collections' totals.
+- **The hand-made node answers** (`"node"`), in Clio's and xahaud's shapes with `validated: true`: XRPL `nft_info` of the NFT without an owner (`sell_offer_create`'s, `00081388…B54B`:
+  the node's owner is the owner of its sell offer, the only account that could have made one, and its `ledger_index` is before the index began; its URI is made up); `nft_info`
+  of a token of the recorded `NFTokenPage` nodes that no event of the index names (the first by id with a URI, `00010000…02FD`: its owner is its page's, its `ledger_index` the
+  recorded ledger of the page, its URI the page's) with one `nft_sell_offers` and one `nft_buy_offers` offer (made up: 60 XRP asked of one account; 47.7 USD bid until 5 days after
+  the recordings end); and `nft_info` of a burned NFT the index has never seen (`is_burned: true`, a made-up serial of the collection `rGxWAW…` with taxon 500, no URI). Xahau
+  `ledger_entry` of the unowned URIToken (`uritoken_sell_offer_create`'s, `35B8D528…E93D`: owner of its offer, the offer in drops, the digest of its events, a made-up URI) and of a token
+  the index lacks (the featured token's issuer's, owned by an account of the recordings, no offer). Anything else the node answers `objectNotFound` (XRPL) or `entryNotFound` (Xahau),
+  as `test/support/upstream-core.ts` does. Xahau has no burned counterpart: a burned URIToken is no ledger entry, so `network-burned` is XRPL's alone.
+
+### The cases of the pages
+
+`test/support/nft-cases.ts` (`nftCase`, `holderCase`) finds an NFT of each case in the committed files by the predicates of `test/support/nft-case-rules.ts`, never from a table of ids; the
+unit test checks that they resolve to the NFTs of D3's cases:
+
+| Case | Rule | XRPL | Xahau |
+|---|---|---|---|
+| `featured` | the NFT with a second page of history | `brokered_sale_royalty`'s | `uritoken_buy_above_ask`'s |
+| `burned` | burned by the account that held it, the shortest history first | `burn`'s | `uritoken_burn_with_offer`'s (Xahau has no `burn` case: its other burned tokens were burned by their issuers) |
+| `unowned` | indexed with no owner, not burned, and the node has it | `sell_offer_create`'s | `uritoken_sell_offer_create`'s |
+| `network` | the node has it, the index does not | the recorded page's token | the made-up token |
+| `network-burned` | the node says it is burned, the index has never seen it | the made-up burned NFT | none |
+| `missing` | no file anywhere: the featured NFT's collection's next serial (XRPL), its id with another last digits (Xahau) | | |
+
+`collectionCase(net, which)` in the same file finds a collection by `resolveCollectionCase`, from the collections that have a page of their own (`data-api/nft_collections/<issuer>[/<taxon>].json`)
+and the featured NFT, and `collectionsMarker(net)` and `salesMarker(net)` read the `marker` of the first page of the collections list (`limit=20&sort=volume`) and of the sales
+(`descending=true&limit=20`): the one that leads to the second page. The generator picks the three collections by their data, and the rules find them again in the files:
+
+| Case | Rule | XRPL | Xahau |
+|---|---|---|---|
+| `featured` | the featured NFT's collection | `rLxc1b…/0` | `rodinG…` |
+| `quiet` | a collection never sold (so none in 30 days) that has a holder, of the fewest NFTs the generator takes (6 at most) | `ravC5c…/0` (3 NFTs, one of them burned, one holder) | `r4k1jd…` (the token burned and minted again) |
+| `other` | a collection that was sold, of the most sales | `r4PP7g…/10` (one sale, 10 XRP) | `rNk6oe…` (one sale, in EVR: no converted price) |
+
+**What keeps them true.** `test/unit/nft-fixtures.test.ts` checks the port against D3's expected events of every recorded case (15 XRPL and 8 Xahau cases, and the non-case
+transactions D3's spec names), D3's rules over every transaction of the recordings (the counts of its FINDINGS), the controller rulings one by one (`synthetic-tec-expired-accept` as a
+`deriveNfts` case, a failed transaction, an `AccountDelete`'s removals, a deleted page that merged forward, a link-only page, MPT amounts, the URIToken offer gate and a free mint's
+offer, the royalty's rounding), the fold, the open offers, the coverage, the featured NFT's pages and padding, the holdings, the reference's key orders on the objects before
+serialization, the client's shape checks on every answer, the cases, and that `isNftGenerated` names the files and nothing else; for the aggregates, that each list's pages
+concatenate to every collection once in the sort's order with ties by issuer and taxon (and each marker is `[value, issuer, taxon]` of the page's last row), that a collection's row is what its
+NFT files' events count, that the three collections' lists and days are their NFT files', that the sales lists are every sale of the NFT files newest first (and the featured collection's first
+page is the network's), that the volume's rolling rows nest and its rows are sums of their components, that every file of a network has the network's coverage, and the places of the events.
+`test/worker/nft-fixtures.spec.ts` reads them in the Workers runtime with the data API client and the node client, the requests being theirs (the ascending lists by the text `descending=false`). `scripts/http-fixtures.test.ts` fails when a file is not what the generator writes.
+
+## Ledger object answers: `http/<net>/data-api/escrows/`, `…/checks/`, `…/payment_channels/`, `…/ledger_objects/`, their transactions, and the nodes' `ledger_entry`
+
+The data API's answers of D5 (`GET /v2/escrows/{id}` and its `/history`, the same for checks and payment channels, `GET /v2/ledger_objects/{id}`) for the ledger-object pages (E10), the
+transactions behind them, and the nodes' `ledger_entry` of the objects still in the ledger. Not recorded: worked out from the objects ledgers D5 recorded (`ledgers/xrpl-objects/`,
+`ledgers/xahau-objects/`, above), as D5's index would hold them, around some synthetic objects and transactions below. Generated by `generate()` (`pnpm fixtures:sync`), from
+`scripts/object-derive.ts` (the port) and `scripts/object-fixtures.ts` (the files), which `scripts/http-fixtures.ts` joins per network. The ledgers are read through `readLedgerSet`
+and are not among `SETS`, so `last_validated` stays where it was. **Every answer is as of the newest ledger of its set** (XRPL 107972102, 2026-10-29T03:50:41Z; Xahau 26399329,
+2026-10-09T12:49:32Z: D5's "as of" and the close time a `status` is worked out at), which is newer than the explorer's head on XRPL (107721455), as D5's examples are.
+
+### The port
+
+E10's `PIN` is `0c2e58c3995cb3fdc240c3bf89dea9c4ab1e8adb`, D5's `feat/explorer-data-2` (data-api-new), read with `git show <PIN>:<path>`, never checked out or imported:
+
+| Path at `PIN` | Last changed in | For |
+|---|---|---|
+| `packages/shared/src/parsers/object-changes.parser.ts` | `0ba8fb1` | the rows (D5 §2.1, §2.2): a row for every created, modified (with `PreviousFields`) or deleted `Escrow`, `Check`, `PayChannel` or `Delegate` node, its event by the table (`update` else), its stored fields without the thread and directory fields, the facts it takes from the transaction (`sequence`, `fulfillment`, `delivered`) |
+| `packages/shared/src/ingest/build-rows.ts`, `packages/shared/src/parsers/parser.interface.ts` | `2e7fbc8`, `0c2e58c` | the columns a row gets from its transaction: place, hash, close time, type, result, sender (the zero account for an empty `Account`), `Delegate` |
+| `apps/api/src/ledger-objects/object-views.ts` | `ef6674b` | the objects and events, their key orders, the keys left out (`compact`), the amounts (drops to whole units, an issued token as on the ledger, an MPT as the data API's MPT amount), a channel's zero balance, `remaining` and the changes |
+| `apps/api/src/ledger-objects/object-status.ts` | `ef6674b` | the status at the answer's close time, and a deleted object's by its deleting event |
+| `apps/api/src/ledger-objects/ledger-objects.service.ts`, `object-answers.ts` | `8d3da27`, `e33c538` | which rows a detail reads (the newest 51, each transaction once) and its creation (the page's, else the object's first), a history page after a marker, a channel's `funds` and `claims` over its whole history, the lookup (the newest row of an ID) |
+| `apps/api/src/common/feature-coverage.service.ts`, `apps/api/src/common/pagination.ts` | `86391c4`, `d0c1ab0` | `itemCoverage` (the feature's coverage, complete when the object's creation is indexed), `paginate` and the marker (base64url JSON `[ledger_index, tx_index]`) |
+| `packages/shared/test/synthetic-delegated.ts`, `packages/shared/src/parsers/object-changes.parser.spec.ts` | `e173d8e`, `af4e631` | `delegatedFrom` and `delegate_set_empty`, which C9's synthetic transactions follow (below) |
+| `docs/api-reference.md` ("Ledger objects") | `0c2e58c` | the key orders, the rules, and the examples: the six object answers, the two lookups and Xahau's delegations of an account are real answers over these recordings, and `test/unit/object-fixtures.test.ts` compares the files with them, text for text |
+
+What the recordings give: XRPL 217 objects in 221 rows (201 escrows, 191 of them cancelled and one finished without their creation indexed, nine checks, six channels and the one
+delegation), Xahau 9 in 12 rows. The index leaves 190 of XRPL's cancels out (below): it holds 27 objects in 31 rows. **Coverage** (C8): the feature's coverage is the set's first ledger, not whole (`{ from_ledger_index: 102145584 | 8852809, complete: false }`: both
+networks had these objects before the recordings), and an object whose creation is indexed has it complete; one created before has no `created` (escrow `8993DA09…`, finished in
+107670360, is the reference's example of it). **One open recorded escrow and one open check** (the first of each by ID, `0F0EE149…` and `24BC04C8…`) have a node file and no index file
+(no answer, no lookup): the node fallback (`escrow-node-only`, `check-node-only`).
+
+### The files
+
+| Files below `http/<net>/` | What |
+|---|---|
+| `data-api/escrows/<ID>.json`, `data-api/checks/<ID>.json`, `data-api/payment_channels/<ID>.json` | the object as of the set's newest ledger and its newest 50 events, newest first, with `history_marker` when there are more |
+| `…/<ID>/history@descending=true&limit=50&marker=<M>.json` | the events behind each marker, newest first (the object page asks a page of 50 behind a marker); only `channel-long` has any |
+| `data-api/ledger_objects/<ID>.json` | `{ result, ledger_object }` of every ID of the index (a delegation's too), and of the delegations the hand-written files list |
+| `data-api/transactions/<HASH>.json`, `…@binary=true.json` | the transactions with a row of the index, a `Delegate` field or of type `DelegateSet` (C3), but those `generate()` serves already from `SETS`, and the synthetic ones (the synthetic objects' 10, not `channel-long`'s, and C9's 4); made as the sets' transactions are made, the binary form re-hashing to the hash |
+| `data-api/ledgers/<index>@transactions=true.json` | the hashes of a ledger of those transactions that is not among `SETS` (XRPL 16, Xahau 12), in ledger order, which the transaction page reads for a transaction's neighbours, the synthetic transactions last |
+| `node/ledger_entry/<ID>.json` | rippled's and xahaud's `ledger_entry` (`validated`, the set's newest ledger) of every object still in the ledger: its fields as its newest transaction left them, `Flags` and the directory pages a node fills in (`"0"`), a channel's zero `Balance`, and its thread (`PreviousTxnID`, `PreviousTxnLgrSeq`); Ripple-epoch times, drops |
+
+268 files, 753,396 bytes (about 0.72 MiB, under the budget of 1.0 MiB): XRPL 210 files of 585,186 bytes (32 answers and 2 history pages, 90,077; 38 lookups, 10,320; 24 node
+entries, 22,353; 49 transactions and their binary forms, 244,388, of which the synthetic objects' 10 are 18,294; 16 ledger lists, 218,048), Xahau 58 of 168,210 (9 answers, 9
+lookups, 4 node entries, 12 transactions and their binary forms, 67,847, 12 ledger lists, 81,838). They are `isObjectGenerated` in `scripts/http-fixtures.ts` (`node/ledger_entry/` but
+the NFT generator's URIToken entries, `nftLedgerEntryIds`, C5; and the transactions and ledger lists this generator writes), and have a size budget of their own in
+`test/unit/http-fixtures.test.ts` (at most 1.0 MiB, outside the recorded files': C4). An object's events and an account's delegations are a row to a line (`OBJECT_ROW_LISTS`).
+
+**The cancels left out** (the controller's ruling on Task 2's review). Ledger 106179366 holds 191 escrow cancels: the case `escrow_cancel` (a third party's cancel of `E81C0A08…`, the one
+recorded cancelled escrow the index keeps) and 190 of the token-escrow testers, cancelling escrows created before the recordings. The index is left without those 190 (`leftOutOf`): no
+row, no escrow answer, no lookup and no transaction file. They would be 190 escrows no case uses, with 0.9 MB of transactions behind their links, which the budget cannot hold (C4).
+
+### The synthetic parts (XRPL, seeded with `mulberry32(seedOf("xrpl", "objects", <name>))`, `scripts/synthetic.ts`)
+
+- **Objects** the recordings cannot give, each made of transactions written here and derived by the port as the recorded ones are (IDs are their keylets: an escrow's and a check's
+  of owner and sequence, a channel's of owner, destination and sequence), each transaction in a recorded ledger that is not among `SETS` (whose lists are the recorded ones), at an
+  index past the ledger's own (`placesOf`), with its type's fields, a fee and a `LastLedgerSequence` (no signature), the object's node as its metadata, and the hash of its
+  serialization; each has a file, its binary form and its place in its ledger's list, so that every event's link opens (10 transactions), **but `channel-long`'s**: a paging fixture,
+  its 120 events link to transactions that are not served and are in no ledger's list (`UNSERVED_SYNTHETIC`, a controller ruling: 250 KB of links nobody follows; made last, its
+  places come after the others', so the lists have no gap). The active account (`rBbW6i…`,
+  `OBJECTS_ACCOUNT`, test/e2e/fixtures.ts's `XRPL_ACCOUNT`) owns an escrow that can be cancelled (both its times passed, made in 107641123), one cancelled by its owner (made in
+  107558036, cancelled in 107624182) and a channel asked to close (made in 107296498, claimed once in 107558036, its `Expiration` set in 107641123 a 30-day settle delay on), and is
+  the destination of a check that expired a day after it was written (107641123): all four before the explorer's head (107721455),
+  whose `account_objects` holds the three still in the ledger (C7). Others own an escrow pending until 2030 (no recorded XRPL escrow is pending at the as-of time), one that can be
+  finished and has no `CancelAfter` (none is), an escrow of D5's synthetic MPT issuance (`0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8`, 250 units: none was found on the
+  network, D5's FINDINGS (8)), and `channel-long`: created in the first recorded ledger and then claimed from (108 claims) and funded (11 funds) across 14 later ones, 120 events,
+  so that its answer embeds 50 and two pages follow (50 and 20). The open ones have node entries too.
+- **C9's transactions**, in the ledger of the recorded `DelegateSet` (107558036), at the indexes after its own (71 to 74), with files and appended to that ledger's list: a delegated
+  `Payment` and a delegated `tec` (D5's `delegatedFrom` over the ledger's first successful XRP `Payment` between two accounts and its first `tec` `Payment`: the `Delegate`
+  `rHb9CJAW…`, D5's `SYNTHETIC_DELEGATE`, pays the fee from a root appended to the metadata, the sender's balance keeps it), the `DelegateSet` with an empty list that deletes
+  the recorded delegation (D5's `delegate_set_empty`, as the account's next transaction), and the same `DelegateSet` failed with `tecINSUFFICIENT_RESERVE` (its fee and sequence
+  only). Their hash is that of their serialization (the binary form re-hashes to it), not D5's `syntheticHash`. They are not rows of the index: D5 never indexed them, so the recorded
+  delegation stays as the reference has it (not deleted).
+
+### Written by hand
+
+- XRPL `node/account_objects/rBbW6i….json` (and its byte copy `…@limit=400.json`) gains the node entries of the three live synthetic objects (as their `node/ledger_entry/` files
+  have them) and a `Delegate` (`Authorize` the first delegation given below, its three permissions), and `node/account_info/rBbW6i….json` its `OwnerCount` 4 (the trust line, the
+  escrow, the channel and the delegation; the check is its sender's).
+- XRPL `data-api/accounts/<A>/delegations@direction=given&limit=200.json` and `…held…`: `rBbW6i…` gives three (the Delegation board's: `Payment`, `TrustlineAuthorize` and
+  `TrustlineFreeze`; eight; `TrustlineUnfreeze` and the two MPT locks) and holds two (`Payment`; `TrustSet`, `OfferCreate`, `OfferCancel`), its delegates' addresses drawn from
+  `seedOf("xrpl", "objects", "delegations")`, the IDs their keylets, the times and ledgers on the board's days; the deleted account `r3Cger…` has none, and the never-funded one
+  none with a coverage that is not whole. All as of 107972102 with the delegations' coverage, `{ from_ledger_index: 102145584, complete: true }` (the first ledger of the recordings
+  is before the PermissionDelegation amendment). An account with no file is D5's empty page with the same coverage and ledger (`DELEGATIONS_AS_OF` in `test/support/upstream-core.ts`,
+  C11; Xahau's is the reference's example).
+
+### The cases of the pages
+
+`test/support/object-cases.ts` (`objectCase(net, which)`) finds an object of each case in the committed files by the predicates of `test/support/object-case-rules.ts`, never from a table
+of IDs; `test/unit/object-fixtures.test.ts` checks that they resolve, the first by ID of those a rule takes:
+
+| Case | Rule | XRPL |
+|---|---|---|
+| `escrow-pending`, `escrow-finishable` | pending, of the native currency; can be finished | synthetic |
+| `escrow-cancellable`, `escrow-cancelled` | can be cancelled, native, created indexed; cancelled, created indexed | the active account's (synthetic) |
+| `escrow-finished`, `escrow-token`, `escrow-mpt` | finished with its creation; a token escrow with its creation; an MPT escrow | `FA8631A0…` (XRB); `1A137C89…`; synthetic |
+| `escrow-incomplete` | finished, no `created`, coverage not whole (C8) | `8993DA09…` |
+| `escrow-node-only`, `check-node-only` | a node entry of the type that has no answer | `0F0EE149…`, `24BC04C8…` |
+| `check-open`, `check-expired`, `check-cashed`, `check-cancelled` | by status (open: native, created indexed) | `DA6BE164…`; synthetic (to the active account); `A13EFD94…`; `2C0D06B6…` |
+| `channel-open`, `channel-closing`, `channel-closed`, `channel-long` | open with one page; closing by an `expiration`, created indexed; closed; more than one page (`markers`) | `E22CCE8F…`; the active account's (synthetic); `BA23FAA9…`; synthetic |
+| `xahau-escrow`, `xahau-token-channel` (asked of Xahau) | an escrow in the ledger, native; a token channel | `B7083D00…`; `29FE7315…` (DHA) |
+| `delegated-payment`, `delegated-tec`, `delegate-set-empty`, `delegate-set-failed` | the transaction (`id` its hash, `owner` its `Account`) | C9's |
+
+**What keeps them true.** `test/unit/object-fixtures.test.ts` checks every answer, page and lookup with the client's shape checks (`app/server/object-shape.ts`) and the reference's key
+lines, the reference's examples text for text, the statuses the recordings show, the coverage rule, each escrow's ID against its `EscrowCreate`'s created node and its keylet,
+`channel-long`'s pages and markers, the synthetic objects and transactions, which transactions have a file and that each is at its place in its ledger's list, the cases, the
+hand-written files against the generator's, that `isObjectGenerated` names the files and nothing else, and that a second run writes the same bytes. `scripts/http-fixtures.test.ts` fails
+when a file is not what the generator writes.
+
+## Token answers: `http/<net>/data-api/tokens@…` and `http/<net>/data-api/tokens/…`, with the featured tokens' pools files
+
+The data API's answers of D6 (`GET /v2/tokens`, `GET /v2/tokens/{token}`, its `/holders` and its `/transfers`) for the token pages (E11). D6 has no deployment yet, so nothing here is recorded:
+`scripts/token-fixtures.ts` generates them, `generate()` joins them per network, and `pnpm fixtures:sync` writes them with their keys in D6's order (`builtFixtureText`, not `fixtureText`, which
+sorts them; a row to a line). They follow D6 at data-api `feat/explorer-data-2` commit **2fb4183** (2fb4183721af6df58dd345f4a6ef90a293ae70b0): its `docs/api-reference.md`, section "Tokens", and its
+spec `docs/superpowers/specs/2026-10-24-issued-tokens-design.md`.
+
+**Every answer** says the coverage `{ from_ledger_index: <the first recorded ledger of the network>, complete: false }` (XRPL 93663334, Xahau 26540187), and the list, the detail and the holders
+are as of the newest recorded ledger (XRPL 107721455, 2026-10-17T17:01:12Z; Xahau 26596843, 2026-10-17T17:47:11Z). The upstream mock answers a token without a file as D6 does: 404
+`token not found` for it and its holders, and for its transfers a 200 with no rows and that coverage (D6's transfers never answer 404). Its list without a file stays a missing route.
+
+| Files below `<net>/data-api/` | Holds | Kind |
+|---|---|---|
+| `tokens@kind=issued&limit=20&min_holders=10.json`, `tokens@kind=issued&limit=20&marker=<M>&min_holders=10.json` | the 60 tokens with 10 holders or more, 3 pages | synthetic around the featured tokens |
+| `tokens@kind=issued&limit=20[&marker=<M>].json` | all 100 tokens, 5 pages | the same rows |
+| `tokens@kind=issued&limit=20&min_holders=10&q=USD.json`, `…&q=<an issuer>` | a search by its code and by an issuer (XRPL `rvYAfW…`, Xahau `rEvernode…`), ranked among what it selects, none behind the first page | the same rows |
+| `tokens@kind=issued&limit=20&q=USD.json` | the search under `all=1`, the link of "more among tokens with fewer than 10 holders" | the same rows |
+| `tokens@kind=issued&limit=1&min_holders=10.json` | the first row: a token page's 404 reads its coverage here | the same rows |
+| `tokens/<CUR>.<issuer>.json` | each featured token: its toml, its issuer's settings, its markets | synthetic around real issuers |
+| `tokens/<CUR>.<issuer>/holders@limit=10.json`, `…/holders@limit=50[&marker=<M>].json` | its holders, every one of them: the supply is their exact sum | real addresses of the recordings first, then seeded; balances, limits and flags synthetic |
+| `tokens/<CUR>.<issuer>/transfers@descending=true&limit=20[&marker=<M>].json` | the payments that delivered it, newest first | derived where the recordings have them, seeded otherwise |
+| `amm/pools@asset=<CUR>+<issuer>&limit=20.json` of USD, LIONS and TIN | the live pools holding the token, in the list's order (LIONS and TIN: none), which their token pages read beside RLUSD's existing file | derived: `scripts/amm-fixtures.ts`, `isAmmGenerated`, not this generator |
+
+**The featured tokens.** Currency and issuer as the plan names them; the figures are made up.
+
+| Network | Token | Issuer | What it is for |
+|---|---|---|---|
+| XRPL | `RLUSD` (`524C…`) | `rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De` | a text code, listed with a full toml, clawback allowed, markets against XRP and two issued tokens; 96 holders, rank 1, a frozen one among the ten; a second page of transfers |
+| XRPL | `USD` | `rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B` | a 3-character code, a transfer fee of `"0.2"`, a domain and not listed; 72 holders; a market with no native volume |
+| XRPL | `LIONS` (`4C49…`) | `rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS` | no domain and no `issuer_settings`: the node's recorded `account_info` (above) serves them; a price in exponent form; 54 holders |
+| XRPL | `TIN` | `rNwnk4Z6aDGGVcytB5NWeegHLZKbHRjdL3` (made up) | 4 holders, no price, no market, no domain |
+| Xahau | `EVR` | `rEvernodee8dJLaFsujS6q1EiXvZYmHXr8` | listed, a price in XAH, a toml `icon` that is no `https:` URL; 88 holders |
+| Xahau | `NOD` | `rsU3Rid6exHofd2D5xjewTJSYJe5QfKUiJ` (made up) | a domain and not listed, the issuer authorizes lines (`require_auth`), a price of the 30-day set (a time, no change, no market); 61 holders, ranks 50 and 51 tied on one balance, across the holders page's boundary (D6's tie, which the holder decides) |
+
+The token pages' LP case is no file of these: it is the XRP/RLUSD pool's `lp_currency` and account, from the pools (`03B245BE…`, `rhWTXC2m…`), and D6 has no such token. The cases are found by their
+rules in `test/support/token-case-rules.ts` (`rlusd`, `usd`, `lions`, `few-holders`, `lp`, `evr`, `xahau-unlisted`), never from a table, which `test/support/token-cases.ts` (the worker specs) and the
+fixtures test share.
+
+**Real, from the recordings** (the sets of `readLedgers`, not the NFT or objects sets): a featured token's first holders are the holders of its recorded trust lines, with a positive balance at the
+end of the recordings, in the order they are first met (their balances are not the real ones), and `last_ledger` the newest ledger that changed one, or the newest of its transfers (a delivered payment changes a line). RLUSD's transfers are the newest 40 of the 61
+recorded payments that delivered it (a successful `Payment` between two different accounts, its `DeliveredAmount` or else its `Amount`, its tags), so that a second page ends the list and every
+marker has its file; EVR's first is its one such payment. USD and LIONS deliver nothing in the recordings (USD's are tec or to oneself), so theirs are seeded. The transactions behind the
+transfers are not served, unless `generate()` serves them for another reason.
+
+**Invented, and not checked against anything real:** the seeded tokens of each network (XRPL 96, Xahau 98) and their issuers (`r…` from seeded bytes, domains `*.example`), every count, supply, price, change,
+volume, balance, limit and flag, the seeded transfers and their hashes, the tomls and the issuers' settings (RLUSD's domain `ripple.com`, USD's `bitstamp.net` and EVR's `evernode.org` are only words
+on a card: nothing was read from them). Seeds: `mulberry32(seedOf(<net>, "tokens"))` for the seeded rows, and `seedOf(<net>, "tokens", <name>, "holders" | "markets" | "transfers" | "last_ledger")`
+for a featured token (`scripts/synthetic.ts`). The first list page holds a price in exponent form (`"1.2000000e-7"`) and a row with no price, so the pages draw both; `totals.holders` is in every list.
+
+**What keeps them true.** `test/unit/token-fixtures.test.ts`, over `generate()`'s files: D6's key lines in their order, and the client's shape checks (`app/server/token-shape.ts`) on every file;
+ranks, markers against D6's three examples, and pages that concatenate; the tie; counts and totals against the rows; every search by D6's rule; every share against its balance and the supply, the supply against the balances; the
+addresses; a token's page against its list row and its markets; transfers against the recordings; every case; the same output whatever the order. `isTokenGenerated` names the files, which have a budget
+of their own in `test/unit/http-fixtures.test.ts` (0.3 MiB). `test/unit/amm-fixtures.test.ts` checks the pools files. `test/unit/upstream-core.test.ts` checks the mock's answers for a token without a file.
+
+## Synthetic supply: `http/<net>/data-api/network/supply.json` and `http/xahau/data-api/network/supply/minted@…`
+
+Nothing in these files is recorded or copied. The supply page (E12) reads two routes of D7, which the data API computes hourly from the whole history (the open escrows, the AMM pools, the
+account states, the fees and the mints): no recording of a few ledgers can give them, so `scripts/supply-fixtures.ts` makes them up and `pnpm fixtures:sync` writes them (`generate()` in
+`scripts/http-fixtures.ts` calls `supplyFixtures(net, last, snapshot)` for each network, after `validatorsFixtures`, and writes them with their keys in D7's order: `builtFixtureText`, not
+`fixtureText`, which sorts them; the minted days a row to a line). They follow D7 at data-api `feat/explorer-data-2` commit **31e97efaa1a6e098435b666e8893c79a0c4bee66**, read with
+`git -C ../data-api-worktrees/explorer-data-2 show 31e97ef…:<path>`, never checked out:
+
+| | Repository, ref | Commit | For |
+|---|---|---|---|
+| `docs/api-reference.md`, `GET /v2/network/supply` and `GET /v2/network/supply/minted` | `data-api`, `feat/explorer-data-2` | `31e97efaa1a6e098435b666e8893c79a0c4bee66` | the answers' keys and their order ("Keys of …"), formats, the rules that tie one figure to another, the coverages of its two built examples |
+| `docs/openapi.yaml` | the same commit | `31e97efaa1a6e098435b666e8893c79a0c4bee66` | `api/openapi.yaml` and `app/server/openapi.d.ts`, synced from this commit and not from the branch tip (plan Ruling C1) |
+
+The client's types (`app/server/api-types.ts`, "Supply") and checks (`app/server/supply-shape.ts`) follow the same commit, and every file passes them.
+
+| Files below `http/<net>/data-api/network/` | Holds |
+|---|---|
+| `supply.json` | **XRPL**: the snapshot at the recorded ledger **107,720,688** (closed 2026-10-17T16:11:02Z, about 50 minutes before `last_validated` 107,721,455 at 17:01:12Z, so the page does not call it stale), `computed_at` 107 s after the close; every figure and count of D7's XRP Ledger example (`total` `99985312374.716318`, `burned` `14687625.283682`, `escrowed` `35212847105.402318` in 12,879 escrows, `circulating` `64772465269.314`, `amm` `46218377.402915` in 14,594 pools, `reserves` `9810004` = 6,410,280 × 1 + 16,998,620 × 0.2). **Xahau**: the snapshot at the newest recorded ledger 26,596,843 (2026-10-17T17:47:11Z), `computed_at` 29 s after, D7's Xahau example's figures (`minted` `49425551.616207` = `rewards` `41203318.512207` + `import` `8102233.104` + `genesis_mint` `120000`; `burned` `2318.640227`; `escrowed` `18406227.318004` in 2,140 escrows; `circulating` `594995554.799302`; `reserves` `268973.2`; no `amm`) |
+| `supply/minted@end=2026-10-17&interval=day&limit=1000&start=2026-07-20.json` (Xahau only) | the 90 days of the network page's window (`windowOf("2026-10-17", "90d")`), oldest first, one row each: rewards every day (25,000 to 35,000 XAH, six decimals), an import on about four days in five (500 to 8,000 XAH), `genesis_mint` `"40000"` on 2026-09-14 only, and the running day (2026-10-17) at about a third of a day's mint; `amount` the exact sum of the three; `count` 90, no `marker`, `coverage` `{ from_ledger_index: 1, complete: true }` |
+
+The XRP Ledger mints nothing and its page does not ask for the days (spec 3.2: only when the snapshot has `minted`), so it has no minted file: a request for it gets the mock's answer for a route no fixture has, `Cannot GET`, a missing route.
+
+**Coverages.** The built reference's, not those of D7's design spec §5.1 (plan Ruling C11): the spec's own note retracts them as ones that "cannot occur together" (the reserves starting above the
+escrows). XRPL: `{ from_ledger_index: 28685313, complete: true }` for `escrowed`, `circulating` and `amm`, and `{ 28685313, false }` for `reserves`; its `burned` has none, as D7 leaves it out where
+the network cannot mint. Xahau: `{ 1, true }` on every part and on the minted page. The page's note therefore reads "Since ledger #1" there.
+
+**Seeds.** The minted days draw three numbers a day from `mulberry32(seedOf("xahau", "supply/minted"))` (`scripts/synthetic.ts`), whether the day uses them or not (the reward, whether the day has an
+import, the import), so a day's amounts depend on its place in the window and on nothing else. Only integer arithmetic and the four IEEE operations are used on the numbers, BigNumber for the
+text, so every Node writes the same bytes.
+
+**Invented, and not checked against anything real:** every figure above (D7's examples are made-up figures "of a plausible day" themselves), the snapshots' ledgers' relation to them (the recorded
+ledger 107,720,688 is real, its supply is not), `computed_at`, and the minted days. The 90 days add up to far less than the snapshot's `minted` (about 3.0 million XAH against 49 million): that total
+is since ledger 1, the days are the last 90. The running day's third is a round figure: Xahau's newest ledger closed at 17:47, three quarters of the way through the day.
+
+**What keeps them true.** `test/unit/supply-fixtures.test.ts`, over `generate()`'s files: D7's rules worked out again with BigNumber (`circulating` = `total` less `escrowed`, the reserves, XRPL's `burned`
+= 100 billion less `total`, `minted` the sum of its sources, each day's `amount`), the figures and coverages of the examples, D7's key orders in the files, the snapshot's distance from `last_validated`, the
+90 days of the window and the fees' (the same days), the one `GenesisMint` day, the client's shape checks on every file, and the same output twice. `isSupplyGenerated` names the files, which count against
+the synthetic aggregates' size budget in `test/unit/http-fixtures.test.ts`.
+
+## Synthetic names and tomls: `http/<net>/data-api/account_names.json` and `http/<net>/data-api/toml/`
+
+Nothing in these files is recorded or copied. The display names (E9) read D4's two routes, which the data API builds from the operator's names and labels (ADR-0014), the
+accounts' `Domain` and the tomls its `tomls` worker reads: no recording can give them, so `scripts/names-fixtures.ts` makes them up and `pnpm fixtures:sync` writes them
+(`generate()` in `scripts/http-fixtures.ts` calls `namesFixtures(net, files)` for each network last, with every other file of the network, generated or written by hand). The
+names are invented; the shapes, the key orders and the rule that picks a display name follow the data API:
+
+| | Repository, ref | Commit | For |
+|---|---|---|---|
+| `docs/api-reference.md`, "Account names and tomls" | `data-api-new`, `feat/explorer-data-2` | `3feb11a` | the two answers: keys and their order, the 400 messages, `toml_url` on each network, what a definite failure carries, empty lists left out |
+| `apps/api/src/names/display-name.ts`, `account-names-object.ts`, `toml-object.ts`, `account-names.controller.ts` | `data-api-new`, `feat/explorer-data-2` | `3feb11a` | `displayNameOf` (verified > account > domain; a `desc` of 1 to 64 code points, else the domain), the entry's and the toml's key orders, `parseAddresses` (which the upstream mock follows) |
+
+Read with `git -C ../data-api-new show <commit>:<path>`, never checked out. The client's types (`app/server/api-types.ts`) and checks (`app/server/names-shape.ts`) follow the
+same commit, and every entry and toml passes them.
+
+**What is written.** `account_names.json` is `{ "<address>": <entry> }`, an entry to a line, sorted by address, only the addresses with something to show; the upstream mock
+answers `GET /v2/account_names` with the entry of each address asked, or the address alone. `toml/<domain>.json` is the answer of `GET /v2/toml/{domain}`; a domain without a file
+is `toml not found`. Every toml was checked (and an `ok` one read) at `2026-10-17T06:00:00.000Z`, the morning of T.
+
+| Network | Address | Who it is | Name |
+|---|---|---|---|
+| XRPL | `rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh` | the active account | verified: `northpeak.example` (its `account_info` `Domain`, `6E6F…6C65`), whose `ok` toml lists it as "Northpeak Treasury", with the principals Mara Lindqvist and Tomas Okafor, `NPUSD` (2 decimals, "Northpeak Dollar") and `NPEUR` of this issuer, `modified` 2026-10-02 |
+| XRPL | `r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC` | the deleted account | named by GateHub "Harborline Exchange", network name "hot wallet", label `advisory` ("Test label: withdrawals paused", source "GateHub", `https://status.example/harborline`) |
+| XRPL | `rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ` | the active account's parent | label `spam` ("Test label") only |
+| XRPL | `rURtT5MMFzSUR54MAq9MKfzBoezTBZbKns` | the deleted account's parent | domain not verified, `lowtide.example`, whose `ok` toml lists nobody; label `scam` ("Test label") |
+| Xahau | `rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto` | the active account | verified: `tidewater.example` (`Domain` `7469…6C65`), "Tidewater Reserve", the toml as Northpeak's with `TWUSD` ("Tidewater Dollar") and `TWEUR` |
+| Xahau | `rMoPk1MiYJbmdNL8xr5s11r7jrxzBhJWLD` | the deleted account | label `scam` ("Test label") only: a deleted account has no domain in D4 (plan Ruling 11) |
+| Xahau | `rEvernodee8dJLaFsujS6q1EiXvZYmHXr8` | the accounts' parent | named by GateHub "Hookfield Labs", no network name |
+| Xahau | `rJ5mvuNKjbjdghjCn5AGXXJFhJGgqdg9Q5` | an active account (it paid the active account in the newest recorded ledger) | domain not verified, `saltmarsh.example`, whose toml failed on a 404 (plan Ruling 11 moved it from the deleted account) |
+
+**Generator and seeds.** The seeded addresses are the classic addresses of the files of `NAMES_SOURCES`, in its order (the hand-written accounts and balances, the eight newest
+transactions, the served transactions, the accounts' first pages, the pairs' active accounts, the AMM pages, the validators list, the NFT sales, collections and NFTs, and last the token
+lists, then the tokens' own files, each in order of its path), the fixed ones left out, up to 500: XRPL 500, where the cap cuts the tail (458 before the token files, then the list's 31 issuers
+that were not among them and 11 holders of LIONS, the first token by path), Xahau 280. `fnv1a32("<net>:<address>") % 40` picks the state (0–7 verified, 8–12 named by GateHub, with a network name when bit 8 is set,
+13–16 domain not verified, the rest nothing), and the hash the name (a word of 24 and one of 8) and the domain (the word and the hash's upper 16 bits in hex, `alder-1f2e.example`;
+the generator fails on a domain two addresses would share). A verified domain's `ok` toml lists its account with its `desc` (the first by sort without one: its name is its
+domain); every second unverified one by sort has an `ok` toml that lists nobody, the others none. An account the fixtures mark deleted (a transaction's `DeletedNode` of its
+`AccountRoot`, an AMM pool the data API marks `deleted`, a hand-written account the node does not have: on XRPL `r3Cgerz…` and the SNK/XRP pool's `rGLnUK…`, on Xahau `rMoPk1…`)
+gets no domain, so a seeded one is named by GateHub or not at all. XRPL: 109 verified, 53 named by GateHub (29 with a network name), 58 domain not verified, 280 nothing; Xahau: 48,
+33 (19), 31, 168. Adding addresses moves the "first by sort" and the "every second by sort" among the others: E11's token files changed one name from its domain to its `desc` a network
+and moved tomls of unverified domains, whose stale files were removed by hand as `pnpm fixtures:sync` reports them.
+
+**Invented, and not checked against anything real:** every name, network name, label, domain, principal, currency and time, and the `Domain` of the two active accounts (the
+recordings show none). No operator is implied: the names are fictional and the domains `*.example` (RFC 2606).
+
+**What keeps them true.** `test/unit/names-fixtures.test.ts` runs the client's checks on every entry and toml, works D4's display-name rule out again for every entry, checks the
+key orders on the objects before serialization, the fixed cases, the tomls of the verified domains, the seeded addresses and their shares, the deleted accounts, and the line
+count of `account_names.json`; `test/unit/upstream-core.test.ts` checks the mock's composition of the names batch and its three 400s. `scripts/http-fixtures.test.ts` fails when a
+file is not what the generator writes. `isNamesGenerated` names the files, and they have a budget of their own in `test/unit/http-fixtures.test.ts` (128 KiB a network).

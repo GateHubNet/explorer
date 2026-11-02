@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NFT</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.xp{--bg:#F5F6F8;--surface:#FFFFFF;--sunken:#EEF0F3;--border:#E1E4E9;--border-strong:#CDD2D9;--fg:#0F1217;--muted:#4F5864;--faint:#646D7A;--link:var(--accent);--ok:#17733F;--ok-bg:#E3F3E9;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.xp.dark{--bg:#0B0E12;--surface:#12161C;--sunken:#181D24;--border:#232A33;--border-strong:#323B46;--fg:#E7EBF0;--muted:#A3ACB9;--faint:#8D97A5;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--ok:#5BD08F;--ok-bg:#10281B}
+.xp a{color:var(--link);text-decoration:none}
+.xp a:hover{text-decoration:underline}
+.xp button,.xp input{font:inherit;color:inherit}
+.xp :focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{border:0;background:transparent;padding:6px 12px;border-radius:7px;display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:500;color:var(--muted);min-height:32px;white-space:nowrap}
+.seg.on{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--border)}
+.segs{display:flex;padding:3px;background:var(--sunken);border:1px solid var(--border);border-radius:9px}
+.nav{padding:8px 10px;border-radius:7px;color:var(--muted)!important;font-weight:500;display:inline-flex;align-items:center}
+.nav:hover{background:var(--sunken);text-decoration:none!important;color:var(--fg)!important}
+.nav.cur{color:var(--fg)!important;background:var(--sunken)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.src{font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--faint)}
+.amt{font-family:'Geist Mono',ui-monospace,monospace;font-weight:500;font-variant-numeric:tabular-nums}
+.copy{border:0;background:transparent;color:var(--faint);cursor:pointer;padding:4px;border-radius:5px;vertical-align:middle;min-width:30px;min-height:30px}
+.copy:hover{color:var(--fg);background:var(--sunken)}
+.tag{font-size:11px;font-weight:500;padding:1px 6px;border-radius:5px;background:var(--sunken);border:1px solid var(--border);color:var(--muted);white-space:nowrap}
+.flag{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;padding:3px 9px;border-radius:999px;border:1px solid var(--border);white-space:nowrap}
+.flag.on{background:var(--ok-bg);color:var(--ok);border-color:transparent;font-weight:500}
+.flag.off{color:var(--faint)}
+.kv{display:grid;grid-template-columns:160px minmax(0,1fr);gap:4px 16px;padding:11px 0;border-top:1px solid var(--border);align-items:baseline}
+.kv dt{font-size:12.5px;color:var(--faint)}
+.kv dd{margin:0;overflow-wrap:anywhere}
+.part{display:flex;flex-direction:column;gap:6px;min-width:0}
+.part .hex{font-family:'Geist Mono',ui-monospace,monospace;font-size:13px;padding:6px 8px;border-radius:7px;background:var(--sunken);border:1px solid var(--border);overflow-wrap:anywhere}
+.part .lbl{font-size:11.5px;color:var(--faint);font-weight:500}
+.part .val{font-size:13px}
+.tr{display:grid;grid-template-columns:var(--cols);align-items:center;column-gap:16px;padding:0 16px;min-height:50px;border-top:1px solid var(--border);font-size:13px}
+.th{min-height:38px;font-size:12px;font-weight:500;color:var(--faint);border-top:0}
+.tb .tr:hover{background:var(--sunken)}
+.r{text-align:right;justify-self:end}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);cursor:pointer;min-height:40px}
+.chk input{width:16px;height:16px;accent-color:var(--accent)}
+.menu{position:relative;display:inline-flex}.menu>summary{list-style:none;cursor:pointer}.menu>summary::-webkit-details-marker{display:none}.menu-panel{position:absolute;z-index:20;top:calc(100% + 6px);left:0;min-width:230px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px -16px rgba(0,0,0,.35);padding:6px;display:flex;flex-direction:column;gap:2px}.menu-panel a{display:flex;align-items:center;min-height:36px;padding:0 10px;border-radius:7px;color:var(--fg)!important;font-weight:500}.menu-panel a:hover{background:var(--sunken);text-decoration:none!important}.menu-panel a[aria-current="page"]{background:var(--sunken)}
+</style>
+</helmet>
+<div class="xp {{themeClass}}" style="--accent: {{accentNow}};">
+
+<header style="background: var(--surface); border-bottom: 1px solid var(--border);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 12px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: var(--fg);" aria-label="Explorer home">
+      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" style="fill: var(--accent)"></rect><path d="M8 10h7M8 14h12M8 18h9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"></path></svg>
+      <span style="font-weight: 650; font-size: 17px; letter-spacing: -0.01em;">explorer</span>
+    </a>
+    <div role="group" aria-label="Network" class="segs">
+      <button type="button" class="seg {{xrplCls}}" aria-pressed="{{isXrpl}}" onClick="{{pickXrpl}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xrplDot}};"></span>XRPL</button>
+      <button type="button" class="seg {{xahauCls}}" aria-pressed="{{isXahau}}" onClick="{{pickXahau}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xahauDot}};"></span>Xahau</button>
+    </div>
+    <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 2px; align-items: center;">
+      <a class="nav" href="Ledger.dc.html">Ledgers</a>
+      <a class="nav" href="Transaction.dc.html">Transactions</a>
+      <a class="nav" href="Account.dc.html">Accounts</a>
+      <a class="nav" href="Tokens.dc.html">Tokens</a>
+      <details class="menu">
+        <summary class="nav">Network<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 4px;"><path d="m6 9 6 6 6-6"></path></svg></summary>
+        <div class="menu-panel">
+          <a href="Network.dc.html">Overview</a>
+          <a href="Validators.dc.html">Validators</a>
+          <a href="Nodes.dc.html">Nodes</a>
+          <a href="Amendments.dc.html">Amendments</a>
+          <a href="Supply.dc.html">Supply &amp; distribution</a>
+        </div>
+      </details>
+      <a class="nav" href="Markets.dc.html">Markets</a>
+      <a class="nav" href="Amm.dc.html">AMM</a>
+      <a class="nav cur" href="Nfts.dc.html" aria-current="page">NFTs</a>
+    </nav>
+    <form role="search" style="flex: 1 1 240px; display: flex; align-items: center; gap: 8px; background: var(--sunken); border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; min-height: 40px;">
+      <label for="hdr-q" class="sr">Search</label>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint); flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <input id="hdr-q" type="search" placeholder="Address, hash, ledger, CTID or NFT id" style="flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px;">
+    </form>
+  </div>
+</header>
+
+<main style="max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; display: flex; flex-direction: column; gap: 18px;">
+
+  <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--faint); display: flex; gap: 8px; flex-wrap: wrap;">
+    <a href="Main.dc.html">{{netName}}</a><span aria-hidden="true">/</span><a href="Nfts.dc.html">{{sectionName}}</a><span aria-hidden="true">/</span><a href="NftCollection.dc.html" class="mono">{{collShort}}</a><span aria-hidden="true">/</span><span aria-current="page" style="color: var(--muted);">{{crumb}}</span>
+  </nav>
+
+  <section class="card" aria-label="{{tokenWord}}" style="padding: 20px 22px; display: flex; gap: 22px; flex-wrap: wrap;">
+    <div style="flex: none; width: 200px; height: 200px; border-radius: 14px; border: 1px dashed var(--border-strong); background: var(--sunken); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; box-sizing: border-box; text-align: center;">
+      <svg aria-hidden="true" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint);"><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-4.5-4.5L7 20"></path></svg>
+      <span style="font-size: 12.5px; color: var(--muted);">No preview</span>
+      <span style="font-size: 11.5px; color: var(--faint);">The explorer shows the URI but does not fetch what it points to.</span>
+    </div>
+    <div style="flex: 1 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;">
+        <h1 style="margin: 0; font-size: 28px; letter-spacing: -0.02em; font-weight: 650;">{{title}}</h1>
+        <span class="tag">{{kindTag}}</span>
+        <sc-if value="{{isBurned}}" hint-placeholder-val="{{false}}"><span class="tag">burned</span></sc-if>
+      </div>
+      <span style="font-size: 13px; color: var(--muted);">{{ofLine}} <a href="NftCollection.dc.html" class="mono">{{collShort}}</a></span>
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 12px; color: var(--faint);">{{tokenWord}} id</span>
+        <span class="mono" style="font-size: 13.5px; overflow-wrap: anywhere;">{{idFull}}<button type="button" class="copy" aria-label="Copy the id"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h8"></path></svg></button></span>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 10px 28px;">
+        <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 12px; color: var(--faint);">Owner</span><a class="mono" href="Account.dc.html" style="font-weight: 500;">{{owner}}</a><span style="font-size: 12px; color: var(--muted);">since <a href="Transaction.dc.html">{{ownerSince}}</a></span></div>
+        <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 12px; color: var(--faint);">Last sale</span><span class="amt" style="font-size: 18px;">{{lastSale}}</span><span style="font-size: 12px; color: var(--muted);">{{saleCount}}</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 18px; align-items: stretch;">
+
+    <section class="card" aria-labelledby="fx-title" style="flex: 1 1 520px; min-width: 0; padding: 16px 18px 6px;">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap;">
+        <h2 id="fx-title" style="margin: 0; font-size: 15px; font-weight: 600;">Details</h2>
+        <span class="src">{{nftSrc}}</span>
+      </div>
+      <dl style="margin: 8px 0 0;">
+        <div class="kv"><dt>Issuer</dt><dd><a class="mono" href="Account.dc.html">{{issuerFull}}</a></dd></div>
+        <sc-if value="{{isXrpl}}" hint-placeholder-val="{{true}}"><div class="kv"><dt>Taxon · serial</dt><dd class="mono">1 · 4,127</dd></div></sc-if>
+        <div class="kv"><dt>Minted</dt><dd><a href="Ledger.dc.html" class="mono num">#{{mintLedger}}</a> <span style="color: var(--faint);">· 14 Mar 2024 · by</span> <a class="mono" href="Account.dc.html">{{minter}}</a></dd></div>
+        <div class="kv"><dt>{{feeLabel}}</dt><dd>{{feeText}}</dd></div>
+        <div class="kv"><dt>URI</dt><dd><span class="mono" style="font-size: 13px;">{{uri}}</span><span style="display: block; font-size: 12px; color: var(--faint);">{{uriNote}}</span></dd></div>
+        <div class="kv"><dt>Flags</dt><dd style="display: flex; flex-wrap: wrap; gap: 6px;"><sc-for list="{{flags}}" as="f" hint-placeholder-count="4"><span class="flag {{f.cls}}"><span aria-hidden="true">{{f.mark}}</span>{{f.label}}<span class="sr">{{f.state}}</span></span></sc-for></dd></div>
+      </dl>
+    </section>
+
+    <section class="card" aria-labelledby="id-title" style="flex: 1 1 420px; min-width: 0; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;">
+      <h2 id="id-title" style="margin: 0; font-size: 15px; font-weight: 600;">{{idTitle}}</h2>
+      <sc-if value="{{isXrpl}}" hint-placeholder-val="{{true}}">
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px;">
+          <sc-for list="{{parts}}" as="p" hint-placeholder-count="5">
+            <div class="part" style="grid-column: {{p.span}};"><span class="lbl">{{p.label}}</span><span class="hex">{{p.hex}}</span><span class="val">{{p.val}}</span></div>
+          </sc-for>
+        </div>
+        <span style="font-size: 12px; color: var(--faint);">The taxon is stored scrambled with the sequence; the explorer unscrambles it, as rippled does.</span>
+      </sc-if>
+      <sc-if value="{{isXahau}}" hint-placeholder-val="{{false}}">
+        <p style="margin: 0; color: var(--muted);">A URIToken’s id is the key of its ledger entry, worked out from the issuer and the URI. It encodes nothing else: the issuer, owner, flags and digest are fields of the entry.</p>
+        <dl style="margin: 0;">
+          <div class="kv"><dt>Digest</dt><dd class="mono" style="font-size: 12.5px;">5E1F9C02…D41A</dd></div>
+          <div class="kv"><dt>Ledger entry</dt><dd><span class="mono" style="font-size: 12.5px;">URIToken</span></dd></div>
+        </dl>
+      </sc-if>
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="of-title" style="overflow: hidden;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--border);">
+      <h2 id="of-title" style="margin: 0; font-size: 15px; font-weight: 600;">Open offers</h2>
+      <span class="src">{{offersSrc}}</span>
+    </div>
+    <div style="overflow-x: auto;">
+      <div role="table" aria-label="Open offers" style="min-width: 860px; --cols: 80px 150px minmax(170px, 1fr) minmax(150px, 1fr) 140px 120px;">
+        <div role="row" class="tr th">
+          <span role="columnheader">Side</span>
+          <span role="columnheader" class="r">Amount</span>
+          <span role="columnheader">By</span>
+          <span role="columnheader">Only for</span>
+          <span role="columnheader">Expires</span>
+          <span role="columnheader">Created</span>
+        </div>
+        <div class="tb">
+          <sc-for list="{{offers}}" as="o" hint-placeholder-count="4">
+            <div role="row" class="tr">
+              <span role="cell"><span class="tag">{{o.side}}</span></span>
+              <span role="cell" class="r amt">{{o.amount}}</span>
+              <span role="cell" class="mono" style="font-size: 12.5px;"><a href="Account.dc.html">{{o.by}}</a></span>
+              <span role="cell" class="mono" style="font-size: 12.5px; color: var(--muted);">{{o.dest}}</span>
+              <span role="cell" class="num" style="color: var(--muted);">{{o.exp}}</span>
+              <span role="cell"><a href="Ledger.dc.html" class="mono num">{{o.created}}</a></span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    <div style="padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--faint);">{{offersNote}}</div>
+  </section>
+
+  <section class="card" aria-labelledby="hi-title" style="overflow: hidden;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; padding: 10px 16px; border-bottom: 1px solid var(--border);">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="hi-title" style="margin: 0; font-size: 15px; font-weight: 600;">History</h2>
+        <span class="src">{{historySrc}}</span>
+      </div>
+      <label class="chk"><input type="checkbox" checked="{{showOffers}}" onChange="{{toggleOffers}}">Show offer events</label>
+    </div>
+    <div style="overflow-x: auto;">
+      <div role="table" aria-label="History" style="min-width: 900px; --cols: 150px 120px minmax(260px, 1.6fr) 150px 110px;">
+        <div role="row" class="tr th">
+          <span role="columnheader">Time</span>
+          <span role="columnheader">Event</span>
+          <span role="columnheader">Accounts</span>
+          <span role="columnheader" class="r">Amount</span>
+          <span role="columnheader">Transaction</span>
+        </div>
+        <div class="tb">
+          <sc-for list="{{events}}" as="e" hint-placeholder-count="8">
+            <div role="row" class="tr">
+              <span role="cell" class="num">{{e.time}}</span>
+              <span role="cell"><span class="tag">{{e.kind}}</span></span>
+              <span role="cell" style="font-size: 13px; color: var(--muted);">{{e.who}}</span>
+              <span role="cell" class="r amt">{{e.amount}}</span>
+              <span role="cell"><a href="Transaction.dc.html" class="mono" style="font-size: 12.5px;">{{e.tx}}</a></span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--faint);">
+      <span>Newest first. A sale’s price is the offer it accepted; a transfer moves the token without a price.</span>
+      <button type="button" style="border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 0 12px; min-height: 34px; cursor: pointer; font-weight: 500;">Older →</button>
+    </div>
+  </section>
+</main>
+
+<footer style="border-top: 1px solid var(--border); background: var(--surface);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 22px 20px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--faint);">
+    <span>explorer · by GateHub</span>
+    <span>History from validated ledgers. Balances and account state read live from the network.</span>
+    <span style="display: flex; gap: 16px;"><a href="#">API</a><a href="#">Status</a><a href="#">Privacy</a></span>
+  </div>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"accent":{"editor":"color","options":["#2F5BEA","#0F766E","#6D28D9","#111827"],"default":"#2F5BEA","section":"Network colors"},"xahauAccent":{"editor":"color","options":["#B45309","#C2410C","#A16207"],"default":"#B45309","section":"Network colors"},"$preview":{"width":1440,"height":2050}}'>
+class Component extends DCLogic {
+  state = { net: 'xrpl', offers: false };
+
+  renderVals() {
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const accent = this.props.accent ?? '#2F5BEA';
+    const xahauAccent = this.props.xahauAccent ?? '#B45309';
+    const st = this.state;
+    const x = st.net === 'xrpl';
+    const cur = x ? 'XRP' : 'XAH';
+
+    const idXrpl = '00081388D7A2C2FA0E4C1B4F3B5A6E7D8C9B0A1F2E3D4C5B3B94ECBE0000101F';
+    const idXahau = 'A1F04C77B2E9D58C3F06A1B2C3D4E5F60718293A4B5C6D7E8F9012AB34CD3D10';
+    const id = x ? idXrpl : idXahau;
+    const collShort = x ? 'rLULtF…mB3R · taxon 1' : 'rEvRt8…Lk2P';
+
+    const parts = [
+      { label: 'Flags', hex: '0008', val: 'transferable', span: 'auto' },
+      { label: 'Transfer fee', hex: '1388', val: '5,000 = 5.000% royalty', span: 'auto' },
+      { label: 'Issuer, 20 bytes', hex: 'D7A2C2FA0E4C1B4F3B5A6E7D8C9B0A1F2E3D4C5B', val: 'rLULtFbCzgUZXmxkKRDg4KPvxHFn5umB3R', span: '1 / -1' },
+      { label: 'Taxon, scrambled', hex: '3B94ECBE', val: 'taxon 1', span: 'auto' },
+      { label: 'Sequence', hex: '0000101F', val: 'serial 4,127 of the issuer', span: 'auto' }
+    ];
+
+    const flagDefs = x
+      ? [['Burnable by issuer', false], ['Only XRP', false], ['Transferable', true], ['Mutable URI', false]]
+      : [['Burnable by issuer', true]];
+    const flags = flagDefs.map((f) => ({ label: f[0], cls: f[1] ? 'on' : 'off', mark: f[1] ? '✓' : '–', state: f[1] ? ': yes' : ': no' }));
+
+    const offers = x ? [
+      { side: 'sell', amount: '1,600 XRP', by: 'rHciXf…JrHC', dest: 'anyone', exp: 'never', created: '#107,701,442' },
+      { side: 'buy', amount: '1,100 XRP', by: 'rKx3Qp…a8Vd', dest: '—', exp: '27 Oct 2026', created: '#107,700,915' },
+      { side: 'buy', amount: '1,020 XRP', by: 'rVb6Ha…Ws1E', dest: '—', exp: 'never', created: '#107,699,301' },
+      { side: 'buy', amount: '250 USD', by: 'rGt5Ew…Mn0P', dest: '—', exp: '21 Oct 2026', created: '#107,698,040' }
+    ] : [
+      { side: 'sell', amount: '560 XAH', by: 'rHy8Lp…Bc2R', dest: 'anyone', exp: '—', created: '#17,511,204' }
+    ];
+
+    const E = x ? [
+      ['20 Oct, 17:02:30', 'offer create', 'sell offer by rHciXf…JrHC', '1,600 XRP', 'E77A10…5B2D', true],
+      ['20 Oct, 17:01:12', 'sale', 'rBbW6…Lq2 → rHciXf…JrHC · broker rPEhZx…3dWq, fee 25 XRP', '1,250 XRP', '67F91E…7C31', false],
+      ['20 Oct, 17:01:12', 'offer removed', 'two offers accepted by the sale', '—', '67F91E…7C31', true],
+      ['20 Oct, 16:40:05', 'offer create', 'buy offer by rHciXf…JrHC', '1,250 XRP', 'B2C04D…91AA', true],
+      ['20 Oct, 16:39:51', 'offer create', 'sell offer by rBbW6…Lq2 · for the broker', '1,225 XRP', '4D8E2A…0C7F', true],
+      ['2 Sep 2026, 08:14:55', 'sale', 'rDi2Vy…zK9m → rBbW6…Lq2', '980 XRP', 'C51F03…2E88', false],
+      ['30 Jun 2026, 21:03:17', 'transfer', 'rLm8Yt…Pq4B → rDi2Vy…zK9m · an accepted offer of 0', '—', '0A93D2…F114', false],
+      ['14 Mar 2024, 12:00:41', 'mint', 'by rLULtF…mB3R, to rLULtF…mB3R', '—', '1E6B77…A0D3', false]
+    ] : [
+      ['20 Oct, 17:50:12', 'offer create', 'sell offer by rHy8Lp…Bc2R', '560 XAH', '7C1E08…D93F', true],
+      ['20 Oct, 17:47:03', 'sale', 'rTg5Wq…Nu3E → rHy8Lp…Bc2R', '520 XAH', 'A9D3F1…22B0', false],
+      ['20 Oct, 10:22:48', 'offer create', 'sell offer by rTg5Wq…Nu3E', '520 XAH', '3F55A2…7E10', true],
+      ['8 Aug 2026, 13:40:09', 'transfer', 'rQm1Xs…Gh5F → rTg5Wq…Nu3E · by Remit', '—', '91BC4E…08A7', false],
+      ['2 Jan 2025, 09:00:12', 'mint', 'by rEvRt8…Lk2P, to rQm1Xs…Gh5F', '—', 'F0E1D2…C3B4', false]
+    ];
+    const events = E.filter((e) => st.offers || !e[5]).map((e) => ({ time: e[0], kind: e[1], who: e[2], amount: e[3], tx: e[4] }));
+
+    return {
+      themeClass: dark ? 'dark' : '',
+      accentNow: x ? accent : xahauAccent,
+      xrplDot: accent, xahauDot: xahauAccent,
+      isXrpl: x, isXahau: !x,
+      xrplCls: x ? 'on' : '', xahauCls: x ? '' : 'on',
+      pickXrpl: () => this.setState({ net: 'xrpl' }),
+      pickXahau: () => this.setState({ net: 'xahau' }),
+      netName: x ? 'XRPL' : 'Xahau', sectionName: x ? 'NFTs' : 'URITokens', collShort,
+      crumb: x ? '#4,127' : idXahau.slice(0, 8) + '…' + idXahau.slice(-4),
+      tokenWord: x ? 'NFT' : 'URIToken',
+      title: x ? 'NFT #4,127' : 'URIToken ' + idXahau.slice(0, 8) + '…',
+      kindTag: x ? 'NFToken' : 'URIToken',
+      isBurned: false,
+      ofLine: x ? 'Serial 4,127 of the collection' : 'Minted by the issuer of',
+      idFull: id,
+      owner: x ? 'rHciXfYwdi7pUqhJA1MNJ7nkZ1nHvJrHC' : 'rHy8LpTqW3nVbXc9mKd2Fz7RsPq1EBc2R',
+      ownerSince: x ? '20 Oct 2026, 17:01' : '20 Oct 2026, 17:47',
+      lastSale: x ? '1,250 XRP' : '520 XAH',
+      saleCount: x ? '20 Oct 2026 · sold 7 times' : '20 Oct 2026 · sold 3 times',
+      nftSrc: '/v2/nfts/' + id.slice(0, 8) + '…',
+      issuerFull: x ? 'rLULtFbCzgUZXmxkKRDg4KPvxHFn5umB3R' : 'rEvRt8nQ3FtXW1mJrDp7KkLsY5ZbHLk2P',
+      mintLedger: x ? '86,201,334' : '9,102,447',
+      minter: x ? 'rLULtF…mB3R' : 'rEvRt8…Lk2P',
+      feeLabel: x ? 'Transfer fee' : 'Royalty',
+      feeText: x ? '5.000% of every sale goes to the issuer' : 'None: URITokens carry no transfer fee',
+      uri: x ? 'ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/4127.json' : 'https://evr.example/u/7f3a.json',
+      uriNote: 'Decoded from hex. Not fetched.',
+      flags, parts,
+      idTitle: x ? 'The id, decoded' : 'The id',
+      offers,
+      offersSrc: x ? '/v2/nfts/' + id.slice(0, 8) + '…/offers' : 'the URIToken entry (Amount, Destination)',
+      offersNote: x
+        ? 'Open offers: created and not yet cancelled, removed or accepted. A buy offer’s amount is what its owner would pay; an expired offer stays until someone removes it.'
+        : 'A URIToken carries at most one sell offer, on the entry itself. Xahau has no buy offers.',
+      events,
+      historySrc: '/v2/nfts/' + id.slice(0, 8) + '…/history?descending=true',
+      showOffers: st.offers, toggleOffers: () => this.setState({ offers: !st.offers })
+    };
+  }
+}
+</script>
+</body>
+</html>

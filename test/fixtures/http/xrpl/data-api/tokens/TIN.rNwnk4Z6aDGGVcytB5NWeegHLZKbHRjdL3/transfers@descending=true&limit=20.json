@@ -1,0 +1,13 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 93663334,
+    "complete": false
+  },
+  "count": 3,
+  "transfers": [
+    {"hash":"211789AA48A7F6630A838D58AB43D1B3B9FB3884A64948EFDFCAAE451C65D8C8","ledger_index":107721219,"executed_time":"2026-10-17T16:45:28Z","source":"rNwnk4Z6aDGGVcytB5NWeegHLZKbHRjdL3","destination":"rDQcg6D5m3cEHunhBx9DNoJgDJf8sV1NHq","amount":"11.655525","source_tag":275450027},
+    {"hash":"2B75CFB52F9E36BD9DA7C491EFCFB137A3CE4FF80B8425609E1F7E7B68B90C4D","ledger_index":107720926,"executed_time":"2026-10-17T16:25:56Z","source":"r3JdYTBPM8XW3vXHpTT2fk5aM1QF9QvHJh","destination":"rNwnk4Z6aDGGVcytB5NWeegHLZKbHRjdL3","amount":"6.619129"},
+    {"hash":"5F14DF98DF944894334FB38373653453766C00279126A779787FCDD5AE765AE8","ledger_index":107720665,"executed_time":"2026-10-17T16:08:32Z","source":"rDVWsfr4heKZQYDCGXu3B9ExocL7zVGzcM","destination":"r3GQwWvqSfhH7XWX9iiaAR9TQx6aTSNuvn","amount":"8.603338"}
+  ]
+}

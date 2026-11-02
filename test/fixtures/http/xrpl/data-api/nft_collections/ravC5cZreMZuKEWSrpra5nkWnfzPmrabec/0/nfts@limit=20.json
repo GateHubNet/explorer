@@ -1,0 +1,12 @@
+{
+  "count": 2,
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 32570
+  },
+  "nfts": [
+    {"burned":false,"flags":25,"issuer":"ravC5cZreMZuKEWSrpra5nkWnfzPmrabec","kind":"nftoken","nft_id":"0019000040FEFE9E7C73D4F8A4DC7A7A09DD13B724827F942D5ADEE3061B0D48","sale_count":0,"serial":102436168,"taxon":0,"transfer_fee":0},
+    {"burned":false,"flags":25,"issuer":"ravC5cZreMZuKEWSrpra5nkWnfzPmrabec","kind":"nftoken","minted":{"by":"ravC5cZreMZuKEWSrpra5nkWnfzPmrabec","executed_time":"2026-10-24T20:42:50Z","ledger_index":107878781,"to":"ravC5cZreMZuKEWSrpra5nkWnfzPmrabec","tx_hash":"32EA8E9E6663D9EF2FBC1FB575295A56BF5F60CE863082572DEC38E8447C824D"},"nft_id":"0019000040FEFE9E7C73D4F8A4DC7A7A09DD13B724827F945B2680E5061B0D4A","owner":"ravC5cZreMZuKEWSrpra5nkWnfzPmrabec","owner_since":{"executed_time":"2026-10-24T20:42:50Z","ledger_index":107878781,"tx_hash":"32EA8E9E6663D9EF2FBC1FB575295A56BF5F60CE863082572DEC38E8447C824D"},"sale_count":0,"serial":102436170,"taxon":0,"transfer_fee":0,"uri":"68747470733A2F2F696D672E61706C612E776F726C642F4E4654532F323638343335343638303030303030303139302E6A736F6E"}
+  ],
+  "result": "success"
+}

@@ -6,7 +6,8 @@ import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration, createLoadContext, type Env } from "../../app/server/env";
 import type { MarketsPageData } from "../../app/server/markets-view";
 import xahauWeek from "../fixtures/http/xahau/data-api/network/markets@limit=1000&period=7day.json";
-import { anchors, elementText, hrefs, pageClient, textOf } from "../support/pages";
+import { withoutNames } from "../support/names";
+import { anchors, elementText, hrefs, pageClient, pairRows, textOf } from "../support/pages";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 
 // The markets page, `/{net}/markets`, on the real Worker against the generated markets sets of the data API (test/fixtures/http/{net}/data-api/
@@ -46,27 +47,6 @@ async function render(path: string) {
   const response = await get(path);
   const html = await response.text();
   return { response, html, text: textOf(html) };
-}
-
-/**
- * The rows of the Pairs table (its `role="row"` elements, the header first) as arrays of cell texts. A cell of this table holds a `div` (the
- * AMM share's meter), so a row is cut at the next row and the table at the card's foot, not at a `</div>` (`tableRows` of support/pages.ts).
- */
-function pairRows(html: string): string[][] {
-  const start = html.indexOf('role="table" aria-label="Pairs"');
-  if (start < 0) return [];
-  const end = html.indexOf('class="card__foot', start);
-  const table = html.slice(start, end < 0 ? undefined : end);
-  return table
-    .split('<div role="row"')
-    .slice(1)
-    .map((row) =>
-      row
-        .split(/role="(?:cell|columnheader)"/)
-        .slice(1)
-        // A chunk ends where the next cell's tag was cut: `<span `.
-        .map((chunk) => textOf(chunk.slice(chunk.indexOf(">") + 1).replace(/<span\s[^>]*$/, ""))),
-    );
 }
 
 const withoutArrow = (cell: string) => cell.replace(/\s*[↑↓]$/, "");
@@ -240,7 +220,8 @@ describe("the call of a view", () => {
     const { response, html, text } = await render("/xrpl/markets?trades=amm");
 
     expect(response.status).toBe(200);
-    expect(mock.requests.map((request) => request.key)).toEqual(["GET /v2/network/markets?amm=only&limit=1000&period=day"]);
+    // (Its names call is not counted here: the answer of an earlier render of the file may be kept. The names are markets-page-names.spec.ts's.)
+    expect(withoutNames(mock.requests).map((request) => request.key)).toEqual(["GET /v2/network/markets?amm=only&limit=1000&period=day"]);
     // The source line names the route and the filter; the table is the filtered set's (8 pairs, the header above them).
     expect(text).toContain("/v2/network/markets?period=day&amm=only");
     expect(pairRows(html)).toHaveLength(9);

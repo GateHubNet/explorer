@@ -502,10 +502,11 @@ describe("networkFixtures", () => {
 
 describe("isSynthetic", () => {
   // The size budget of test/unit/http-fixtures.test.ts counts these files apart from the recorded and hand-written ones.
+  // A whole generation, as the analytics test's: about 1.1 s on a developer's machine, and near 5 s on a CI runner.
   it("is true of the files networkFixtures writes and of no other generated file", () => {
     const written = NETS.flatMap((net) => networkFixtures(net, lastOf(net), newestOf(net)).map((file) => dataApiFile(net, file.path, file.query)!));
     expect([...generate().keys()].filter(isSynthetic).sort()).toEqual([...written].sort());
-  });
+  }, 15_000);
 });
 
 describe("the text of the synthetic files", () => {

@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "events": [
+    {"account":"r9gvUQxtV98nRAM26aknj4h6RXKyXCLMVS","amount":"2200","currency":"XAH","event":"offer_create","event_index":0,"executed_time":"2026-10-24T17:15:21Z","is_sell_offer":true,"issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","kind":"uritoken","ledger_index":26765431,"nft_id":"35B8D52858E0463C0F0FCCC73EFBE1D308F0AF71112035C4D45777EB9115E93D","offer_id":"35B8D52858E0463C0F0FCCC73EFBE1D308F0AF71112035C4D45777EB9115E93D","tx_hash":"CE862AB800C66DA948EF97FDF7675F045699F90067B0CDC508C9BA82917A4169","tx_index":15,"tx_type":"URITokenCreateSellOffer"}
+  ],
+  "result": "success"
+}

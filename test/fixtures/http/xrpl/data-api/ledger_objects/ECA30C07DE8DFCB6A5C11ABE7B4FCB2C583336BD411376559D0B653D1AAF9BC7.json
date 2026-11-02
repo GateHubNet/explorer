@@ -1,0 +1,10 @@
+{
+  "ledger_object": {
+    "account": "rByxx8wgAQC7JXS1Wvm3tVEXJYSk3UxyG3",
+    "deleted": false,
+    "ledger_index": 107671568,
+    "object_id": "ECA30C07DE8DFCB6A5C11ABE7B4FCB2C583336BD411376559D0B653D1AAF9BC7",
+    "object_type": "Check"
+  },
+  "result": "success"
+}

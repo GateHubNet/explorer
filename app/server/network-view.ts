@@ -6,7 +6,7 @@ import BigNumber from "bignumber.js";
 
 import { tokenOf } from "../domain/fnv";
 import { compactNumber, formatAmount, formatCurrency, formatUtcDay, shortAddress } from "../domain/format";
-import { displaysOf, type Display, type NetworkParams } from "../domain/network-params";
+import type { Display, NetworkParams } from "../domain/network-params";
 import { sharePercent } from "../domain/percent";
 import { groupCounts, typeGroups, typeGroupsNote } from "../domain/type-groups";
 import { validatorHref } from "../domain/validators-params";
@@ -127,7 +127,7 @@ export interface NetworkLoaderData extends NetworkPageData {
 }
 
 export interface NetworkInput {
-  net: Pick<Network, "id" | "native" | "hasAmm" | "features">;
+  net: Pick<Network, "id" | "native" | "hasAmm" | "displays" | "features">;
   view: NetworkParams;
   /** #1 */
   last: LastValidated;
@@ -216,7 +216,7 @@ export function contextOf(input: Pick<NetworkInput, "net" | "view" | "last">): V
  * message, which holds the upstream's path and query, the API's own text or the runtime's: a call that was too late "took too long" (spec 1.6),
  * anything else, a builder that throws included, "could not be loaded". The error itself stays in the context's failures, which the loader logs.
  */
-const reasonOf = (error: unknown): string => (error instanceof TooLate ? "took too long" : "could not be loaded");
+export const reasonOf = (error: unknown): string => (error instanceof TooLate ? "took too long" : "could not be loaded");
 
 /**
  * A part from a call's outcome. A rejection fails the part (see `reasonOf`), and so does an answer the builder cannot use: one broken part does
@@ -591,7 +591,7 @@ export function networkPage(input: NetworkInput): { page: NetworkPageData; failu
   const page: NetworkPageData = {
     anchor: ctx.anchor,
     view,
-    displays: displaysOf(net.id),
+    displays: net.displays,
     currency: ctx.currency,
     window: {
       unit: ctx.window.unit,

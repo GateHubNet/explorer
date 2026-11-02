@@ -90,6 +90,11 @@
   "result": "success",
   "server_version": "1745992618040362935",
   "signing_key": "n9447rMkpirrGvmqj7VgLCGo8ewzx3Kb232gxZnvkdsp3NuSFSry",
+  "toml": {
+    "network": "main",
+    "owner_country": "AU",
+    "unl": "https://vl.xahau.org"
+  },
   "unl": true,
   "unl_lists": [
     "vl.xahau.org"

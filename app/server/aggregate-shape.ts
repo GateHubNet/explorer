@@ -62,7 +62,8 @@ export function isIsoTime(value: unknown): value is string {
 const isCount = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 /** A count of rows or an index: a whole number, not negative. */
 export const isWhole = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
-const isText = (value: unknown): value is string => typeof value === "string";
+/** Text, which may be empty. */
+export const isText = (value: unknown): value is string => typeof value === "string";
 /** A name that is there: a currency, an account, a hash. */
 export const isName = (value: unknown): value is string => typeof value === "string" && value !== "";
 const isShare = (value: unknown): value is string => isDecimalText(value) && SHARE.test(value);
@@ -96,9 +97,10 @@ export function optionalFields(what: string, where: string, row: Record<string, 
 
 /**
  * Deletes each of `names` that `row` has and that fails `is`. For the fields that are there only when known (the AMM keys of the markets answer, D2: absent =
- * not known): one the client cannot read is not known, and never takes the whole answer down.
+ * not known; a market's `last` of a token, which D6 writes as `"Infinity"` for a pair with a stored rate of 0): one the client cannot read is not known, and
+ * never takes the whole answer down.
  */
-function dropUnless(row: Record<string, unknown>, names: readonly string[], is: (value: unknown) => boolean): void {
+export function dropUnless(row: Record<string, unknown>, names: readonly string[], is: (value: unknown) => boolean): void {
   for (const name of names) {
     if (row[name] !== undefined && !is(row[name])) delete row[name];
   }

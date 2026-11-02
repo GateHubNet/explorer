@@ -34,7 +34,7 @@ const EXCHANGES = series(DAYS, ["5", "6", null], 1, "x1");
 
 describe("ammWording", () => {
   it("ok: the DEX line includes AMM swaps, the tile names the AMM total (compact), and the note says the lines are not parts of one total", () => {
-    expect(ammWording(amm(PAYMENTS, "1200000000"))).toEqual({
+    expect(ammWording(amm(PAYMENTS, "1200000000"), "XRPL")).toEqual({
       dexLabel: "DEX trades, tracked markets, AMM swaps included",
       dexShort: "DEX trades",
       dexSub: "AMM swaps 1.2B, all pools",
@@ -46,12 +46,12 @@ describe("ammWording", () => {
   });
 
   it("ok: the total is compacted like every figure (a small one keeps its digits)", () => {
-    expect(ammWording(amm(PAYMENTS, "845.5")).dexSub).toBe("AMM swaps 845.5, all pools");
-    expect(ammWording(amm(PAYMENTS, "45500000")).dexSub).toBe("AMM swaps 45.5M, all pools");
+    expect(ammWording(amm(PAYMENTS, "845.5"), "XRPL").dexSub).toBe("AMM swaps 845.5, all pools");
+    expect(ammWording(amm(PAYMENTS, "45500000"), "XRPL").dexSub).toBe("AMM swaps 45.5M, all pools");
   });
 
   it("failed: the same labels and note, no AMM line, and the problem to report", () => {
-    expect(ammWording({ state: "failed", reason: "could not be loaded" })).toEqual({
+    expect(ammWording({ state: "failed", reason: "could not be loaded" }, "XRPL")).toEqual({
       dexLabel: "DEX trades, tracked markets, AMM swaps included",
       dexShort: "DEX trades",
       dexSub: "tracked markets, AMM swaps included",
@@ -63,7 +63,7 @@ describe("ammWording", () => {
   });
 
   it("off (AMM_DATA is off): the explorer does not know whether the DEX line includes swaps, so it says neither; no AMM source", () => {
-    const off = ammWording({ state: "off" });
+    const off = ammWording({ state: "off" }, "XRPL");
     expect(off).toEqual({
       dexLabel: "DEX trades, tracked markets",
       dexShort: "DEX trades",
@@ -77,7 +77,7 @@ describe("ammWording", () => {
   });
 
   it("none (Xahau): order book only, and the note says there is no AMM", () => {
-    const none = ammWording({ state: "none" });
+    const none = ammWording({ state: "none" }, "Xahau");
     expect(none).toEqual({
       dexLabel: "DEX trades, tracked markets",
       dexShort: "DEX trades",
@@ -88,6 +88,17 @@ describe("ammWording", () => {
       ammProblem: false,
     });
     expect(none.source).not.toContain("amm_volume");
+  });
+
+  it("none, on a testnet: the same texts with the network's name, in the tile and the note", () => {
+    const none = ammWording({ state: "none" }, "Xahau Testnet");
+    expect(none.dexSub).toBe("order book only, no AMM on Xahau Testnet");
+    expect(none.note).toBe("Xahau Testnet has no AMM; DEX trades are order-book trades of the markets the data API tracks.");
+  });
+
+  it("names no network in the wording of the other states", () => {
+    const states: AmmPart[] = [amm(PAYMENTS), { state: "failed", reason: "x" }, { state: "off" }];
+    for (const state of states) expect(ammWording(state, "XRPL Testnet")).toEqual(ammWording(state, "XRPL"));
   });
 });
 

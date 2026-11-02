@@ -1,0 +1,27 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 26540187,
+    "complete": false
+  },
+  "kind": "issued",
+  "ledger_index": 26596843,
+  "close_time": "2026-10-17T17:47:11Z",
+  "totals": {
+    "tokens": 100,
+    "tokens_with_10_holders": 60,
+    "holders": 1350,
+    "native_volume": "15359117.971"
+  },
+  "total": 7,
+  "count": 7,
+  "tokens": [
+    {"rank":1,"currency":"5553445400000000000000000000000000000000","code":"USDT","issuer":"rEvhoR7Wfu6YEMLJKeNjy8CKjFodeAhHAq","holders":49,"trust_lines":50,"supply":"546.08","price":"1.5143358","price_change":"-6.72","price_time":"2026-10-16T21:02:08Z","native_volume":"6908.355","trades":55,"listed":false},
+    {"rank":2,"currency":"USD","code":"USD","issuer":"rEcaU7AfFfuc3NTH5vgWUbUQ3eg7U3kZby","holders":31,"trust_lines":34,"supply":"1874.8","price":"0.60975425","price_change":"-13.61","price_time":"2026-10-17T14:40:43Z","native_volume":"45341.018","trades":344,"domain":"northpeak-9c93.example","listed":false},
+    {"rank":3,"currency":"5553444300000000000000000000000000000000","code":"USDC","issuer":"r911dcMWyRK8jZKMY6XSfWadDgXf2BYEDN","holders":15,"trust_lines":19,"supply":"11251.25","price":"3.2660517","price_time":"2026-10-06T17:47:11Z","native_volume":"0","trades":0,"domain":"fernhill-95f6.example","listed":true,"name":"Riverstone USDC"},
+    {"rank":4,"currency":"USD","code":"USD","issuer":"rKBEVzVU92MjK5ZFWu8CToyFkxpu6Ys5qm","holders":14,"trust_lines":17,"supply":"4809.88","price":"0.48955829","price_change":"-10.71","price_time":"2026-10-17T05:41:20Z","native_volume":"46425.585","trades":371,"domain":"bluewave-bc65.example","listed":false},
+    {"rank":5,"currency":"5553445800000000000000000000000000000000","code":"USDX","issuer":"rQfeysYwYH32qxZPyb3b9BQcw2PKTggBNR","holders":7,"trust_lines":9,"supply":"4824.29","price":"1.2333907","price_change":"-10.57","price_time":"2026-10-16T20:01:01Z","native_volume":"405214.274","trades":389,"listed":false},
+    {"rank":6,"currency":"5855534400000000000000000000000000000000","code":"XUSD","issuer":"rGTh9HvZaZ5ApoGT7GP5RF4S1iW2FXBSMQ","holders":5,"trust_lines":6,"supply":"1282.9","price":"4.7898111","price_change":"6.84","price_time":"2026-10-17T14:25:25Z","native_volume":"384412.281","trades":212,"domain":"ashgrove-2f97.example","listed":false},
+    {"rank":7,"currency":"USD","code":"USD","issuer":"rQanawDCiaMkk9mPhaXvwR1VYKbJ2wqSMu","holders":5,"trust_lines":9,"supply":"1294.01","native_volume":"0","trades":0,"domain":"willowmere-1ea9.example","listed":false}
+  ]
+}

@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { analyticsWindow, type AnalyticsPeriod } from "../../domain/analytics-params";
 import { shortAddress } from "../../domain/format";
+import { NO_NAMES, nameViewOf, type NameMap, type NamesPart } from "../../domain/names";
 import {
   analyticsFrame,
   balancesCard,
@@ -43,8 +44,8 @@ afterEach(() => {
 
 // ---- The world of the tests: the page data as the view builders make it, for an index whose newest day is Oct 17, 2026 --------------
 
-const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" } as const;
-const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" } as const;
+const XRPL = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" } as const;
+const XAHAU = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", software: "xahaud" } as const;
 type Net = typeof XRPL | typeof XAHAU;
 
 const T = "2026-10-17";
@@ -53,9 +54,9 @@ const BOB = "rNYbL8WZKKNNni5rb2MzcxnAEgkQC5Kq5";
 const CAROL = "rYogZ7oXMbYEWXrCQXHDKwe8mLqLDoaWm";
 const ISSUER = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
 
-const XRPL_AMM = dexWording({ hasAmm: true, features: featuresOf({ AMM_DATA: "on" }) });
-const XRPL_NO_AMM = dexWording({ hasAmm: true, features: featuresOf({}) });
-const XAHAU_DEX = dexWording({ hasAmm: false, features: featuresOf({ AMM_DATA: "on" }) });
+const XRPL_AMM = dexWording({ name: "XRPL", hasAmm: true, features: featuresOf({ AMM_DATA: "on" }) });
+const XRPL_NO_AMM = dexWording({ name: "XRPL", hasAmm: true, features: featuresOf({}) });
+const XAHAU_DEX = dexWording({ name: "Xahau", hasAmm: false, features: featuresOf({ AMM_DATA: "on" }) });
 
 const at = (day: string) => `${day}T00:00:00Z`;
 const page = <R,>(rows: R[]): Page<"rows", R> => ({ result: "success", count: rows.length, rows });
@@ -115,9 +116,9 @@ function changesOf(frame: AnalyticsFrame, dex: DexWording = XRPL_AMM, native: Ne
 }
 
 /** The 2 largest of 14 counterparties, or none. */
-function counterpartiesOf(frame: AnalyticsFrame, total = 14): CounterpartiesCard {
+function counterpartiesOf(frame: AnalyticsFrame, total = 14, names: NamesPart = NO_NAMES): CounterpartiesCard {
   const first = at("2026-10-01");
-  return counterpartiesCard(frame, {
+  const card = counterpartiesCard(frame, {
     ...span(frame),
     sort: "value",
     total,
@@ -130,12 +131,13 @@ function counterpartiesOf(frame: AnalyticsFrame, total = 14): CounterpartiesCard
             { account: BOB, sent_value: "38100", received_value: "0", total_value: "38100", payments_sent: 2, payments_received: 0, first, last: at(T) },
           ],
   });
+  return { ...card, names };
 }
 
 /** XRP and a USD line in every bucket: the 2 largest of 7 balances. */
 function balancesOf(frame: AnalyticsFrame, empty = false): BalancesCard {
   const { buckets } = frame.axis;
-  return balancesCard(frame, {
+  const card = balancesCard(frame, {
     ...span(frame),
     interval: interval(frame),
     lines_total: empty ? 0 : 7,
@@ -148,12 +150,13 @@ function balancesOf(frame: AnalyticsFrame, empty = false): BalancesCard {
           { date: at(bucket), currency: "USD", counterparty: ISSUER, balance: "120.5" },
         ]),
   });
+  return { ...card, names: NO_NAMES };
 }
 
 /** USD/XRP as the API stores it, shown as XRP/USD: the largest of 9 pairs. */
-function pairsOf(frame: AnalyticsFrame, opts: { markets?: boolean; dex?: DexWording; net?: Net; empty?: boolean } = {}): PairsCard {
+function pairsOf(frame: AnalyticsFrame, opts: { markets?: boolean; dex?: DexWording; net?: Net; empty?: boolean; names?: NameMap } = {}): PairsCard {
   const net = opts.net ?? XRPL;
-  return pairsCard(
+  const card = pairsCard(
     frame,
     {
       ...span(frame),
@@ -178,7 +181,9 @@ function pairsOf(frame: AnalyticsFrame, opts: { markets?: boolean; dex?: DexWord
           ],
     },
     { net: net.id, native: net.native, markets: opts.markets ?? true, dex: opts.dex ?? XRPL_AMM },
+    opts.names,
   );
+  return { ...card, names: opts.names ? { state: "ok", map: opts.names } : NO_NAMES };
 }
 
 /** A part as the page data gives it: settled to a state, or never (`"pending"`, a stream that has not come yet). */
@@ -418,6 +423,21 @@ describe("the analytics view, in the board's order", () => {
     ]);
     expect(within(rows[0]!).getByRole("link").getAttribute("href")).toBe(`/xrpl/account/${CAROL}`);
     expect(counterparties.querySelector(".analytics__notes")!.textContent).toBe("The 2 largest of 14 counterparties, by value sent plus received.");
+  });
+
+  // The names of the accounts a card draws are the card's own (display names spec 5): each card has its call and its answer, so its rows are drawn by them.
+  it("draws the counterparties by the names of the card's own data: the link text, the mark's words and the title, not the short address", async () => {
+    const frame = frameOf("30d");
+    const names: NamesPart = { state: "ok", map: { [CAROL]: nameViewOf({ address: CAROL, display_name: { text: "Copperfield Payments", kind: "verified" }, domain: "copperfield.example" })! } };
+    await show(analytics("30d", { counterparties: ok(counterpartiesOf(frame, 14, names)) }));
+    const rows = within(within(card(TITLES[5]!)).getByRole("table", { name: TITLES[5] })).getAllByRole("row").slice(1);
+    const named = within(rows[0]!).getByRole("link");
+    expect(named.textContent).toBe("Copperfield Payments verified name");
+    expect(named.getAttribute("href")).toBe(`/xrpl/account/${CAROL}`);
+    expect(named.getAttribute("title")).toBe(`Verified by copperfield.example · ${CAROL}`);
+    expect(named.className).toBe("acct");
+    // The other account is not in the names: its short address, as before.
+    expect(within(rows[1]!).getByRole("link").textContent).toBe(shortAddress(BOB));
   });
 
   it("lists the DEX pairs in a table of 520 px at least, in the natural orientation, with their notes", async () => {
@@ -713,6 +733,39 @@ describe("the DEX pairs", () => {
     const pairs = card(TITLES[6]!);
     expect(within(pairs).queryByRole("link")).toBeNull();
     expect(within(pairs).getByText("XRP/USD")).toBeTruthy();
+  });
+
+  // An issuer of the pair is its code and its issuer: an address is mono, as it always was, and a name is not (`.acct__name`, as a link's is).
+  it("sets an issuer's address in mono and its name in plain text, the code in mono either way", async () => {
+    const frame = frameOf("30d");
+    const names: NameMap = { [ISSUER]: nameViewOf({ address: ISSUER, display_name: { text: "Fernhill Custody", kind: "verified" }, domain: "fernhill.example" })! };
+    const { unmount } = await show(analytics("30d", { pairs: ok(pairsOf(frame)) }));
+    const plain = card(TITLES[6]!).querySelector(".analytics__issuers")!;
+    expect(plain.textContent).toBe("USD rhub8V…F3wq");
+    expect([...plain.querySelectorAll(".mono")].map((mono) => mono.textContent)).toEqual(["USD", "rhub8V…F3wq"]);
+    unmount();
+
+    await show(analytics("30d", { pairs: ok(pairsOf(frame, { names })) }));
+    const issuers = card(TITLES[6]!).querySelector(".analytics__issuers")!;
+    expect(issuers.textContent).toBe("USD Fernhill Custody");
+    expect(issuers.classList.contains("mono")).toBe(false);
+    expect([...issuers.querySelectorAll(".mono")].map((mono) => mono.textContent)).toEqual(["USD"]);
+    expect(issuers.querySelector(".labelmark")).toBeNull();
+  });
+
+  // Decision 12: a labelled account has a warning mark wherever it is shown, an issuer's text too. A labelled issuer keeps its short address, in mono, and the mark follows it.
+  it("marks a labelled issuer with the label's icon and words after its short address", async () => {
+    const frame = frameOf("30d");
+    const names: NameMap = { [ISSUER]: nameViewOf({ address: ISSUER, display_name: { text: "Fernhill Custody", kind: "verified" }, domain: "fernhill.example", labels: { scam: { description: "Fictional." } } })! };
+    await show(analytics("30d", { pairs: ok(pairsOf(frame, { names })) }));
+    const issuers = card(TITLES[6]!).querySelector(".analytics__issuers")!;
+    expect(issuers.textContent).toBe("USD rhub8V…F3wq labelled scam by GateHub");
+    expect([...issuers.querySelectorAll(".mono")].map((mono) => mono.textContent)).toEqual(["USD", "rhub8V…F3wq"]);
+    const mark = issuers.querySelector(".labelmark")!;
+    expect(mark.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
+    expect(mark.querySelector(".sr")!.textContent).toBe("labelled scam by GateHub");
+    // One unit with its issuer, which the wrapped line does not break.
+    expect([mark.parentElement!.className, mark.parentElement!.textContent]).toEqual(["issued-marked", "rhub8V…F3wq labelled scam by GateHub"]);
   });
 
   it("say what the index holds of the DEX in the data's words: AMM on, AMM off, and Xahau", async () => {

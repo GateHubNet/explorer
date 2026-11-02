@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "rowan-9acc.example",
+    "toml_url": "https://rowan-9acc.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR",
+        "desc": "Rowan Holdings"
+      }
+    ]
+  }
+}

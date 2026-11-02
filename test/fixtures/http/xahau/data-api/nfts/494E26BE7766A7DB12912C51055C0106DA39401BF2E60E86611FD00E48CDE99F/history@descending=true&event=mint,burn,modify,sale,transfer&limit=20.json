@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "events": [
+    {"account":"r9fT9gsDG4Zyodz9E2U6RG4Z3e4RD7tBa","amount":"0.0011","amount_issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","currency":"EVR","event":"sale","event_index":1,"executed_time":"2026-10-24T15:27:22Z","from":"rNk6oeGA4BKsCraCEMg2g5YkbegcXFtPGV","is_sell_offer":true,"issuer":"rNk6oeGA4BKsCraCEMg2g5YkbegcXFtPGV","kind":"uritoken","ledger_index":26763618,"nft_id":"494E26BE7766A7DB12912C51055C0106DA39401BF2E60E86611FD00E48CDE99F","offer_id":"494E26BE7766A7DB12912C51055C0106DA39401BF2E60E86611FD00E48CDE99F","to":"r9fT9gsDG4Zyodz9E2U6RG4Z3e4RD7tBa","tx_hash":"30B0FE015F9CE2BACE93D95385CD8EA70AD68EB4B6380655C6352FBF1B5897D6","tx_index":2,"tx_type":"URITokenBuy"}
+  ],
+  "result": "success"
+}

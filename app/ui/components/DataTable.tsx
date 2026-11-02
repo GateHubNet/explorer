@@ -43,6 +43,9 @@ export interface Column<Row> {
  *
  * `className` is added to the scroll region's own, for a page's rules over its rows (the markets page's 56 px rows). A column's `sort` is the
  * header's `aria-sort`: the page draws the control, the table says the order.
+ *
+ * `rowProps` gives a body row a class of its own and pointer handlers (E13's countries table, whose rows and map circles highlight each other): its class is added to the
+ * row's, the handlers are the row's, and the head row is nobody's.
  */
 export function DataTable<Row>({
   label,
@@ -55,6 +58,7 @@ export function DataTable<Row>({
   compact = false,
   maxHeight,
   className,
+  rowProps,
 }: {
   /** What the table is, for screen readers. */
   label: string;
@@ -72,6 +76,8 @@ export function DataTable<Row>({
   maxHeight?: number;
   /** More classes for the scroll region. */
   className?: string;
+  /** For a body row: a class of its own and pointer handlers. */
+  rowProps?: (row: Row, index: number) => { className?: string; onPointerEnter?: () => void; onPointerLeave?: () => void };
 }) {
   const table = useRef<HTMLDivElement>(null);
   const keys = rows.map((row, index) => rowKey(row, index));
@@ -97,20 +103,25 @@ export function DataTable<Row>({
             </span>
           ))}
         </div>
-        {rows.map((row, index) => (
-          <div
-            key={keys[index]}
-            role="row"
-            className={cx(rowClass, entering.has(keys[index]!) && "is-entering")}
-            data-key={live ? keys[index] : undefined}
-          >
-            {columns.map((column) => (
-              <span key={column.id} role="cell" className={cellClass(column)}>
-                {column.cell(row, index)}
-              </span>
-            ))}
-          </div>
-        ))}
+        {rows.map((row, index) => {
+          const extra = rowProps?.(row, index);
+          return (
+            <div
+              key={keys[index]}
+              role="row"
+              className={cx(rowClass, entering.has(keys[index]!) && "is-entering", extra?.className)}
+              data-key={live ? keys[index] : undefined}
+              onPointerEnter={extra?.onPointerEnter}
+              onPointerLeave={extra?.onPointerLeave}
+            >
+              {columns.map((column) => (
+                <span key={column.id} role="cell" className={cellClass(column)}>
+                  {column.cell(row, index)}
+                </span>
+              ))}
+            </div>
+          );
+        })}
       </div>
       {rows.length === 0 && empty && <div className="table__empty">{empty}</div>}
     </div>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { loadManifest, loadTx } from "../../../test/support/ledgers";
 import type { TxJson, TxMeta } from "../parse/types";
 import { describe as describeTx, headlineAmount, rowSentence } from "./index";
 import type { Segment } from "./types";
@@ -64,6 +65,71 @@ describe("rowSentence", () => {
 
   it("returns nothing for an empty sentence", () => {
     expect(rowSentence({ ok: true, sentence: [] })).toEqual([]);
+  });
+
+  it("ends a delegated row with · sent by {delegate}, and on the delegate's page with · sent by this account as its delegate", () => {
+    const CAROL = "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh";
+    const description = describeTx(payment({ Delegate: CAROL }), { ...SUCCESS, delivered_amount: "5000000" }, { native: "XRP" });
+    const sent: Segment[] = [
+      { t: "text", v: "Sent " },
+      { t: "amount", value: "5", currency: "XRP" },
+      { t: "text", v: " to " },
+      { t: "account", v: BOB },
+    ];
+    // The delegate is an account segment: a link, which the list's names call asks for.
+    expect(rowSentence(description)).toEqual<Segment[]>([...sent, { t: "text", v: " · sent by " }, { t: "account", v: CAROL }]);
+    // On the page of the account it acted for (the sender), and of any other account, the same.
+    expect(rowSentence(description, ALICE)).toEqual(rowSentence(description));
+    expect(rowSentence(description, BOB)).toEqual(rowSentence(description));
+    expect(rowSentence(description, CAROL)).toEqual<Segment[]>([...sent, { t: "text", v: " · sent by this account as its delegate" }]);
+
+    // A failure keeps the tail, after the sentence without its reason.
+    const failed = rowSentence(describeTx(payment({ Delegate: CAROL }), { ...SUCCESS, TransactionResult: "tecPATH_DRY" }, { native: "XRP" }));
+    expect(failed[0]).toEqual({ t: "text", v: "Tried to send " });
+    expect(failed.slice(-3)).toEqual<Segment[]>([{ t: "account", v: BOB }, { t: "text", v: " · sent by " }, { t: "account", v: CAROL }]);
+    // A row of a transaction without a delegate has no tail.
+    expect(JSON.stringify(rowSentence(describeTx(payment(), SUCCESS, { native: "XRP" })))).not.toContain("sent by");
+  });
+
+  describe("of an NFT mint, recorded", () => {
+    const MINTED = "0019000040FEFE9E7C73D4F8A4DC7A7A09DD13B724827F945B2680E5061B0D4A";
+    const mint = (name: string) => {
+      const { tx, meta } = loadTx("xrpl-nft", loadManifest("xrpl-nft").cases[name]!.hash);
+      return describeTx(tx, meta, { native: "XRP" });
+    };
+
+    it("reads 'Minted NFT {nft}' with the NFT as an nft segment, the minter left out and the sentence's own full stop", () => {
+      const description = mint("mint");
+      // The sentence starts with the minter, which a row leaves to its own column; the NFT is a segment of its own, not text.
+      expect(description.sentence[0]).toMatchObject({ t: "account" });
+      expect(description.sentence.slice(1, 3)).toEqual<Segment[]>([
+        { t: "text", v: " minted NFT " },
+        { t: "nft", v: MINTED },
+      ]);
+      const row = rowSentence(description);
+      expect(row.slice(0, 2)).toEqual<Segment[]>([
+        { t: "text", v: "Minted NFT " },
+        { t: "nft", v: MINTED },
+      ]);
+      // It is the one NFT: the row has no other, no account and no amount; the rest is the words that follow the id, without the full stop.
+      expect(row.filter((segment) => segment.t !== "text")).toEqual([{ t: "nft", v: MINTED }]);
+      const last = row.at(-1)!;
+      expect(last.t).toBe("text");
+      expect((last as { v: string }).v.endsWith(".")).toBe(false);
+    });
+
+    it("names the NFT of a mint that also made an offer or split a page, and no NFT for a mint that failed", () => {
+      for (const name of ["mint_with_offer", "page_split_with_mint"]) {
+        const row = rowSentence(mint(name));
+        expect(row[0], name).toEqual({ t: "text", v: "Minted NFT " });
+        expect(row[1], name).toMatchObject({ t: "nft" });
+        expect((row[1] as { v: string }).v, name).toMatch(/^[0-9A-F]{64}$/);
+      }
+      const { tx, meta } = loadTx("xrpl-nft", loadManifest("xrpl-nft").cases.mint!.hash);
+      const failed = rowSentence(describeTx(tx, { ...meta, TransactionResult: "tecNO_PERMISSION" }, { native: "XRP" }));
+      expect(failed.some((segment) => segment.t === "nft")).toBe(false);
+      expect((failed[0] as { v: string }).v).toMatch(/^Tried to mint/);
+    });
   });
 });
 

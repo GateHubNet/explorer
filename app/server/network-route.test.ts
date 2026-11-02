@@ -5,9 +5,10 @@ import { allSwitches } from "../../test/support/switches";
 import { featuresOf } from "../ui/features";
 import { createLoadContext, type Env } from "./env";
 import { networkOf } from "./networks";
-import { publicNetwork, readNetworkCookie, requireNetwork } from "./network-route";
+import { networkInfoOf, publicNetwork, readNetworkCookie, requireNetwork } from "./network-route";
 
 const env: Env = {
+  ENVIRONMENT: "development",
   XRPL_DATA_API_URL: "https://xrpl.data.example.invalid",
   XAHAU_DATA_API_URL: "https://xahau.data.example.invalid",
   XRPL_NODE_URL: "https://s1.ripple.com:51234/",
@@ -58,8 +59,62 @@ describe("requireNetwork", () => {
 describe("publicNetwork", () => {
   it("is what may be sent to the browser: no data API URL, no node URL", () => {
     const shown = publicNetwork(networkOf("xrpl", env));
-    expect(shown).toEqual({ id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau", hasAmm: true, software: "rippled", features: featuresOf(allSwitches("off")) });
+    expect(shown).toEqual({
+      id: "xrpl",
+      kind: "mainnet",
+      name: "XRPL",
+      label: "XRPL mainnet",
+      longName: "the XRP Ledger",
+      dexName: "the XRP Ledger DEX",
+      native: "XRP",
+      ctidNetworkId: 0,
+      other: "xahau",
+      hasAmm: true,
+      hasDelegation: true,
+      software: "rippled",
+      displays: ["native", "usd"],
+      features: featuresOf(allSwitches("off")),
+    });
     expect(JSON.stringify(shown)).not.toContain("invalid");
+  });
+
+  it("carries the names and facts of the sandbox's testnets to the browser as they are", () => {
+    const sandbox = { ...env, ENVIRONMENT: "sandbox" as const };
+    const requested = requireNetwork(createLoadContext(sandbox, ctx), { net: "xahau" });
+    expect(requested.kind).toBe("testnet");
+    expect(publicNetwork(requested)).toMatchObject({ id: "xahau", kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", ctidNetworkId: 21338, displays: ["native"] });
+    expect(JSON.stringify(publicNetwork(networkOf("xrpl", sandbox)))).not.toContain("invalid");
+  });
+});
+
+describe("networkInfoOf", () => {
+  it("is what a page draws of its network: the id, the kind, the four names, the native currency and the software, and no URL", () => {
+    expect(networkInfoOf(networkOf("xrpl", env))).toStrictEqual({
+      id: "xrpl",
+      kind: "mainnet",
+      name: "XRPL",
+      label: "XRPL mainnet",
+      longName: "the XRP Ledger",
+      dexName: "the XRP Ledger DEX",
+      native: "XRP",
+      software: "rippled",
+    });
+  });
+
+  it("carries the testnet's names and Xahau's facts as they are, and leaves the URLs and the switches out", () => {
+    const sandbox = { ...env, ENVIRONMENT: "sandbox" as const };
+    const info = networkInfoOf(networkOf("xahau", sandbox));
+    expect(info).toStrictEqual({
+      id: "xahau",
+      kind: "testnet",
+      name: "Xahau Testnet",
+      label: "Xahau Testnet",
+      longName: "Xahau Testnet",
+      dexName: "the Xahau Testnet DEX",
+      native: "XAH",
+      software: "xahaud",
+    });
+    expect(JSON.stringify(info)).not.toContain("invalid");
   });
 });
 

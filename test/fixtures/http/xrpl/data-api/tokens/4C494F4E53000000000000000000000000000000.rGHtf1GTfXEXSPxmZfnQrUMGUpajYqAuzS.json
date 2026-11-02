@@ -1,0 +1,27 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 93663334,
+    "complete": false
+  },
+  "ledger_index": 107721455,
+  "close_time": "2026-10-17T17:01:12Z",
+  "token": {
+    "currency": "4C494F4E53000000000000000000000000000000",
+    "code": "LIONS",
+    "issuer": "rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS",
+    "holders": 54,
+    "trust_lines": 63,
+    "supply": "7754369128.371586",
+    "price": "3.4303654e-7",
+    "price_change": "-13.85",
+    "price_time": "2026-10-16T18:13:58Z",
+    "native_volume": "1818.975442",
+    "trades": 131,
+    "listed": false,
+    "markets": [
+      {"counter_currency":"XRP","count":131,"volume":"5349927770","counter_volume":"1818.975442","native_volume":"1818.975442","last":"3.4303654e-7","change":"-13.85","last_time":"2026-10-16T18:13:58Z","amm_pool":false}
+    ],
+    "last_ledger": 107721243
+  }
+}

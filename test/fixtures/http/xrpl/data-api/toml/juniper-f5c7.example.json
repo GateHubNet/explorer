@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "juniper-f5c7.example",
+    "toml_url": "https://juniper-f5c7.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rNauugE1qZvWjd6PFLG7uwYQR1aYCEd1bZ",
+        "desc": "Juniper Ventures"
+      }
+    ]
+  }
+}

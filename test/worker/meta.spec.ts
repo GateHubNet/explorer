@@ -2,6 +2,11 @@ import { exports } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { dropsToNative, formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../app/domain/format";
+import { accountHeadOf, viewOf } from "../support/names";
+import { collectionCase, collectionsMarker, nftCase, salesMarker } from "../support/nft-cases";
+import { objectCase } from "../support/object-cases";
+import { tokenCase, tokensMarker, transfersMarker } from "../support/token-cases";
+import { historySample, OBJECT_MARKER } from "../support/object-samples";
 import { pageClient } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
 import { amendmentCase, validationsMarker, validatorCase } from "../support/validators-cases";
@@ -170,11 +175,11 @@ describe("a transaction page", () => {
       const response = await exports.default.fetch(`${origin}/xrpl/tx/${PAYMENT}`, { headers: { "CF-Connecting-IP": "198.19.1.200" } });
       return head(await response.text());
     };
-    const staging = await fetchAt("https://staging.explorer.example");
-    expect(staging.canonical).toEqual([`https://staging.explorer.example/xrpl/tx/${PAYMENT}`]);
-    expect(staging.content("og:url")).toBe(`https://staging.explorer.example/xrpl/tx/${PAYMENT}`);
-    expect(staging.content("og:image")).toBe(`https://staging.explorer.example/og/xrpl/tx/${PAYMENT}.png`);
-    expect(staging.content("twitter:image")).toBe(`https://staging.explorer.example/og/xrpl/tx/${PAYMENT}.png`);
+    const sandbox = await fetchAt("https://sandbox.explorer.example");
+    expect(sandbox.canonical).toEqual([`https://sandbox.explorer.example/xrpl/tx/${PAYMENT}`]);
+    expect(sandbox.content("og:url")).toBe(`https://sandbox.explorer.example/xrpl/tx/${PAYMENT}`);
+    expect(sandbox.content("og:image")).toBe(`https://sandbox.explorer.example/og/xrpl/tx/${PAYMENT}.png`);
+    expect(sandbox.content("twitter:image")).toBe(`https://sandbox.explorer.example/og/xrpl/tx/${PAYMENT}.png`);
 
     const local = await fetchAt("http://localhost:8788");
     expect(local.content("og:image")).toBe(`http://localhost:8788/og/xrpl/tx/${PAYMENT}.png`);
@@ -252,16 +257,39 @@ describe("an account page", () => {
     const { html } = await page(`/xrpl/account/${ACTIVE}`);
     const tags = head(html);
 
-    const description = `${ACTIVE} on XRPL: Balance 10.001625 XRP, activated 2025-07-15. Transactions, payments, trades, offers and objects.`;
-    expect(tags.titles).toEqual([`Account ${shortAddress(ACTIVE)} · XRPL · explorer`]);
+    // The fixtures give the account a verified name (display names spec 7): the title says it, ahead of the short address, and the description says who verified it.
+    const view = (await viewOf("xrpl", ACTIVE))!;
+    expect(view.name?.kind).toBe("verified");
+    const title = `${await accountHeadOf("xrpl", ACTIVE)} · XRPL · explorer`;
+    expect(title).toBe(`Account ${view.name!.text} (${shortAddress(ACTIVE)}) · XRPL · explorer`);
+    const description = `${ACTIVE} on XRPL: Balance 10.001625 XRP, activated 2025-07-15. Transactions, payments, trades, offers and objects. Verified by ${view.domain}.`;
+    expect(tags.titles).toEqual([title]);
     expect(tags.content("description")).toBe(description);
     expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/account/${ACTIVE}`]);
-    expect(tags.content("og:title")).toBe(`Account ${shortAddress(ACTIVE)} · XRPL · explorer`);
+    expect(tags.content("og:title")).toBe(title);
+    expect(tags.content("twitter:title")).toBe(title);
     expect(tags.content("og:description")).toBe(description);
+    expect(tags.content("twitter:description")).toBe(description);
     expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/account/${ACTIVE}`);
     expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xrpl/account/${ACTIVE}.png`);
     expect(tags.content("twitter:card")).toBe("summary_large_image");
     expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("keeps the short address in the title of an account GateHub has labelled, says the label in words before its description, and says its name is GateHub's after it", async () => {
+    const DELETED = "r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC";
+    const view = (await viewOf("xrpl", DELETED))!;
+    expect([view.name?.kind, view.labels]).toEqual(["account", ["advisory"]]);
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/account/${DELETED}`)).html);
+
+    const title = `Account ${shortAddress(DELETED)} · XRPL · explorer`;
+    expect(await accountHeadOf("xrpl", DELETED)).toBe(`Account ${shortAddress(DELETED)}`);
+    const description = `GateHub has labelled this address advisory. ${DELETED} on XRPL: Deleted account, activated 2024-08-12. Transactions, payments, trades, offers and objects. Named by GateHub.`;
+    expect(tags.titles).toEqual([title]);
+    expect(tags.content("og:title")).toBe(title);
+    expect(tags.content("description")).toBe(description);
+    expect(tags.content("og:description")).toBe(description);
   });
 
   it("keeps a tab that is not the default in the canonical URL, and shares the account's image", async () => {
@@ -309,7 +337,7 @@ describe("an account page", () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(`/xrpl/account/${ACTIVE}${query}`);
     const tags = head(html);
-    expect(tags.titles).toEqual([`${named} · Account ${shortAddress(ACTIVE)} · XRPL · explorer`]);
+    expect(tags.titles).toEqual([`${named} · ${await accountHeadOf("xrpl", ACTIVE)} · XRPL · explorer`]);
     expect(tags.content("description")).toBe(
       `Account value, transactions sent, balances, money in and out, counterparties and DEX trading of ${ACTIVE} on XRPL.`,
     );
@@ -558,6 +586,305 @@ describe("the AMM pools list", () => {
   });
 });
 
+describe("the NFT list", () => {
+  const DESCRIPTION = (words: string, where: string) => `${words} on ${where}: the sales volume, the largest collections and the latest sales.`;
+
+  it("has the tags of the default view: a description with no numbers of the data, a canonical URL, and no image", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/nfts")).html);
+    expect(tags.titles).toEqual(["NFTs · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("NFTs", "the XRP Ledger"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/nfts`]);
+    expect(tags.content("og:title")).toBe("NFTs · XRPL · explorer");
+    expect(tags.content("og:description")).toBe(DESCRIPTION("NFTs", "the XRP Ledger"));
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/nfts`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("og:image")).toBeUndefined();
+    expect(tags.content("twitter:image")).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("is Xahau's on Xahau: URITokens", async () => {
+    mock = mockUpstream("xahau");
+    const tags = head((await page("/xahau/nfts")).html);
+    expect(tags.titles).toEqual(["URITokens · Xahau · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("URITokens", "Xahau"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/nfts`]);
+  });
+
+  it("is noindex, follow on another sort, with no canonical URL or sharing tags", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/nfts?sort=supply")).html);
+    expect(tags.titles).toEqual(["NFTs · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("NFTs", "the XRP Ledger"));
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+
+  it("is noindex, follow behind a marker, titled More NFT collections", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/nfts?marker=${await collectionsMarker("xrpl")}`)).html);
+    expect(tags.titles).toEqual(["More NFT collections · XRPL · explorer"]);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+
+  it("is noindex, follow on the older sales, whichever page of them", async () => {
+    for (const path of ["/xrpl/nfts/sales", `/xrpl/nfts/sales?marker=${await salesMarker("xrpl")}`]) {
+      mock = mockUpstream("xrpl");
+      const tags = head((await page(path)).html);
+      expect(tags.titles, path).toEqual(["NFT sales · XRPL · explorer"]);
+      expect(tags.content("description"), path).toBe("The latest NFT sales on the XRP Ledger, newest first.");
+      expect(tags.content("robots"), path).toBe("noindex, follow");
+      expect(tags.canonical, path).toEqual([]);
+      for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+      mock.restore();
+    }
+    mock = mockUpstream("xahau");
+    const tags = head((await page("/xahau/nfts/sales")).html);
+    expect(tags.titles).toEqual(["URIToken sales · Xahau · explorer"]);
+    expect(tags.content("robots")).toBe("noindex, follow");
+  });
+});
+
+describe("the token list", () => {
+  const DESCRIPTION = (where: string) => `Issued tokens on ${where}, ranked by holders: supply, price, 24-hour volume and whether each issuer's toml lists it.`;
+
+  it("has the tags of the default view: a description with no numbers of the data, a canonical URL, and no image", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/tokens")).html);
+    expect(tags.titles).toEqual(["Tokens · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("the XRP Ledger"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/tokens`]);
+    expect(tags.content("og:title")).toBe("Tokens · XRPL · explorer");
+    expect(tags.content("og:description")).toBe(DESCRIPTION("the XRP Ledger"));
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/tokens`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("og:image")).toBeUndefined();
+    expect(tags.content("twitter:image")).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("is Xahau's on Xahau", async () => {
+    mock = mockUpstream("xahau");
+    const tags = head((await page("/xahau/tokens")).html);
+    expect(tags.titles).toEqual(["Tokens · Xahau · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("Xahau"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/tokens`]);
+  });
+
+  it.each([
+    ["a search", "?q=USD", "Tokens matching “USD” · XRPL · explorer"],
+    ["all", "?all=1", "All tokens · XRPL · explorer"],
+  ])("is noindex, follow on %s, with no canonical URL or sharing tags", async (_what, query, title) => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/tokens${query}`)).html);
+    expect(tags.titles).toEqual([title]);
+    expect(tags.content("description")).toBe(DESCRIPTION("the XRP Ledger"));
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+
+  it("is noindex, follow behind a marker, titled More tokens", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/tokens?marker=${await tokensMarker("xrpl")}`)).html);
+    expect(tags.titles).toEqual(["More tokens · XRPL · explorer"]);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+
+  it("is noindex, follow for a search that was too long, and does not repeat it", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/tokens?q=${"x".repeat(65)}`)).html);
+    expect(tags.titles).toEqual(["Tokens · XRPL · explorer"]);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+});
+
+describe("the supply page", () => {
+  it("has the tags of the page: the snapshot in the description, a canonical URL, and no image", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/supply")).html);
+    expect(tags.titles).toEqual(["Supply · XRPL · explorer"]);
+    expect(tags.content("description")).toBe("XRP supply at ledger #107,720,688: 99.99B total, 14.69M burned, 35.21B escrowed, 64.77B circulating.");
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/supply`]);
+    expect(tags.content("og:title")).toBe("Supply · XRPL · explorer");
+    expect(tags.content("og:description")).toBe(tags.content("description"));
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/supply`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("og:image")).toBeUndefined();
+    expect(tags.content("twitter:image")).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("is Xahau's on Xahau, with the minted figure in the description", async () => {
+    mock = mockUpstream("xahau");
+    const tags = head((await page("/xahau/supply")).html);
+    expect(tags.titles).toEqual(["Supply · Xahau · explorer"]);
+    expect(tags.content("description")).toBe("XAH supply at ledger #26,596,843: 613.40M total, 49.43M minted, 2.32K burned, 18.41M escrowed, 595.00M circulating.");
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/supply`]);
+  });
+});
+
+describe("a collection's page", () => {
+  const OWNER = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+  const DESCRIPTION = (words: string, label: string, where: string) => `${words} collection ${label} on ${where}: its sales, ${words === "NFT" ? "NFTs" : "URITokens"} and holders.`;
+
+  it("has the tags of the first page: the collection's title, a description with no numbers of the data, a canonical URL, and no image", async () => {
+    const { issuer, taxon } = await collectionCase("xrpl", "featured");
+    const label = `${shortAddress(issuer)} · taxon ${taxon}`;
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/nfts/${issuer}/${taxon}`)).html);
+    expect(tags.titles).toEqual([`Collection ${label} · XRPL · explorer`]);
+    expect(tags.content("description")).toBe(DESCRIPTION("NFT", label, "the XRP Ledger"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/nfts/${issuer}/${taxon}`]);
+    expect(tags.content("og:title")).toBe(`Collection ${label} · XRPL · explorer`);
+    expect(tags.content("og:description")).toBe(DESCRIPTION("NFT", label, "the XRP Ledger"));
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/nfts/${issuer}/${taxon}`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("og:image")).toBeUndefined();
+    expect(tags.content("twitter:image")).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("keeps the tab in the canonical URL unless it is the first", async () => {
+    const { issuer, taxon } = await collectionCase("xrpl", "featured");
+    for (const tab of ["nfts", "holders"]) {
+      mock = mockUpstream("xrpl");
+      const tags = head((await page(`/xrpl/nfts/${issuer}/${taxon}?tab=${tab}`)).html);
+      expect(tags.canonical, tab).toEqual([`${ORIGIN}/xrpl/nfts/${issuer}/${taxon}?tab=${tab}`]);
+      expect(tags.content("og:url"), tab).toBe(`${ORIGIN}/xrpl/nfts/${issuer}/${taxon}?tab=${tab}`);
+      expect(tags.content("robots"), tab).toBeUndefined();
+      mock.restore();
+    }
+  });
+
+  it("is Xahau's on Xahau: URITokens of the issuer, with no taxon", async () => {
+    const { issuer } = await collectionCase("xahau", "featured");
+    mock = mockUpstream("xahau");
+    const tags = head((await page(`/xahau/nfts/${issuer}`)).html);
+    expect(tags.titles).toEqual([`URITokens of ${shortAddress(issuer)} · Xahau · explorer`]);
+    expect(tags.content("description")).toBe(DESCRIPTION("URIToken", shortAddress(issuer), "Xahau"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/nfts/${issuer}`]);
+  });
+
+  it("is noindex, follow on another measure, a filter and a marker, with no canonical URL or sharing tags", async () => {
+    const { issuer, taxon } = await collectionCase("xrpl", "featured");
+    const label = `${shortAddress(issuer)} · taxon ${taxon}`;
+    const marker = await salesMarker("xrpl");
+    for (const [path, title] of [
+      [`/xrpl/nfts/${issuer}/${taxon}?measure=avg`, `Collection ${label} · XRPL · explorer`],
+      [`/xrpl/nfts/${issuer}/${taxon}?tab=nfts&owner=${OWNER}`, `Collection ${label} · XRPL · explorer`],
+      [`/xrpl/nfts/${issuer}/${taxon}?tab=nfts&burned=1`, `Collection ${label} · XRPL · explorer`],
+      [`/xrpl/nfts/${issuer}/${taxon}?tab=nfts&owner=nope`, `Collection ${label} · XRPL · explorer`],
+      [`/xrpl/nfts/${issuer}/${taxon}?marker=${marker}`, `Older sales of ${label} · XRPL · explorer`],
+    ]) {
+      mock = mockUpstream("xrpl");
+      const tags = head((await page(path)).html);
+      expect(tags.titles, path).toEqual([title]);
+      expect(tags.content("robots"), path).toBe("noindex, follow");
+      expect(tags.canonical, path).toEqual([]);
+      for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+      mock.restore();
+    }
+  });
+});
+
+describe("an NFT's page", () => {
+  const OWNER = "rLCscV9iDJpvje4ZCKxGjYAMNtBA1Ltauk";
+  const MARKER = "WzEwNzg3ODc3NSwxMzAsMF0";
+
+  it("has the tags of an NFT of the index: its title, owner and last sale, a canonical URL, and the NFT's image on a large card", async () => {
+    const { id, issuer } = await nftCase("xrpl", "featured");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/nft/${id}`)).html);
+    const description = `Owned by ${shortAddress(OWNER)} · last sold for 150 XRP · XRPL`;
+    expect(tags.titles).toEqual([`NFT #107,604,335 of ${shortAddress(issuer)} · taxon 0 · XRPL · explorer`]);
+    expect(tags.content("description")).toBe(description);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/nft/${id}`]);
+    expect(tags.content("og:title")).toBe(`NFT #107,604,335 of ${shortAddress(issuer)} · taxon 0 · XRPL · explorer`);
+    expect(tags.content("og:description")).toBe(description);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/nft/${id}`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xrpl/nft/${id}.png`);
+    expect(tags.content("og:image:width")).toBe("1200");
+    expect(tags.content("og:image:height")).toBe("630");
+    expect(tags.content("og:image:alt")).toBe(`NFT #107,604,335 of ${shortAddress(issuer)} · taxon 0 on XRPL`);
+    expect(tags.content("twitter:card")).toBe("summary_large_image");
+    expect(tags.content("twitter:image")).toBe(`${ORIGIN}/og/xrpl/nft/${id}.png`);
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("keeps the NFT's own URL as the canonical one for the view with offer events", async () => {
+    const { id } = await nftCase("xrpl", "featured");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/nft/${id}?offers=1`)).html);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/nft/${id}`]);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/nft/${id}`);
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("says '(burned)' after the name of a burned NFT, and Burned in place of its owner", async () => {
+    const { id, issuer } = await nftCase("xrpl", "burned");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/nft/${id}`)).html);
+    expect(tags.titles).toEqual([`NFT #102,436,236 (burned) of ${shortAddress(issuer)} · taxon 0 · XRPL · explorer`]);
+    expect(tags.content("description")).toBe("Burned · never sold · XRPL");
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/nft/${id}`]);
+  });
+
+  it("is Xahau's on Xahau: URIToken and its short id, the price in XAH, and its image", async () => {
+    const { id, issuer } = await nftCase("xahau", "featured");
+    mock = mockUpstream("xahau");
+    const tags = head((await page(`/xahau/nft/${id}`)).html);
+    expect(tags.titles).toEqual([`URIToken 96133366… of ${shortAddress(issuer)} · Xahau · explorer`]);
+    expect(tags.content("description")).toBe(`Owned by ${shortAddress("rBkEp8W1yhBGLrvHFKKyrmSvniMFVJbPPg")} · last sold for 4,200 XAH · Xahau`);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/nft/${id}`]);
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xahau/nft/${id}.png`);
+    expect(tags.content("twitter:card")).toBe("summary_large_image");
+  });
+
+  it("is noindex, with no canonical URL or sharing tags, for an NFT shown from the network", async () => {
+    for (const [net, which, title] of [
+      ["xrpl", "network", "NFT #98,894,589 of raNypR…RV92 · taxon 123,589,321 · XRPL · explorer"],
+      ["xahau", "network", "URIToken 06CF2C55… of rodinG…zKyb · Xahau · explorer"],
+    ] as const) {
+      const { id } = await nftCase(net, which);
+      mock = mockUpstream(net);
+      const tags = head((await page(`/${net}/nft/${id}`)).html);
+      expect(tags.titles, net).toEqual([title]);
+      expect(tags.content("robots"), net).toBe("noindex");
+      expect(tags.canonical, net).toEqual([]);
+      for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+      mock.restore();
+    }
+  });
+
+  it("is noindex, follow behind a marker, with no canonical URL or sharing tags, titled for the older history", async () => {
+    const { id } = await nftCase("xrpl", "featured");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/nft/${id}?offers=1&marker=${MARKER}`)).html);
+    expect(tags.titles).toEqual(["Older history of NFT #107,604,335 · XRPL · explorer"]);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+});
+
 describe("an AMM pool's page", () => {
   const POOL = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
   // The node's fee (205, 0.205%); the generated XRP/RLUSD pool has no create event, so the description says no day of creation.
@@ -740,6 +1067,168 @@ describe("an amendment's page", () => {
     expect(tags.content("description")).toBe("Import is enabled on Xahau since Sep 12, 2025 (ledger 17,956,865).");
     expect(tags.canonical).toEqual([`${ORIGIN}/xahau/amendments/Import`]);
     expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xahau/amendment/Import.png`);
+  });
+});
+
+describe("an escrow's page", () => {
+  // The pending escrow of the fixtures: 100 XRP from rh49Zq…jxvt to rE8gwQ…5fF3, and a finished one for a page of its older events.
+  it("has a title, a description with short addresses and the status, a canonical URL and the sharing tags, with no image", async () => {
+    const { id, owner } = await objectCase("xrpl", "escrow-pending");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/escrows/${id}`)).html);
+    const title = `Escrow ${shortHash(id)} · XRPL · explorer`;
+    const description = `Escrow of 100 XRP from ${shortAddress(owner)} to ${shortAddress("rE8gwQaAppgYCtmGKF1WjPirzRP5hH5fF3")} · pending · XRPL`;
+    expect(tags.titles).toEqual([title]);
+    expect(tags.content("description")).toBe(description);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/escrows/${id}`]);
+    expect(tags.content("og:title")).toBe(title);
+    expect(tags.content("og:description")).toBe(description);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/escrows/${id}`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("twitter:title")).toBe(title);
+    // No link-preview image (decision 9).
+    for (const key of ["og:image", "og:image:width", "og:image:height", "og:image:alt", "twitter:image"]) expect(tags.content(key), key).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("is noindex, follow behind a marker, with no canonical URL or sharing tags", async () => {
+    const { id } = await objectCase("xrpl", "escrow-finished");
+    mock = mockUpstream("xrpl", { [`GET /v2/escrows/${id}/history?descending=true&limit=50&marker=${OBJECT_MARKER}`]: historySample() });
+    const tags = head((await page(`/xrpl/escrows/${id}?marker=${OBJECT_MARKER}`)).html);
+    expect(tags.titles).toEqual([`Escrow ${shortHash(id)} · XRPL · explorer`]);
+    expect(tags.content("description")).toMatch(/^Escrow of 75,000 XRB from .+ · finished · XRPL$/);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+});
+
+describe("a check's page", () => {
+  // The open check of the fixtures: 1,000 XRP from Rowan Exchange (a verified name in the fixtures, which a description never uses) to rNWDKX…vMAM.
+  it("has a title, a description with short addresses and the status, a canonical URL and the sharing tags, with no image", async () => {
+    const { id, owner } = await objectCase("xrpl", "check-open");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/checks/${id}`)).html);
+    const title = `Check ${shortHash(id)} · XRPL · explorer`;
+    const description = `Check for up to 1,000 XRP from ${shortAddress(owner)} to ${shortAddress("rNWDKX2qk6ZiFvJD3aTkLDmqE681PVvMAM")} · open · XRPL`;
+    expect(tags.titles).toEqual([title]);
+    expect(tags.content("description")).toBe(description);
+    expect(description).not.toContain("Rowan");
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/checks/${id}`]);
+    expect(tags.content("og:title")).toBe(title);
+    expect(tags.content("og:description")).toBe(description);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/checks/${id}`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("twitter:title")).toBe(title);
+    // No link-preview image (decision 9).
+    for (const key of ["og:image", "og:image:width", "og:image:height", "og:image:alt", "twitter:image"]) expect(tags.content(key), key).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("says a status the page has: an expired check", async () => {
+    const { id } = await objectCase("xrpl", "check-expired");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/checks/${id}`)).html);
+    expect(tags.content("description")).toMatch(/^Check for up to 100 XRP from .+ to .+ · expired · XRPL$/);
+  });
+});
+
+describe("a payment channel's page", () => {
+  // The open channel of the fixtures: 1 XRP from rQQQrU…3ZrM to rLggTE…KrtR, and the long channel for a page of its older events.
+  it("has a title, a description with short addresses and the status, a canonical URL and the sharing tags, with no image", async () => {
+    const { id, owner } = await objectCase("xrpl", "channel-open");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/payment-channels/${id}`)).html);
+    const title = `Payment channel ${shortHash(id)} · XRPL · explorer`;
+    const description = `Payment channel of 1 XRP from ${shortAddress(owner)} to ${shortAddress("rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR")} · open · XRPL`;
+    expect(tags.titles).toEqual([title]);
+    expect(tags.content("description")).toBe(description);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/payment-channels/${id}`]);
+    expect(tags.content("og:title")).toBe(title);
+    expect(tags.content("og:description")).toBe(description);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/payment-channels/${id}`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("twitter:title")).toBe(title);
+    for (const key of ["og:image", "og:image:width", "og:image:height", "og:image:alt", "twitter:image"]) expect(tags.content(key), key).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("is noindex, follow behind a marker, with no canonical URL or sharing tags", async () => {
+    const { id, markers } = await objectCase("xrpl", "channel-long");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/payment-channels/${id}?marker=${markers![0]}`)).html);
+    expect(tags.titles).toEqual([`Payment channel ${shortHash(id)} · XRPL · explorer`]);
+    expect(tags.content("description")).toMatch(/^Payment channel of 2,100 XRP from .+ · open · XRPL$/);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+
+  it("is Xahau's on Xahau, in the channel's currency", async () => {
+    const { id } = await objectCase("xahau", "xahau-token-channel");
+    mock = mockUpstream("xahau");
+    const tags = head((await page(`/xahau/payment-channels/${id}`)).html);
+    expect(tags.titles).toEqual([`Payment channel ${shortHash(id)} · Xahau · explorer`]);
+    expect(tags.content("description")).toMatch(/^Payment channel of 1 DHA from .+ to .+ · open · Xahau$/);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/payment-channels/${id}`]);
+  });
+});
+
+describe("a token's page", () => {
+  const DESCRIPTION = (code: string, issuer: string, where: string) => `${code}, issued by ${shortAddress(issuer)} on ${where}: holders, supply, price, markets, the issuer's settings and recent transfers.`;
+
+  it("has the tags of an indexable page: the name and the code in the title, the canonical URL, Open Graph, the image and a large card", async () => {
+    const rlusd = await tokenCase("xrpl", "rlusd");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/token/${rlusd.path}`)).html);
+    const title = "Ripple USD (RLUSD) · XRPL · explorer";
+    expect(tags.titles).toEqual([title]);
+    expect(tags.content("description")).toBe(DESCRIPTION("RLUSD", rlusd.issuer, "XRPL"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/token/${rlusd.path}`]);
+    expect(tags.content("og:title")).toBe(title);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/token/${rlusd.path}`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xrpl/token/${rlusd.path}.png`);
+    expect(tags.content("og:image:width")).toBe("1200");
+    expect(tags.content("og:image:height")).toBe("630");
+    expect(tags.content("twitter:card")).toBe("summary_large_image");
+    expect(tags.content("twitter:image")).toBe(`${ORIGIN}/og/xrpl/token/${rlusd.path}.png`);
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("is headed by the code and the short issuer when the toml gives no name: USD", async () => {
+    const usd = await tokenCase("xrpl", "usd");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/token/${usd.path}`)).html);
+    expect(tags.titles).toEqual([`USD by ${shortAddress(usd.issuer)} · XRPL · explorer`]);
+    expect(tags.content("description")).toBe(DESCRIPTION("USD", usd.issuer, "XRPL"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/token/${usd.path}`]);
+  });
+
+  it("is Xahau's on Xahau", async () => {
+    const evr = await tokenCase("xahau", "evr");
+    mock = mockUpstream("xahau");
+    const tags = head((await page(`/xahau/token/${evr.path}`)).html);
+    expect(tags.titles).toEqual(["Evernode (EVR) · Xahau · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("EVR", evr.issuer, "Xahau"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/token/${evr.path}`]);
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xahau/token/${evr.path}.png`);
+  });
+
+  it("is noindex, follow behind a marker, titled Older transfers of the code, with no canonical URL or sharing tags", async () => {
+    const older = await transfersMarker("xrpl");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/token/${older.token}?marker=${older.marker}`)).html);
+    expect(tags.titles).toEqual(["Older transfers of RLUSD · XRPL · explorer"]);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
   });
 });
 

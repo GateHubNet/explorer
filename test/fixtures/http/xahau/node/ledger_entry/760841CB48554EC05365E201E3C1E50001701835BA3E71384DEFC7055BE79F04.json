@@ -1,0 +1,25 @@
+{
+  "result": {
+    "index": "760841CB48554EC05365E201E3C1E50001701835BA3E71384DEFC7055BE79F04",
+    "ledger_hash": "FD816B31FFE84E838E6645C4BAFA181F58F7581A55547F452B376A4DC1DCFAB7",
+    "ledger_index": 26399329,
+    "node": {
+      "Account": "rL6rwNe6puyoN5X1BUy8pEQb6Un23m2f1m",
+      "Amount": "300000",
+      "Balance": "15838",
+      "Destination": "rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR",
+      "DestinationNode": "0",
+      "Flags": 0,
+      "LedgerEntryType": "PayChannel",
+      "OwnerNode": "0",
+      "PreviousTxnID": "D58A83E1E25B0AD4C79537E8F2D6402ACDEE4FF5EADAB1F23F181F689E9503CA",
+      "PreviousTxnLgrSeq": 8863640,
+      "PublicKey": "ED3E65C66F452D4C5029F4B338213FC6691C43ED04FCBC5AB88850471C9979F425",
+      "SettleDelay": 1209600,
+      "TransferRate": 1000000000,
+      "index": "760841CB48554EC05365E201E3C1E50001701835BA3E71384DEFC7055BE79F04"
+    },
+    "status": "success",
+    "validated": true
+  }
+}

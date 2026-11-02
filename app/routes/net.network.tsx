@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { redirect } from "react-router";
 
-import { networkHref, networkScope, parseNetworkParams, queryOf, USD_ISSUER } from "../domain/network-params";
+import { ALL_DISPLAYS, networkHref, networkScope, parseNetworkParams, queryOf, USD_ISSUER } from "../domain/network-params";
 import { anchorOrThrow, type Anchor } from "../server/anchor";
 import { HOME_CALL_TTL_SECONDS, PERIOD_CALL_TTL_SECONDS } from "../server/cache-class";
 import { clientsFor } from "../server/clients";
@@ -17,7 +17,7 @@ import { anchoredWindow, networkPage, SERIES_LIMIT, seriesQuery, VALIDATIONS_LIM
 import { requireNetwork } from "../server/network-route";
 import { UpstreamError } from "../server/upstream";
 import { createLiveOnScreen, keepLoaded } from "../ui/live-page";
-import { findNetwork } from "../ui/networks";
+import { isNetworkId } from "../ui/networks";
 import { NetworkPage } from "../ui/pages/NetworkPage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
 import { useLiveControls } from "../ui/use-live-controls";
@@ -29,8 +29,8 @@ import type { Route } from "./+types/net.network";
 // replaced by the stored copy.
 export const headers = forwardCacheClass;
 
-// The header marks its Network item as the page of the section (`aria-current="page"`).
-export const handle = { navSection: "network" } satisfies NetworkRouteHandle;
+// The header marks its Network menu as the section of the page (`aria-current="true"` on the summary) and the menu's Overview as the page (`aria-current="page"`).
+export const handle = { navSection: "network", navPage: "overview" } satisfies NetworkRouteHandle;
 
 /** The parts of the page that a beat may keep when its answer has them failed and the page shows them loaded (`keepLoaded`, spec 1.9), one for each call or chain. */
 const NETWORK_PARTS = ["openLedger", "validators", "types", "metrics", "fees", "payments", "exchanges", "amm"] as const;
@@ -40,8 +40,8 @@ const NETWORK_PARTS = ["openLedger", "validators", "types", "metrics", "fees", "
  * chain and an open tab asks again every 4 s (see `Network`).
  *
  * - **One URL per view.** A query string that is not exactly the canonical form of the view it names (`period`, then `in`; defaults, unknown
- *   values, repeats and other parameters dropped) is a 302 to the canonical URL, class `short`, before any call: a made-up query string would
- *   otherwise be a page of its own, and a set of upstream calls.
+ *   values, `in=usd` where the network has no USD view, repeats and other parameters dropped) is a 302 to the canonical URL, class `short`,
+ *   before any call: a made-up query string would otherwise be a page of its own, and a set of upstream calls.
  * - **#1 is the anchor.** `last_validated` gives the ledger, its close time and so the index day `T`, from which the window of the view follows
  *   (`windowOf`) and with it what every other call asks for. Without it there is no page (a 503), and a close time that is not a time is
  *   the same: the window cannot be worked out from it.
@@ -62,8 +62,8 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   const net = requireNetwork(context, params);
 
   const search = queryOf(request.url);
-  const { params: view, canonical } = parseNetworkParams(search, net.id);
-  if (search !== canonical) return redirect(networkHref(net.id, view), { status: 302, headers: cacheClassHeaders("short") });
+  const { params: view, canonical } = parseNetworkParams(search, net);
+  if (search !== canonical) return redirect(networkHref(net, view), { status: 302, headers: cacheClassHeaders("short") });
 
   const { api } = clientsFor(context, net);
   // The calls that follow the chain are kept as long as the home page's are (and are its entries, #1 and #2); the ones over a period for theirs.
@@ -168,16 +168,19 @@ const onScreen = createLiveOnScreen<NetworkLoaderData>({
  * view never stands in for another: a navigation to a view that is not on screen has nothing to keep and gets the error screen as before.
  */
 export function clientLoader({ params, request, serverLoader }: Route.ClientLoaderArgs) {
-  const network = findNetwork(params.net);
+  const net = params.net ?? "";
   // A network that does not exist is the layout's 404: no page of it to keep, and no view to name.
-  if (!network) return serverLoader();
-  return onScreen.reload(networkScope(network.id, parseNetworkParams(queryOf(request.url), network.id).params), serverLoader);
+  if (!isNetworkId(net)) return serverLoader();
+  // No network facts here, so the query is read against every display: on a testnet `?in=usd` is a scope that no page on screen has, and the
+  // server's redirect answers.
+  const views = { id: net, displays: ALL_DISPLAYS };
+  return onScreen.reload(networkScope(views, parseNetworkParams(queryOf(request.url), views).params), serverLoader);
 }
 
 export default function Network({ loaderData }: Route.ComponentProps) {
   const network = useNetwork();
   const live = useLiveControls(onScreen);
-  const scope = networkScope(network.id, loaderData.view);
+  const scope = networkScope({ id: network.id, displays: loaderData.displays }, loaderData.view);
   useEffect(() => onScreen.show(scope, loaderData), [scope, loaderData]);
   // Keyed by the scope: another period, currency or network is a navigation and a first render, not a ledger closing. The kit rings a chart
   // whose token changes after it is mounted, so the page must be mounted again.

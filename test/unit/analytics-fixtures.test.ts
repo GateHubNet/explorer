@@ -554,6 +554,7 @@ describe("what the view needs of the fixtures", () => {
 });
 
 describe("the generator's files among the others", () => {
+  // A whole generation: about 1.2 s on a developer's machine, and 5.2 s on a CI runner (PR #8's Verify failed on it at 5 s).
   it("are what isAnalyticsGenerated names, and none is written by hand", () => {
     const written = NETS.flatMap((net) => analyticsFixtures(net, T(net)).map(({ path, query }) => dataApiFile(net, path, query)!));
     expect([...generate().keys()].filter(isAnalyticsGenerated).sort()).toEqual([...written].sort());
@@ -570,7 +571,7 @@ describe("the generator's files among the others", () => {
         .filter((path) => /\/(stats|analytics)\//.test(path)),
     );
     expect(onDisk.sort()).toEqual([...written].sort());
-  });
+  }, 15_000);
 
   it("follow the reference commit that PROVENANCE.md names, and README.md lists them as synthetic", () => {
     expect(ANALYTICS_REFERENCE_COMMIT).toBe("7d495ab50cc7ad9b1434ab8e28b2ca5f7cbde13e");

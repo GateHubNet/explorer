@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "granite-222d.example",
+    "toml_url": "https://granite-222d.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rMzZ16KNa5NRbosSp3Y3enxVDb6DrjhJ3L",
+        "desc": "Granite Markets"
+      }
+    ]
+  }
+}

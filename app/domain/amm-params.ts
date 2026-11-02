@@ -11,7 +11,7 @@
 
 import { parseTrail } from "./paging";
 import { ammPoolPath } from "./pool-link";
-import { queryValue } from "./query-of";
+import { queryValue, trailPairs, withQuery } from "./query-of";
 import type { WindowPeriod } from "./window";
 
 // A pool's path and the decision where a pool link goes live in pool-link.ts, which the pages with a pool link that are no AMM page load alone.
@@ -86,19 +86,6 @@ export function parseAmmPoolParams(search: URLSearchParams): AmmPoolQuery {
     ...(marker === undefined ? {} : { marker }),
     back: marker === undefined ? [] : parseTrail(search.get("back")),
   };
-}
-
-/** The pairs of a page trail: `marker`, then `back` (only behind a marker, and only a trail that is not empty), its markers joined by `.`. */
-function trailPairs(marker: string | undefined, back: readonly string[] | undefined): string[] {
-  if (marker === undefined) return [];
-  const pairs = [`marker=${queryValue(marker)}`];
-  if (back !== undefined && back.length > 0) pairs.push(`back=${back.map(queryValue).join(".")}`);
-  return pairs;
-}
-
-/** The path and the query (which has no `?`, and may be empty) as one URL. */
-function withQuery(path: string, query: string): string {
-  return query === "" ? path : `${path}?${query}`;
 }
 
 /** The list's path: `/xrpl/amm`. */

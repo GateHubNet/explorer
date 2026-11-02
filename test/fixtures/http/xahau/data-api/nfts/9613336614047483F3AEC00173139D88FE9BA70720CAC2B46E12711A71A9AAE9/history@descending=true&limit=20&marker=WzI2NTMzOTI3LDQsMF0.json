@@ -1,0 +1,12 @@
+{
+  "count": 2,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "events": [
+    {"account":"r9gvUQxtV98nRAM26aknj4h6RXKyXCLMVS","amount":"4510.78","currency":"XAH","event":"offer_create","event_index":0,"executed_time":"2026-10-15T03:35:11Z","is_sell_offer":true,"issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","kind":"uritoken","ledger_index":26533927,"nft_id":"9613336614047483F3AEC00173139D88FE9BA70720CAC2B46E12711A71A9AAE9","offer_id":"9613336614047483F3AEC00173139D88FE9BA70720CAC2B46E12711A71A9AAE9","tx_hash":"6CC7E8F0B9EE634C08AF25BD91283F74601ABC41BEC7887855F9F04351C3D7B8","tx_index":3,"tx_type":"URITokenCreateSellOffer"},
+    {"account":"r9gvUQxtV98nRAM26aknj4h6RXKyXCLMVS","amount":"2463.48","currency":"XAH","event":"offer_create","event_index":0,"executed_time":"2026-10-15T03:35:11Z","is_sell_offer":true,"issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","kind":"uritoken","ledger_index":26533927,"nft_id":"9613336614047483F3AEC00173139D88FE9BA70720CAC2B46E12711A71A9AAE9","offer_id":"9613336614047483F3AEC00173139D88FE9BA70720CAC2B46E12711A71A9AAE9","tx_hash":"EA667D1F5080568CB513A6A66149A91CCB3C37AABC91EEDB8E438DCF8E31FE51","tx_index":2,"tx_type":"URITokenCreateSellOffer"}
+  ],
+  "result": "success"
+}

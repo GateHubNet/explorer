@@ -416,3 +416,109 @@ describe('BarList with tip="share-of" (E5\'s fee votes, P17)', () => {
     expect(tips(container)[1]!.textContent).toBe("21% of LP tokens");
   });
 });
+
+// The marks of a named item (E9, spec 4.3): the name and label marks after the label, inside its link when it has one. The view builders write
+// the label (`linkTextOf`), the sublabel (the short address) and `mark`; the kit draws what it is given.
+describe("BarList's marks (E9's names)", () => {
+  const ACCOUNT = "/xrpl/account/rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh";
+  const MARKED: BarListData = {
+    items: [
+      { id: "a", label: "Northpeak Treasury", sublabel: "rHb9CJ…tyTh", value: "6100000", share: "58%", href: ACCOUNT, mark: { kind: "verified", labels: ["scam"] } },
+      { id: "b", label: "Harborline Exchange · hot wallet", sublabel: "rPEPPE…6GDY", value: "3050000", share: "29%", href: "/xrpl/account/rPEPPER7kfTD9w2To4CQk6UCfuHM9c6GDY", mark: { kind: "account", labels: [] } },
+      { id: "c", label: "lowtide.example", sublabel: "rLUEXY…kpD", value: "61000", share: "<1%", href: "/xrpl/account/rLUEXYuLiQptky37CqLcm9USQpPiz5rkpD", mark: { kind: "domain", labels: [] } },
+      { id: "d", label: "rBg5JN…ARi", value: "2000", share: "<1%", href: "/xrpl/account/rBg5JN5ShW8ZRV1TJhxVJRYcXVbPGC3ARi", mark: { labels: ["scam", "spam"] } },
+      { id: "e", label: "rJF2Xa…fQvg", value: "1000", share: "<1%", href: "/xrpl/account/rJF2XaN4q9D9E2hzK5qJ6kAn7rR7yGfQvg" },
+    ],
+    format: { kind: "amount", unit: "XRP" },
+    token: "m1",
+  };
+
+  it("draws both marks after the label, inside the label's link, in the HTML the Worker prints and after hydration", async () => {
+    const { container, errors } = await serverThenHydrated(routed(<BarList data={MARKED} />));
+    const link = links(container)[0]!;
+    expect(link.getAttribute("href")).toBe(ACCOUNT);
+    expect(link.textContent).toBe("Northpeak Treasury verified name labelled scam by GateHub");
+    expect(link.querySelector(".namemark--verified")).not.toBeNull();
+    expect(link.querySelector(".labelmark")).not.toBeNull();
+    // After the label: the label's own text comes first and the marks follow it.
+    expect(link.firstChild!.textContent).toBe("Northpeak Treasury");
+    expect(Array.from(link.children, (child) => child.className.split(" ")[0])).toEqual(["namemark", "labelmark"]);
+    expect(errors).toEqual([]);
+  });
+
+  it("gives the link the words of the name and the marks, and leaves the sublabel and the tip out of it", async () => {
+    const { container } = await serverThenHydrated(routed(<BarList data={MARKED} />));
+    expect(items(container)[0]!.textContent).toBe("Northpeak Treasury verified name labelled scam by GateHub" + "rHb9CJ…tyTh" + "6.1M XRP · 58%");
+    expect(items(container)[0]!.querySelector(".barlist__sub")!.closest("a")).toBeNull();
+  });
+
+  it("draws the mark of each kind: the account's tag, the domain's visible 'not verified', and labels alone", async () => {
+    const { container } = await serverThenHydrated(routed(<BarList data={MARKED} />));
+    expect(links(container).map((link) => link.textContent)).toEqual([
+      "Northpeak Treasury verified name labelled scam by GateHub",
+      "Harborline Exchange · hot wallet named by GateHub",
+      "lowtide.example not verified",
+      "rBg5JN…ARi labelled scam and spam by GateHub",
+      "rJF2Xa…fQvg",
+    ]);
+    expect(links(container)[1]!.querySelector(".namemark--account")).not.toBeNull();
+    expect(links(container)[2]!.querySelector(".unv")!.textContent).toBe("not verified");
+    expect(links(container)[3]!.querySelector(".namemark, .unv")).toBeNull();
+  });
+
+  it("hides the icons from assistive technology, and separates the label from the words that follow it", async () => {
+    const { container } = await serverThenHydrated(routed(<BarList data={MARKED} />));
+    for (const icon of container.querySelectorAll("svg")) expect(icon.getAttribute("aria-hidden")).toBe("true");
+    // A space, in the text: the link's name reads 'Northpeak Treasury verified name', not 'Northpeak Treasuryverified name'.
+    expect(links(container)[0]!.textContent).toContain("Treasury verified");
+  });
+
+  it("draws the marks of an item that has no href beside its label, as text", async () => {
+    const data: BarListData = { ...MARKED, items: [{ ...MARKED.items[0]!, href: undefined }] };
+    const { container } = await serverThenHydrated(routed(<BarList data={data} />));
+    expect(links(container)).toHaveLength(0);
+    expect(container.querySelector(".barlist__label")!.textContent).toBe("Northpeak Treasury verified name labelled scam by GateHub");
+    expect(container.querySelector(".barlist__label .namemark--verified")).not.toBeNull();
+  });
+
+  it("draws an item without a mark as it was: its label, and nothing after it", async () => {
+    const { container } = await serverThenHydrated(routed(<BarList data={MARKED} />));
+    const plain = items(container)[4]!;
+    expect(plain.querySelector(".barlist__label")!.innerHTML).toBe(links(container)[4]!.outerHTML);
+    expect(links(container)[4]!.innerHTML).toBe("rJF2Xa…fQvg");
+    expect(plain.querySelector(".namemark, .labelmark, .unv, .sr")).toBeNull();
+  });
+
+  it("draws nothing for a mark that has no kind and no label", async () => {
+    const data: BarListData = { ...MARKED, items: [{ ...MARKED.items[4]!, mark: { labels: [] } }] };
+    const { container } = await serverThenHydrated(routed(<BarList data={data} />));
+    expect(links(container)[0]!.innerHTML).toBe("rJF2Xa…fQvg");
+  });
+
+  it("makes room for the marks in the label's column, in characters, and for none where there is no mark", async () => {
+    const one = (item: BarListData["items"][number]) => serverThenHydrated(routed(<BarList data={{ ...MARKED, items: [item] }} />));
+    const label = (container: HTMLElement) => container.querySelector<HTMLElement>("ol")!.style.getPropertyValue("--label");
+    const base = { id: "x", label: "Northpeak Treasury", value: "1", share: "1%" };
+    // 18 characters of label.
+    expect(label((await one(base)).container)).toBe("min(18ch, 45%)");
+    // A space and a 14 px icon: 3 more.
+    expect(label((await one({ ...base, mark: { kind: "verified", labels: [] } })).container)).toBe("min(21ch, 45%)");
+    expect(label((await one({ ...base, mark: { kind: "account", labels: [] } })).container)).toBe("min(21ch, 45%)");
+    // Both marks: 3 more again.
+    expect(label((await one({ ...base, mark: { kind: "verified", labels: ["scam"] } })).container)).toBe("min(24ch, 45%)");
+    expect(label((await one({ ...base, mark: { labels: ["scam"] } })).container)).toBe("min(21ch, 45%)");
+    // The tag 'not verified' is 82 px: 12 characters with the space.
+    expect(label((await one({ ...base, mark: { kind: "domain", labels: [] } })).container)).toBe("min(30ch, 45%)");
+    expect(label((await one({ ...base, mark: { labels: [] } })).container)).toBe("min(18ch, 45%)");
+  });
+
+  it("is drawn again when the token changes with a new mark, and not when it does not", () => {
+    const { container, rerender } = render(routed(<BarList data={MARKED} />));
+    expect(links(container)[4]!.textContent).toBe("rJF2Xa…fQvg");
+    const items2 = MARKED.items.map((item) => (item.id === "e" ? { ...item, mark: { kind: "verified" as const, labels: [] } } : item));
+    rerender(routed(<BarList data={{ ...MARKED, items: items2 }} />));
+    expect(links(container)[4]!.textContent).toBe("rJF2Xa…fQvg");
+    rerender(routed(<BarList data={{ ...MARKED, items: items2, token: "m2" }} />));
+    expect(links(container)[4]!.textContent).toBe("rJF2Xa…fQvg verified name");
+  });
+});

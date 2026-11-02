@@ -15,6 +15,7 @@ import { warmWorker } from "../support/warm-worker";
 warmWorker();
 
 const env: Env = {
+  ENVIRONMENT: "development",
   XRPL_DATA_API_URL: "https://xrpl.data.example.invalid",
   XAHAU_DATA_API_URL: "https://xahau.data.example.invalid",
   XRPL_NODE_URL: "https://s1.ripple.com:51234/",
@@ -251,9 +252,10 @@ describe("mockUpstream", () => {
       const node = xrplNode();
       const info = await node.accountInfo(ACTIVE);
       expect(info).toMatchObject({ validated: true, ledger_index: HEAD.index });
-      expect(info.account_data).toMatchObject({ Account: ACTIVE, Balance: "10001625", OwnerCount: 1, Sequence: 98986800 });
+      // Its trust line, and the ledger-object pages' escrow, channel and delegation it owns and the check sent to it (scripts/object-fixtures.ts, C7).
+      expect(info.account_data).toMatchObject({ Account: ACTIVE, Balance: "10001625", OwnerCount: 4, Sequence: 98986800 });
       const objects = await node.accountObjects(ACTIVE);
-      expect(objects.account_objects.map((object) => object.LedgerEntryType)).toEqual(["RippleState"]);
+      expect(objects.account_objects.map((object) => object.LedgerEntryType)).toEqual(["RippleState", "Escrow", "Check", "PayChannel", "Delegate"]);
       expect(objects.marker).toBeUndefined();
 
       expect((await failureOf(node.accountInfo(DELETED))).message).toContain("actNotFound");

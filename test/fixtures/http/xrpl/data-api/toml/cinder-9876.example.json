@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "cinder-9876.example",
+    "toml_url": "https://cinder-9876.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rDu4vMpZU5WcwVME6oorzSov4DMLWXUEDf",
+        "desc": "Cinder Custody"
+      }
+    ]
+  }
+}

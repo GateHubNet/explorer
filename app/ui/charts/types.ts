@@ -1,6 +1,8 @@
 // The data shapes of the chart kit (spec section 2.3). Type-only: view builders import these types and hand the kit exact decimal
 // strings; the kit parses them with `Number()` for geometry and nothing else. Every text a chart shows is made from the strings.
 
+import type { NameKind } from "../../domain/names";
+
 export type Slot = 1 | 2 | 3 | 4 | 5 | "other" | "up" | "down" | "neutral";
 export type ValueKind = "count" | "amount" | "drops" | "percent" | "seconds" | "price" | "value";   // "value": an estimate in the native currency
 export interface ValueFormat { kind: ValueKind; unit?: string }             // unit: "XRP", "USD", "drops"
@@ -8,7 +10,7 @@ export interface TimeAxis {
   unit: "day" | "week" | "month" | "hour" | "minute" | "flag";       // "month": YYYY-MM-01; "minute": 15-minute buckets ("17:15"); "flag": one point per flag ledger, evenly spaced
   buckets: string[];                                                 // UTC: YYYY-MM-DD, or YYYY-MM-DDTHH:mm:ssZ; oldest first
 }
-export interface Series { id: string; label: string; short?: string; slot: Slot; values: (string | null)[] }  // null: no value
+export interface Series { id: string; label: string; heading?: string; short?: string; slot: Slot; values: (string | null)[] }  // null: no value; heading: the column of the table, where it says more than the label ("Burned, XRP")
 /** A per-bucket figure that is shown in the tooltip, the slider and the table, and never drawn. */
 export interface TimeSeriesExtra {
   id: string;
@@ -55,11 +57,25 @@ export interface BarListData {
     count?: string;                                                  // the table's column; the tip's "312 trades" when `tip="count"`
     /** The path the label is a link to (`/xrpl/account/r…`), the view builder's. The bar is not a target. */
     href?: string;
+    /**
+     * The marks of a named account (E9): how its name is known (`kind`) and the labels GateHub gave it, drawn after the label, inside its link. The view
+     * builder writes the `label` (the name), `sublabel` (the short address) and this; an item without it is drawn as before. It is part of what the
+     * list draws, so the `token` covers it.
+     */
+    mark?: { kind?: NameKind; labels: string[] };
   }[];
   format: ValueFormat;
   token: string;
 }
-export interface ShareData { rows: { id: string; label: string; total: string; segments: { id: string; label: string; slot: Slot; value: string }[] }[]; token: string }
+/**
+ * The rows of a `ShareBar`. A segment may carry, for a `compact` bar and read by no other, `caption` (the line under its name: "35.21B XRP · 35.2%") and `share` (its share in the words the
+ * page chooses, for the tooltip, the slider and the summary: "35.21% of the 100 billion XRP"); the data may carry `unit` (the currency, said after an exact amount). The `token` covers them.
+ */
+export interface ShareData {
+  rows: { id: string; label: string; total: string; segments: { id: string; label: string; slot: Slot; value: string; caption?: string; share?: string }[] }[];
+  unit?: string;
+  token: string;
+}
 export interface MeterData { value: string; max: string; threshold?: { value: string; label: string }; label: string }
 export interface CandleData {
   axis: TimeAxis;
@@ -68,6 +84,34 @@ export interface CandleData {
   volume: ValueFormat;
   forming?: boolean;                                                 // true: the newest bucket is the running one ("so far")
   step?: string;                                                     // the words of one bucket ("4 hours"), which the slider moves by; default: the axis unit's
+  token: string;
+}
+
+/**
+ * One window of an escrow on the `WindowBar`: when it opens and closes, and the words of its tooltip. `from` and `to` are unix seconds as text. `null` is
+ * open: a `from` runs from the start of the bar (a creation nobody knows), a `to` to its end (a window with no end). The builder writes `range`
+ * ("24 Oct 2026, 09:30 UTC to 3 Nov 2026, 09:30 UTC") and `length` ("10 days", or "" for a window whose range says it all: the tooltip then has no third line); the kit makes no text of its own. The `slot` colours the segment, which
+ * is a graphic on the card and needs 3:1 against it in both themes: slots 1, 2, "other", "neutral", "up" and "down" have it, 3, 4 and 5 do not in light
+ * (tokens.test.ts says which).
+ */
+export interface WindowBarSegment {
+  id: "pending" | "finishable" | "cancellable";
+  label: string;
+  slot: Slot;
+  from: string | null;
+  to: string | null;
+  range: string;
+  length: string;
+}
+/**
+ * The window bar of an escrow: its windows on one bar, the bounds as ticks with their labels, and a mark for the moment the page shows ("Now · …", or
+ * the removal's "Finished · …"). The numbers (`from`, `to`, `at`: unix seconds as text) place everything; every text is the builder's. The `token` is
+ * what the bar is memoised on, as the other forms'.
+ */
+export interface WindowBarData {
+  segments: WindowBarSegment[];
+  bounds: { id: "created" | "finish_after" | "cancel_after"; label: string; at: string }[];
+  mark: { label: string; at: string };
   token: string;
 }
 

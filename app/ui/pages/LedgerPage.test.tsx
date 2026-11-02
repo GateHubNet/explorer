@@ -3,10 +3,11 @@ import type { ReactElement } from "react";
 import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { NO_NAMES } from "../../domain/names";
 import type { LedgerPageData, LedgerRow } from "../../server/ledger-view";
 import { FIRST_ROWS, LedgerPage } from "./LedgerPage";
 
-const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" } as const;
+const XRPL = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" } as const;
 const ALICE = "rJF2XanJQGFLS5ZUdcqEzwJcTJ7aFfQvg";
 const BOB = "rNYbL8WZKKNNni5rb2MzcxnAEgkQC5Kq5";
 
@@ -66,6 +67,7 @@ function ledger(types: string[], failed: number[] = [], extra: Partial<LedgerPag
     fees: rows.length ? { total: "0.0001", min: "0.00001", max: "0.00001" } : null,
     rows,
     raw: '{\n  "ledger_index": 107720688\n}',
+    names: NO_NAMES,
     ...extra,
   };
 }

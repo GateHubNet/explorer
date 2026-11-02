@@ -1,18 +1,23 @@
 // EscrowCreate, EscrowFinish and EscrowCancel.
 
+import { ledgerId, type ObjectRefParts } from "../object-link";
+import { nodesOf } from "../parse/objects";
 import {
   account,
   amountSegment,
   closingDetails,
+  createdDetail,
   detail,
   fieldDetail,
+  objectSegment,
   rippleTime,
   seq,
   wholeNumber,
+  type Part,
 } from "./helpers";
-import type { Detail, HandlerMap, Input, Summary } from "./types";
+import type { Detail, HandlerMap, Input, Segment, Summary } from "./types";
 
-function describeEscrowCreate({ tx, native, verb }: Input): Summary {
+function describeEscrowCreate({ tx, meta, native, verb }: Input): Summary {
   const amount = amountSegment(tx.Amount, native);
   const timed = tx.FinishAfter !== undefined;
   const conditional = tx.Condition !== undefined;
@@ -25,6 +30,7 @@ function describeEscrowCreate({ tx, native, verb }: Input): Summary {
       : "";
 
   const details: Detail[] = [
+    ...createdDetail(meta, "Escrow", "Escrow"),
     detail("Amount", amount),
     detail("Destination", account(tx.Destination)),
     ...fieldDetail(tx, "DestinationTag", "Destination tag"),
@@ -40,15 +46,30 @@ function describeEscrowCreate({ tx, native, verb }: Input): Summary {
   };
 }
 
-/** "escrow 57978925 of {owner}", the escrow being the sequence number of the transaction that created it. */
-function escrowOf(tx: Input["tx"]) {
+/**
+ * The escrow a release or a cancellation is of, in the sentence's words ("escrow 57978925", the sequence of the transaction that created it, or "an escrow" when the transaction does not give
+ * it), and who owns it. The escrow node its metadata deleted is the escrow, and its `Account` the owner (on Xahau a transaction may name the escrow by its `EscrowID`, and its `Owner` field
+ * is then the escrow's destination: the node says who owns it). Without one (a transaction that failed) the words link to the escrow its `EscrowID` names, whose owner nothing here says:
+ * `owner` is then null, and neither the sentence nor the details name one. Else they link to the one of its `Owner` and `OfferSequence`, and are text when it has neither.
+ */
+function escrowOf({ tx, meta }: Pick<Input, "tx" | "meta">): { escrow: Segment | string; owner: Segment | null } {
+  const node = nodesOf(meta).find((each) => each.change === "deleted" && each.type === "Escrow");
   const sequence = wholeNumber(tx.OfferSequence);
-  return [sequence === undefined ? "an escrow" : `escrow ${sequence}`, " of ", account(tx.Owner)];
+  const words = sequence === undefined ? "an escrow" : `escrow ${sequence}`;
+  const named = ledgerId(tx.EscrowID);
+  const id = ledgerId(node?.index) ?? named;
+  const ref: ObjectRefParts | undefined =
+    id !== undefined ? { id } : sequence !== undefined && typeof tx.Owner === "string" && tx.Owner !== "" ? { owner: tx.Owner, sequence } : undefined;
+  const owner = typeof node?.fields.Account === "string" ? account(node.fields.Account) : named === undefined ? account(tx.Owner) : null;
+  return { escrow: ref === undefined ? words : objectSegment("escrow", ref, words), owner };
 }
 
-function escrowDetails(tx: Input["tx"]): Detail[] {
+/** " of {owner}" after the escrow's words; nothing when its owner is not known (`escrowOf`). */
+const ofOwner = (owner: Segment | null): Part => (owner === null ? "" : [" of ", owner]);
+
+function escrowDetails(tx: Input["tx"], owner: Segment | null): Detail[] {
   return [
-    detail("Owner", account(tx.Owner)),
+    ...(owner === null ? [] : [detail("Owner", owner)]),
     ...fieldDetail(tx, "OfferSequence", "Escrow sequence"),
     ...fieldDetail(tx, "Condition", "Condition"),
     ...fieldDetail(tx, "Fulfillment", "Fulfillment"),
@@ -56,19 +77,21 @@ function escrowDetails(tx: Input["tx"]): Detail[] {
   ];
 }
 
-function describeEscrowFinish({ tx, verb }: Input): Summary {
+function describeEscrowFinish(input: Input): Summary {
+  const { escrow, owner } = escrowOf(input);
   return {
     title: "Escrow release",
-    predicate: seq(`${verb("released", "release")} `, escrowOf(tx)),
-    details: escrowDetails(tx),
+    predicate: seq(`${input.verb("released", "release")} `, escrow, ofOwner(owner)),
+    details: escrowDetails(input.tx, owner),
   };
 }
 
-function describeEscrowCancel({ tx, verb }: Input): Summary {
+function describeEscrowCancel(input: Input): Summary {
+  const { escrow, owner } = escrowOf(input);
   return {
     title: "Escrow cancellation",
-    predicate: seq(`${verb("cancelled", "cancel")} `, escrowOf(tx)),
-    details: escrowDetails(tx),
+    predicate: seq(`${input.verb("cancelled", "cancel")} `, escrow, ofOwner(owner)),
+    details: escrowDetails(input.tx, owner),
   };
 }
 

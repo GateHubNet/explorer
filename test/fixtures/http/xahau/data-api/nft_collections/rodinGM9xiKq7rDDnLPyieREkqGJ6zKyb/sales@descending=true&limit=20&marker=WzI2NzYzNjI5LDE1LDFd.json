@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "result": "success",
+  "sales": [
+    {"amount":"1096.4","buyer":"rsJjiungPhwVJZyRmdyatjHfRXkgEt7WRw","converted_amount":"1096.4","currency":"XAH","event_index":1,"executed_time":"2026-10-24T15:27:22Z","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","kind":"uritoken","ledger_index":26763618,"mode":"direct","nft_id":"5E5EE5EB15A685F86E548905BB362374EFBA407F55EFCD64CB4E4284673CDB3A","seller":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","tx_hash":"091789F4F7D011772A98DAADCCAA2CEE190D42DB69B199E9EEBA43483B544763","tx_index":19}
+  ]
+}

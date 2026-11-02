@@ -25,7 +25,7 @@ const ALLOWED = (from: string) =>
 
 describe("the files of the chart kit", () => {
   it("are there to be checked", () => {
-    expect(kitFiles).toEqual(expect.arrayContaining(["types.ts", "geometry.ts", "labels.ts", "ChartCard.tsx", "Legend.tsx", "ChartTable.tsx"]));
+    expect(kitFiles).toEqual(expect.arrayContaining(["types.ts", "geometry.ts", "labels.ts", "ring.ts", "ChartCard.tsx", "Legend.tsx", "ChartTable.tsx"]));
   });
 
   it.each(kitFiles)("%s imports as values only react, its own files, domain/format, domain/percent, cx, use-hydrated and the components", (file) => {

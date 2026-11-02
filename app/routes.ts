@@ -14,6 +14,22 @@ export default [
     route("amm/:pool", "routes/net.amm.$pool.tsx"),
     // The pool of a pair: a redirect to `amm/:pool`, or a 404.
     route("amm/:base/:counter", "routes/net.amm.$base.$counter.tsx"),
+    // The NFT list, its older sales and a collection. `nfts/sales` is a static segment, ranked above the collection's `nfts/:issuer/:taxon?`.
+    route("nfts", "routes/net.nfts._index.tsx"),
+    route("nfts/sales", "routes/net.nfts.sales.tsx"),
+    route("nfts/:issuer/:taxon?", "routes/net.nfts.$issuer.$taxon.tsx"),
+    // An NFT (a URIToken on Xahau) by its id.
+    route("nft/:id", "routes/net.nft.$id.tsx"),
+    // An escrow by its ID, and the address of one by its owner and the sequence of its creation: a redirect to its ID (E10).
+    route("escrows/:id", "routes/net.escrows.$id.tsx"),
+    route("escrows/:owner/:sequence", "routes/net.escrows.$owner.$sequence.tsx"),
+    // A check and a payment channel by their IDs (E10).
+    route("checks/:id", "routes/net.checks.$id.tsx"),
+    route("payment-channels/:id", "routes/net.payment-channels.$id.tsx"),
+    // The issued tokens, ranked by holders (E11).
+    route("tokens", "routes/net.tokens.tsx"),
+    route("token/:token", "routes/net.token.$token.tsx"),
+    route("token/:token/holders", "routes/net.token.$token.holders.tsx"),
     route("ledger/:id", "routes/net.ledger.$id.tsx"),
     route("tx/:id", "routes/net.tx.$id.tsx"),
     route("account/:address", "routes/net.account.$address.tsx"),
@@ -24,6 +40,8 @@ export default [
     route("validators/:key", "routes/net.validators.$key.tsx"),
     route("amendments", "routes/net.amendments.tsx"),
     route("amendments/:name", "routes/net.amendments.$name.tsx"),
+    // The supply of the native currency: one snapshot, with the burned (and on Xahau minted) days (E12).
+    route("supply", "routes/net.supply.tsx"),
   ]),
   // A resource route: the link-preview image of a transaction, ledger or account (`/og/xrpl/tx/{hash}.png`). Outside `:net`: no layout.
   route("og/:net/:kind/:id.png", "routes/og.$net.$kind.$id[.png].tsx"),

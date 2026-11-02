@@ -6,11 +6,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { amendmentsSample, SAMPLE_KEYS, SAMPLE_SIGNING_KEYS, summarySample, UNKNOWN_ID, validationsSample, validatorDetailSample } from "../../../test/support/d1-samples";
 import { serverThenHydrated } from "../../../test/support/hydrate";
-import { shortHash } from "../../domain/format";
+import { shortAddress, shortHash } from "../../domain/format";
+import { NAMES_OFF, NO_NAMES, nameTitleOf, type NamesPart, type NameView } from "../../domain/names";
 import type { Loaded } from "../../server/account-view";
 import type { Anchor } from "../../server/anchor";
-import type { ValidatorDetail, ValidatorValidationsPage } from "../../server/api-types";
+import type { UnlPublisher, ValidatorDetail, ValidatorTomlDetail, ValidatorValidationsPage } from "../../server/api-types";
 import { validatorHistoryPage, validatorPage, type ValidatorHistoryData, type ValidatorLiveData } from "../../server/validator-view";
+import { featuresOf, NO_FEATURES } from "../features";
+import { NamesProvider } from "../names";
 import type { NetworkInfo } from "../networks";
 import type { LiveControls } from "../use-live-controls";
 import { ValidatorHistoryPage, ValidatorPage } from "./ValidatorPage";
@@ -24,8 +27,12 @@ afterEach(() => {
 
 // ---- The world of the tests ------------------------------------------------------------------------------------------------------------------
 
-const XRPL: NetworkInfo = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" };
-const XAHAU: NetworkInfo = { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" };
+const XRPL: NetworkInfo = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" };
+const XAHAU: NetworkInfo = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", software: "xahaud" };
+const XAHAU_TESTNET: NetworkInfo = { id: "xahau", kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", longName: "Xahau Testnet", dexName: "the Xahau Testnet DEX", native: "XAH", software: "xahaud" };
+
+/** Xahau Testnet's fixed list as the data API serves it (D-env §5): the publisher `local`, with no site, no key and no expiration. */
+const FIXED_LIST: UnlPublisher = { id: "local", url: "", public_key: "", status: "ok", sequence: 1, version: 1, fetched: "2026-10-19T15:51:26.114Z", validators: 4, seen_24h: 4 };
 
 const ok = <T,>(value: T): Loaded<T> => ({ state: "ok", value });
 const FAILED: Loaded<never> = { state: "failed" };
@@ -43,17 +50,21 @@ const unix = (iso: string) => Date.parse(iso) / 1000;
 const ANCHOR: Anchor = { lastValidated: 107748183, closeTime: unix("2026-10-19T16:26:23Z") };
 
 type Input = Parameters<typeof validatorPage>[0];
-/** `northpeak.example` as the builder makes it from the samples: every part loaded, unless `over` says otherwise. */
-function build(over: Partial<Input> = {}): ValidatorLiveData {
-  return validatorPage({
-    network: XRPL,
-    validator: validatorDetailSample(),
-    recent: ok(validationsSample()),
-    summary: ok(summarySample()),
-    amendments: ok(amendmentsSample()),
-    anchor: ANCHOR,
-    ...over,
-  });
+/** `northpeak.example` as the builder makes it from the samples: every part loaded, unless `over` says otherwise, and with the loader's names part (nothing named by default). */
+function build(over: Partial<Input> = {}, names: NamesPart = NO_NAMES): ValidatorLiveData {
+  return {
+    ...validatorPage({
+      network: XRPL,
+      validator: validatorDetailSample(),
+      recent: ok(validationsSample()),
+      summary: ok(summarySample()),
+      amendments: ok(amendmentsSample()),
+      anchor: ANCHOR,
+      features: NO_FEATURES,
+      ...over,
+    }),
+    names,
+  };
 }
 
 /** What the route hands the page: the builder's data, the anchor the loader read and the build. */
@@ -74,7 +85,13 @@ function mount(ui: ReactElement, loader: () => null = () => null) {
   const router = createMemoryRouter([{ path: "*", element: ui, loader }], { initialEntries: [`/xrpl/validators/${KEY}`], hydrationData: { loaderData: { "0": null } } });
   return { router, ...render(<RouterProvider router={router} />) };
 }
-const mountPage = (data: ValidatorLiveData, live = controls(), loader?: () => null) => mount(<ValidatorPage data={loaded(data)} live={live} />, loader);
+/** The page as the route draws it: in a `NamesProvider` of the names of its data. */
+const named = (data: ValidatorLiveData, live: LiveControls) => (
+  <NamesProvider names={data.names.map}>
+    <ValidatorPage data={loaded(data)} live={live} />
+  </NamesProvider>
+);
+const mountPage = (data: ValidatorLiveData, live = controls(), loader?: () => null) => mount(named(data, live), loader);
 const mountHistory = (data: ValidatorHistoryData) => mount(<ValidatorHistoryPage data={data} />);
 
 const routed = (ui: ReactElement) => <RouterProvider router={createMemoryRouter([{ path: "*", element: ui }], { initialEntries: [`/xrpl/validators/${KEY}`] })} />;
@@ -136,6 +153,77 @@ describe("ValidatorPage, the heading", () => {
     expect(container.querySelector(".hero__held")!.textContent).toBe("Paused while you look at the table");
     fireEvent.click(await screen.findByRole("button", { name: "Pause live updates" }));
     expect(live.onTogglePause).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---- The toml card (E13 spec 5) --------------------------------------------------------------------------------------------------------------
+
+describe("ValidatorPage, the toml card", () => {
+  const ON = featuresOf({ VALIDATORS_MAP: "on", TOKENS: "on" });
+  const ACCOUNT = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh";
+  const NORTHPEAK: NameView = { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] };
+  const TOML: ValidatorTomlDetail = { owner_country: "DE", server_country: "NL", network: "main", unl: "https://vl.ripple.com", principals: ["Mara Lindqvist"], accounts_listed: 3 };
+  const toml = (over: Partial<ValidatorTomlDetail> = {}) => validatorDetailSample({ toml: { ...TOML, ...over } });
+  const tomlCard = () => screen.getByRole("region", { name: "From northpeak.example's toml" });
+  const follows = (first: Element, second: Element) => Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  it("draws the toml card between the identity and the agreement tiles, and moves the accounts line into it", () => {
+    mountPage(build({ validator: toml(), features: ON }, { state: "ok", map: { [ACCOUNT]: NORTHPEAK } }));
+
+    const card = tomlCard();
+    expect(follows(identity(), card)).toBe(true);
+    expect(follows(card, screen.getByRole("region", { name: "Agreement" }))).toBe(true);
+    expect(within(card).getByRole("heading", { level: 2 }).textContent).toBe("From northpeak.example's toml");
+    // The identity's grid no longer holds the accounts line: the card's list has the account, once on the page.
+    expect(within(identity()).queryByText("Accounts northpeak.example lists")).toBeNull();
+    expect(within(identity()).queryAllByRole("link", { name: /Northpeak Treasury/ })).toEqual([]);
+    const listed = within(card).getByRole("group", { name: "Accounts [[ACCOUNTS]]" });
+    expect(within(listed).getByRole("link").textContent).toBe("Northpeak Treasury verified name");
+    expect(document.querySelectorAll(`a[href="/xrpl/account/${ACCOUNT}"]`)).toHaveLength(1);
+    expect(listed.textContent).toContain("3 listed:");
+    expect(listed.textContent).toContain("and 2 more");
+    // The rest of the page is as it was: the facts of the identity, the tiles and the tables.
+    expect(fact("Manifest sequence").value).toBe("2");
+    expect(screen.getByRole("table", { name: "Recent validations" })).toBeTruthy();
+  });
+
+  it("keeps E6's accounts line without a card", () => {
+    mountPage(build({ validator: toml() }));
+    expect(screen.queryByRole("region", { name: /toml/ })).toBeNull();
+    const link = within(fact("Accounts northpeak.example lists").element as HTMLElement).getByRole("link");
+    expect(link.getAttribute("href")).toBe(`/xrpl/account/${ACCOUNT}`);
+    expect(document.querySelectorAll(`a[href="/xrpl/account/${ACCOUNT}"]`)).toHaveLength(1);
+  });
+
+  it("draws no card, and no accounts line, for a domain that did not verify", () => {
+    const unverified = validatorDetailSample({
+      toml: TOML,
+      domain_verification: { status: "unverified", reason: "not_listed", toml_url: "https://northpeak.example/.well-known/xrp-ledger.toml", checked: "2026-10-19T19:15:52.489Z" },
+    });
+    mountPage(build({ validator: unverified, features: ON }));
+    expect(screen.queryByRole("region", { name: /toml/ })).toBeNull();
+    expect(within(identity()).queryByText(/^Accounts /)).toBeNull();
+  });
+
+  it("says the data API has not read the details yet for a verified domain whose toml it has not read", () => {
+    mountPage(build({ validator: validatorDetailSample(), features: ON }));
+    expect(within(tomlCard()).getByText("The data API has not read this toml's details yet.")).toBeTruthy();
+    // The accounts are D1's: they are in the card all the same.
+    expect(within(tomlCard()).getByRole("group", { name: "Accounts [[ACCOUNTS]]" })).toBeTruthy();
+  });
+
+  it("is in the stored HTML, and hydrates without a mismatch", async () => {
+    const data = build({ validator: toml(), features: ON });
+    const { html, errors } = await serverThenHydrated(routed(named(data, controls())));
+    expect(html).toContain("From northpeak.example&#x27;s toml");
+    expect(html).toContain("View toml");
+    expect(errors).toEqual([]);
+  });
+
+  it("is not on the page of older validations", () => {
+    const history = validatorHistoryPage({ network: XRPL, validator: toml(), recent: validationsSample(), marker: "AAAA", back: [] });
+    mountHistory(history);
+    expect(screen.queryByRole("region", { name: /toml/ })).toBeNull();
   });
 });
 
@@ -220,6 +308,50 @@ describe("ValidatorPage, the identity", () => {
     expect(link.getAttribute("title")).toBe("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh");
   });
 
+  describe("the accounts the domain lists, by name (display names spec 1)", () => {
+    const ACCOUNT = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh";
+    const OTHER = "rPEPPER7kfTD9w2To4CQk6UCfuHM9c6GDY";
+    const NORTHPEAK: NameView = { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] };
+    const HARBORLINE: NameView = { name: { text: "Harborline Exchange", kind: "account" }, network: "hot wallet", labels: ["advisory"] };
+    const SCAMMER: NameView = { labels: ["scam"] };
+    const listing = (accounts: string[]) => validatorDetailSample({ domain_verification: { status: "verified", toml_url: "https://northpeak.example/.well-known/xrp-ledger.toml", checked: "2026-10-19T15:00:00Z", accounts } });
+    const links = () => within(fact("Accounts northpeak.example lists").element as HTMLElement).getAllByRole("link");
+
+    it("draws a named account by its name and the mark that says how the name is known, with the title that says so, and links to its page", () => {
+      mountPage(build({ validator: listing([ACCOUNT]) }, { state: "ok", map: { [ACCOUNT]: NORTHPEAK } }));
+      const [link] = links();
+      expect(link!.textContent).toBe("Northpeak Treasury verified name");
+      expect(link!.textContent).not.toContain(shortAddress(ACCOUNT));
+      expect(link!.getAttribute("href")).toBe(`/xrpl/account/${ACCOUNT}`);
+      expect(link!.getAttribute("title")).toBe(nameTitleOf(NORTHPEAK, ACCOUNT));
+    });
+
+    it("draws each account by what the names say of it: a name, a GateHub name with its network name and a label's mark, a label alone, nothing", () => {
+      const names = { state: "ok", map: { [ACCOUNT]: HARBORLINE, [OTHER]: SCAMMER } } satisfies NamesPart;
+      const third = "rLUEXYuLiQptky37CqLcm9USQpPiz5rkpD";
+      mountPage(build({ validator: listing([ACCOUNT, OTHER, third]) }, names));
+      expect(links().map((link) => link.textContent)).toEqual(["Harborline Exchange · hot wallet named by GateHub labelled advisory by GateHub", `${shortAddress(OTHER)} labelled scam by GateHub`, shortAddress(third)]);
+      expect(links().map((link) => link.getAttribute("href"))).toEqual([ACCOUNT, OTHER, third].map((address) => `/xrpl/account/${address}`));
+    });
+
+    it("draws the short address, with the whole one on hover, for an account nobody names and when the switch is off", () => {
+      for (const names of [NO_NAMES, NAMES_OFF, { state: "failed", map: {} } satisfies NamesPart]) {
+        mountPage(build({ validator: listing([ACCOUNT]) }, names));
+        const [link] = links();
+        expect(link!.textContent).toBe(shortAddress(ACCOUNT));
+        expect(link!.getAttribute("title")).toBe(ACCOUNT);
+        expect(link!.getAttribute("href")).toBe(`/xrpl/account/${ACCOUNT}`);
+        cleanup();
+      }
+    });
+
+    it("puts the links in the accounts line's own span, which the stylesheet sizes (test/unit/pages-css.test.ts)", () => {
+      mountPage(build({ validator: listing([ACCOUNT, OTHER]) }));
+      const line = fact("Accounts northpeak.example lists").element.querySelector(".validator__accounts")!;
+      expect(Array.from(line.querySelectorAll("a"), (link) => link.getAttribute("href"))).toEqual([ACCOUNT, OTHER].map((address) => `/xrpl/account/${address}`));
+    });
+  });
+
   it("says 'one signing key seen', and dashes for what D left out", () => {
     const bare = without(validatorDetailSample(), "signing_key", "version", "version_latest", "first_seen");
     mountPage(build({ validator: { ...bare, manifest: { sequence: 1, signing_key: SAMPLE_SIGNING_KEYS[0], signing_keys_seen: 1 } } as ValidatorDetail }));
@@ -261,6 +393,27 @@ describe("ValidatorPage, UNL membership", () => {
     mountPage(build({ summary: FAILED, validator: validatorDetailSample({ validation_public_key: SAMPLE_KEYS[5], negative_unl: true }) }));
     expect(lines()).toEqual(["unl.xrplf.orglisted", "vl.ripple.comlisted"]);
     expect(fact("UNL membership").sub).toBeNull();
+  });
+
+  it("sets a publisher's id in mono and the fixed list's name in plain text (it is words, not an id)", () => {
+    const published: UnlPublisher = { ...FIXED_LIST, id: "vl.altnet.rippletest.net", url: "https://vl.altnet.rippletest.net" };
+    const summary = summarySample({ unl: { trusted: 8, publishers: [published, FIXED_LIST] } });
+    mountPage(build({ network: XAHAU_TESTNET, validator: validatorDetailSample({ unl_lists: ["local"] }), summary: ok(summary) }));
+    expect(lines()).toEqual(["vl.altnet.rippletest.netnot listed", "Fixed listlisted"]);
+    const names = [...fact("UNL membership").element.querySelectorAll(".validator__member > :first-child")];
+    expect(names.map((name) => [name.textContent, name.classList.contains("mono")])).toEqual([
+      ["vl.altnet.rippletest.net", true],
+      ["Fixed list", false],
+    ]);
+  });
+
+  it("says 'Fixed list' in plain text when the summary did not load, and words the UNL tag 'Listed by the fixed list'", () => {
+    mountPage(build({ network: XAHAU_TESTNET, summary: FAILED, validator: validatorDetailSample({ unl_lists: ["local"] }) }));
+    expect(lines()).toEqual(["Fixed listlisted"]);
+    expect(fact("UNL membership").element.querySelector(".validator__member > :first-child")!.classList.contains("mono")).toBe(false);
+    const unl = within(identity()).getByText("UNL", { selector: ".tag" });
+    expect(unl.querySelector(".sr")!.textContent).toBe(" Listed by the fixed list");
+    expect(unl.getAttribute("title")).toBe("Listed by the fixed list");
   });
 
   it("says 'On no default list' when no list names it and the summary did not load", () => {

@@ -1,16 +1,21 @@
 import { redirect } from "react-router";
 
 import { decodeCtid } from "../domain/ctid";
+import { accountsIn } from "../domain/describe";
 import { shortHash } from "../domain/format";
+import { NAMED_PAGE_TTL_SECONDS } from "../server/cache-class";
 import { clientsFor } from "../server/clients";
+import type { DataApi } from "../server/data-api";
 import { echoOf } from "../server/echo";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
+import { getEnv } from "../server/env";
 import { upstreamFailure, upstreamOutage } from "../server/loader-errors";
 import { logProblem } from "../server/logging";
 import { metaContext } from "../server/meta";
 import { transactionMeta } from "../server/meta-transaction";
+import { collectAddresses, loadNames } from "../server/names-load";
 import { requireNetwork } from "../server/network-route";
-import { networkIdOfCtid, type Network, type NetworkId } from "../server/networks";
+import { networkIdOfCtid, networkOf, type Network, type NetworkId } from "../server/networks";
 import { resolveCtid } from "../server/resolve";
 import { ctidNotFoundPage, otherNetworkPage, shownQuery, type NetworkName, type SearchPageData } from "../server/search-view";
 import {
@@ -25,7 +30,7 @@ import {
 } from "../server/transaction-view";
 import { UpstreamError } from "../server/upstream";
 import { PRODUCT_NAME } from "../ui/brand";
-import { findNetwork } from "../ui/networks";
+import { NamesProvider } from "../ui/names";
 import { SearchPage } from "../ui/pages/SearchPage";
 import { TransactionPage } from "../ui/pages/TransactionPage";
 import { useNetwork } from "../ui/use-network";
@@ -45,9 +50,9 @@ function permanent(to: string) {
   return redirect(to, { status: 302, headers: cacheClassHeaders("immutable") });
 }
 
-/** A network as a page names it. */
-function nameOf(id: NetworkId): NetworkName {
-  return { id, name: findNetwork(id)?.name ?? id };
+/** A network as a page names it: the environment's own (XRPL Testnet in the sandbox). */
+function nameOf(context: Route.LoaderArgs["context"], id: NetworkId): NetworkName {
+  return { id, name: networkOf(id, getEnv(context)).name };
 }
 
 /**
@@ -69,6 +74,10 @@ function nameOf(id: NetworkId): NetworkName {
  *   `short` for 60 s, without neighbours or binary form (they appear once it is indexed). If it has none either, a 404 that
  *   offers the same search on the other network. Any other failure of the data API is a 503 and the node is not asked; a 400
  *   (the hash is well formed) too, as it is the API's fault.
+ * - The accounts the page draws are named in one call after the page is made (display names spec 5): `collectAddresses` of the sentence, the flow, the account,
+ *   the details, the changes and the objects, never of the raw JSON, the memos or the summary. A page of class `immutable` is then kept an hour, not a year
+ *   (`NAMED_PAGE_TTL_SECONDS`, with `NAMES` on), so that a new name or label shows within about an hour. A names call that fails never fails the page: it shows
+ *   the addresses and is served, not stored. The page from the node is named too. Titles, descriptions, cards and `plainText` keep short addresses (spec 7).
  */
 export async function loader({ request, params, context }: Route.LoaderArgs) {
   const network = requireNetwork(context, params);
@@ -96,11 +105,11 @@ async function ctidAnswer(context: Route.LoaderArgs["context"], network: Network
   }
 
   if (resolved === null) {
-    const covered = networkIdOfCtid(ctidNetworkId) !== undefined;
+    const covered = networkIdOfCtid(ctidNetworkId, network.kind) !== undefined;
     return cached(ctidNotFoundPage(shownQuery(ctid), ctid, ctidNetworkId, covered), "short", { status: 404 });
   }
   if ("hash" in resolved) return permanent(`/${network.id}/tx/${resolved.hash}`);
-  return cached(otherNetworkPage(shownQuery(ctid), ctid, nameOf(resolved.otherNetwork)), "short");
+  return cached(otherNetworkPage(shownQuery(ctid), ctid, nameOf(context, resolved.otherNetwork)), "short");
 }
 
 async function transactionAnswer(context: Route.LoaderArgs["context"], network: Network, hash: string, request: Request) {
@@ -132,10 +141,11 @@ async function transactionAnswer(context: Route.LoaderArgs["context"], network: 
       logProblem("the binary form of a transaction was not taken", binary.reason, request);
       form = { state: "failed" };
     }
-    const page = transactionPage(source, { network, neighbours, binary: form });
-    // Whole (also with the JSON the API serves for a type it cannot serialize, which is a lasting answer): for a year. Without its
-    // binary form, which asking again may find, only for the short class's 30 s.
-    return cached(page, form.state === "failed" ? "short" : "immutable");
+    const page = await named(transactionPage(source, { network, neighbours, binary: form }), api, network, context, request);
+    // Whole (also with the JSON the API serves for a type it cannot serialize, which is a lasting answer): for a year, or for an hour while it shows names
+    // (`NAMED_PAGE_TTL_SECONDS`). Without its binary form, which asking again may find, only for the short class's 30 s.
+    if (form.state === "failed") return cached(page, "short");
+    return cached(page, "immutable", network.features.names ? { ttl: NAMED_PAGE_TTL_SECONDS } : {});
   }
 
   // Not indexed (yet): the network itself may have it (spec 10). Any other failure is a 503, and the node is not asked in its place.
@@ -147,7 +157,7 @@ async function transactionAnswer(context: Route.LoaderArgs["context"], network: 
     fromNode = await node.tx(hash);
   } catch (err) {
     if (err instanceof UpstreamError && err.kind === "not_found") {
-      return cached(transactionNotFoundPage(hash, nameOf(network.other)), "short", { status: 404 });
+      return cached(transactionNotFoundPage(hash, nameOf(context, network.other)), "short", { status: 404 });
     }
     return upstreamOutage(err, what);
   }
@@ -158,8 +168,41 @@ async function transactionAnswer(context: Route.LoaderArgs["context"], network: 
   } catch (err) {
     return upstreamOutage(err, what);
   }
-  const page = transactionPage(source, { network, neighbours: null, binary: { state: "pending" } });
+  const page = await named(transactionPage(source, { network, neighbours: null, binary: { state: "pending" } }), api, network, context, request);
   return cached(page, "short", { ttl: FROM_NODE_TTL });
+}
+
+/**
+ * The accounts the page draws as account links, in the order drawn: those of the sentence (`accountsIn`: not an amount's issuer, which is in a title, nor a pool, which is a link to
+ * the pool), of the "sent by" words after it and of the note under it, each step of the flow's account (a pool's too, under its label), the sender of the details and the delegate
+ * of its "Sent by" row, the accounts of the type's details, each balance change's account and the issuer it writes after "with", and each touched object's account. Never the raw
+ * data, a memo or an amount's issuer.
+ */
+function drawnAccounts(page: Omit<TransactionPageData, "names">): string[] {
+  return [
+    ...accountsIn(page.sentence),
+    ...accountsIn(page.sentBy ?? []),
+    ...accountsIn(page.note ?? []),
+    ...(page.flow ?? []).map((step) => step.account),
+    page.account,
+    ...(page.delegate === null ? [] : [page.delegate]),
+    ...page.details.flatMap((detail) => accountsIn(detail.value)),
+    ...page.changes.flatMap((change) => (change.issuer === undefined ? [change.account] : [change.account, change.issuer])),
+    ...page.objects.flatMap((object) => (object.account === undefined ? [] : [object.account])),
+  ];
+}
+
+/** The page with the names of the accounts it draws (`drawnAccounts`, never of the raw data): one call, which never fails the page. */
+async function named(
+  page: Omit<TransactionPageData, "names">,
+  api: Pick<DataApi, "accountNames">,
+  network: Network,
+  context: Route.LoaderArgs["context"],
+  request: Request,
+): Promise<TransactionPageData> {
+  const addresses = collectAddresses(drawnAccounts(page));
+  const { part } = await loadNames(api, addresses, { context, request, features: network.features });
+  return { ...page, names: part };
 }
 
 export function meta({ loaderData, matches, params }: Route.MetaArgs) {
@@ -180,5 +223,10 @@ export function meta({ loaderData, matches, params }: Route.MetaArgs) {
 export default function Transaction({ loaderData }: Route.ComponentProps) {
   const network = useNetwork();
   const data: TransactionPageData | SearchPageData = loaderData;
-  return data.kind === "transaction" ? <TransactionPage network={network} data={data} /> : <SearchPage network={network} data={data} />;
+  if (data.kind !== "transaction") return <SearchPage network={network} data={data} />;
+  return (
+    <NamesProvider names={data.names.map}>
+      <TransactionPage network={network} data={data} />
+    </NamesProvider>
+  );
 }

@@ -20,9 +20,6 @@ import { cx } from "../cx";
 import { useHolds } from "../use-hold";
 import type { LiveControls } from "../use-live-controls";
 
-/** The headline of each network's home page (also its title). */
-export const HOME_TITLES = { xrpl: "Explore the XRP Ledger", xahau: "Explore Xahau" } as const;
-
 /** `17:01:12`, from unix seconds. */
 const timeOfDay = (at: number) => formatUtc(at).slice(11, 19);
 const count = (n: number) => formatAmount(String(n));
@@ -97,7 +94,7 @@ export function HomePage({ network, data, live }: { network: NetworkInfo; data: 
           <p className="hero__status">
             <span className={cx("hero__dot", stopped && "is-paused")} aria-hidden="true" />
             <span>
-              {network.name} mainnet · ledger{" "}
+              {network.label} · ledger{" "}
               <LiveValue token={String(latest.index)}>
                 <LedgerLink net={network.id} index={latest.index} />
               </LiveValue>{" "}
@@ -112,7 +109,7 @@ export function HomePage({ network, data, live }: { network: NetworkInfo; data: 
           {live && <LiveToggle paused={live.paused} onToggle={live.onTogglePause} />}
         </div>
         <h1 id="hero-title" className="hero__title">
-          {HOME_TITLES[network.id]}
+          {`Explore ${network.longName}`}
         </h1>
         <p className="hero__lead">
           Look up any ledger, transaction or account from validated history. Balances and account settings are read live from the

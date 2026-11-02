@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "willow-f681.example",
+    "toml_url": "https://willow-f681.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rDeizxSRo6JHjKnih9ivpPkyD2EgXQvhSB",
+        "desc": "Willow Exchange"
+      }
+    ]
+  }
+}

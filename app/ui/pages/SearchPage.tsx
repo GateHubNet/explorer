@@ -1,16 +1,22 @@
+import { hashWhat } from "../../domain/hash-nouns";
 import type { SearchPageData } from "../../server/search-view";
 import type { NetworkBrief } from "../networks";
+import { useFeatures } from "../use-network";
 import { NotFoundPage } from "./NotFoundPage";
 import { SearchChoicePage } from "./SearchChoicePage";
 
 /** What the search box takes, for a visitor who typed something it does not know (the wording of the box's own hint). */
 function SearchHelp() {
+  const { nfts, ledgerObjects, tokens } = useFeatures();
   return (
     <>
       <p>You can search for:</p>
       <ul className="notfound__help">
         <li>An account address, starting with r, or an X-address</li>
         <li>A transaction or ledger hash: 64 hexadecimal characters</li>
+        {nfts && <li>An NFT or URIToken id: 64 hexadecimal characters</li>}
+        {ledgerObjects && <li>An escrow, check or payment channel id: 64 hexadecimal characters</li>}
+        {tokens && <li>A token: its code and issuer</li>}
         <li>A ledger index, such as 107695660</li>
         <li>A CTID: C followed by 15 hexadecimal characters</li>
       </ul>
@@ -20,6 +26,7 @@ function SearchHelp() {
 
 /** The pages of `/{net}/search` that are not a redirect (see `SearchPageData`). */
 export function SearchPage({ network, data }: { network: NetworkBrief; data: SearchPageData }) {
+  const features = useFeatures();
   switch (data.kind) {
     case "choice":
       return <SearchChoicePage net={network} data={data} />;
@@ -32,9 +39,10 @@ export function SearchPage({ network, data }: { network: NetworkBrief; data: Sea
           message={
             data.query
               ? `Nothing on ${network.name} looks like “${data.query}”.`
-              : "Enter an address, a transaction or ledger hash, a ledger index or a CTID."
+              : `Enter an address, a ${hashWhat(network.id, features)} hash, a ledger index or a CTID.`
           }
           query={data.query}
+          suggestion={data.tokens}
         >
           <SearchHelp />
         </NotFoundPage>

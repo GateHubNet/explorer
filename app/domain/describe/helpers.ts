@@ -1,8 +1,10 @@
 // The small pieces the handlers of `describe/` are built from: segments, amounts, flags, details. Pure.
 
 import BigNumber from "bignumber.js";
-import { dropsToNative, formatAmount, formatCurrency, formatUtc } from "../format";
-import type { AmmHop, Asset, Native, TxJson } from "../parse/types";
+import { dropsToNative, formatAmount, formatCurrency, formatUtc, shortHash } from "../format";
+import { kindOfType, ledgerId, type ObjectKind, type ObjectRefParts } from "../object-link";
+import { nodesOf } from "../parse/objects";
+import type { AmmHop, Asset, Native, TxJson, TxMeta } from "../parse/types";
 import type { Detail, FlowAmount, Handler, HandlerMap, Segment } from "./types";
 
 // --- Segments ------------------------------------------------------------------------------------------------------
@@ -15,6 +17,12 @@ export function account(v: unknown): Segment {
 }
 
 /**
+ * The accounts some segments draw as account links (`Sentence`'s `AccountLink`), in order: what a loader names of a sentence, a row or a detail (display names spec 1 and 5).
+ * Not an amount's issuer, which `Amount` writes in a title, nor a pool's account, which is a link to the pool.
+ */
+export const accountsIn = (segments: readonly Segment[]): string[] => segments.flatMap((segment) => (segment.t === "account" ? [segment.v] : []));
+
+/**
  * A pool's name, from the currencies of its two assets: `<code>/<code>`, each as `formatCurrency` shows it, so an LP
  * token or a code that is not text reads well. The one place a pool pair is named.
  */
@@ -25,6 +33,12 @@ export const pairName = (a: Asset, b: Asset): string =>
 export const poolPair = (hop: AmmHop): string => pairName(hop.in, hop.out);
 
 export const pool = (hop: AmmHop): Segment => ({ t: "pool", v: hop.pool, pair: poolPair(hop) });
+
+/** A link to an NFT, or on Xahau a URIToken, by its id. No serial: describe does not decode the id. */
+export const nftSegment = (v: string): Segment => ({ t: "nft", v });
+
+/** An escrow, a check or a payment channel, in the words `v`, which link to its page by `ref` while LEDGER_OBJECTS is on (ledger object pages spec 7). */
+export const objectSegment = (kind: ObjectKind, ref: ObjectRefParts, v: string): Segment => ({ t: "object", kind, ref, v });
 
 /** Strings, segments and lists of them, in the order they read. */
 export type Part = string | Segment | readonly Part[];
@@ -69,11 +83,21 @@ export function parseAmount(raw: unknown, native: Native): FlowAmount | undefine
 
 export const amountOf = (amount: FlowAmount): Segment => ({ t: "amount", ...amount });
 
-/** An amount field as an amount segment; a value that is not an amount is shown as it is. */
+/** What `MptAmount` draws, as words for a sentence: "2,500,000 units of MPT 0000012A…" (raw units, no scale: E14 replaces them). */
+export const mptWords = ({ id, units }: { id: string; units: string }): string => `${formatAmount(units)} units of MPT ${id.slice(0, 8)}…`;
+
+/** A field that is an MPT's amount (`{ mpt_issuance_id, value }`), as `mptWords` has it, which a segment cannot hold as an amount; `undefined` for anything else. */
+function mptField(raw: unknown): Segment | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const { mpt_issuance_id: id, value } = raw as Record<string, unknown>;
+  return typeof id === "string" && typeof value === "string" ? text(mptWords({ id, units: value })) : undefined;
+}
+
+/** An amount field as an amount segment, an MPT's as its words; a value that is neither is shown as it is. */
 export function amountSegment(raw: unknown, native: Native): Segment {
   const amount = parseAmount(raw, native);
   if (amount) return amountOf(amount);
-  return text(typeof raw === "string" ? raw : (JSON.stringify(raw) ?? "an unknown amount"));
+  return mptField(raw) ?? text(typeof raw === "string" ? raw : (JSON.stringify(raw) ?? "an unknown amount"));
 }
 
 export function sameAmount(a: FlowAmount, b: FlowAmount): boolean {
@@ -87,8 +111,15 @@ export type FlagTable = ReadonlyArray<readonly [mask: number, name: string]>;
 
 /** `tfFullyCanonicalSig` is set on nearly every transaction and says nothing, so it is never listed. */
 const FULLY_CANONICAL_SIG = 0x80000000;
+/** `tfInnerBatchTxn`: the transaction is one of a `Batch`, which paid its fee. */
+const INNER_BATCH = 0x40000000;
 /** Flags of every transaction type. */
-const UNIVERSAL_FLAGS: FlagTable = [[0x40000000, "tfInnerBatchTxn"]];
+const UNIVERSAL_FLAGS: FlagTable = [[INNER_BATCH, "tfInnerBatchTxn"]];
+
+/** Whether a transaction is one of a `Batch` (`tfInnerBatchTxn`): it was sent within the Batch, which paid its fee. */
+export function isInnerBatch(tx: TxJson): boolean {
+  return typeof tx.Flags === "number" && Number.isInteger(tx.Flags) && (tx.Flags & INNER_BATCH) !== 0;
+}
 
 /** The names of the flags a transaction sets; a bit the table does not know is shown as hex. */
 export function flagNames(flags: unknown, table: FlagTable): string[] {
@@ -112,6 +143,27 @@ export function fieldDetail(tx: TxJson, field: string, label: string): Detail[] 
   return typeof value === "number" || typeof value === "string" ? [detail(label, String(value))] : [];
 }
 
+/** A detail for a field that holds an NFT's or URIToken's id, as a link to it, left out when the transaction does not have it. */
+export function nftFieldDetail(tx: TxJson, field: string, label: string): Detail[] {
+  const id = tx[field];
+  return typeof id === "string" && id !== "" ? [detail(label, nftSegment(id))] : [];
+}
+
+/** A detail for a field that holds the ID of an escrow, a check or a channel (`CheckID`, `Channel`): the ID, in capitals, linking to its page; a value that is no ID is shown as it is. */
+export function objectFieldDetail(tx: TxJson, field: string, label: string, kind: ObjectKind): Detail[] {
+  const id = ledgerId(tx[field]);
+  return id === undefined ? fieldDetail(tx, field, label) : [detail(label, objectSegment(kind, { id }, id))];
+}
+
+/**
+ * The detail of the escrow, check or channel a transaction created ("Escrow", "Check", "Channel"): the ID of the node its metadata created, shortened, linking to its page. None when it
+ * created none (one that failed).
+ */
+export function createdDetail(meta: TxMeta, type: "Escrow" | "Check" | "PayChannel", label: string): Detail[] {
+  const id = ledgerId(nodesOf(meta).find((node) => node.change === "created" && node.type === type)?.index);
+  return id === undefined ? [] : [detail(label, objectSegment(kindOfType(type)!, { id }, shortHash(id)))];
+}
+
 /** What nearly every type has at the end of its details: the source tag, the ticket it used, its flags. */
 export function closingDetails(tx: TxJson, flags: FlagTable): Detail[] {
   const names = flagNames(tx.Flags, flags);
@@ -122,9 +174,10 @@ export function closingDetails(tx: TxJson, flags: FlagTable): Detail[] {
   ];
 }
 
-/** Fields every transaction has, which a table of "its fields" leaves out. */
+/** Fields every transaction has, which a table of "its fields" leaves out. (`Delegate` is any type's too: the page says who sent the transaction in a row of its own.) */
 export const COMMON_FIELDS: ReadonlySet<string> = new Set([
   "Account",
+  "Delegate",
   "Fee",
   "Sequence",
   "SigningPubKey",
@@ -164,7 +217,7 @@ export function fieldValue(name: string, value: unknown, native: Native): Segmen
   if (typeof value === "number" || typeof value === "boolean") return [text(String(value))];
   const amount = parseAmount(value, native);
   if (amount) return [amountOf(amount)];
-  return [text(JSON.stringify(value) ?? "")];
+  return [mptField(value) ?? text(JSON.stringify(value) ?? "")];
 }
 
 /** One detail per top-level field, in the transaction's order, labelled with the field's own name. */
@@ -175,6 +228,11 @@ export function genericDetails(tx: TxJson, native: Native, skip: ReadonlySet<str
 }
 
 // --- Values --------------------------------------------------------------------------------------------------------
+
+/** The account that signed a transaction and paid its fee on behalf of its `Account` (its `Delegate` field, XLS-75), if it has one. */
+export function delegateOf(tx: TxJson): string | undefined {
+  return typeof tx.Delegate === "string" && tx.Delegate !== "" ? tx.Delegate : undefined;
+}
 
 /** Hex as UTF-8 text, when it is text: valid UTF-8 with no control characters. */
 export function decodeHex(hex: unknown): string | undefined {

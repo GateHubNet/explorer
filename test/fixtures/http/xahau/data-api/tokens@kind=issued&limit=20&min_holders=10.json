@@ -1,0 +1,42 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 26540187,
+    "complete": false
+  },
+  "kind": "issued",
+  "ledger_index": 26596843,
+  "close_time": "2026-10-17T17:47:11Z",
+  "totals": {
+    "tokens": 100,
+    "tokens_with_10_holders": 60,
+    "holders": 1350,
+    "native_volume": "15359117.971"
+  },
+  "total": 60,
+  "total_below": 40,
+  "count": 20,
+  "marker": "WyJpc3N1ZWQiLDM3LCJySEJERDg1NUZ0RnFMdUJ2d0JKMXdaeVF6c25LbzhnTkRFIiwiQ1pLIl0",
+  "tokens": [
+    {"rank":1,"currency":"EVR","code":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","holders":88,"trust_lines":100,"supply":"16304750.021496","price":"0.12045842","price_change":"-13.69","price_time":"2026-10-17T00:43:05Z","native_volume":"2208.12","trades":205,"domain":"evernode.org","listed":true,"name":"Evernode"},
+    {"rank":2,"currency":"GBP","code":"GBP","issuer":"rh9vtTgCE8LFxEbAgD5UCghM9YLh66sTTH","holders":87,"trust_lines":88,"supply":"17891.96","price":"1.2000000e-7","price_change":"-6.02","price_time":"2026-10-17T16:04:30Z","native_volume":"3500.939","trades":43,"domain":"thistle-5e87.example","listed":true,"name":"Copperline GBP"},
+    {"rank":3,"currency":"JPY","code":"JPY","issuer":"rKzuDWuyh9Entg8rBxxZMM8PiRgJdw2aUi","holders":86,"trust_lines":86,"supply":"71648.96","native_volume":"0","trades":0,"listed":false},
+    {"rank":4,"currency":"53544F4E45465255495400000000000000000000","code":"STONEFRUIT","issuer":"rh9vtTgCE8LFxEbAgD5UCghM9YLh66sTTH","holders":72,"trust_lines":77,"supply":"40236.74","native_volume":"0","trades":0,"domain":"thistle-5e87.example","listed":false},
+    {"rank":5,"currency":"4B45535452454C00000000000000000000000000","code":"KESTREL","issuer":"r3mK7swXX8oGLFbQfhmakjf3nHTzwhnC6d","holders":71,"trust_lines":72,"supply":"1086.2","price":"0.026567601","price_change":"13.50","price_time":"2026-10-16T22:35:41Z","native_volume":"460128.525","trades":217,"domain":"stonebridge-d350.example","listed":false},
+    {"rank":6,"currency":"KRW","code":"KRW","issuer":"rfbynNi3VarQcz1n4bRaJjAN6DRzQvhaBi","holders":69,"trust_lines":70,"supply":"42125.61","price":"1.9233171","price_change":"7.95","price_time":"2026-10-17T10:07:27Z","native_volume":"7416.024","trades":257,"domain":"tidewater-8110.example","listed":false},
+    {"rank":7,"currency":"SEK","code":"SEK","issuer":"r3mK7swXX8oGLFbQfhmakjf3nHTzwhnC6d","holders":61,"trust_lines":61,"supply":"4404.99","price":"4.3997295","price_change":"-6.68","price_time":"2026-10-17T08:18:41Z","native_volume":"67683.82","trades":9,"domain":"stonebridge-d350.example","listed":true,"name":"Riverstone SEK"},
+    {"rank":8,"currency":"NOD","code":"NOD","issuer":"rsU3Rid6exHofd2D5xjewTJSYJe5QfKUiJ","holders":61,"trust_lines":61,"supply":"373089.407877","price":"0.034000000","price_time":"2026-10-05T17:47:11Z","native_volume":"0","trades":0,"domain":"nodefield-7c31.example","listed":false},
+    {"rank":9,"currency":"5249564552424544000000000000000000000000","code":"RIVERBED","issuer":"r911dcMWyRK8jZKMY6XSfWadDgXf2BYEDN","holders":59,"trust_lines":63,"supply":"14840.2","price":"1.6895060","price_time":"2026-09-30T17:47:11Z","native_volume":"0","trades":0,"domain":"fernhill-95f6.example","listed":true,"name":"Bluewave RIVERBED"},
+    {"rank":10,"currency":"504C4154494E554D000000000000000000000000","code":"PLATINUM","issuer":"rLboQY4CCxjKc7Ygu9fFCapXqjpSimPfF1","holders":52,"trust_lines":52,"supply":"8091.79","price":"0.97138546","price_change":"6.72","price_time":"2026-10-17T11:23:41Z","native_volume":"486787.958","trades":8,"listed":false},
+    {"rank":11,"currency":"5553445400000000000000000000000000000000","code":"USDT","issuer":"rEvhoR7Wfu6YEMLJKeNjy8CKjFodeAhHAq","holders":49,"trust_lines":50,"supply":"546.08","price":"1.5143358","price_change":"-6.72","price_time":"2026-10-16T21:02:08Z","native_volume":"6908.355","trades":55,"listed":false},
+    {"rank":12,"currency":"484152424F520000000000000000000000000000","code":"HARBOR","issuer":"raJNFtMA6rcqAvJJJDPZGdCejctTUuUD6W","holders":48,"trust_lines":48,"supply":"39532.06","native_volume":"0","trades":0,"domain":"copperline-2767.example","listed":false},
+    {"rank":13,"currency":"CAD","code":"CAD","issuer":"raJNFtMA6rcqAvJJJDPZGdCejctTUuUD6W","holders":47,"trust_lines":49,"supply":"23822.12","price":"0.19179770","price_change":"-0.27","price_time":"2026-10-17T07:21:32Z","native_volume":"416360.89","trades":300,"domain":"copperline-2767.example","listed":true,"name":"Kestrel CAD"},
+    {"rank":14,"currency":"434152424F4E0000000000000000000000000000","code":"CARBON","issuer":"rBaDtTeAXNrZfCFdNEy7PB9p86f6s8ehpS","holders":46,"trust_lines":48,"supply":"4072.51","price":"1.5333068","price_change":"-6.51","price_time":"2026-10-17T13:39:25Z","native_volume":"395450.407","trades":205,"domain":"northpeak-fbbc.example","listed":true,"name":"Bluewave CARBON"},
+    {"rank":15,"currency":"HKD","code":"HKD","issuer":"rLboQY4CCxjKc7Ygu9fFCapXqjpSimPfF1","holders":46,"trust_lines":48,"supply":"14251.22","price":"3.8816317","price_time":"2026-10-09T17:47:11Z","native_volume":"0","trades":0,"listed":false},
+    {"rank":16,"currency":"50494E45434F4E45000000000000000000000000","code":"PINECONE","issuer":"rBY1ZgWyPe6zzvW4BQCJbN6RFr4jScF1nm","holders":42,"trust_lines":46,"supply":"20813.59","native_volume":"0","trades":0,"domain":"harbourgate-24e4.example","listed":true,"name":"Willowmere PINECONE"},
+    {"rank":17,"currency":"54494445504F4F4C000000000000000000000000","code":"TIDEPOOL","issuer":"rQfeysYwYH32qxZPyb3b9BQcw2PKTggBNR","holders":42,"trust_lines":45,"supply":"37563.56","price":"0.35515760","price_change":"-8.47","price_time":"2026-10-16T22:38:51Z","native_volume":"152351.502","trades":134,"listed":false},
+    {"rank":18,"currency":"454D42455244414F000000000000000000000000","code":"EMBERDAO","issuer":"rKBEVzVU92MjK5ZFWu8CToyFkxpu6Ys5qm","holders":40,"trust_lines":44,"supply":"28521.11","price":"0.42082204","price_change":"-6.09","price_time":"2026-10-17T05:34:50Z","native_volume":"488820.455","trades":248,"domain":"bluewave-bc65.example","listed":true,"name":"Ashgrove EMBERDAO"},
+    {"rank":19,"currency":"5354524154555300000000000000000000000000","code":"STRATUS","issuer":"rDGoec6WXzTHJ4RKw6jYnqypyQTzvs8eeU","holders":38,"trust_lines":38,"supply":"22743.45","price":"0.034536641","price_time":"2026-10-11T17:47:11Z","native_volume":"0","trades":0,"domain":"lanternway-e249.example","listed":true,"name":"Harbourgate STRATUS"},
+    {"rank":20,"currency":"CZK","code":"CZK","issuer":"rHBDD855FtFqLuBvwBJ1wZyQzsnKo8gNDE","holders":37,"trust_lines":37,"supply":"27305.77","native_volume":"0","trades":0,"domain":"oakfield-63a8.example","listed":false}
+  ]
+}

@@ -10,11 +10,13 @@ import { amendmentHref, amendmentsHref } from "../domain/amendments-params";
 import { fnv1a32, tokenOf } from "../domain/fnv";
 import { shortHash } from "../domain/format";
 import { formatDate } from "../domain/time-words";
-import { validatorHref, validatorsHref, type ValidatorsParams } from "../domain/validators-params";
+import { UNKNOWN_COUNTRY, validatorHref, validatorsHref, type ValidatorsParams } from "../domain/validators-params";
 import type { ShareData, Slot } from "../ui/charts/types";
+import type { Features } from "../ui/features";
 import type { NetworkInfo } from "../ui/networks";
 import type { Loaded } from "./account-view";
 import type { AmendmentRow, AmendmentsList, NativeFees, NegativeUnlMember, NextFlagLedger, UnlPublisher, ValidatorRow, ValidatorsList, ValidatorsSummary } from "./api-types";
+import { countryName, LIMITED_SENTENCE, validatorMapOf, type ValidatorMapView } from "./validator-map-view";
 import {
   clock,
   compareFee,
@@ -22,11 +24,15 @@ import {
   DASH,
   dropsText,
   feesNotCompared,
-  joinAnd,
+  listedByText,
+  LOCAL_PUBLISHER,
   nativeText,
+  publisherLabel,
   scoreText,
   shareText,
   unixOf,
+  unlIntro,
+  unlTagWords,
   valueOf,
   versionText,
   yesPercentText,
@@ -77,8 +83,8 @@ export interface ValidatorRowView {
   /** `null` when the row has no domain, or the data API sent no check of it. */
   domainStatus: DomainStatusKind | null;
   unl: boolean;
-  /** The publishers whose lists name the validator (the hidden words of the UNL tag). */
-  unlPublishers: string[];
+  /** The words of the UNL tag, a screen reader's and the mouse's: `Listed by A and B`, `Listed by the fixed list`; empty when no list names the validator. */
+  listedBy: string;
   negativeUnl: boolean;
   /** `—` for a validator that reported none. */
   version: { text: string; latest: boolean };
@@ -87,6 +93,8 @@ export interface ValidatorRowView {
   fees: FeeCell[] | null;
   /** The amendments it votes yes for, each a link to its page. */
   yes: { label: string; href: string }[];
+  /** The name of its toml's server country (its code when this build's table lacks it); `null` without one, and while `VALIDATORS_MAP` is off. */
+  place: string | null;
   /** Unix seconds; `null` for a validator never seen. */
   lastSeen: number | null;
 }
@@ -102,12 +110,24 @@ export interface ValidatorsPageData {
         notices: string[];
         tiles: Tile[];
         versions: { chart: ShareData; table: VersionRow[]; notes: string[] };
-        /** S's ids for the "Listed by" select; `null` with fewer than two publishers, when there is nothing to choose. */
+        /** S's publishers for the "Listed by" select: the id is the value, `publisherLabel` the words; `null` with fewer than two publishers, when there is nothing to choose. */
         publishers: Option[] | null;
       }
     | { state: "failed" };
-  list: { state: "ok"; counts: { unl: number; all: number }; rows: ValidatorRowView[]; footer: string[]; empty: boolean } | { state: "failed" };
+  list:
+    | {
+        state: "ok";
+        counts: { unl: number; all: number };
+        rows: ValidatorRowView[];
+        footer: string[];
+        empty: boolean;
+        /** With the UNL chip, a chosen country that has validators but none on the UNL: the sentence that says so and the link to the same view in All (spec 4.4); else `null`. */
+        unlEmpty: { text: string; link: { text: string; href: string } } | null;
+      }
+    | { state: "failed" };
   amendments: { state: "ok"; options: Option[] } | { state: "failed" };
+  /** The countries card, counted from every row of L (spec 4.2). `off` while `VALIDATORS_MAP` is off, `failed` when L failed (the card draws a section error then). */
+  map: ({ state: "ok" } & ValidatorMapView) | { state: "failed" } | { state: "off" };
 }
 
 // ---- Version slots (3.2) -------------------------------------------------------------------------------------------------------------------------
@@ -139,8 +159,12 @@ export function versionSlots(newestFirst: readonly string[]): Map<string, Versio
 /** What a tile says in place of a figure the summary has left out (D1 leaves a key out while nothing gives it). */
 const NOT_KNOWN = "not known yet";
 
-/** A notice for each publisher whose list is not current, and one more when none of them is (D1 §7). */
-function noticesOf(publishers: readonly UnlPublisher[]): string[] {
+/**
+ * A notice for each publisher whose list is not current, and one more when none of them is (D1 §7). The fixed list `local` has none: it is the node's own configuration,
+ * never expired or unavailable, so it is left out here whatever status it carries, and is not one of the lists that "none" counts.
+ */
+function noticesOf(all: readonly UnlPublisher[]): string[] {
+  const publishers = all.filter((publisher) => publisher.id !== LOCAL_PUBLISHER);
   const notices: string[] = [];
   for (const publisher of publishers) {
     if (publisher.status === "expired") {
@@ -230,7 +254,7 @@ function tilesOf(net: NetworkInfo, s: ValidatorsSummary, rows: ReadonlyMap<strin
     {
       label: "On the default UNL",
       value: `${count(unl_seen_24h)} / ${count(s.unl.trusted)}`,
-      sub: [`seen in 24 h, of those listed${publishers.length > 0 ? ` by ${joinAnd(publishers)}` : ""}`],
+      sub: [`seen in 24 h, of those ${listedByText(publishers) || "listed"}`],
     },
     { label: "Quorum", value: `${count(quorum.value)} of ${count(quorum.unl_size)}`, sub: [`validations a ledger needs${nodeQuorum}`] },
     { label: "Negative UNL", value: count(s.negative_unl.length), sub: negativeUnlSub(s.negative_unl, s.negative_unl_pending, validatorLink(net.id, rows)) },
@@ -286,14 +310,14 @@ function summaryOf(net: NetworkInfo, s: ValidatorsSummary, rows: ReadonlyMap<str
     notices: noticesOf(publishers),
     tiles: tilesOf(net, s, rows),
     versions: versionsOf(s),
-    publishers: publishers.length >= 2 ? publishers.map((publisher) => ({ value: publisher.id, label: publisher.id })) : null,
+    publishers: publishers.length >= 2 ? publishers.map((publisher) => ({ value: publisher.id, label: publisherLabel(publisher.id) })) : null,
   };
 }
 
 // ---- The list --------------------------------------------------------------------------------------------------------------------------------
 
 /** Whether the view is narrowed by more than its scope: the footer says "matches" and the card offers "Clear filters". */
-const hasFilter = (params: ValidatorsParams): boolean => params.publisher !== undefined || params.amendment !== undefined || params.q !== undefined;
+const hasFilter = (params: ValidatorsParams): boolean => params.publisher !== undefined || params.amendment !== undefined || params.country !== undefined || params.q !== undefined;
 
 /** The check a row must pass to be one that votes yes for the amendment `param` names: its ID from A when A has it, else `param` as given, matched against `yes[].id` and `yes[].name`. */
 function votesYesFor(param: string, amendments: readonly AmendmentRow[] | null): (row: ValidatorRow) => boolean {
@@ -301,9 +325,12 @@ function votesYesFor(param: string, amendments: readonly AmendmentRow[] | null):
   return (row) => (row.amendment_votes?.yes ?? []).some((yes) => (named !== undefined ? yes.id === named.id : yes.id === param || yes.name === param));
 }
 
-/** The rows the view keeps, in D1's order: the scope, then the publisher, the amendment and the search (D1's `q`: the lower-cased text in the domain or a key). */
+/**
+ * The rows the view keeps, in D1's order: the scope, then the publisher, the amendment, the country and the search (D1's `q`: the lower-cased text in the domain or a key). The country
+ * is the one the row's toml gives as its server country (D8); `unknown` keeps the rows whose toml gives none, which includes a row with no toml and one whose toml is `{}` (E13 spec 4.4).
+ */
 function filtered(rows: readonly ValidatorRow[], params: ValidatorsParams, amendments: readonly AmendmentRow[] | null): ValidatorRow[] {
-  const { publisher, amendment } = params;
+  const { publisher, amendment, country } = params;
   const q = params.q?.toLowerCase();
   const yes = amendment === undefined ? null : votesYesFor(amendment, amendments);
   return rows.filter(
@@ -311,6 +338,7 @@ function filtered(rows: readonly ValidatorRow[], params: ValidatorsParams, amend
       (params.scope === "all" || row.unl) &&
       (publisher === undefined || row.unl_lists.includes(publisher)) &&
       (yes === null || yes(row)) &&
+      (country === undefined || (country === UNKNOWN_COUNTRY ? row.toml?.server_country === undefined : row.toml?.server_country === country)) &&
       (q === undefined || [row.domain, row.validation_public_key, row.signing_key].some((text) => text?.toLowerCase().includes(q))),
   );
 }
@@ -325,7 +353,7 @@ function feeCells(vote: NonNullable<ValidatorRow["fee_vote"]>, fees: NativeFees 
   ];
 }
 
-function rowView(net: NetworkInfo, row: ValidatorRow, fees: NativeFees | null): ValidatorRowView {
+function rowView(net: NetworkInfo, row: ValidatorRow, fees: NativeFees | null, places: boolean): ValidatorRowView {
   const key = row.validation_public_key;
   const domain = row.domain !== undefined && row.domain !== "" ? row.domain : undefined;
   const seen = row.last_seen === undefined ? Number.NaN : unixOf(row.last_seen);
@@ -336,12 +364,13 @@ function rowView(net: NetworkInfo, row: ValidatorRow, fees: NativeFees | null): 
     sub: domain !== undefined ? shortHash(key) : "no domain",
     domainStatus: domain !== undefined ? (row.domain_verification?.status ?? null) : null,
     unl: row.unl,
-    unlPublishers: row.unl_lists,
+    listedBy: unlTagWords(row.unl_lists),
     negativeUnl: row.negative_unl,
     version: { text: versionText(row, false) ?? DASH, latest: row.version_latest === true },
     agreement: { text: scoreText(row.agreement_24h.score), incomplete: row.agreement_24h.incomplete },
     fees: row.fee_vote === undefined ? null : feeCells(row.fee_vote, fees, net.native),
     yes: (row.amendment_votes?.yes ?? []).map((yes) => ({ label: yes.name ?? shortHash(yes.id), href: amendmentHref(net.id, amendmentSegment(yes)) })),
+    place: places && row.toml?.server_country !== undefined ? countryName(row.toml.server_country) : null,
     lastSeen: Number.isNaN(seen) ? null : seen,
   };
 }
@@ -353,8 +382,24 @@ function footerOf(net: NetworkInfo, shown: number, hasFilter: boolean, summary: 
   const units = `Fee votes in ${net.native} / ${net.native} / drops`;
   if (summary?.fees !== undefined) footer.push(`${units}; ↑ ↓ against the current value`);
   else footer.push(units, feesNotCompared(summary === null ? "failed" : "unknown"));
-  if (marker) footer.push("The first 1,000 validators in this order are shown.");
+  if (marker) footer.push(LIMITED_SENTENCE);
   return footer;
+}
+
+/**
+ * The sentence for a view of the UNL whose chosen country has validators, all of them off it (spec 4.4): "No validator in Germany is on the default UNL." and the link to the same
+ * view in All, "Show the 3 in All". Only for a code (`unknown` is no country: its view keeps E6's "No validators match these filters."), and `n` counts the rows All would show
+ * with the other filters kept, so the link never promises rows it does not show; at 0 there is no sentence (plan ruling C13). The sentence is a fact about the country, so it also
+ * needs that no row of the whole list in that country is on the UNL: when a search, a publisher or an amendment only hides the ones it has, the view says E6's "No validators match
+ * these filters." instead.
+ */
+function unlEmptyOf(net: string, params: ValidatorsParams, all: readonly ValidatorRow[], amendments: readonly AmendmentRow[] | null) {
+  const { country } = params;
+  if (params.scope !== "unl" || country === undefined || country === UNKNOWN_COUNTRY) return null;
+  if (all.some((row) => row.unl && row.toml?.server_country === country)) return null;
+  const n = filtered(all, { ...params, scope: "all" }, amendments).length;
+  if (n === 0) return null;
+  return { text: `No validator in ${countryName(country)} is on the default UNL.`, link: { text: `Show the ${count(n)} in All`, href: validatorsHref(net, { ...params, scope: "all" }) } };
 }
 
 function listOf(
@@ -363,6 +408,7 @@ function listOf(
   list: ValidatorsList,
   summary: ValidatorsSummary | null,
   amendments: readonly AmendmentRow[] | null,
+  features: Pick<Features, "validatorsMap">,
 ): Extract<ValidatorsPageData["list"], { state: "ok" }> {
   const all = list.validators;
   const kept = filtered(all, params, amendments);
@@ -370,9 +416,10 @@ function listOf(
   return {
     state: "ok",
     counts: { unl: all.filter((row) => row.unl).length, all: all.length },
-    rows: kept.map((row) => rowView(net, row, fees)),
+    rows: kept.map((row) => rowView(net, row, fees, features.validatorsMap)),
     footer: footerOf(net, kept.length, hasFilter(params), summary, list.marker !== undefined),
     empty: kept.length === 0,
+    unlEmpty: kept.length === 0 && features.validatorsMap ? unlEmptyOf(net.id, params, all, amendments) : null,
   };
 }
 
@@ -400,8 +447,10 @@ export function validatorsPage(input: {
   summary: Loaded<ValidatorsSummary>;
   list: Loaded<ValidatorsList>;
   amendments: Loaded<AmendmentsList>;
+  /** `validatorsMap`: the countries card, the place under each row and the empty-UNL sentence. (The filter by `country` needs no switch here: the loader drops the parameter while it is off.) */
+  features: Pick<Features, "validatorsMap">;
 }): ValidatorsPageData {
-  const { network, params } = input;
+  const { network, params, features } = input;
   const summary = valueOf(input.summary);
   const list = valueOf(input.list);
   const amendments = valueOf(input.amendments);
@@ -409,10 +458,7 @@ export function validatorsPage(input: {
 
   // The publishers are S's; without S the intro does not name them.
   const publishers = summary?.unl.publishers.map((publisher) => publisher.id) ?? [];
-  const publishedBy = publishers.length > 0 ? `, published by ${joinAnd(publishers)}` : "";
-  const intro = [
-    `The default UNL is the list of validators ${network.software} trusts out of the box${publishedBy}. All adds every other validator whose validations reached the data API in the last 24 hours.`,
-  ];
+  const intro = [`${unlIntro(network, publishers)} All adds every other validator whose validations reached the data API in the last 24 hours.`];
 
   return {
     network,
@@ -425,7 +471,13 @@ export function validatorsPage(input: {
     },
     intro,
     summary: summary === null ? { state: "failed" } : summaryOf(network, summary, new Map((list?.validators ?? []).map((row) => [row.validation_public_key, row]))),
-    list: list === null ? { state: "failed" } : listOf(network, params, list, summary, amendments?.amendments ?? null),
+    list: list === null ? { state: "failed" } : listOf(network, params, list, summary, amendments?.amendments ?? null, features),
     amendments: amendments === null ? { state: "failed" } : { state: "ok", options: amendmentOptions(amendments) },
+    // Counted from every row of L, whatever the scope, the chip and the filters.
+    map: !features.validatorsMap
+      ? { state: "off" }
+      : list === null
+        ? { state: "failed" }
+        : { state: "ok", ...validatorMapOf({ network, params, rows: list.validators, truncated: list.marker !== undefined }) },
   };
 }

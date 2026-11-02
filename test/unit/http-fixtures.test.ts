@@ -10,7 +10,11 @@ import {
   isAmmGenerated,
   isAnalyticsGenerated,
   isMarketGenerated,
+  isNftGenerated,
+  isObjectGenerated,
+  isSupplyGenerated,
   isSynthetic,
+  isTokenGenerated,
   isValidatorsGenerated,
   LEDGERS,
   isoTime,
@@ -20,6 +24,7 @@ import {
   type RawLedger,
   type RawTx,
 } from "../../scripts/http-fixtures";
+import { isNamesGenerated } from "../../scripts/names-fixtures";
 import { canonicalQuery, dataApiFile } from "../support/upstream-core";
 
 // What the fixtures of test/fixtures/http/ promise the tests that use them. The generated files are checked against
@@ -109,28 +114,71 @@ describe("every fixture file", () => {
   it("stays within the budget that keeps the set reviewable", () => {
     const bytes = (names: string[]) => names.reduce((sum, file) => sum + readFileSync(new URL(file, HTTP)).length, 0);
     expect(
-      bytes(files.filter((file) => !isSynthetic(file) && !isMarketGenerated(file) && !isAnalyticsGenerated(file) && !isValidatorsGenerated(file) && !isAmmGenerated(file))),
+      bytes(
+        files.filter(
+          (file) =>
+            !isSynthetic(file) &&
+            !isMarketGenerated(file) &&
+            !isAnalyticsGenerated(file) &&
+            !isValidatorsGenerated(file) &&
+            !isAmmGenerated(file) &&
+            !isNftGenerated(file) &&
+            !isNamesGenerated(file) &&
+            !isObjectGenerated(file) &&
+            !isTokenGenerated(file) &&
+            !isSupplyGenerated(file),
+        ),
+      ),
     ).toBeLessThan(3.5 * 1024 * 1024);
     // The synthetic aggregates of the network page (about 2.3 MiB, a row to a line: four periods, two display currencies, three volumes) are
     // generated and reviewed as the generator, so they have a budget of their own; a later generator that adds files raises it with its data.
-    // The accounts' analytics answers (scripts/analytics-fixtures.ts: 144 files, about 0.31 MiB, a row to a line) are synthetic too, and fit in it.
-    const synthetic = (file: string) => isSynthetic(file) || isAnalyticsGenerated(file);
+    // The accounts' analytics answers (scripts/analytics-fixtures.ts: 144 files, about 0.31 MiB, a row to a line) are synthetic too, and fit in it, and so do the supply page's three files
+    // (scripts/supply-fixtures.ts: D7's two snapshots and Xahau's 90 minted days, a row to a line; 13,391 bytes).
+    const synthetic = (file: string) => isSynthetic(file) || isAnalyticsGenerated(file) || isSupplyGenerated(file);
     expect(bytes(files.filter(isAnalyticsGenerated))).toBeGreaterThan(0);
+    expect(files.filter(isSupplyGenerated)).toHaveLength(3);
     expect(bytes(files.filter(synthetic))).toBeLessThan(2.7 * 1024 * 1024);
     // The markets pages' files (scripts/market-fixtures.ts: the pairs' trades, candles, 24-hour rows and active accounts, and the nine XRPL and three
     // Xahau markets tables, a row to a line; 81 files, 896,704 bytes, about 0.86 MiB) are reviewed as their generator too, and have a budget of their own.
     expect(bytes(files.filter(isMarketGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isMarketGenerated))).toBeLessThan(1.0 * 1024 * 1024);
-    // The validators and amendments pages' files (scripts/validators-fixtures.ts: D1's six routes, a row to a line; 239 files, 2,869,339 bytes, about 2.7 MiB, of
-    // which the 30 days of XRPL's majority amendment, under its name and its ID, are 0.7 MiB) are reviewed as their generator too, with a budget of their own.
+    // The validators and amendments pages' files (scripts/validators-fixtures.ts: D1's six routes, a row to a line; 239 files, 2,884,903 bytes, about 2.75 MiB, of
+    // which the 30 days of XRPL's majority amendment, under its name and its ID, are 0.7 MiB, and D8's `toml` on the rows and the details of 61 of the 63 verified validators,
+    // about 15.7 KB) are reviewed as their generator too, with a budget of their own. D8's `toml` stays inside these files, so it raises nothing (260,825 bytes left).
     expect(bytes(files.filter(isValidatorsGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isValidatorsGenerated))).toBeLessThan(3.0 * 1024 * 1024);
-    // The AMM pages' files (scripts/amm-fixtures.ts, a row to a line: the pool routes derived from the recordings, 192 files of 193,128 bytes, the list with the
-    // deleted pools' 7 pages of 50,897 among them, and the synthetic day rows, AMM-only candles and live volume as P2 of E5 scopes them, VOX/XRP's four empty
-    // answers among them, 39 files of 516,361 bytes; 231 files, 709,489 bytes, about 0.68 MiB) are reviewed as their generator too, with a budget of their own
+    // The AMM pages' files (scripts/amm-fixtures.ts, a row to a line: the pool routes derived from the recordings, 195 files of 194,156 bytes, the list with the
+    // deleted pools' 7 pages of 50,897 and the three filters E11's featured tokens add, 1,028 bytes, among them, and the synthetic day rows, AMM-only candles and live volume as P2 of E5 scopes them, VOX/XRP's four empty
+    // answers among them, 39 files of 516,361 bytes; 234 files, 710,517 bytes, about 0.68 MiB) are reviewed as their generator too, with a budget of their own
     // (P2), which a later file raises with its data, never above 1.0 MiB.
     expect(bytes(files.filter(isAmmGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isAmmGenerated))).toBeLessThan(0.7 * 1024 * 1024);
+    // The NFT pages' files (scripts/nft-fixtures.ts, a row to a line: 1,349 files of 1,007,946 bytes, about 0.96 MiB: the per-NFT files of 282 XRPL and 24 Xahau NFTs, a detail, a history with
+    // and without the offer events and the open offers each, are most of it (0.66 MiB); the collections' lists in every sort and both ways, three collections' pages, the sales and the
+    // volume are 0.29 MiB; the accounts' NFT lists and the nodes' answers are 8 KB) are reviewed as their generator too (C6), with a budget of their own, which a later file raises with
+    // its data, never above 1.0 MiB.
+    expect(bytes(files.filter(isNftGenerated))).toBeGreaterThan(0);
+    expect(bytes(files.filter(isNftGenerated))).toBeLessThan(1.0 * 1024 * 1024);
+    // The ledger-object pages' files (scripts/object-fixtures.ts, a row to a line: 268 files of 753,396 bytes, about 0.72 MiB; XRPL 210 of 585,186: the answers of 32 escrows, checks
+    // and channels with the long channel's two history pages, 90 KB, 38 lookups, 24 node entries, 49 transactions (35 recorded, C9's 4, the synthetic objects' 10 but channel-long's)
+    // and their binary forms, 244 KB, and the lists of 16 recorded ledgers not among the sets, 218 KB; Xahau 58 of 168,210, of which 82 KB the lists of its 12 ledgers) are reviewed as
+    // their generator too (C4), with a budget of their own, left out of the recorded files' above: at most 1.0 MiB, which a later file raises with its data, never above.
+    expect(bytes(files.filter(isObjectGenerated))).toBeGreaterThan(0);
+    expect(bytes(files.filter(isObjectGenerated))).toBeLessThan(1.0 * 1024 * 1024);
+    // The token pages' files (scripts/token-fixtures.ts, a row to a line: 54 files of 222,640 bytes, about 0.21 MiB; XRPL 32 of 128,365: the 12 lists, 59,869 bytes, and the four featured tokens'
+    // details, holders and transfers; Xahau 22 of 94,275: the 12 lists, 58,580 bytes, and its two) are reviewed as their generator too (C8), with a budget of their own, left out of the recorded files' above: at most 0.3 MiB. Their
+    // pools files are the AMM generator's, in its budget above.
+    expect(bytes(files.filter(isTokenGenerated))).toBeGreaterThan(0);
+    expect(bytes(files.filter(isTokenGenerated))).toBeLessThan(0.3 * 1024 * 1024);
+    // The display names' files (scripts/names-fixtures.ts: each network's account_names.json, an entry to a line, and its tomls; XRPL 224 entries of 41,991 bytes and
+    // 140 tomls of 51,418, 93,409 bytes, about 91 KiB; Xahau 116 entries of 21,723 bytes and 65 tomls of 23,459, 45,182 bytes, about 44 KiB, after E11 added the token files to the
+    // names' sources) are reviewed as their generator too (C5), with a budget of their own, left out of the recorded files' above: 128 KiB a network, which a later
+    // file raises with its data, never above.
+    for (const net of NETS) {
+      const names = files.filter((file) => isNamesGenerated(file) && file.startsWith(`${net}/`));
+      expect(bytes(names), net).toBeGreaterThan(0);
+      expect(bytes(names), net).toBeLessThan(128 * 1024);
+    }
   });
 });
 
@@ -319,7 +367,10 @@ describe("the accounts written by hand", () => {
   it("has an active XRPL account that owns what its objects say, and a trade it was part of on each side", () => {
     const info = json(`xrpl/node/account_info/${ACTIVE.xrpl}.json`).result.account_data;
     const objects = json(`xrpl/node/account_objects/${ACTIVE.xrpl}.json`).result.account_objects;
-    expect(info.OwnerCount).toBe(objects.length); // one trust line, and nothing else it owns
+    // What it owns: a trust line, and the escrow, the channel and the delegation of the ledger-object pages (C7); the check it was sent is in its list but its sender's to own.
+    const owned = objects.filter((object: any) => object.LedgerEntryType === "RippleState" || object.Account === ACTIVE.xrpl);
+    expect(owned.map((object: any) => object.LedgerEntryType)).toEqual(["RippleState", "Escrow", "PayChannel", "Delegate"]);
+    expect(info.OwnerCount).toBe(owned.length);
     const roles = new Set(rowsOf("xrpl", ACTIVE.xrpl, "exchanges").map((row) => (row.taker === ACTIVE.xrpl ? "taker" : "provider")));
     expect([...roles].sort()).toEqual(["provider", "taker"]);
   });

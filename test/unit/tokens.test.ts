@@ -137,6 +137,16 @@ describe("tokens.css", () => {
     expect(darkByAttribute).toMatchObject(CHART_DARK);
     expect(darkByMedia).toMatchObject(CHART_DARK);
   });
+
+  // Sandbox spec 7.2: the Testnet badge's colours, from the board's `.tnet`.
+  const TESTNET_LIGHT = { "--testnet-fg": "#7a4306", "--testnet-bg": "#fdf0d5", "--testnet-border": "#ebc985" };
+  const TESTNET_DARK = { "--testnet-fg": "#f5c866", "--testnet-bg": "#33240a", "--testnet-border": "#5c4316" };
+
+  it("has the testnet badge's tokens in light and both dark blocks", () => {
+    expect(light).toMatchObject(TESTNET_LIGHT);
+    expect(darkByAttribute).toMatchObject(TESTNET_DARK);
+    expect(darkByMedia).toMatchObject(TESTNET_DARK);
+  });
 });
 
 // --- Contrast ---------------------------------------------------------------------------------------------------
@@ -180,6 +190,13 @@ function componentsRule(selector: string): string {
   const match = new RegExp(`(?:^|[}\\s])${escaped}\\s*\\{([^}]*)\\}`).exec(componentsCss);
   if (!match) throw new Error(`no rule for ${selector} in components.css`);
   return match[1]!;
+}
+
+/** The token a rule of components.css paints its text and icon with (`color: var(--ok)`). */
+function colourTokenOf(selector: string): keyof typeof LIGHT {
+  const token = /(?:^|[;\s])color\s*:\s*var\((--[\w-]+)\)/.exec(componentsRule(selector))?.[1];
+  if (!token || !(token in LIGHT)) throw new Error(`${selector} in components.css sets no colour from the tokens`);
+  return token as keyof typeof LIGHT;
 }
 
 /** The share of --sunken in the background of a hovered table row, as written in components.css. */
@@ -232,6 +249,28 @@ describe.each([
     expect(opacity).toBeGreaterThan(0);
     const shown = mix(c(fg), c(bg), opacity); // the text colour blended into the pill's background
     expect(contrast(shown, c(bg))).toBeGreaterThanOrEqual(AA);
+  });
+
+  // The marks beside an account's name (E9, spec 4.2). The text colours of --ok, --muted and --bad on --surface are asserted above; what is new is
+  // the grounds a mark sits on in a row or a chip: the page (--bg), a chip (--sunken), a hovered row. An icon is a graphic, which needs 3:1
+  // (WCAG 1.4.11), and the colour is read from the rule that paints it, so that a changed rule is what fails.
+  const GROUNDS = (): Array<[string, Rgb]> => [["--bg", c("--bg")], ["--sunken", c("--sunken")], ["a hovered row", mix(c("--sunken"), c("--surface"), ROW_HOVER_SHARE)]];
+
+  it.each([
+    [".namemark--verified", "--ok"],
+    [".namemark--account", "--muted"],
+    [".labelmark", "--bad"],
+  ] as const)("the icon of %s is painted with %s, and is at least 3:1 on the page, a chip and a hovered row", (selector, token) => {
+    for (const [name, ground] of GROUNDS()) expect(contrast(c(colourTokenOf(selector)), ground), name).toBeGreaterThanOrEqual(3);
+    expect(colourTokenOf(selector)).toBe(token);
+  });
+
+  // The tag 'not verified' (.unv) is 11 px text with no ground of its own (the board's): it sits on the page, a card, a chip or a hovered row.
+  it(".unv, the 'not verified' tag, has text at least 4.5:1 on every ground it sits on, and no ground of its own that this would miss", () => {
+    expect(componentsRule(".unv")).not.toMatch(/background/);
+    for (const [name, ground] of [...GROUNDS(), ["--surface", c("--surface")] as [string, Rgb]]) {
+      expect(contrast(c(colourTokenOf(".unv")), ground), name).toBeGreaterThanOrEqual(AA);
+    }
   });
 
   // The charts' tokens (spec section 2.10). Their figures are the spec's, to 2 decimals.
@@ -302,5 +341,84 @@ describe.each(BLOCKS)("the status marks in %s", (_block, tokens) => {
     const text = color(tokenOf(ruleProperty(selector, "color")));
     expect(contrast(text, color("--surface"))).toBeGreaterThanOrEqual(AA);
     expect(contrast(text, hoveredRow())).toBeGreaterThanOrEqual(AA);
+  });
+});
+
+// Sandbox spec 7.2: the Testnet badge's word on its wash, 7.1:1 in light and 9.5:1 in dark (the figures to 1 decimal, floored: 7.06 and 9.54).
+// The pair is the one `.pill--testnet` draws, read from components.css.
+describe.each([
+  ["light", light, 7],
+  ["dark by choice", darkByAttribute, 9.5],
+  ["dark by system", darkByMedia, 9.5],
+] as const)("the testnet badge in %s", (_block, tokens, least) => {
+  it(`keeps the badge's text above ${least}:1 (the board's .tnet), on its own wash`, () => {
+    expect(tokenOf(ruleProperty(".pill--testnet", "color"))).toBe("--testnet-fg");
+    expect(tokenOf(ruleProperty(".pill--testnet", "background"))).toBe("--testnet-bg");
+    expect(contrast(rgb(tokens["--testnet-fg"]!), rgb(tokens["--testnet-bg"]!))).toBeGreaterThanOrEqual(least);
+  });
+});
+
+// Object pages spec 5 and decision 13: the `warn` pill ("Can be cancelled", "Expired", "Closing") is amber, and the amber is the Testnet badge's (E7), not a second pair.
+// `--amb` and `--amb-bg` are those tokens by reference, declared once in the light block: a custom property is resolved where it is declared, and the dark blocks, which redeclare
+// `--testnet-fg` and `--testnet-bg` on the same elements, give the same reference their dark values. The badge's own rows above pin the pair on its wash (7.1:1 in light, 9.5:1
+// in dark, which is the word on the wash of the `warn` pill too); what is new here is that the names are those tokens, that the rule paints them, and the grounds the amber word sits on.
+describe("the amber of the warn pill", () => {
+  it("is the Testnet badge's tokens by reference, declared once, so that no second amber can drift from the first", () => {
+    expect(light["--amb"]).toBe("var(--testnet-fg)");
+    expect(light["--amb-bg"]).toBe("var(--testnet-bg)");
+    expect(darkByAttribute["--amb"]).toBeUndefined();
+    expect(darkByMedia["--amb"]).toBeUndefined();
+    expect(darkByAttribute["--amb-bg"]).toBeUndefined();
+    expect(darkByMedia["--amb-bg"]).toBeUndefined();
+    expect(css.match(/--amb(?:-bg)?\s*:/g)).toHaveLength(2);
+  });
+});
+
+describe.each(BLOCKS)("the warn pill in %s", (_block, tokens) => {
+  /** A token as the browser resolves it on an element of this block: the block's own value, else the light block's, a `var()` of another token read in this block. */
+  function resolved(name: string): string {
+    const value = tokens[name] ?? light[name];
+    const reference = value === undefined ? null : /^var\((--[\w-]+)\)$/.exec(value);
+    const result = reference ? tokens[reference[1]!] : value;
+    if (result === undefined || !/^#[0-9a-f]{6}$/.test(result)) throw new Error(`${name} does not resolve to a colour in this block: ${value}`);
+    return result;
+  }
+
+  it("paints the badge's word on the badge's wash: --amb on --amb-bg are --testnet-fg on --testnet-bg, the pair the badge's rows pin", () => {
+    expect(tokenOf(ruleProperty(".pill--warn", "color"))).toBe("--amb");
+    expect(tokenOf(ruleProperty(".pill--warn", "background"))).toBe("--amb-bg");
+    expect(resolved("--amb")).toBe(tokens["--testnet-fg"]);
+    expect(resolved("--amb-bg")).toBe(tokens["--testnet-bg"]);
+  });
+
+  it.each(["--bg", "--surface"] as const)("--amb on %s (the page and a card: amber words outside the pill) is at least 4.5:1", (ground) => {
+    expect(contrast(rgb(resolved("--amb")), rgb(tokens[ground]!))).toBeGreaterThanOrEqual(AA);
+  });
+});
+
+// Object pages spec 4.2: the window bar of an escrow (WindowBar) draws its windows as segments in the colours of their slots, on the card (--surface), with a
+// gap of the card's colour between two. A segment is a graphic that the bar's meaning rests on (which window is which, and how long), so it needs 3:1 against
+// what it sits on (WCAG 1.4.11). The slot's colour is read from the rule of charts.css that gives it, so that a changed rule is what fails. Of the slots, 3, 4
+// and 5 do not have it in light (2.8, 2.2 and 2.7), and the bar's data says so (types.ts, `WindowBarSegment`): the board's amber (slot 4) is one of them.
+const chartsCss = readFileSync(new URL("../../app/ui/charts.css", import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+
+/** The token that charts.css gives the slot as its mark (`[data-slot="up"] { --mark: var(--up) }`). */
+function slotToken(slot: string): string {
+  const match = new RegExp(`\\[data-slot="${slot}"\\]\\s*\\{[^}]*--mark\\s*:\\s*var\\((--[\\w-]+)\\)`).exec(chartsCss);
+  if (!match) throw new Error(`charts.css gives slot ${slot} no mark`);
+  return match[1]!;
+}
+
+describe.each(BLOCKS)("the window bar's segments in %s", (_block, tokens) => {
+  it.each(["1", "2", "other", "neutral", "up", "down"])("slot %s is at least 3:1 on the card", (slot) => {
+    const colour = tokens[slotToken(slot)];
+    expect(colour, `${slotToken(slot)} is a colour in this block`).toMatch(/^#[0-9a-f]{6}$/);
+    expect(contrast(rgb(colour!), rgb(tokens["--surface"]!))).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("the slots the window bar can use", () => {
+  it("are 1, 2, other, neutral, up and down: in light, 3, 4 and 5 are below 3:1 on the card, which is why types.ts leaves them out", () => {
+    for (const slot of ["3", "4", "5"]) expect(contrast(rgb(light[slotToken(slot)]!), rgb(light["--surface"]!)), `slot ${slot}`).toBeLessThan(3);
   });
 });

@@ -1,0 +1,11 @@
+{
+  "close_time": "2026-10-29T03:50:41Z",
+  "count": 0,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 102145584
+  },
+  "delegations": [],
+  "ledger_index": 107972102,
+  "result": "success"
+}

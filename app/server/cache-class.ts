@@ -62,6 +62,14 @@ export const HOME_CALL_TTL_SECONDS = 2;
 export const PERIOD_CALL_TTL_SECONDS = 300;
 
 /**
+ * How long a page of class `immutable` that shows names (a transaction, a closed ledger) is kept at the edge while `NAMES` is on (display names spec 2.2): an hour, not a
+ * year, so that a new name or label shows within about an hour. The loader asks for it as `cached(page, "immutable", net.features.names ? { ttl: NAMED_PAGE_TTL_SECONDS } : {})`;
+ * with the switch off a page keeps its year. The calls under the page keep their own classes (`accountNames` is `minute`). The worst case for a new label to show on such a
+ * page is this hour, then the names call's minute, then the data API's minute.
+ */
+export const NAMED_PAGE_TTL_SECONDS = 3600;
+
+/**
  * How long the validators pages keep the calls to D1 (`feat/explorer-data`) in the subrequest cache (validators spec 2.1). The loaders ask for them as
  * `{ ttl }`, so each has a cache entry of its own (the key says `[kept N s]`), and the class is the call's own.
  *

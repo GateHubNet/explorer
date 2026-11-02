@@ -1,5 +1,9 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { allTxs, loadManifest, loadTx, type FixtureSet } from "../../../test/support/ledgers";
+import { objectCase, type ObjectCase } from "../../../test/support/object-cases";
+import type { TxObject } from "../../server/api-types";
+import { permissionChip } from "../permissions";
 import type { Native, TxJson, TxMeta } from "../parse/types";
 import { formatCurrency } from "../format";
 import { resultText } from "../results";
@@ -9,34 +13,42 @@ import type { Description, Handler, Segment } from "./types";
 
 const nativeOf = (set: FixtureSet): Native => (set.startsWith("xahau") ? "XAH" : "XRP");
 
-/** A sentence as text: an account is its address, an amount `'<value> <currency>'` (raw), a pool its address. */
+/** A sentence as text: an account is its address, an amount `'<value> <currency>'` (raw), a pool its address, a permission its name in brackets, an object its words. */
 function textOf(segments: Segment[]): string {
   return segments
-    .map((s) => {
+    .map((s): string => {
       switch (s.t) {
         case "text":
         case "account":
         case "pool":
+        case "nft":
+        case "object":
           return s.v;
         case "amount":
           return `${s.value} ${s.currency}`;
+        case "permission":
+          return `[${s.name}]`;
       }
     })
     .join("");
 }
 
-/** A sentence as a reader sees it: a pool is its pair, an amount its value and the currency as shown. */
+/** A sentence as a reader sees it: a pool is its pair, an amount its value and the currency as shown, a permission its name, an object its words. */
 function readOf(segments: Segment[]): string {
   return segments
-    .map((s) => {
+    .map((s): string => {
       switch (s.t) {
         case "text":
         case "account":
+        case "nft":
+        case "object":
           return s.v;
         case "pool":
           return s.pair;
         case "amount":
           return `${s.value} ${formatCurrency(s.currency)}`;
+        case "permission":
+          return s.name;
       }
     })
     .join("");
@@ -73,6 +85,9 @@ function synth(type: string, fields: Record<string, unknown> = {}): TxJson {
 
 const account = (v: string): Segment => ({ t: "account", v });
 const text = (v: string): Segment => ({ t: "text", v });
+const nft = (v: string): Segment => ({ t: "nft", v });
+/** The hash of a case of the NFT ledgers D3 recorded (`xrpl-nft`, `xahau-nft`), by its manifest name. */
+const nftCase = (set: "xrpl-nft" | "xahau-nft", name: string): string => loadManifest(set).cases[name].hash;
 
 describe("describe: Payment", () => {
   const NATIVE = "38D85B89F3CB0E036084946F1E38677BE418B2E13255209CB31AD3B5B6F8F6F2";
@@ -603,8 +618,9 @@ describe("describe: escrows", () => {
       expect(d.title).toBe("Escrow");
     });
 
-    it("lists the amount, the destination, when it can be cancelled and the condition", () => {
+    it("lists the escrow it made, the amount, the destination, when it can be cancelled and the condition", () => {
       expect(rows(run("xrpl-extra", CONDITIONAL))).toStrictEqual([
+        ["Escrow", "7B2D6D\u2026957D"],
         ["Amount", "10000000 XRP"],
         ["Destination", "rMLNvZR9dascY5jtCfCv3whAp8HdUSZAQ"],
         ["Cancel after", "2026-10-31 16:00:00 UTC"],
@@ -646,6 +662,28 @@ describe("describe: escrows", () => {
     });
   });
 
+  describe("an MPT's amount", () => {
+    const ISSUANCE = "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8";
+    const AMOUNT = { mpt_issuance_id: ISSUANCE, value: "2500000" };
+    const WORDS = "2,500,000 units of MPT 0000012A…";
+
+    it("is in the words of `MptAmount` in an EscrowCreate's sentence and its Amount detail, never raw JSON", () => {
+      const d = say(synth("EscrowCreate", { Amount: AMOUNT, Destination: B, FinishAfter: 845387999 }), SUCCESS);
+      expect(textOf(d.sentence)).toBe(`${A} locked ${WORDS} for ${B}, release after 2026-10-15 13:59:59 UTC.`);
+      const amount = d.details.find((row) => row.label === "Amount")!;
+      expect(amount.value).toStrictEqual([text(WORDS)]);
+      expect(textOf(d.sentence)).not.toContain("{");
+      expect(textOf(amount.value)).not.toContain("{");
+    });
+
+    it("is in the same words in a type's own sentence and in a field of a type nothing here describes", () => {
+      const payment = say(synth("Payment", { Amount: AMOUNT, Destination: B }), SUCCESS);
+      expect(textOf(payment.sentence)).toContain(WORDS);
+      expect(textOf(payment.sentence)).not.toContain("{");
+      expect(say(synth("SomethingNew", { Amount: AMOUNT }), SUCCESS).details.find((row) => row.label === "Amount")!.value).toStrictEqual([text(WORDS)]);
+    });
+  });
+
   describe("EscrowFinish", () => {
     it("says which escrow of which owner was released", () => {
       const d = run("xrpl", FINISH);
@@ -653,7 +691,7 @@ describe("describe: escrows", () => {
         "rDjzmUuSPJp9Evb2C7Ea8D2eTYyA5eApFP released escrow 57978925 of r3pzUULRxwRF1m5DjBWMk6FMEMwViRMCN5.",
       );
       expect(d.title).toBe("Escrow release");
-      expect(d.sentence[2]).toStrictEqual(account("r3pzUULRxwRF1m5DjBWMk6FMEMwViRMCN5"));
+      expect(d.sentence.slice(3)).toStrictEqual([text(" of "), account("r3pzUULRxwRF1m5DjBWMk6FMEMwViRMCN5"), text(".")]);
     });
 
     it("lists the owner and the sequence of the escrow", () => {
@@ -842,8 +880,9 @@ describe("describe: checks", () => {
     expect(d.sentence[2]).toStrictEqual(account("rNT1FNDEgQdXRrMVgiSxpgHFubMfkqoXap"));
   });
 
-  it("lists the destination, the send max, the expiry, the invoice and the source tag", () => {
+  it("lists the check it wrote, the destination, the send max, the expiry, the invoice and the source tag", () => {
     expect(rows(run("xrpl-amm", "CCDBCADF2DE0EF5E85A3332C4CADE9A0C28F3B5E7220C4890E27D196415D0326"))).toStrictEqual([
+      ["Check", "60FCB1\u20261A42"],
       ["Destination", "rBi1QrVjwaNofisZAQnovoXdHkS73FG1tJ"],
       ["Send max", "1 524C555344000000000000000000000000000000"],
       ["Expires", "2026-10-16 17:49:51 UTC"],
@@ -888,15 +927,173 @@ describe("describe: checks", () => {
   });
 });
 
+// The links into the ledger object pages (ledger object pages spec 7): an escrow, a check or a payment channel a transaction names is an object segment, which the page links to the object's page
+// while LEDGER_OBJECTS is on, by the form of its ID the transaction gives. A created one is the detail "Escrow", "Check" or "Channel", the node's ID shortened; an escrow released or cancelled is
+// the node its metadata deleted, whose Account is its owner (on Xahau a transaction may name it by its EscrowID, and its Owner field is then the escrow's destination: C21), else its EscrowID,
+// else, for one that failed, its owner and sequence; a check is its CheckID, a channel its Channel. The recorded objects sets (D5's) have one of each type, and Xahau's escrow named by its ID.
+describe("describe: the objects of the escrow, check and channel types", () => {
+  type Ref = { id: string } | { owner: string; sequence: number };
+  const object = (kind: "escrow" | "check" | "payment-channel", ref: Ref, v: string): Segment => ({ t: "object", kind, ref, v });
+  const short = (id: string) => `${id.slice(0, 6)}\u2026${id.slice(-4)}`;
+
+  const ESCROW_OWNER = "r3pzUULRxwRF1m5DjBWMk6FMEMwViRMCN5";
+  const CREATED_ESCROW = "B95064B1A92F02EE009E6BDFB369CF476FB925BB8615456970E38774034A5D30";
+  const FINISHED = "8993DA09444641A6BDA272A292157A0E8AF79F040AA4E551C48257F493228455";
+  const XAHAU_ESCROW = "10C5F525E3D07CAC9CD2BF3F53367653504B7D8A54451E311F5B38E70442457F";
+  const CANCELLED = "E81C0A083ACEFCF624FCFF28725A52760DFC33FB979EF9215311EAB12603C6DF";
+  const CREATED_CHECK = "DA6BE1644276D17524D4C5645D322D4A0249B444C0A3C320EA941597243F30EA";
+  const CASHED = "F53F1F3FB5630BEAEEA41F42AA110DF4068EBD227EC6C03BDED04DED76111B82";
+  const CANCELLED_CHECK = "2C0D06B6A0D7FC898B4761E20220ECBC68515725AECC982BA9238B3BBA735341";
+  const CREATED_CHANNEL = "416E3F2B081C7ABBA0774A8AEE81B5577CBF707A1D1D5B26F55DC15201EC35BA";
+  const FUNDED = "494E75E70AAFD8E655C4EBEA9541991367C038EC2251BEB4ABEBAC2AED8B0B7F";
+  const CLAIMED = "E22CCE8FA636C8BDF1C3C4AA17FD604B8FDE268E4F6BF9022B5336536F5B69EA";
+
+  /** The sentence's object and what follows it of an escrow (" of {owner}"), none for a created one; and the one detail that holds an object, if any. */
+  type Want = { sentence: Segment[]; detail?: [label: string, value: Segment[]] };
+  const NINE_TYPES: ReadonlyArray<[name: string, set: FixtureSet, hash: string, want: Want]> = [
+    ["EscrowCreate, by the created node", "xrpl-objects", "BF93E9B72AE372BCEB27781CA58C4ABE7E51EE9F5D254D02B83C92EC1A22AE53", { sentence: [], detail: ["Escrow", [object("escrow", { id: CREATED_ESCROW }, short(CREATED_ESCROW))]] }],
+    ["EscrowFinish, by the deleted node", "xrpl-objects", "92EC1EA8B38B7242F07591AB4BF1AAB5E6B2E3015CE6E15AAAADAC05E6B74046", { sentence: [object("escrow", { id: FINISHED }, "escrow 57978925"), text(" of "), account(ESCROW_OWNER)] }],
+    [
+      "EscrowFinish on Xahau (ledger 10090323), by its EscrowID: the deleted node's Account is the owner, not the Owner field",
+      "xahau-objects",
+      "D1B7A0AD6C6DA3551F97F1C63E4035DABC7C58AE21F9F758090C588B824973BA",
+      { sentence: [object("escrow", { id: XAHAU_ESCROW }, "an escrow"), text(" of "), account("rD74dUPRFNfgnY2NzrxxYRXN4BrfGSN6Mv")] },
+    ],
+    ["EscrowFinish that failed, by the owner and sequence", "xrpl", "2822F9AB8EE2094C25A5881D3BEFDE660AE8DA5CE927B7E753C846D45C3B418C", { sentence: [object("escrow", { owner: ESCROW_OWNER, sequence: 57978925 }, "escrow 57978925"), text(" of "), account(ESCROW_OWNER)] }],
+    ["EscrowCancel, by the deleted node", "xrpl-objects", "852853679C20D7128E4201E8F3DC7B7FE894F93A03F7435C9FC7D3980C70C198", { sentence: [object("escrow", { id: CANCELLED }, "escrow 106124446"), text(" of "), account("rwEPtzveRSB2eb7Yp1PPxSPLFyrcp2oa4j")] }],
+    ["CheckCreate, by the created node", "xrpl-objects", "DE0C4334780CE8115BCCB7E41371B85D13D284F82F48EFB98BE8D2F894207E0E", { sentence: [], detail: ["Check", [object("check", { id: CREATED_CHECK }, short(CREATED_CHECK))]] }],
+    ["CheckCash, by its CheckID", "xrpl-objects", "A0EE5458F913A115FC3BA022BDC227FBBCE81236DDF4A6B2BEA06BAEFAA8C1CE", { sentence: [object("check", { id: CASHED }, "a check")], detail: ["Check ID", [object("check", { id: CASHED }, CASHED)]] }],
+    ["CheckCancel, by its CheckID", "xrpl-objects", "BC27613BAFC8E4A3B198A1458E1CF9EC28BDD0E8AFCE02C733C484F9F3979C77", { sentence: [object("check", { id: CANCELLED_CHECK }, "a check")], detail: ["Check ID", [object("check", { id: CANCELLED_CHECK }, CANCELLED_CHECK)]] }],
+    ["PaymentChannelCreate, by the created node", "xrpl-objects", "04BF7DE957E5E2EE8BB67EF00CEB2EFF7A72496FAED3442CA9680E8ECF2EAFB7", { sentence: [], detail: ["Channel", [object("payment-channel", { id: CREATED_CHANNEL }, short(CREATED_CHANNEL))]] }],
+    ["PaymentChannelFund, by its Channel", "xrpl-objects", "0E08BB2ADB8831F0D20DC26CB9AEE0782E82C141725ECB7F465B78CF3D63F6DE", { sentence: [object("payment-channel", { id: FUNDED }, `channel ${short(FUNDED)}`)], detail: ["Channel", [object("payment-channel", { id: FUNDED }, FUNDED)]] }],
+    ["PaymentChannelClaim, by its Channel", "xrpl-objects", "886A9054CD78D4C2F1250999F8D65DB3048F8FC9AFB24523AD755B29797AC790", { sentence: [object("payment-channel", { id: CLAIMED }, `channel ${short(CLAIMED)}`)], detail: ["Channel", [object("payment-channel", { id: CLAIMED }, CLAIMED)]] }],
+  ];
+
+  it.each(NINE_TYPES)("%s: the object segment and detail, by the id form of its metadata", (_name, set, hash, want) => {
+    const d = run(set, hash);
+    const objects = d.sentence.filter((segment) => segment.t === "object");
+    expect(objects).toHaveLength(want.sentence.length === 0 ? 0 : 1);
+    const at = d.sentence.findIndex((segment) => segment.t === "object");
+    expect(at === -1 ? [] : d.sentence.slice(at, at + want.sentence.length)).toStrictEqual(want.sentence);
+    // The one detail that holds an object, if any, holds only it.
+    expect(d.details.filter((row) => row.value.some((segment) => segment.t === "object")).map((row) => [row.label, row.value])).toStrictEqual(want.detail === undefined ? [] : [want.detail]);
+  });
+
+  it("puts a created object's detail first", () => {
+    expect(run("xrpl-objects", "BF93E9B72AE372BCEB27781CA58C4ABE7E51EE9F5D254D02B83C92EC1A22AE53").details[0]!.label).toBe("Escrow");
+    expect(run("xrpl-objects", "DE0C4334780CE8115BCCB7E41371B85D13D284F82F48EFB98BE8D2F894207E0E").details[0]!.label).toBe("Check");
+    expect(run("xrpl-objects", "04BF7DE957E5E2EE8BB67EF00CEB2EFF7A72496FAED3442CA9680E8ECF2EAFB7").details[0]!.label).toBe("Channel");
+  });
+
+  it("names an escrow released by the deleted node first, then by its EscrowID, then by its owner and sequence, and as text when it has none of them", () => {
+    const ID = "AB".repeat(32);
+    const deleted = (index: string, owner: string): TxMeta => ({ ...SUCCESS, AffectedNodes: [{ DeletedNode: { LedgerEntryType: "Escrow", LedgerIndex: index, FinalFields: { Account: owner, Destination: B } } }] });
+    const objectOf = (d: Description) => d.sentence.find((segment) => segment.t === "object");
+
+    // The node, and its Account, whatever the transaction's fields say.
+    const finished = say(synth("EscrowFinish", { Owner: B, OfferSequence: 12, EscrowID: "CD".repeat(32) }), deleted(ID, K));
+    expect(objectOf(finished)).toStrictEqual(object("escrow", { id: ID }, "escrow 12"));
+    expect(textOf(finished.sentence)).toBe(`${A} released escrow 12 of ${K}.`);
+    expect(rows(finished)[0]).toStrictEqual(["Owner", K]);
+    // A failed one has no node: its EscrowID (upper-cased), else its owner and sequence.
+    expect(objectOf(say(synth("EscrowFinish", { Owner: B, EscrowID: ID.toLowerCase() }), FAILED))).toStrictEqual(object("escrow", { id: ID }, "an escrow"));
+    const bySequence = say(synth("EscrowCancel", { Owner: B, OfferSequence: 12 }), FAILED);
+    expect(objectOf(bySequence)).toStrictEqual(object("escrow", { owner: B, sequence: 12 }, "escrow 12"));
+    expect(textOf(bySequence.sentence)).toBe(`${A} tried to cancel escrow 12 of ${B}.${NO_PERMISSION}`);
+    expect(rows(bySequence)).toStrictEqual([
+      ["Owner", B],
+      ["Escrow sequence", "12"],
+    ]);
+    // Neither: the words, and no link.
+    const none = say(synth("EscrowFinish", { Owner: B }), FAILED);
+    expect(objectOf(none)).toBeUndefined();
+    expect(textOf(none.sentence)).toBe(`${A} tried to release an escrow of ${B}.${NO_PERMISSION}`);
+    // An EscrowID that is no ID is none.
+    expect(objectOf(say(synth("EscrowFinish", { Owner: B, EscrowID: "nope" }), FAILED))).toBeUndefined();
+  });
+
+  // A transaction that names the escrow by its ID says nothing of who owns it: on Xahau its Owner field may be the escrow's destination (ledger 10090323: rPicq… is the node's Destination, and
+  // rD74… its Account). Without the node, nothing says who owns it, so neither the sentence nor the details name an owner.
+  it("names no owner for a failed release or cancellation named by its EscrowID, whose metadata deleted no node: the link stays, the words and the Owner detail go", () => {
+    const ID = "AB".repeat(32);
+    const finish = say(synth("EscrowFinish", { Owner: B, EscrowID: ID }), FAILED);
+    expect(finish.sentence.find((segment) => segment.t === "object")).toStrictEqual(object("escrow", { id: ID }, "an escrow"));
+    expect(textOf(finish.sentence)).toBe(`${A} tried to release an escrow.${NO_PERMISSION}`);
+    expect(rows(finish)).toStrictEqual([]);
+    const cancel = say(synth("EscrowCancel", { Owner: B, EscrowID: ID }), FAILED);
+    expect(cancel.sentence.find((segment) => segment.t === "object")).toStrictEqual(object("escrow", { id: ID }, "an escrow"));
+    expect(textOf(cancel.sentence)).toBe(`${A} tried to cancel an escrow.${NO_PERMISSION}`);
+    expect(rows(cancel)).toStrictEqual([]);
+    // With a sequence too: its words, and the detail of the sequence alone.
+    const withSequence = say(synth("EscrowFinish", { Owner: B, EscrowID: ID, OfferSequence: 12 }), FAILED);
+    expect(textOf(withSequence.sentence)).toBe(`${A} tried to release escrow 12.${NO_PERMISSION}`);
+    expect(rows(withSequence)).toStrictEqual([["Escrow sequence", "12"]]);
+    // The recorded Xahau transaction, had it failed: its Owner field, the escrow's destination, is drawn nowhere.
+    const { tx } = loadTx("xahau-objects", "D1B7A0AD6C6DA3551F97F1C63E4035DABC7C58AE21F9F758090C588B824973BA");
+    const recorded = say(tx, FAILED, "XAH");
+    expect(textOf(recorded.sentence)).toBe(`r223rsyz1cfqPbjmiX6oYu1hFgNwCkWZH tried to release an escrow.${NO_PERMISSION}`);
+    expect(rows(recorded)).toStrictEqual([]);
+    expect(JSON.stringify([recorded.sentence, recorded.details])).not.toContain("rPicqzcyoxw22XBrFCMAcFXYU2boeqYjm6");
+    // An EscrowID that is no ID says nothing: the Owner field is all there is.
+    expect(textOf(say(synth("EscrowFinish", { Owner: B, EscrowID: "nope" }), FAILED).sentence)).toBe(`${A} tried to release an escrow of ${B}.${NO_PERMISSION}`);
+  });
+
+  it("links no field that is not an ID: a check's or a channel's words and detail are then as they were", () => {
+    const cash = say(synth("CheckCash", { CheckID: "nope", Amount: "5" }));
+    expect(cash.sentence.some((segment) => segment.t === "object")).toBe(false);
+    expect(rows(cash)[0]).toStrictEqual(["Check ID", "nope"]);
+    const fund = say(synth("PaymentChannelFund", { Channel: "nope", Amount: "5" }));
+    expect(fund.sentence.some((segment) => segment.t === "object")).toBe(false);
+    expect(rows(fund)[0]).toStrictEqual(["Channel", "nope"]);
+    expect(textOf(say(synth("PaymentChannelFund", { Amount: "5" })).sentence)).toBe(`${A} added 0.000005 XRP to a channel.`);
+  });
+
+  it("links and writes a check or a channel named in lower case by its ID in capitals, as the ledger writes it", () => {
+    const id = "ab".repeat(32);
+    const cancel = say(synth("CheckCancel", { CheckID: id }));
+    expect(cancel.details[0]!.value).toStrictEqual([object("check", { id: id.toUpperCase() }, id.toUpperCase())]);
+    const claim = say(synth("PaymentChannelClaim", { Channel: id, Flags: 0x20000 }));
+    expect(claim.sentence.find((segment) => segment.t === "object")).toStrictEqual(object("payment-channel", { id: id.toUpperCase() }, `channel ${short(id.toUpperCase())}`));
+  });
+});
+
 describe("describe: NFTs", () => {
   const MINT = "7D16D6C749CAB260C906BEC2D9CF9B37F7D1D36F26421873CF838C9BCDF056AD";
+  /** The NFT of MINT: the id that the page of its minter gained (a mint of the xrpl set, whose metadata tells it). */
+  const MINTED = "00081388AF09C1D4B4D1E8031467F3508DFFADABEA73255FA9ECC9070655E758";
   const NFT = "00081388EF7C422EF52CEB969960BEF4144D7BC3F862C467C1B9D5C2059EB12B";
 
   describe("NFTokenMint", () => {
     it("says an NFT was minted, with its taxon and its transfer fee", () => {
       const d = run("xrpl", MINT);
-      expect(textOf(d.sentence)).toBe("rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV minted an NFT, taxon 500, transfer fee 5%.");
+      expect(textOf(d.sentence)).toBe(`rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV minted NFT ${MINTED}, taxon 500, transfer fee 5%.`);
       expect(d.title).toBe("NFT mint");
+    });
+
+    it("names the NFT it minted as an nft segment, in the sentence and in the first of the details", () => {
+      const d = run("xrpl", MINT);
+      expect(d.sentence).toStrictEqual([
+        account("rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV"),
+        text(" minted NFT "),
+        nft(MINTED),
+        text(", taxon 500, transfer fee 5%."),
+      ]);
+      expect(d.details[0]).toStrictEqual({ label: "NFT", value: [nft(MINTED)] });
+      // The minted NFT of a mint with no taxon of its own to say: the sentence is "minted NFT {nft}." and nothing else.
+      const bare = run("xrpl-nft", nftCase("xrpl-nft", "mint"));
+      expect(bare.sentence.slice(1, 3)).toStrictEqual([text(" minted NFT "), nft("0019000040FEFE9E7C73D4F8A4DC7A7A09DD13B724827F945B2680E5061B0D4A")]);
+      expect(bare.details[0]).toStrictEqual({ label: "NFT", value: [nft("0019000040FEFE9E7C73D4F8A4DC7A7A09DD13B724827F945B2680E5061B0D4A")] });
+    });
+
+    it("names the NFT of a mint that also made a sell offer, and of one that split a page", () => {
+      expect(run("xrpl-nft", nftCase("xrpl-nft", "mint_with_offer")).details[0]).toStrictEqual({
+        label: "NFT",
+        value: [nft("00181F40AF09C1D4B4D1E8031467F3508DFFADABEA73255FBE9F0F960655EBFA")],
+      });
+      expect(run("xrpl-nft", nftCase("xrpl-nft", "page_split_with_mint")).details[0]).toStrictEqual({
+        label: "NFT",
+        value: [nft("00181F40AF09C1D4B4D1E8031467F3508DFFADABEA73255F79ED9C910655EBF7")],
+      });
     });
 
     it("leaves the transfer fee out when there is none", () => {
@@ -915,6 +1112,7 @@ describe("describe: NFTs", () => {
 
     it("lists the fields of the NFT and the sell offer it was minted with", () => {
       expect(rows(run("xrpl", MINT))).toStrictEqual([
+        ["NFT", MINTED],
         ["Taxon", "500"],
         ["Transfer fee", "5%"],
         ["URI", "ipfs://bafybeicij5fr4u7foyub57nzgdsmfdkvkym3oly3ctm2slc5cfqy37qooy/96.json"],
@@ -933,10 +1131,17 @@ describe("describe: NFTs", () => {
       expect(rows(say(tx)).at(-1)).toStrictEqual(["Flags", "tfBurnable, tfOnlyXRP, tfTrustLine, tfTransferable, tfMutable"]);
     });
 
-    it("says a mint that failed was tried", () => {
-      expect(textOf(failedRun("xrpl", MINT).sentence)).toBe(
-        `rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV tried to mint an NFT, taxon 500, transfer fee 5%.${KILLED}`,
-      );
+    it("says a mint that failed was tried, and names no NFT: none was minted", () => {
+      const d = failedRun("xrpl", MINT);
+      expect(textOf(d.sentence)).toBe(`rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV tried to mint an NFT, taxon 500, transfer fee 5%.${KILLED}`);
+      expect(d.sentence.some((segment) => segment.t === "nft")).toBe(false);
+      expect(d.details.map((row) => row.label)).not.toContain("NFT");
+    });
+
+    it("says an NFT when the metadata has no NFT to name (the node's answer is not the index's: a hand-written transaction)", () => {
+      const d = say(synth("NFTokenMint", { NFTokenTaxon: 3 }));
+      expect(textOf(d.sentence)).toBe(`${A} minted an NFT, taxon 3.`);
+      expect(d.details.map((row) => row.label)).toStrictEqual(["Taxon"]);
     });
   });
 
@@ -946,6 +1151,7 @@ describe("describe: NFTs", () => {
       expect(textOf(d.sentence)).toBe("ravC5cZreMZuKEWSrpra5nkWnfzPmrabec burned an NFT.");
       expect(d.title).toBe("NFT burn");
       expect(rows(d)).toStrictEqual([["NFT", "0019000040FEFE9E7C73D4F8A4DC7A7A09DD13B724827F9429941790061B08F5"]]);
+      expect(d.details[0]!.value).toStrictEqual([nft("0019000040FEFE9E7C73D4F8A4DC7A7A09DD13B724827F9429941790061B08F5")]);
     });
 
     it("says whose NFT an issuer burned", () => {
@@ -959,6 +1165,10 @@ describe("describe: NFTs", () => {
 
     it("says a failed burn was tried", () => {
       expect(textOf(say(synth("NFTokenBurn"), FAILED).sentence)).toBe(`${A} tried to burn an NFT.${NO_PERMISSION}`);
+    });
+
+    it("lists no NFT when the transaction has no NFTokenID", () => {
+      expect(rows(say(synth("NFTokenBurn")))).toStrictEqual([]);
     });
   });
 
@@ -986,6 +1196,7 @@ describe("describe: NFTs", () => {
 
     it("lists the NFT, the amount, the owner, the destination and the expiry", () => {
       const d = run("xrpl", "04DB2D79CE01AEE1233D4841FFAD2D433C1182178387700A225FD2EBCFE565C6");
+      expect(d.details[0]).toStrictEqual({ label: "NFT", value: [nft(NFT)] });
       expect(rows(d)).toStrictEqual([
         ["NFT", NFT],
         ["Amount", "14.4 XRP"],
@@ -1028,15 +1239,41 @@ describe("describe: NFTs", () => {
   });
 
   describe("NFTokenAcceptOffer", () => {
+    /** The NFT of the sell offer that 423839F3… accepted: the NFTokenID of the NFTokenOffer its metadata deletes. */
+    const ACCEPTED = "00081388AF09C1D4B4D1E8031467F3508DFFADABEA73255F370449870655E6D8";
+
     it("says an accepted sell offer", () => {
       const d = run("xrpl", "423839F3B288D53874DAECE9AE3ACCE2A23E20E2C16E5DA594F425907D9E2052");
       expect(textOf(d.sentence)).toBe("rfxioGqxazNZt3sbeVSZtziEQBHHJAXXjE accepted a sell offer for an NFT.");
       expect(d.title).toBe("NFT sale");
       expect(rows(d)).toStrictEqual([
+        ["NFT", ACCEPTED],
         ["Sell offer", "597C21F489133DB130FA7390B1E705310FD86A70D5EE52B2BF17C0D9ADDE942E"],
         ["Source tag", "101102979"],
         ["Flags", "tfInnerBatchTxn"],
       ]);
+      expect(d.details[0]!.value).toStrictEqual([nft(ACCEPTED)]);
+    });
+
+    it.each([
+      ["sale_by_sell_offer", "00081388EA968E3C54EE59C8FFBAF0944A3B8AD4797AB032EF22952605AD2A91"],
+      ["sale_by_buy_offer", "000803E88ACAA32313BB87F729EF7DA56BD13C57BE46E3C8B0730F290481ED98"],
+      ["brokered_sale_royalty", "00190BB8DAEF366CB05EE8DCC919EF9A1AA24DD22B3D62C9D848920A0669E96F"],
+      ["sale_issued_currency", "00081388048ECA9BA1C412A6BFFEEA29E21873E92DE6B3F3EA90AAA805041E13"],
+      ["transfer_zero_amount", "0018C350C7DEC772B41E9496AA92D148C4FD64D239AA62985D24F44D05B7F6B4"],
+    ])("names the NFT that the accepted offer was for, in %s", (name, id) => {
+      const d = run("xrpl-nft", nftCase("xrpl-nft", name));
+      expect(d.details[0]).toStrictEqual({ label: "NFT", value: [nft(id)] });
+    });
+
+    it("names the NFT of the expired offer that a failed acceptance deleted (tecEXPIRED)", () => {
+      const d = failedRun("xrpl", "423839F3B288D53874DAECE9AE3ACCE2A23E20E2C16E5DA594F425907D9E2052", "tecEXPIRED");
+      expect(d.details[0]).toStrictEqual({ label: "NFT", value: [nft(ACCEPTED)] });
+    });
+
+    it("lists no NFT when the metadata has no offer it deleted", () => {
+      const tx = synth("NFTokenAcceptOffer", { NFTokenBuyOffer: "CD".repeat(32) });
+      expect(rows(say(tx))).toStrictEqual([["Buy offer", "CD".repeat(32)]]);
     });
 
     it("says an accepted buy offer", () => {
@@ -1499,8 +1736,15 @@ describe("describe: Xahau types", () => {
       const d = run("xahau", "0EE5BE5020FE2A4D26618868DCFCC5E11191C99104614C14558E68FECC425BCA");
       expect(textOf(d.sentence)).toBe("r3qv4CerAysTRhpDN5C3ZDDuNc57HUoxCo minted a URIToken.");
       expect(d.title).toBe("URIToken mint");
-      expect(d.details.map((row) => row.label)).toStrictEqual(["URI", "Flags"]);
+      expect(d.details.map((row) => row.label)).toStrictEqual(["URIToken", "URI", "Flags"]);
       expect(rows(d).at(-1)).toStrictEqual(["Flags", "tfBurnable"]);
+    });
+
+    it("names the URIToken it minted: the index of the entry its metadata creates", () => {
+      const d = run("xahau-nft", nftCase("xahau-nft", "uritoken_mint"));
+      expect(d.details[0]).toStrictEqual({ label: "URIToken", value: [nft("E87FD7E7FDACFA2CE1DC37AD805A7295F84459D4911EAC79160F0D9E34BB6520")] });
+      expect(textOf(d.sentence)).toMatch(/ minted a URIToken\.$/);
+      expect(failedRun("xahau-nft", nftCase("xahau-nft", "uritoken_mint")).details.map((row) => row.label)).not.toContain("URIToken");
     });
 
     it("lists the digest, the destination and the price of a URIToken minted for sale", () => {
@@ -1516,7 +1760,8 @@ describe("describe: Xahau types", () => {
     it("says a URIToken was burned", () => {
       const d = run("xahau", "0BF65D795D3834F11D6BB6D199ABDE3E4CF2855CE47282DF6C9AB4AE927CB09C");
       expect(textOf(d.sentence)).toBe("r4rPJ2bexLhT7tyN8dR14yyymLpikLhLj6 burned a URIToken.");
-      expect(rows(d)).toStrictEqual([["URIToken ID", "885E39BB29B9B650221736CA52D7C99C9516E705A2C55F1DF44A612CA9078A60"]]);
+      expect(rows(d)).toStrictEqual([["URIToken", "885E39BB29B9B650221736CA52D7C99C9516E705A2C55F1DF44A612CA9078A60"]]);
+      expect(d.details[0]!.value).toStrictEqual([nft("885E39BB29B9B650221736CA52D7C99C9516E705A2C55F1DF44A612CA9078A60")]);
     });
 
     it("says a URIToken was bought for the amount", () => {
@@ -1524,26 +1769,29 @@ describe("describe: Xahau types", () => {
       expect(textOf(d.sentence)).toBe("rkZPXKbG6ieWS4EZkYMjeqpNb1ipEdKq3 bought a URIToken for 0.017 EVR.");
       expect(d.title).toBe("URIToken purchase");
       expect(rows(d)).toStrictEqual([
-        ["URIToken ID", "4747D7A9464AB3C6970EBFA7F2062FA9ED2DE4D90BCEFE6AB8723A244C9D210E"],
+        ["URIToken", "4747D7A9464AB3C6970EBFA7F2062FA9ED2DE4D90BCEFE6AB8723A244C9D210E"],
         ["Amount", "0.017 EVR"],
         ["Hook parameters", "1 parameter"],
       ]);
+      expect(d.details[0]!.value).toStrictEqual([nft("4747D7A9464AB3C6970EBFA7F2062FA9ED2DE4D90BCEFE6AB8723A244C9D210E")]);
     });
 
     it("says a URIToken was offered for sale for the amount", () => {
       const d = run("xahau", "DFC5EC12CECC042D57F3D6C7643B962EFD842F33A476AB9986A1A24DF8065701");
       expect(textOf(d.sentence)).toBe("r3qv4CerAysTRhpDN5C3ZDDuNc57HUoxCo offered a URIToken for sale for 0.00001 EVR.");
       expect(d.title).toBe("URIToken sell offer");
+      expect(d.details[0]).toStrictEqual({ label: "URIToken", value: [nft(TOKEN)] });
     });
 
     it("says to whom a URIToken was offered when the offer names a buyer", () => {
       const tx = synth("URITokenCreateSellOffer", { URITokenID: TOKEN, Amount: { ...EVR, value: "3" }, Destination: B });
       expect(textOf(xah(tx).sentence)).toBe(`${A} offered a URIToken for sale to ${B} for 3 EVR.`);
       expect(rows(xah(tx))).toStrictEqual([
-        ["URIToken ID", TOKEN],
+        ["URIToken", TOKEN],
         ["Amount", "3 EVR"],
         ["Destination", B],
       ]);
+      expect(xah(tx).details[0]).toStrictEqual({ label: "URIToken", value: [nft(TOKEN)] });
     });
 
     // Neither URITokenCancelSellOffer nor Import was found in the ledgers recorded for these tests (see
@@ -1552,7 +1800,8 @@ describe("describe: Xahau types", () => {
       const d = xah(synth("URITokenCancelSellOffer", { URITokenID: TOKEN }));
       expect(textOf(d.sentence)).toBe(`${A} cancelled the sale of a URIToken.`);
       expect(d.title).toBe("URIToken sell offer cancellation");
-      expect(rows(d)).toStrictEqual([["URIToken ID", TOKEN]]);
+      expect(rows(d)).toStrictEqual([["URIToken", TOKEN]]);
+      expect(d.details[0]!.value).toStrictEqual([nft(TOKEN)]);
       expect(textOf(xah(synth("URITokenCancelSellOffer", { URITokenID: TOKEN }), FAILED).sentence)).toBe(
         `${A} tried to cancel the sale of a URIToken.${NO_PERMISSION}`,
       );
@@ -1625,6 +1874,26 @@ describe("describe: Xahau types", () => {
         ["URIToken 1", TOKEN],
         ["Inform", K],
       ]);
+      expect(xah(tx).details.find((row) => row.label === "URIToken 1")!.value).toStrictEqual([nft(TOKEN)]);
+    });
+
+    it("lists each URIToken it sends along as an nft segment, numbered", () => {
+      const other = "CD".repeat(32);
+      const tx = synth("Remit", { Destination: B, URITokenIDs: [TOKEN, other] });
+      expect(xah(tx).details.filter((row) => row.label.startsWith("URIToken"))).toStrictEqual([
+        { label: "URIToken 1", value: [nft(TOKEN)] },
+        { label: "URIToken 2", value: [nft(other)] },
+      ]);
+    });
+
+    it("names the URIToken its MintURIToken created, next to the URI it was minted with", () => {
+      const d = run("xahau-nft", nftCase("xahau-nft", "remit_mint"));
+      expect(d.details.map((row) => row.label)).toStrictEqual(["Destination", "Destination tag", "Minted URI", "Minted URIToken"]);
+      expect(d.details.find((row) => row.label === "Minted URIToken")).toStrictEqual({
+        label: "Minted URIToken",
+        value: [nft("099E410166351A8C94AE6D76154CBF301C609282EAE659C1BF08AF46936867BF")],
+      });
+      expect(failedRun("xahau-nft", nftCase("xahau-nft", "remit_mint")).details.map((row) => row.label)).not.toContain("Minted URIToken");
     });
 
     it("says a failed remit was tried", () => {
@@ -1656,6 +1925,200 @@ describe.each<FixtureSet>(["xrpl-extra", "xahau-extra"])("the recorded %s set", 
     }
     const types = new Set(allTxs(set).map(({ tx }) => tx.TransactionType));
     for (const type of manifest.missing as string[]) expect(types.has(type), type).toBe(false);
+  });
+});
+
+// Delegation (ledger object pages spec 6.2). The recorded DelegateSet of the objects set (the one found on the network, `delegate_set_create`) and C9's synthetic transactions of the http
+// fixtures (test/fixtures/PROVENANCE.md): a delegated Payment and a delegated tec (the delegate pays the fee from its own root), the DelegateSet with an empty list that deletes the
+// recorded delegation, and the same DelegateSet failed. The synthetic ones are found by their rules (`objectCase`), never by a table of hashes.
+describe("describe: delegation", () => {
+  /** The transaction of a delegation case of the http fixtures, as the data API serves it. */
+  async function delegated(which: ObjectCase): Promise<TxObject> {
+    const { id } = await objectCase("xrpl", which);
+    return JSON.parse(readFileSync(new URL(`../../../test/fixtures/http/xrpl/data-api/transactions/${id}.json`, import.meta.url), "utf8")).transaction;
+  }
+  const xrp = (object: TxObject): Description => describeTx(object.tx, object.meta, { native: "XRP" });
+  /** A permission as a sentence and a detail carry it: what `permissionChip` says of it, without the title the page makes. */
+  const permission = (value: string | number): Segment => {
+    const { name, kind, words } = permissionChip(value);
+    return { t: "permission", name, kind, words };
+  };
+  const sentBy = (delegate: string, sender: string): Segment[] => [account(delegate), text(" sent it on behalf of "), account(sender), text(".")];
+  const RECORDED = () => loadManifest("xrpl-objects").cases.delegate_set_create.hash as string;
+  const C = "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh";
+
+  it("adds sentBy and delegate to a delegated Payment and keeps Delegate out of its details", async () => {
+    const payment = await delegated("delegated-payment");
+    const [sender, delegate, destination] = [payment.tx.Account, payment.tx.Delegate as string, payment.tx.Destination as string];
+    const d = xrp(payment);
+    expect(textOf(d.sentence)).toBe(`${sender} sent 373 XRP to ${destination}.`);
+    expect(d.delegate).toBe(delegate);
+    expect(d.sentBy).toStrictEqual(sentBy(delegate, sender));
+    expect(d.details.map((row) => row.label)).not.toContain("Delegate");
+    expect(d.note).toBeUndefined();
+
+    // No type lists the field as a detail: a type without a handler of its own lists every field but the common ones, and `Delegate` is one of them.
+    const unknown = describeTx(synth("FooBar", { Delegate: C, Foo: "bar" }), SUCCESS, { native: "XRP" });
+    expect(unknown.details).toStrictEqual([{ label: "Foo", value: [text("bar")] }]);
+    expect(unknown.sentBy).toStrictEqual(sentBy(C, A));
+    // A transaction the account sent itself has neither.
+    const own = run("xrpl", "38D85B89F3CB0E036084946F1E38677BE418B2E13255209CB31AD3B5B6F8F6F2");
+    expect(own).not.toHaveProperty("delegate");
+    expect(own).not.toHaveProperty("sentBy");
+  });
+
+  it("describes a delegated tec with sentBy and the result's text", async () => {
+    const tec = await delegated("delegated-tec");
+    const [sender, delegate] = [tec.tx.Account, tec.tx.Delegate as string];
+    const d = xrp(tec);
+    expect(d.ok).toBe(false);
+    expect(textOf(d.sentence)).toMatch(new RegExp(`^${sender} tried to send .+\\.$`));
+    expect(d.sentence.at(-1)).toStrictEqual(text(` ${resultText(tec.meta.TransactionResult).text}`));
+    expect(d.delegate).toBe(delegate);
+    expect(d.sentBy).toStrictEqual(sentBy(delegate, sender));
+  });
+
+  it("DelegateSet with permissions: let … send {chips} on its behalf, and the replace note", () => {
+    const d = run("xrpl-objects", RECORDED());
+    const { tx } = loadTx("xrpl-objects", RECORDED());
+    const [sender, delegate] = [tx.Account, tx.Authorize as string];
+    expect(d.title).toBe("Delegation");
+    expect(d.ok).toBe(true);
+    expect(d.sentence).toStrictEqual([
+      account(sender),
+      text(" let "),
+      account(delegate),
+      text(" send "),
+      permission("OfferCreate"),
+      text(" and "),
+      permission("OfferCancel"),
+      text(" on its behalf."),
+    ]);
+    expect(d.note).toStrictEqual([text("This replaces any permissions "), account(sender), text(" had given "), account(delegate), text(" before; it does not add to them.")]);
+    expect(d.details).toStrictEqual([
+      { label: "Delegate", value: [account(delegate)] },
+      { label: "Permissions", value: [permission("OfferCreate"), text(" "), permission("OfferCancel"), text(" · 2 of 10")] },
+    ]);
+    // The account sent it itself: it names no delegate.
+    expect(d.sentBy).toBeUndefined();
+
+    // A transaction type is one kind of chip, a narrower right another, and a number this explorer does not know a third; three or more are a list with commas.
+    const mixed = describeTx(
+      synth("DelegateSet", {
+        Authorize: B,
+        Permissions: ["Payment", "TrustlineAuthorize", 65538, 70001].map((value) => ({ Permission: { PermissionValue: value } })),
+        Flags: 0x40000000,
+      }),
+      SUCCESS,
+      { native: "XRP" },
+    );
+    expect(readOf(mixed.sentence)).toBe(`${A} let ${B} send Payment, TrustlineAuthorize, TrustlineFreeze and Permission 70001 on its behalf.`);
+    expect(mixed.sentence.filter((segment) => segment.t === "permission").map((segment) => (segment as { kind: string }).kind)).toEqual(["transaction", "granular", "granular", "unknown"]);
+    expect(mixed.details.map((row) => [row.label, readOf(row.value)])).toEqual([
+      ["Delegate", B],
+      ["Permissions", "Payment TrustlineAuthorize TrustlineFreeze Permission 70001 · 4 of 10"],
+      ["Flags", "tfInnerBatchTxn"],
+    ]);
+  });
+
+  /**
+   * A recorded transaction as if a delegate had sent it: `Delegate` set, the fee taken out of the sender's root and paid from the delegate's, a root added to the metadata as C9's
+   * synthetic transactions have it. What the sender's balances did but for the fee is as recorded.
+   */
+  function sentByDelegate(set: FixtureSet, hash: string): { tx: TxJson; meta: TxMeta } {
+    const { tx, meta } = loadTx(set, hash);
+    const fee = BigInt(tx.Fee);
+    const nodes = meta.AffectedNodes.map((node) => {
+      const body = "ModifiedNode" in node ? node.ModifiedNode : undefined;
+      if (body?.LedgerEntryType !== "AccountRoot" || body.FinalFields?.Account !== tx.Account) return node;
+      return { ModifiedNode: { ...body, FinalFields: { ...body.FinalFields, Balance: String(BigInt(body.FinalFields.Balance as string) + fee) } } };
+    });
+    const payer = { LedgerEntryType: "AccountRoot", LedgerIndex: "CD".repeat(32), FinalFields: { Account: C, Balance: "100000000" }, PreviousFields: { Balance: String(100000000n + fee) } };
+    return { tx: { ...tx, Delegate: C }, meta: { ...meta, AffectedNodes: [...nodes, { ModifiedNode: payer }] } };
+  }
+
+  it("does not take the fee out of a delegated payment's native spend: the delegate paid it", () => {
+    // SendMax 100 drops, fee 12 drops: sent by the account, its balance fell by 112, and it spent 100. Sent by a delegate, its balance fell by the 100 alone.
+    const hash = "321FF4B8FF29D159DA805961F61EA3A4FDE2D12F31AE34A5FF56568C2C950BDD";
+    const own = run("xrpl", hash);
+    const { tx, meta } = sentByDelegate("xrpl", hash);
+    const delegated = describeTx(tx, meta, { native: "XRP" });
+    const spent = { value: "0.0001", currency: "XRP" };
+    expect(textOf(delegated.sentence)).toBe(textOf(own.sentence));
+    expect(textOf(delegated.sentence)).toMatch(/, spending 0\.0001 XRP\.$/);
+    expect(delegated.details.find((row) => row.label === "Spent")).toStrictEqual({ label: "Spent", value: [{ t: "amount", ...spent }] });
+    expect(delegated.flow![0]).toStrictEqual({ role: "sender", account: tx.Account, label: "Sender", amount: spent });
+  });
+
+  it("does not take the fee out of what a delegated AMM deposit put in of the native currency: the delegate paid it", () => {
+    const hash = "94E38B2BCCA96997BCEC32925AEB289D35EC9FD67977995102D91A7E3DD71FEF";
+    const { tx, meta } = sentByDelegate("xrpl-amm", hash);
+    expect(readOf(describeTx(tx, meta, { native: "XRP" }).sentence)).toBe("rPcANyJoYnZvNP85sJZZzoXiB9Ux2gF3f added 1010 XRP to the XRP/RLUSD pool.");
+    expect(readOf(run("xrpl-amm", hash).sentence)).toBe("rPcANyJoYnZvNP85sJZZzoXiB9Ux2gF3f added 1010 XRP to the XRP/RLUSD pool.");
+  });
+
+  it("DelegateSet with an empty list: removed every permission it had given", async () => {
+    const empty = await delegated("delegate-set-empty");
+    const [sender, delegate] = [empty.tx.Account, empty.tx.Authorize as string];
+    const d = xrp(empty);
+    expect(d.ok).toBe(true);
+    expect(d.title).toBe("Delegation");
+    expect(d.sentence).toStrictEqual([account(sender), text(" removed every permission it had given "), account(delegate), text(".")]);
+    expect(d.note).toBeUndefined();
+    expect(d.details).toStrictEqual([
+      { label: "Delegate", value: [account(delegate)] },
+      { label: "Permissions", value: [text("0 of 10")] },
+    ]);
+  });
+
+  it("keeps a permission it cannot read as an unknown chip, and counts it: only a list with no entry removes every permission", () => {
+    const unreadable: Segment = { t: "permission", name: "Unreadable permission", kind: "unknown", words: "An entry of the list this explorer cannot read" };
+    const d = describeTx(synth("DelegateSet", { Authorize: B, Permissions: [{ Permission: {} }, { NotAPermission: 1 }, "Payment"] }), SUCCESS, { native: "XRP" });
+    expect(d.sentence).toStrictEqual([
+      account(A),
+      text(" let "),
+      account(B),
+      text(" send "),
+      unreadable,
+      text(", "),
+      unreadable,
+      text(" and "),
+      unreadable,
+      text(" on its behalf."),
+    ]);
+    expect(d.details[1]).toStrictEqual({ label: "Permissions", value: [unreadable, text(" "), unreadable, text(" "), unreadable, text(" · 3 of 10")] });
+    expect(d.note).toBeDefined();
+    // One readable among them is read.
+    const mixed = describeTx(synth("DelegateSet", { Authorize: B, Permissions: [{ Permission: { PermissionValue: "Payment" } }, { Permission: { PermissionValue: null } }] }), SUCCESS, {
+      native: "XRP",
+    });
+    expect(readOf(mixed.sentence)).toBe(`${A} let ${B} send Payment and Unreadable permission on its behalf.`);
+  });
+
+  it("a failed DelegateSet: tried to let …", async () => {
+    const failed = await delegated("delegate-set-failed");
+    const [sender, delegate] = [failed.tx.Account, failed.tx.Authorize as string];
+    const d = xrp(failed);
+    const why = text(` ${resultText(failed.meta.TransactionResult).text}`);
+    expect(d.ok).toBe(false);
+    expect(d.sentence).toStrictEqual([
+      account(sender),
+      text(" tried to let "),
+      account(delegate),
+      text(" send "),
+      permission("OfferCreate"),
+      text(" and "),
+      permission("OfferCancel"),
+      text(" on its behalf."),
+      why,
+    ]);
+    // Nothing was replaced.
+    expect(d.note).toBeUndefined();
+
+    // The empty list's failure: "tried to remove …".
+    const empty = await delegated("delegate-set-empty");
+    const removal = describeTx(empty.tx, { ...empty.meta, TransactionResult: failed.meta.TransactionResult }, { native: "XRP" });
+    expect(removal.sentence).toStrictEqual([account(sender), text(" tried to remove every permission it had given "), account(delegate), text("."), why]);
   });
 });
 
@@ -1850,14 +2313,14 @@ describe("mergeHandlers", () => {
   });
 });
 
-describe.each<FixtureSet>(["xrpl", "xrpl-amm", "xahau", "xrpl-extra", "xahau-extra"])("describe: every recorded transaction of %s", (set) => {
+describe.each<FixtureSet>(["xrpl", "xrpl-amm", "xahau", "xrpl-extra", "xahau-extra", "xrpl-nft", "xahau-nft"])("describe: every recorded transaction of %s", (set) => {
   const BAD = /undefined|NaN|\[object/;
   const covered = new Set<string>(V1_TYPES);
 
   it("never throws, and its sentence and details never say undefined", () => {
     const txs = allTxs(set);
-    // The extra sets are a few ledgers each, and Xahau ledgers are small.
-    expect(txs.length).toBeGreaterThan(set.endsWith("-extra") ? 0 : 100);
+    // The extra and NFT sets are a few ledgers each, and Xahau ledgers are small.
+    expect(txs.length).toBeGreaterThan(set.endsWith("-extra") || set.endsWith("-nft") ? 0 : 100);
     for (const { tx, meta } of txs) {
       const d = describeTx(tx, meta, { native: nativeOf(set) });
       const everything = [textOf(d.sentence), ...d.details.flatMap((detail) => [detail.label, textOf(detail.value)])];

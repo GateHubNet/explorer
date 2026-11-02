@@ -2,7 +2,7 @@
 // block of them). The validators, keys and amendments a test looks at are read from the pages, never written here, so that the suite runs against a
 // real stack as it does against the fixtures; the one exception is the validator whose older validations the fixtures hold (`withHistory`).
 
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 import type { Locator, Page } from "@playwright/test";
 
@@ -14,6 +14,11 @@ import { expect, hydrated, test } from "./support";
 export const VALIDATORS_OFF = featuresOff(process.env).has("VALIDATORS");
 
 export const SKIP_OFF = "VALIDATORS is off in the Worker under test: the off-case is checked in validators.spec.ts";
+
+/** Whether the Worker under test has the validators map and the toml card off (`E2E_FEATURES_OFF` lists `VALIDATORS_MAP`): the tests of the map and the card skip themselves and the off-case runs. */
+export const VALIDATORS_MAP_OFF = featuresOff(process.env).has("VALIDATORS_MAP");
+
+export const SKIP_MAP_OFF = "VALIDATORS_MAP is off in the Worker under test: the off-case is checked in validators.spec.ts";
 
 /**
  * What a test needs of the data and a real stack may not have (an amendment with a majority between votes, an EnableAmendment in the indexed history):
@@ -27,8 +32,8 @@ export function needs(present: boolean, what: string): void {
 /** The rows of a table, without its head. */
 export const rowsOf = (table: Locator) => table.locator('[role="row"]:not(.table__head)');
 
-/** The validators list's table. */
-export const validatorsTable = (page: Page) => page.getByRole("table", { name: "Validators" });
+/** The validators list's table. Exact: a name is matched as a substring otherwise, and "Validators by country" (the countries card's table, which comes first on the page) holds it. */
+export const validatorsTable = (page: Page) => page.getByRole("table", { name: "Validators", exact: true });
 
 /** A validator of the list, as its row says it: the key of its page (the end of the link's `href`), the link's text and the `href`. */
 export interface Listed {
@@ -75,6 +80,38 @@ export async function withHistory(page: Page): Promise<string> {
   expect(keys, "the fixtures hold one validator's older validations").toHaveLength(1);
   return keys[0]!;
 }
+
+/** The fields of a validator's file (D's answer) that the two toml cases are told apart by. */
+interface ValidatorFile {
+  validation_public_key: string;
+  domain?: string;
+  domain_verification?: { status: string };
+  toml?: { server_country?: string; principals?: string[]; currencies?: unknown[] };
+}
+
+/** The first validator file of `net` the fixtures hold (the generated answers of `GET /v2/network/validators/{key}`, which the fixture server serves) that `which` picks: its master key and domain. */
+function fixtureValidatorWhere(net: "xrpl" | "xahau", which: (file: ValidatorFile) => boolean): { key: string; domain: string } | null {
+  const directory = new URL(`../fixtures/http/${net}/data-api/network/validators/`, import.meta.url);
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+    const file = JSON.parse(readFileSync(new URL(entry.name, directory), "utf8")) as ValidatorFile;
+    if (file.domain !== undefined && file.domain_verification?.status === "verified" && which(file)) return { key: file.validation_public_key, domain: file.domain };
+  }
+  return null;
+}
+
+/** The toml case of the long texts (E13 ruling C8): a server in `GS`, a 100-character principal, a 32-character network, a 200-character host. */
+const isLongToml = (file: ValidatorFile): boolean => file.toml?.server_country === "GS";
+
+/**
+ * A verified validator whose toml D8 has read in full (principals and currencies, as the fixtures' `toml-full`): its master key and domain. It skips the long case, which has both as well and
+ * is its own (`tomlLongKey`): the two must not overlap. `null` where there is no fixture to read (a real stack: `needs` says so).
+ */
+export const tomlFullKey = (net: "xrpl" | "xahau") =>
+  LIVE ? null : fixtureValidatorWhere(net, (file) => !isLongToml(file) && file.toml?.principals !== undefined && file.toml.currencies !== undefined);
+
+/** The validator whose toml says everything at the length D8 keeps (`toml-long`: a server in `GS`). */
+export const tomlLongKey = (net: "xrpl" | "xahau") => (LIVE ? null : fixtureValidatorWhere(net, isLongToml));
 
 /** The amendments list's table. */
 export const amendmentsTable = (page: Page) => page.getByRole("table", { name: "Amendments" });

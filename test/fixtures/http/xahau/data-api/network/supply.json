@@ -1,0 +1,51 @@
+{
+  "result": "success",
+  "ledger_index": 26596843,
+  "close_time": "2026-10-17T17:47:11Z",
+  "computed_at": "2026-10-17T17:47:40Z",
+  "currency": "XAH",
+  "total": "613401782.117306",
+  "burned": {
+    "amount": "2318.640227",
+    "coverage": {
+      "from_ledger_index": 1,
+      "complete": true
+    }
+  },
+  "minted": {
+    "amount": "49425551.616207",
+    "rewards": "41203318.512207",
+    "import": "8102233.104",
+    "genesis_mint": "120000",
+    "coverage": {
+      "from_ledger_index": 1,
+      "complete": true
+    }
+  },
+  "escrowed": {
+    "amount": "18406227.318004",
+    "escrows": 2140,
+    "coverage": {
+      "from_ledger_index": 1,
+      "complete": true
+    }
+  },
+  "circulating": {
+    "amount": "594995554.799302",
+    "coverage": {
+      "from_ledger_index": 1,
+      "complete": true
+    }
+  },
+  "reserves": {
+    "amount": "268973.2",
+    "accounts": 186412,
+    "owner_count": 412806,
+    "base": "1",
+    "increment": "0.2",
+    "coverage": {
+      "from_ledger_index": 1,
+      "complete": true
+    }
+  }
+}

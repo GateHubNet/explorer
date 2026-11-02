@@ -22,7 +22,7 @@ export interface UpstreamUrls {
 
 /**
  * The upstream variables of the Worker under test. `E2E_DATA_API_URL` and `E2E_NODE_URL` name a real stack (data-api-new's
- * docker-compose, staging); `{net}` in either stands for each network's id, and one without it is used for both networks. With neither
+ * docker-compose, the sandbox's stack); `{net}` in either stands for each network's id, and one without it is used for both networks. With neither
  * set, the fixture server's four base paths (test/support/fixture-server.ts).
  */
 export function upstreamUrls(env: Record<string, string | undefined>, fixtureUrl: string | undefined): UpstreamUrls {
@@ -69,7 +69,7 @@ export function fixturePort(env: Record<string, string | undefined>): number {
 
 /**
  * The switches the Worker under test has off, from `E2E_FEATURES_OFF`: a comma list of names from `FEATURE_VARS`, trimmed, with the empty
- * ones left out. The suite does not set them (the Worker's own `vars` do); it is told, so that a run against staging or production, where a
+ * ones left out. The suite does not set them (the Worker's own `vars` do); it is told, so that a run against the sandbox or production, where a
  * switch is still off, does not look for what the switch gates. A test that needs a switch on skips itself when it is in the set, and runs
  * its off-case where it has one. A name that is not a switch is an error: a misspelt name would turn nothing off and the run would fail
  * on the page, a long way from the cause.

@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "rowan-ba4f.example",
+    "toml_url": "https://rowan-ba4f.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "r47kUrvGHkHgxLi1KedaHzdUvbR9GTreEe",
+        "desc": "Rowan Ventures"
+      }
+    ]
+  }
+}

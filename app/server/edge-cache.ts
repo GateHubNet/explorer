@@ -134,7 +134,7 @@ export function createDegradedMark(): DegradedMark {
 /**
  * A key the Cache API accepts for any string: hashed, because a node request's key holds its JSON-RPC body and can
  * be long. The host is fixed and never resolved.
- * (Assumption to confirm on staging: the Cache API takes a key whose host is not the zone's own.)
+ * (Assumption to confirm on the sandbox: the Cache API takes a key whose host is not the zone's own.)
  */
 async function subrequestKey(key: string, buildId: string): Promise<Request> {
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(key)));

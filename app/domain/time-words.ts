@@ -40,8 +40,6 @@ export function untilText(atMs: number, nowMs: number, opts: { approx?: boolean 
   return `${tilde}${Math.round(seconds / 86_400)} days`;
 }
 
-/** A list as a sentence does it: `a`, `a and b`, `a, b and c` (no comma before the `and`). */
-export function joinAnd(items: readonly string[]): string {
-  if (items.length <= 1) return items[0] ?? "";
-  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]!}`;
-}
+// A list as a sentence says it lives in join-and.ts, which names.ts imports without the rest of this file; it is exported from here too for those that
+// import it with the dates.
+export { joinAnd } from "./join-and";

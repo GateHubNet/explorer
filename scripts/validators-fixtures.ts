@@ -17,6 +17,8 @@
 //     the list is in D1's order, and every amendment answer starts with the list's envelope (G3). The rounds are voting ledgers (255 mod 256), oldest first; the
 //     majority on XRPL has 30 days of them, the others 3 (the spec's "deployment that has run three days"). An enabled amendment has none: it was enabled before them.
 //   - Times are D1's three forms: instants of receipt `…:ss.SSSZ`, ledger times `…:ssZ` (a ledger closes every 3.9 s on XRPL, 4 s on Xahau, E2's figures), days.
+//   - D8's `toml` (E13), last on a row and on a detail, follows the data API's reference at the commit test/fixtures/PROVENANCE.md names: only a verified validator has one, from
+//     a seeded pool of server countries; `{}` and absent are cases of their own, and the detail adds the facts of the domain's toml to a few (`tomlsOf`).
 // Only integer arithmetic and the four IEEE operations are used on the numbers, BigNumber for the decimals (`score`, `pct`), so every Node writes the same bytes.
 
 import { createHash } from "node:crypto";
@@ -45,6 +47,8 @@ import type {
   ValidatorRow,
   ValidatorsList,
   ValidatorsSummary,
+  ValidatorToml,
+  ValidatorTomlDetail,
   ValidatorValidation,
   ValidatorValidationsPage,
   ValidatorVote,
@@ -169,6 +173,10 @@ interface Profile {
   tenths: number;
   /** The file the domains are checked at. */
   toml: string;
+  /** The countries the servers of the verified validators are drawn from (D8's `server_country`), the first three leading. */
+  servers: string[];
+  /** The list the toml files name as their `unl` (a publisher of the network, as the data API serves them). */
+  tomlUnl: string;
   holdSeconds: number;
   /** The publishers of the UNL, by id (D1 lists them sorted). */
   publishers: Array<{ id: string; sequence: number; version: number; expiresInDays: number }>;
@@ -267,6 +275,8 @@ const PROFILES: Record<NetworkName, Profile> = {
     software: "rippled",
     tenths: 39,
     toml: "xrp-ledger.toml",
+    servers: "US DE NL GB FR CH SG JP CA FI SE IE AU HK KR ES PL NO IN XK".split(" "),
+    tomlUnl: "https://vl.ripple.com",
     holdSeconds: 1_209_600,
     publishers: [
       { id: "unl.xrplf.org", sequence: 2026091001, version: 2, expiresInDays: 150 },
@@ -312,6 +322,8 @@ const PROFILES: Record<NetworkName, Profile> = {
     software: "xahaud",
     tenths: 40,
     toml: "xahau.toml",
+    servers: "NL DE FI SE US GB FR SG JP AU NO EE".split(" "),
+    tomlUnl: "https://vl.xahau.org",
     holdSeconds: 432_000,
     publishers: [{ id: "vl.xahau.org", sequence: 41, version: 1, expiresInDays: 120 }],
     fees: FEES,
@@ -889,6 +901,109 @@ function amendmentsOf(net: NetworkName, profile: Profile, clock: Clock, members:
   return { amendments: amendments.sort((a, b) => compareAmendments(a.row, b.row)), envelope };
 }
 
+// ---- D8's toml -------------------------------------------------------------------------------------------------------
+
+/** `word` repeated and cut to `length` characters. */
+const fill = (word: string, length: number): string => word.repeat(Math.ceil(length / word.length)).slice(0, length);
+
+/**
+ * The toml that says everything at the length D8 keeps (E13 C8, E11's I1: fixtures with short texts never showed a long one painted over a column): a server in
+ * South Georgia and the South Sandwich Islands (a 38-character name), a 100-character principal, a 32-character network, a `unl` host of 200 characters (labels of up
+ * to 63) and a code of 40. Still `*.example`; the currency names no issuer, so no address joins the fixtures.
+ */
+const LONG = {
+  server_country: "GS",
+  network: fill("longnetwork", 32),
+  host: `${["vl", fill("longhost", 63), fill("longhost", 63), fill("longhost", 61)].join(".")}.example`,
+  principal: fill("LongPrincipalName", 100),
+  code: fill("BEEF", 40),
+};
+
+/** The facts of a verified validator's toml: the row's, and the detail's. */
+interface TomlFacts {
+  row: ValidatorToml;
+  detail: ValidatorTomlDetail;
+}
+
+/**
+ * D8's `toml` of every verified validator, which is the only kind that has one (a domain that does not verify, is pending or has none gives nothing). The verified ones
+ * in the list's order, from the seeded stream `toml`:
+ *   - F, the first with accounts: all four fields, and on its detail the facts of the toml store (principals, `modified`, `accounts_listed` above the addresses served,
+ *     currencies with and without an issuer and a 40-hex one, `currencies_listed` above those shown, `fetched` half an hour before the newest ledger);
+ *   - then the others, numbered from 1: no. 1 has none (not read yet), no. 2 has `{}`, no. 3 a country and no `network` (and a principal and `fetched` on its detail),
+ *     no. 4 another network (XRPL's `testnet`, Xahau's ID `21337`), on XRPL no. 5 a server in Kosovo (`XK`), no. 7 the long case; from no. 6 on every 6th gives no
+ *     server country; the rest get drawn values (the first three of the pool leading), and their details carry the row's toml alone.
+ */
+function tomlsOf(net: NetworkName, profile: Profile, clock: Clock, ordered: readonly Member[]): Map<Member, TomlFacts> {
+  const next = mulberry32(seedOf(net, "toml"));
+  const pool = profile.servers;
+  // The first three of the pool weigh 10, 8 and 6 and the others 1: of about 30 draws, those three have most.
+  const weights = pool.map((_, at) => (at < 3 ? 10 - 2 * at : 1));
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  const serverOf = (): string => {
+    let left = below(next, total);
+    for (const [at, weight] of weights.entries()) {
+      if (left < weight) return pool[at]!;
+      left -= weight;
+    }
+    return pool[0]!;
+  };
+  /** Drawn values: the server's country, an owner in it or in another country of the pool, `main` and the network's list. */
+  const drawn = (withoutServer = false): ValidatorToml => {
+    const server = serverOf();
+    return compact({
+      owner_country: next() < 0.7 ? server : pool[below(next, pool.length)]!,
+      server_country: withoutServer ? undefined : server,
+      network: "main",
+      unl: profile.tomlUnl,
+    });
+  };
+  const fetched = (minutesBefore: number): string => instant(clock.close * 1000 - minutesBefore * 60_000 - below(next, 1000));
+
+  const verified = ordered.filter((member) => member.verification?.status === "verified");
+  const fleet = verified.find((member) => member.verification?.accounts !== undefined);
+  const facts = new Map<Member, TomlFacts>();
+
+  if (fleet !== undefined) {
+    const [first] = fleet.verification!.accounts!;
+    const row = drawn();
+    facts.set(fleet, {
+      row,
+      detail: {
+        ...row,
+        principals: ["Mara Lindqvist", "Tomas Okafor"],
+        modified: "2026-10-02T00:00:00Z",
+        accounts_listed: fleet.verification!.accounts!.length + 2,
+        currencies: [{ code: "USD", issuer: first }, { code: "4E50555344000000000000000000000000000000", issuer: first }, { code: "EUR" }],
+        currencies_listed: 5,
+        fetched: instant(clock.close * 1000 - 30 * 60_000),
+      },
+    });
+  }
+
+  for (const [at, member] of verified.filter((each) => each !== fleet).entries()) {
+    const number = at + 1;
+    if (number === 1) continue;
+    if (number === 2) facts.set(member, { row: {}, detail: {} });
+    else if (number === 3) {
+      const row = compact({ ...drawn(), network: undefined });
+      facts.set(member, { row, detail: { ...row, principals: ["North Peak Ops"], fetched: fetched(45) } });
+    } else if (number === 7) {
+      const row: ValidatorToml = { ...drawn(), server_country: LONG.server_country, network: LONG.network, unl: `https://${LONG.host}` };
+      facts.set(member, {
+        row,
+        detail: { ...row, principals: [LONG.principal], currencies: [{ code: LONG.code }], currencies_listed: 1, fetched: fetched(20) },
+      });
+    } else {
+      let row = drawn(number >= 6 && number % 6 === 0);
+      if (number === 4) row = { ...row, network: net === "xrpl" ? "testnet" : "21337" };
+      if (number === 5 && net === "xrpl") row = { ...row, server_country: "XK" };
+      facts.set(member, { row, detail: row });
+    }
+  }
+  return facts;
+}
+
 // ---- The answers -----------------------------------------------------------------------------------------------------
 
 /**
@@ -916,7 +1031,7 @@ export function validatorsFixtures(net: NetworkName, last: LastValidated, ledger
   const nameOf = new Map(amendments.map(({ row }) => [row.id, row.name]));
   const decided = amendments.filter(({ row }) => row.status === "majority" || row.status === "voting" || row.status === "unknown");
   const yesOf = (member: Member): YesEntry[] => (member.record?.yes ?? []).map((id) => compact({ id, name: nameOf.get(id) }));
-  const rowOf = <V>(member: Member, votes: V | undefined): Omit<ValidatorRow, "amendment_votes"> & { amendment_votes?: V } =>
+  const rowOf = <V, T>(member: Member, votes: V | undefined, toml: T | undefined): Omit<ValidatorRow, "amendment_votes" | "toml"> & { amendment_votes?: V; toml?: T } =>
     compact({
       validation_public_key: member.key,
       domain: member.domain,
@@ -938,7 +1053,9 @@ export function validatorsFixtures(net: NetworkName, last: LastValidated, ledger
       amendment_votes: votes,
       first_seen: member.firstSeen === undefined ? undefined : instant(member.firstSeen),
       last_seen: member.lastSeen === undefined ? undefined : instant(member.lastSeen),
+      toml,
     });
+  const tomls = tomlsOf(net, profile, clock, ordered);
 
   // The summary, counted from the rows.
   const next = mulberry32(seedOf(net, "network/validators/summary"));
@@ -996,7 +1113,8 @@ export function validatorsFixtures(net: NetworkName, last: LastValidated, ledger
     result: "success",
     count: ordered.length,
     validators: ordered.map(
-      (member): ValidatorRow => rowOf(member, member.record === undefined ? undefined : { ledger_index: member.record.ledger, yes: yesOf(member) }),
+      (member): ValidatorRow =>
+        rowOf(member, member.record === undefined ? undefined : { ledger_index: member.record.ledger, yes: yesOf(member) }, tomls.get(member)?.row),
     ),
   };
 
@@ -1015,7 +1133,7 @@ export function validatorsFixtures(net: NetworkName, last: LastValidated, ledger
     });
     const detail: ValidatorDetail = {
       // `amendment_votes` named again: it keeps its place among the row's keys.
-      ...rowOf(member, votes),
+      ...rowOf(member, votes, tomls.get(member)?.detail),
       amendment_votes: votes,
       manifest: compact({ sequence: member.manifest.sequence, signing_key: member.signing, signing_keys_seen: member.manifest.signingKeysSeen, domain: member.domain }),
       daily_agreement: member.windows!.daily,

@@ -6,10 +6,15 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { ANALYTICS_VIEW, BUDGETS, checkBundle, FORBIDDEN, formatReport, headersRules, PAGES } from "./bundle-budget";
+import { ANALYTICS_VIEW, BUDGETS, checkBundle, dotsNeedleOf, FORBIDDEN, formatReport, headersRules, MAP_ASSET, PAGES } from "./bundle-budget";
 
 const LOOKUP = BUDGETS.lookup;
 const DASHBOARD = BUDGETS.dashboard;
+
+/** The first 32 characters of the dots' path in the fake builds' `world-dots` asset: what a script of the build may not hold (`dotsNeedleOf`). */
+const NEEDLE = "M1.0 1.0h0M2.0 2.0h0M3.0 3.0h0M4";
+const MAP_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 378"><path id="dots" d="${NEEDLE}.0 4.0h0M5.0 5.0h0" fill="none" stroke="currentColor"/></svg>`;
+const MAP_ASSET_PATH = "assets/world-dots-abc123.svg";
 
 // A fake client build: the files `react-router build` writes to build/client, with a manifest whose routes are the pages' and
 // whose chunks are bytes of no pattern (they do not compress, so a chunk's gzipped size is known to within a few bytes).
@@ -62,6 +67,8 @@ function fakeBuild(options: {
   headers?: string | null;
   extra?: Record<string, string | Buffer>;
   manifest?: boolean;
+  /** The map's asset, `assets/world-dots-abc123.svg`, which holds the needle (default: true). `false` leaves it out. */
+  map?: boolean;
   /**
    * The chunk every page loads (scripts/shell-chunks.ts): the root route and the entry import `shell`. `"vendor"` is the layout before R18:
    * the root route imports `vendor` and `shell`, the entry `vendor`.
@@ -106,6 +113,7 @@ function fakeBuild(options: {
     sizes.set(MANIFEST, gz(text));
   }
   if (options.headers !== null) writeFileSync(join(dir, "_headers"), options.headers ?? IMMUTABLE_HEADERS);
+  if (options.map !== false) writeFileSync(join(dir, MAP_ASSET_PATH), MAP_SVG);
   for (const [path, content] of Object.entries(options.extra ?? {})) {
     mkdirSync(dirname(join(dir, path)), { recursive: true });
     writeFileSync(join(dir, path), content);
@@ -133,6 +141,30 @@ const ROUTES: FakeRoute[] = [
   { id: "routes/net.amm._index", parentId: "routes/net", module: "amm.js", imports: ["shared.js", "table.js", "charts.js"] },
   // The AMM pool page draws five charts, its tables and the slot's meter.
   { id: "routes/net.amm.$pool", parentId: "routes/net", module: "amm-pool.js", imports: ["shared.js", "table.js", "charts.js"] },
+  // The NFT list took the dashboard budget with E9 (its account links read names: README "The client bundle check"); the older sales are a lookup page, like the markets page.
+  // All three no heavier than home's here (the 150,000 B pin test above sizes the home page to the limit and needs it to be the heaviest lookup page of the build; the list's
+  // charts are in what the real build measures).
+  { id: "routes/net.nfts._index", parentId: "routes/net", module: "nfts.js", imports: ["shared.js", "table.js"] },
+  { id: "routes/net.nfts.sales", parentId: "routes/net", module: "nft-sales.js", imports: ["shared.js", "table.js"] },
+  // A collection's page draws a chart and its tables, and took the dashboard budget with E9, as the list did: the same.
+  { id: "routes/net.nfts.$issuer.$taxon", parentId: "routes/net", module: "nft-collection.js", imports: ["shared.js", "table.js"] },
+  // An NFT's page draws no chart, only a header, lists and two tables: a lookup page too, the same.
+  { id: "routes/net.nft.$id", parentId: "routes/net", module: "nft.js", imports: ["shared.js", "table.js"] },
+  // An escrow's page draws the chart kit's window bar and no table; no heavier than home's here all the same (the 150,000 B pin test above needs home to be the heaviest lookup
+  // page of the build; the kit is in what the real build measures).
+  { id: "routes/net.escrows.$id", parentId: "routes/net", module: "escrow.js", imports: ["shared.js"] },
+  // A check's page draws the flow of three boxes and no table: a lookup page too, no heavier than home's here for the same reason. A channel's draws the chart kit's share bar and no table, and has
+  // taken the dashboard budget since E12 (README, "The figures of E12"): no heavier than home's here all the same, so that the 150,000 B pin test below keeps home the heaviest page it sizes.
+  { id: "routes/net.checks.$id", parentId: "routes/net", module: "check.js", imports: ["shared.js"] },
+  { id: "routes/net.payment-channels.$id", parentId: "routes/net", module: "payment-channel.js", imports: ["shared.js"] },
+  // The token list draws a table of issuer links, a form and a pager, and no chart: a lookup page, no heavier than home's here for the same reason.
+  { id: "routes/net.tokens", parentId: "routes/net", module: "tokens.js", imports: ["shared.js", "table.js"] },
+  // A token's page draws a header, tiles, the meter and its tables, and no chart: a lookup page too, the same.
+  { id: "routes/net.token.$token", parentId: "routes/net", module: "token.js", imports: ["shared.js", "table.js"] },
+  // A token's holders: a header and one table with the meter, and no chart: a lookup page too, the same.
+  { id: "routes/net.token.$token.holders", parentId: "routes/net", module: "token-holders.js", imports: ["shared.js", "table.js"] },
+  // The supply page draws the chart kit's share bar, two cards of columns and its tiles, with a table in each card: a dashboard (decision 14 of the supply spec).
+  { id: "routes/net.supply", parentId: "routes/net", module: "supply.js", imports: ["shared.js", "table.js", "charts.js"] },
   // Not one of the pages: its chunk is loaded only when somebody goes there.
   { id: "routes/net.search", parentId: "routes/net", module: "search.js", imports: ["shared.js", "search-page.js"] },
 ];
@@ -158,6 +190,17 @@ const CHUNKS: FakeChunk[] = [
   { name: "amendment.js", size: 1900 },
   { name: "amm.js", size: 1200 },
   { name: "amm-pool.js", size: 2100 },
+  { name: "nfts.js", size: 1300 },
+  { name: "nft-sales.js", size: 900 },
+  { name: "nft-collection.js", size: 1400 },
+  { name: "nft.js", size: 1200 },
+  { name: "escrow.js", size: 1100 },
+  { name: "check.js", size: 1100 },
+  { name: "payment-channel.js", size: 1200 },
+  { name: "tokens.js", size: 1500 },
+  { name: "token.js", size: 1700 },
+  { name: "token-holders.js", size: 1400 },
+  { name: "supply.js", size: 1800 },
   { name: "charts.js", size: 6000 },
   { name: "qr-picture.js", size: 700 },
   { name: "search.js", size: 500 },
@@ -165,7 +208,7 @@ const CHUNKS: FakeChunk[] = [
 ];
 
 describe("the pages", () => {
-  it("are home, ledger, transaction, account, network, markets, market-pair, validators, validator, amendments, amendment, amm and amm-pool, by their routes, each with the name of its budget", () => {
+  it("are home, ledger, transaction, account, network, markets, market-pair, validators, validator, amendments, amendment, amm, amm-pool, nfts, nft-sales, nft-collection, nft, escrow, check, payment-channel, tokens, token, token-holders and supply, by their routes, each with the name of its budget", () => {
     expect(PAGES).toEqual([
       { name: "home", route: "routes/net._index", budget: "lookup" },
       { name: "ledger", route: "routes/net.ledger.$id", budget: "lookup" },
@@ -180,6 +223,17 @@ describe("the pages", () => {
       { name: "amendment", route: "routes/net.amendments.$name", budget: "dashboard" },
       { name: "amm", route: "routes/net.amm._index", budget: "dashboard" },
       { name: "amm-pool", route: "routes/net.amm.$pool", budget: "dashboard" },
+      { name: "nfts", route: "routes/net.nfts._index", budget: "dashboard" },
+      { name: "nft-sales", route: "routes/net.nfts.sales", budget: "lookup" },
+      { name: "nft-collection", route: "routes/net.nfts.$issuer.$taxon", budget: "dashboard" },
+      { name: "nft", route: "routes/net.nft.$id", budget: "lookup" },
+      { name: "escrow", route: "routes/net.escrows.$id", budget: "lookup" },
+      { name: "check", route: "routes/net.checks.$id", budget: "lookup" },
+      { name: "payment-channel", route: "routes/net.payment-channels.$id", budget: "dashboard" },
+      { name: "tokens", route: "routes/net.tokens", budget: "lookup" },
+      { name: "token", route: "routes/net.token.$token", budget: "lookup" },
+      { name: "token-holders", route: "routes/net.token.$token.holders", budget: "lookup" },
+      { name: "supply", route: "routes/net.supply", budget: "dashboard" },
     ]);
   });
 
@@ -199,7 +253,7 @@ describe("checkBundle: what a page loads", () => {
     // The route manifest is one of the files every page loads, and counts like the others.
     const common = ["entry.js", "root.js", "net.js", "shared.js", "shell.js", MANIFEST];
     const byPage = Object.fromEntries(report.pages.map((page) => [page.name, page]));
-    expect(Object.keys(byPage)).toEqual(["home", "ledger", "transaction", "account", "network", "markets", "market-pair", "validators", "validator", "amendments", "amendment", "amm", "amm-pool"]);
+    expect(Object.keys(byPage)).toEqual(["home", "ledger", "transaction", "account", "network", "markets", "market-pair", "validators", "validator", "amendments", "amendment", "amm", "amm-pool", "nfts", "nft-sales", "nft-collection", "nft", "escrow", "check", "payment-channel", "tokens", "token", "token-holders", "supply"]);
     expect(byPage.home!.bytes).toBe(sum([...common, "table.js", "home.js"]));
     expect(byPage.ledger!.bytes).toBe(sum([...common, "table.js", "ledger.js"]));
     expect(byPage.transaction!.bytes).toBe(sum([...common, "tx.js"]));
@@ -213,6 +267,17 @@ describe("checkBundle: what a page loads", () => {
     expect(byPage.amendment!.bytes).toBe(sum([...common, "table.js", "amendment.js"]));
     expect(byPage.amm!.bytes).toBe(sum([...common, "table.js", "charts.js", "amm.js"]));
     expect(byPage["amm-pool"]!.bytes).toBe(sum([...common, "table.js", "charts.js", "amm-pool.js"]));
+    expect(byPage.nfts!.bytes).toBe(sum([...common, "table.js", "nfts.js"]));
+    expect(byPage["nft-sales"]!.bytes).toBe(sum([...common, "table.js", "nft-sales.js"]));
+    expect(byPage["nft-collection"]!.bytes).toBe(sum([...common, "table.js", "nft-collection.js"]));
+    expect(byPage.nft!.bytes).toBe(sum([...common, "table.js", "nft.js"]));
+    expect(byPage.escrow!.bytes).toBe(sum([...common, "escrow.js"]));
+    expect(byPage.check!.bytes).toBe(sum([...common, "check.js"]));
+    expect(byPage["payment-channel"]!.bytes).toBe(sum([...common, "payment-channel.js"]));
+    expect(byPage.tokens!.bytes).toBe(sum([...common, "table.js", "tokens.js"]));
+    expect(byPage.token!.bytes).toBe(sum([...common, "table.js", "token.js"]));
+    expect(byPage["token-holders"]!.bytes).toBe(sum([...common, "table.js", "token-holders.js"]));
+    expect(byPage.supply!.bytes).toBe(sum([...common, "table.js", "charts.js", "supply.js"]));
     // The chunk of a route that is not a page, and the ones only it imports, are in none of the pages.
     expect(report.pages.flatMap((page) => page.files)).not.toContain("search-page.js");
     expect(byPage.home!.files).toEqual(expect.arrayContaining([...common, "table.js", "home.js"]));
@@ -258,10 +323,21 @@ describe("checkBundle: what a page loads", () => {
     expect(table).toMatch(/amendment\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toMatch(/\namm\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toMatch(/\namm-pool\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/\nnfts\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/\nnft-sales\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/\nnft-collection\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/\nnft\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/\nescrow\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/\ncheck\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/\npayment-channel\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/\ntokens\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/\ntoken\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/\ntoken-holders\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/\nsupply\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toContain("budgets: 150.0 KB for the lookup pages, 160.0 KB for the dashboards");
     expect(
-      table.split("\n").filter((line) => /^\s*(home|ledger|transaction|account|network|markets|market-pair|validators|validator|amendments|amendment|amm|amm-pool)\s+\d/.test(line)),
-    ).toHaveLength(13);
+      table.split("\n").filter((line) => /^\s*(home|ledger|transaction|account|network|markets|market-pair|validators|validator|amendments|amendment|amm|amm-pool|nfts|nft-sales|nft-collection|nft|escrow|check|payment-channel|tokens|token|token-holders|supply)\s+\d/.test(line)),
+    ).toHaveLength(24);
     expect(table).toMatch(/\naccount analytics\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
   });
 
@@ -357,8 +433,8 @@ describe("checkBundle: what a page loads", () => {
     });
     const report = checkBundle(dir);
     expect(report.pages.every((page) => page.files.includes("react-dom.js"))).toBe(true);
-    // The thirteen pages, and the analytics view, which is the account page's files and more.
-    expect(report.problems).toHaveLength(14);
+    // The twenty-four pages, and the analytics view, which is the account page's files and more.
+    expect(report.problems).toHaveLength(25);
   });
 });
 
@@ -519,10 +595,20 @@ describe("checkBundle: what must not be in the build", () => {
     expect(checkBundle(dir).problems).toHaveLength(1);
   });
 
-  it("forbids the renderer and its font, the transaction parser's vocabulary, the binary codec and the QR encoder's tables", () => {
+  it("forbids the renderer and its font, the transaction parser's vocabulary, the binary codec, the QR encoder's tables and the country table", () => {
     expect(FORBIDDEN.map((forbidden) => forbidden.label).sort()).toEqual(
-      ["AffectedNodes", "FinalFields", "Geist-Regular.bin", "QR encoder tables", "TransactionType", "resvg", "ripple-binary", "satori", "workers-og", "yoga-wasm"].sort(),
+      ["AffectedNodes", "FinalFields", "Geist-Regular.bin", "QR encoder tables", "TransactionType", "country table", "resvg", "ripple-binary", "satori", "workers-og", "yoga-wasm"].sort(),
     );
+  });
+
+  // The countries' names are in app/server/countries.ts, which the Worker alone imports (the loaders turn a code into a name; a page receives text): a name found in a file of the
+  // build is the table itself in the browser's bytes. The needle is a name that no other text of the app has, and it is found in the table's own source.
+  it("has a country-table needle that finds the table in its own source", () => {
+    const table = FORBIDDEN.find((forbidden) => forbidden.label === "country table")!;
+    const source = readFileSync(new URL("../app/server/countries.ts", import.meta.url), "utf8");
+    expect(table.pattern.test(source)).toBe(true);
+    expect(table.pattern.test('GS:{name:"South Georgia & South Sandwich Islands",x:397.2,y:368.1,order:200}')).toBe(true);
+    expect(table.pattern.test("South Georgia")).toBe(false);
   });
 
   it.each(["assets/yoga.wasm", "assets/resvg-AbC123.wasm", "assets/Geist-Regular.ttf", "assets/Geist-Regular-abc123.bin", "assets/FONT.TTF"])(
@@ -679,5 +765,81 @@ describe("the command", () => {
       expect(result.stdout).toMatch(/home\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
       expect(result.status).toBe(0);
     }, 30_000);
+  });
+});
+
+describe("checkBundle: the map's dots belong in their asset alone", () => {
+  /** The problems of a fake build, looking for the fake builds' needle unless the test says another. */
+  const problemsOf = (build: Parameters<typeof fakeBuild>[0], options: Parameters<typeof checkBundle>[1] = { dotsNeedle: NEEDLE }) => checkBundle(fakeBuild(build).dir, options).problems;
+
+  it("passes a build whose dots are in the asset and nowhere else", () => {
+    expect(problemsOf({ chunks: CHUNKS, routes: ROUTES })).toEqual([]);
+  });
+
+  it("fails a script that holds the dots, and names it", () => {
+    const problems = problemsOf({ chunks: [...CHUNKS, { name: "leak.js", text: `var dots="${NEEDLE}";` }], routes: ROUTES });
+    expect(problems).toEqual(["assets/leak.js holds the world map's dots, which belong in assets/world-dots-*.svg alone"]);
+  });
+
+  it("names every script that holds them, once each, and finds them inside a larger file", () => {
+    const text = (inside: string) => `${"x".repeat(5000)}${inside}${"y".repeat(5000)}`;
+    const problems = problemsOf({
+      chunks: [...CHUNKS, { name: "a.js", text: text(`${NEEDLE}${NEEDLE}`) }, { name: "b.js", text: text(NEEDLE) }],
+      routes: ROUTES,
+    });
+    expect(problems).toEqual([
+      "assets/a.js holds the world map's dots, which belong in assets/world-dots-*.svg alone",
+      "assets/b.js holds the world map's dots, which belong in assets/world-dots-*.svg alone",
+    ]);
+  });
+
+  it("takes the dots in the svg itself, and in a stylesheet", () => {
+    // The asset is the dots' place; a stylesheet is not a script (a `url()` of the asset is its business).
+    expect(problemsOf({ chunks: CHUNKS, routes: ROUTES, extra: { "assets/styles.css": `.map{--dots:"${NEEDLE}"}` } })).toEqual([]);
+  });
+
+  it("fails a build without the map's asset, and one with two", () => {
+    expect(problemsOf({ chunks: CHUNKS, routes: ROUTES, map: false })).toEqual(["the build has 0 assets/world-dots-*.svg files, not one"]);
+    expect(problemsOf({ chunks: CHUNKS, routes: ROUTES, extra: { "assets/world-dots-def456.svg": MAP_SVG } })).toEqual(["the build has 2 assets/world-dots-*.svg files, not one"]);
+  });
+
+  it("counts the files that are named as the build names the asset, and no other", () => {
+    expect(MAP_ASSET.test("assets/world-dots-abc123.svg")).toBe(true);
+    expect(MAP_ASSET.test("assets/world-dots-Dh3x_9aB-.svg")).toBe(true);
+    for (const name of ["assets/world-dots.svg", "assets/world-dots-abc123.svg.map", "assets/other/world-dots-abc123.svg", "world-dots-abc123.svg", "assets/world-dots-abc123.js", "assets/not-world-dots-abc123.svg"]) {
+      expect(MAP_ASSET.test(name), name).toBe(false);
+    }
+    // A file named otherwise is not an asset of the map: the build still has its one.
+    expect(problemsOf({ chunks: CHUNKS, routes: ROUTES, extra: { "assets/world-dots.svg": MAP_SVG } })).toEqual([]);
+  });
+
+  it("does not ask for the asset of a directory that is no build", () => {
+    // Only the problems of an empty directory: no manifest (and no second complaint about the map).
+    const dir = mkdtempSync(join(tmpdir(), "t15b-check-bundle-empty-"));
+    dirs.push(dir);
+    expect(checkBundle(dir, { dotsNeedle: NEEDLE }).problems.join("\n")).not.toMatch(/world-dots/);
+  });
+
+  it("reads the needle from the d attribute", () => {
+    expect(dotsNeedleOf(MAP_SVG)).toBe(NEEDLE);
+    expect(NEEDLE).toHaveLength(32);
+    // The attribute's place among the others does not matter, nor does a comment before the svg (the generated file has one).
+    expect(dotsNeedleOf(`<!-- Generated -->\n<svg><path fill="none" d="${NEEDLE}h0M9.0 9.0h0" id="dots"/></svg>`)).toBe(NEEDLE);
+    // Not the first 32 characters of the file: the d attribute's.
+    expect(dotsNeedleOf(MAP_SVG)).not.toBe(MAP_SVG.slice(0, 32));
+    expect(() => dotsNeedleOf("<svg><path id=\"dots\"/></svg>")).toThrow(/d attribute/);
+    expect(() => dotsNeedleOf('<svg><path d="M1 1h0"/></svg>')).toThrow(/32/);
+  });
+
+  it("reads the needle of the committed asset by default, and takes another in its options", () => {
+    const committed = dotsNeedleOf(readFileSync(new URL("../app/ui/map/world-dots.svg", import.meta.url), "utf8"));
+    expect(committed).toHaveLength(32);
+    const leak = (needle: string) => ({ chunks: [...CHUNKS, { name: "leak.js", text: `var dots="${needle}";` }], routes: ROUTES });
+    // With no options the committed file's: a script with its first 32 characters fails, and one with the fake builds' does not.
+    expect(checkBundle(fakeBuild(leak(committed)).dir).problems).toEqual(["assets/leak.js holds the world map's dots, which belong in assets/world-dots-*.svg alone"]);
+    expect(checkBundle(fakeBuild(leak(NEEDLE)).dir).problems).toEqual([]);
+    // With an option it is the option's, and not the committed file's.
+    expect(problemsOf(leak(committed))).toEqual([]);
+    expect(problemsOf(leak(NEEDLE))).toHaveLength(1);
   });
 });

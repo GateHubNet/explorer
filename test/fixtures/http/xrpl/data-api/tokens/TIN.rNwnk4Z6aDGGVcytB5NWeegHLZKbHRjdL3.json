@@ -1,0 +1,30 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 93663334,
+    "complete": false
+  },
+  "ledger_index": 107721455,
+  "close_time": "2026-10-17T17:01:12Z",
+  "token": {
+    "currency": "TIN",
+    "code": "TIN",
+    "issuer": "rNwnk4Z6aDGGVcytB5NWeegHLZKbHRjdL3",
+    "holders": 4,
+    "trust_lines": 6,
+    "supply": "1530.337627",
+    "native_volume": "0",
+    "trades": 0,
+    "listed": false,
+    "issuer_settings": {
+      "transfer_fee": "0",
+      "global_freeze": false,
+      "no_freeze": false,
+      "allow_trust_line_clawback": false,
+      "require_auth": false,
+      "default_ripple": true
+    },
+    "markets": [],
+    "last_ledger": 107721219
+  }
+}

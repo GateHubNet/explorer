@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "elmstead-a2d0.example",
+    "toml_url": "https://elmstead-a2d0.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rBVLCgPt5N1HNhP25uvXva5NhyH8wydBMF",
+        "desc": "Elmstead Treasury"
+      }
+    ]
+  }
+}

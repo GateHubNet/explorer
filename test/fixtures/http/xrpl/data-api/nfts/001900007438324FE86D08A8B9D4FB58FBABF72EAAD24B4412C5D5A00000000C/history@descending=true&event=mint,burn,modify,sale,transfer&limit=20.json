@@ -1,0 +1,12 @@
+{
+  "count": 2,
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 107874617
+  },
+  "events": [
+    {"account":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","event":"modify","event_index":0,"executed_time":"2026-10-25T04:37:10Z","issuer":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","kind":"nftoken","ledger_index":107886001,"nft_id":"001900007438324FE86D08A8B9D4FB58FBABF72EAAD24B4412C5D5A00000000C","serial":12,"taxon":7,"tx_hash":"C5F1452238C148DF071B2CE2BC370C988BFAF360B215268BA8CC5CBF7AB8C545","tx_index":128,"tx_type":"NFTokenModify","uri":"68747470733A2F2F6E66742E6578616D706C652F72426257366964412F31322E6A736F6E3F763D32"},
+    {"account":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","event":"mint","event_index":0,"executed_time":"2026-10-25T02:00:52Z","issuer":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","kind":"nftoken","ledger_index":107883610,"nft_id":"001900007438324FE86D08A8B9D4FB58FBABF72EAAD24B4412C5D5A00000000C","serial":12,"taxon":7,"to":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","tx_hash":"00359DDFD94F182124073E4CB6D60CA0B3E7023ED2B8F661580FCE035A17FC6D","tx_index":82,"tx_type":"NFTokenMint","uri":"68747470733A2F2F6E66742E6578616D706C652F72426257366964412F31322E6A736F6E"}
+  ],
+  "result": "success"
+}

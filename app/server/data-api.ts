@@ -31,6 +31,7 @@ import {
 import type {
   AccountData,
   AccountExchange,
+  AccountNamesResponse,
   AccountTxStatsRow,
   AccountValueRow,
   ActiveAccounts,
@@ -49,6 +50,10 @@ import type {
   AnalyticsExchanges,
   BalancesResponse,
   Candle,
+  CheckAnswer,
+  CollectionKey,
+  DelegationsPage,
+  EscrowAnswer,
   ExchangeVolumeComponent,
   FeeBucketRow,
   FeeRow,
@@ -56,16 +61,39 @@ import type {
   LastValidated,
   Ledger,
   LedgerExpanded,
+  LedgerObjectRef,
   LedgerValidations,
   LedgerWithHashes,
   MarketsResponse,
+  MintedPage,
+  NetworkSupply,
+  NftAnswer,
+  NftCollectionAnswer,
+  NftCollectionDays,
+  NftCollectionsPage,
+  NftEventKind,
+  NftEventsPage,
+  NftHoldersPage,
+  NftOffersPage,
+  NftPeriod,
+  NftSalesPage,
+  NftsPage,
+  NftSort,
+  NftVolume,
+  ObjectHistoryPage,
   OrdersResponse,
   Page,
   PairExchange,
   Payment,
+  PaymentChannelAnswer,
   PaymentVolumeComponent,
   ReducedRow,
   StatsRow,
+  TokenAnswer,
+  TokenHoldersResponse,
+  TokensResponse,
+  TokenTransfersResponse,
+  TomlAnswer,
   TxBinary,
   TxObject,
   TxStoredJson,
@@ -85,9 +113,25 @@ import {
 } from "./cache-class";
 import type { Env } from "./env";
 import { isMarker } from "./marker";
+import { checkAccountNames, checkToml } from "./names-shape";
 import type { Network } from "./networks";
+import {
+  checkCollection,
+  checkCollectionDays,
+  checkCollectionsPage,
+  checkHoldersPage,
+  checkNft,
+  checkNftEventsPage,
+  checkNftOffersPage,
+  checkNftSalesPage,
+  checkNftsPage,
+  checkNftVolume,
+} from "./nft-shape";
+import { checkDelegations, checkLedgerObject, checkObjectAnswer, checkObjectHistory } from "./object-shape";
 import type { paths } from "./openapi";
 import { PENDING_PATHS } from "./pending-paths";
+import { checkMintedPage, checkSupply } from "./supply-shape";
+import { checkToken, checkTokenHolders, checkTokens, checkTokenTransfers } from "./token-shape";
 import { checkBinaryAnswer, checkIndexTransaction, checkLedgerHashes } from "./tx-shape";
 import { ANALYTICS_SLOW_TIMEOUT_MS, clip, DATA_API_TIMEOUT_MS, retryAfterOf, UpstreamError, withDeadline } from "./upstream";
 import {
@@ -153,7 +197,66 @@ const PATHS = {
   ammPoolSwaps: "/v2/amm/pools/{pool}/swaps",
   ammPoolLiquidity: "/v2/amm/pools/{pool}/liquidity",
   ammPoolGovernance: "/v2/amm/pools/{pool}/governance",
+  // D3's NFT routes (data-api-new `feat/explorer-data-2`, pinned at `da5ce14`), which the NFT pages (E8) ask for only while `NFTS` is on. A collection is `/{issuer}/{taxon}` on
+  // XRPL and `/{issuer}` on Xahau, on each of its routes (`COLLECTION_ROUTES`). Not the account's `/nft_history`, which no page shows.
+  /** The NFT sales volume per collection, in the native currency; the live periods and the days. */
+  nftVolume: "/v2/network/nft_volume",
+  nftSales: "/v2/nft_sales",
+  nftCollections: "/v2/nft_collections",
+  nftCollectionOfIssuer: "/v2/nft_collections/{issuer}",
+  nftCollectionOfTaxon: "/v2/nft_collections/{issuer}/{taxon}",
+  nftCollectionNftsOfIssuer: "/v2/nft_collections/{issuer}/nfts",
+  nftCollectionNftsOfTaxon: "/v2/nft_collections/{issuer}/{taxon}/nfts",
+  nftCollectionHoldersOfIssuer: "/v2/nft_collections/{issuer}/holders",
+  nftCollectionHoldersOfTaxon: "/v2/nft_collections/{issuer}/{taxon}/holders",
+  nftCollectionSalesOfIssuer: "/v2/nft_collections/{issuer}/sales",
+  nftCollectionSalesOfTaxon: "/v2/nft_collections/{issuer}/{taxon}/sales",
+  nftCollectionStatsOfIssuer: "/v2/nft_collections/{issuer}/stats",
+  nftCollectionStatsOfTaxon: "/v2/nft_collections/{issuer}/{taxon}/stats",
+  nft: "/v2/nfts/{nft_id}",
+  nftHistory: "/v2/nfts/{nft_id}/history",
+  nftOffers: "/v2/nfts/{nft_id}/offers",
+  accountNfts: "/v2/accounts/{address}/nfts",
+  // D4's two routes (data-api-new `feat/explorer-data-2`, pinned at `3feb11a`), which the display names (E9) ask for only while `NAMES` is on. A data API deployed without D4
+  // answers `Cannot GET`, an outage.
+  /** The display names of 1 to 100 addresses, `?addresses=a,b,…`. */
+  accountNames: "/v2/account_names",
+  /** What the toml of a domain says, as D4's `tomls` worker last stored it; the domain is a well-formed lower-case one. */
+  toml: "/v2/toml/{domain}",
+  // D5's eight routes (data-api-new `feat/explorer-data-2`, pinned at `0c2e58c`), which the ledger-object pages (E10) ask for only while `LEDGER_OBJECTS` (and, for the delegations,
+  // `DELEGATION`) is on. The path parameters are the ones of its openapi.yaml: `escrow_id`, `check_id`, `channel_id`, `object_id` and `address`. A data API deployed without D5 answers
+  // `Cannot GET`, an outage. (Not `/v2/accounts/{address}/escrows/{sequence}`: E10 works the escrow's ID out itself and redirects to it.)
+  escrow: "/v2/escrows/{escrow_id}",
+  escrowHistory: "/v2/escrows/{escrow_id}/history",
+  check: "/v2/checks/{check_id}",
+  checkHistory: "/v2/checks/{check_id}/history",
+  paymentChannel: "/v2/payment_channels/{channel_id}",
+  paymentChannelHistory: "/v2/payment_channels/{channel_id}/history",
+  accountDelegations: "/v2/accounts/{address}/delegations",
+  ledgerObject: "/v2/ledger_objects/{object_id}",
+  // D6's four routes (data-api `feat/explorer-data-2`, pinned at `2fb4183721af6df58dd345f4a6ef90a293ae70b0`), which the token pages (E11) ask for only while `TOKENS` is on. The token is one
+  // segment, `{currency}.{issuer}` (the path parameter is `token`). A data API deployed without D6 answers `Cannot GET`, an outage.
+  /** The issued tokens ranked by holders, `?kind=issued&limit=…`. */
+  tokens: "/v2/tokens",
+  token: "/v2/tokens/{token}",
+  tokenHolders: "/v2/tokens/{token}/holders",
+  tokenTransfers: "/v2/tokens/{token}/transfers",
+  // D7's two routes (data-api `feat/explorer-data-2`, pinned at `31e97efaa1a6e098435b666e8893c79a0c4bee66`), which the supply page (E12) asks for only while `SUPPLY` is on. Neither takes a path
+  // parameter. A data API deployed without D7 answers `Cannot GET`, an outage.
+  /** The native supply at one ledger, an hourly snapshot. Takes no parameter. */
+  networkSupply: "/v2/network/supply",
+  /** Xahau's minting per UTC day. */
+  networkMinted: "/v2/network/supply/minted",
 } as const satisfies Record<string, keyof paths>;
+
+/** The two forms of each route of a collection: of an issuer alone (Xahau) and of an issuer and a taxon (XRPL). */
+const COLLECTION_ROUTES = {
+  collection: { issuer: PATHS.nftCollectionOfIssuer, taxon: PATHS.nftCollectionOfTaxon },
+  nfts: { issuer: PATHS.nftCollectionNftsOfIssuer, taxon: PATHS.nftCollectionNftsOfTaxon },
+  holders: { issuer: PATHS.nftCollectionHoldersOfIssuer, taxon: PATHS.nftCollectionHoldersOfTaxon },
+  sales: { issuer: PATHS.nftCollectionSalesOfIssuer, taxon: PATHS.nftCollectionSalesOfTaxon },
+  stats: { issuer: PATHS.nftCollectionStatsOfIssuer, taxon: PATHS.nftCollectionStatsOfTaxon },
+} as const;
 
 /** A path of `PATHS` or of `PENDING_PATHS` (the routes `openapi.yaml` does not have yet, which the compiler cannot check). */
 type Template = (typeof PATHS)[keyof typeof PATHS] | (typeof PENDING_PATHS)[keyof typeof PENDING_PATHS];
@@ -161,8 +264,13 @@ type Template = (typeof PATHS)[keyof typeof PATHS] | (typeof PENDING_PATHS)[keyo
 /** Paging of a list: `marker` is the opaque token of the previous page's answer. */
 export type ListQuery = { descending?: boolean; limit?: number; marker?: string };
 
+/** A page of older events of an object, newest first: the client asks for no other order, and `marker` is the previous page's. */
+export type ObjectHistoryQuery = { descending: true; limit: number; marker?: string };
+
 /** `fees` by the day: a row for each day that starts within `start` and `end` (`YYYY-MM-DD`). Sent in this order. */
 export type FeeBucketQuery = { interval: "day"; start: string; end: string; limit: number };
+/** The days of `networkMinted`: the same window as the fees by day, written in this order. */
+export type MintedQuery = { interval: "day"; start: string; end: string; limit: number };
 
 /** `stats`: a row for each `interval` that starts within `start` and `end` (`YYYY-MM-DD`), of the `metrics` named (all of the family without). Sent in this order. */
 export type StatsQuery = { interval: "day" | "week"; start: string; end: string; limit: number; metrics?: readonly string[] };
@@ -406,6 +514,122 @@ export interface DataApi {
   ammLiquidity(pool: string, q: ListQuery & { event?: "create" }): Promise<Page<"liquidity", AmmLiquidityEvent>>;
   /** The votes on the pool's trading fee and the bids for its auction slot. Class `live`, `MARKER_PAGE_CLASS` behind a marker, newest first (`listClass`). */
   ammGovernance(pool: string, q: ListQuery): Promise<Page<"governance", AmmGovernanceRow>>;
+
+  // E8's NFT calls (data-api-new D3, `feat/explorer-data-2`, pinned at `da5ce14`). Only a data API that has D3 has the routes: without it each call fails with the missing-route
+  // outage (kind `server`, never stored), and the routes' own `nft not found` and `collection not found` stay `not_found`. The NFT pages ask only while `NFTS` is on. Every answer is
+  // checked inside the load (nft-shape.ts, and its `coverage` with it), and one that is not what the reference promises is kind `server` too. A list reached with a marker, of
+  // whichever order, is `MARKER_PAGE_CLASS` (`nftListClass`).
+  /**
+   * The volume of the NFT sales of the network, one component per collection, in the native currency (`checkNftVolume`).
+   *
+   * With `{ live: NftPeriod }` (sent as `live=day`, `7day` or `30day`, no `start`, `end` or `interval`), the one row of a rolling period ending now, or none while D3's syncer has
+   * not written the period's set (`rows: []`, an answer): class `minute`, and the answer is checked to have no more than one row.
+   *
+   * With a `VolumeQuery`, per day or week (the network page of the NFT pages asks for days): class `slow`; the page asks for `{ ttl: PERIOD_CALL_TTL_SECONDS }`.
+   */
+  nftVolume(q: VolumeQuery | { live: NftPeriod }, opts?: FreshOptions): Promise<NftVolume>;
+  /** The sales of the network, oldest first unless `descending`. Class `live`, `MARKER_PAGE_CLASS` behind a marker. */
+  nftSales(q: ListQuery): Promise<NftSalesPage>;
+  /**
+   * The collections by `sort` (default `volume`), the biggest first unless `descending: false` (sent as the text `descending=false`: D3 reads the ascending order from that
+   * word alone, and the client leaves a boolean `false` out), `limit` of them after `marker`; with `issuer`, only that issuer's. `total` is how many match, whatever the page.
+   * Class `minute`, `MARKER_PAGE_CLASS` behind a marker.
+   */
+  nftCollections(q: { limit: number; sort?: NftSort; descending?: boolean; issuer?: string; marker?: string }): Promise<NftCollectionsPage>;
+  /** One collection. Class `minute`. `collection not found` is `not_found`: no such collection, the other network's form of the path, or one the aggregator has not counted yet. */
+  nftCollection(key: CollectionKey): Promise<NftCollectionAnswer>;
+  /** The days of a collection that start within `start` and `end` (`YYYY-MM-DD`; D3's window is at most 366 days) on which it had a sale, a mint or a burn. Class `slow`, kept `PERIOD_CALL_TTL_SECONDS`. */
+  nftCollectionStats(key: CollectionKey, q: { start: string; end: string }): Promise<NftCollectionDays>;
+  /** The sales of the collection's NFTs. Class `live`, `MARKER_PAGE_CLASS` behind a marker. */
+  nftCollectionSales(key: CollectionKey, q: ListQuery): Promise<NftSalesPage>;
+  /**
+   * The NFTs of the collection, by serial, the burned ones left out unless `includeBurned`; with `owner`, only that account's. Every NFT of the answer must be of the
+   * collection asked for (`checkNftsPage`). Class `live`, `MARKER_PAGE_CLASS` behind a marker.
+   */
+  nftCollectionNfts(key: CollectionKey, q: ListQuery & { owner?: string; includeBurned?: boolean }): Promise<NftsPage>;
+  /** The accounts that hold NFTs of the collection and how many, the most first. Class `live`, `MARKER_PAGE_CLASS` behind a marker. */
+  nftCollectionHolders(key: CollectionKey, q: ListQuery): Promise<NftHoldersPage>;
+  /** One NFT or URIToken by its id (any case; the answer's is upper-case), with its own coverage. Class `live`. `nft not found` is `not_found`. */
+  nft(id: string): Promise<NftAnswer>;
+  /** The open offers of an NFT, newest first. Class `live`, `MARKER_PAGE_CLASS` behind a marker. `nft not found` is `not_found`. */
+  nftOffers(id: string, q: { limit: number; marker?: string }): Promise<NftOffersPage>;
+  /** The events of an NFT, oldest first unless `descending`; with `event`, only those (sent as one comma list). Class `live`, `MARKER_PAGE_CLASS` behind a marker. */
+  nftHistory(id: string, q: ListQuery & { event?: readonly NftEventKind[] }): Promise<NftEventsPage>;
+  /** The NFTs an account holds now, by collection and serial. D3 answers an address that holds none, or is none, with an empty page. Class `live`, `MARKER_PAGE_CLASS` behind a marker. */
+  accountNfts(address: string, q: ListQuery): Promise<NftsPage>;
+  /**
+   * The display names of 1 to 100 classic addresses, one entry for each, in the order given (`loadNames` sorts them and keeps a call to 100). Sent as given,
+   * `?addresses=a,b,…`. Class `minute`: D4 reloads the names every 60 s and answers `max-age=60`. Checked inside the load by `checkAccountNames` (the count and the list as
+   * long as the addresses, each entry the address asked at its place, the shape of a name and of the labels), so that an answer that is not right is a failure of kind
+   * `server`, never stored. A polled page asks for `holdFailure`.
+   */
+  accountNames(addresses: readonly string[], opts?: FreshOptions): Promise<AccountNamesResponse>;
+  /**
+   * What the toml of a domain says (a well-formed lower-case domain: E9 asks for no other). Class `minute`: D4 changes a toml's row hourly and answers `max-age=60`.
+   * `toml not found` (the domain was never checked) is `not_found`; `Cannot GET` (a data API without D4) is `server`. Checked inside the load by `checkToml` (the domain, the
+   * status, the lists' shapes).
+   */
+  toml(domain: string): Promise<TomlAnswer>;
+
+  // E10's object calls (data-api-new D5, `feat/explorer-data-2`, pinned at `0c2e58c`). Only a data API that has D5 has the routes: without it each call fails with the missing-route
+  // outage (kind `server`, never stored), and the routes' own `escrow not found`, `check not found`, `payment channel not found` and `ledger object not found` stay `not_found`. The
+  // ledger-object pages ask only while `LEDGER_OBJECTS` is on. Every answer is checked inside the load (object-shape.ts, and its `coverage` with it), and one that is not what the
+  // reference promises, or is another object's than the ID asked for, is kind `server`, never stored. D5's 400s (`invalid escrow id`, `invalid marker`) are `bad_request`: E10 checks
+  // IDs before it asks.
+  /** One escrow by its ID (any case; the answer's is upper-case) as of the newest committed ledger, with its newest 50 events, newest first, and its own coverage. Class `live`. */
+  escrow(id: string): Promise<EscrowAnswer>;
+  /** The events of an escrow, newest first. Class `MARKER_PAGE_CLASS` behind a marker (a page of older events), `live` without one. */
+  escrowHistory(id: string, q: ObjectHistoryQuery): Promise<ObjectHistoryPage>;
+  /** One check, as `escrow`. Class `live`. */
+  check(id: string): Promise<CheckAnswer>;
+  /** The events of a check, as `escrowHistory`. */
+  checkHistory(id: string, q: ObjectHistoryQuery): Promise<ObjectHistoryPage>;
+  /** One payment channel, as `escrow`. Class `live`. */
+  paymentChannel(id: string): Promise<PaymentChannelAnswer>;
+  /** The events of a payment channel, as `escrowHistory`. */
+  paymentChannelHistory(id: string, q: ObjectHistoryQuery): Promise<ObjectHistoryPage>;
+  /**
+   * The delegations an account gave (`given`) or holds (`held`), the one changed last first, at most `limit` (D5's default is 200 and its maximum 1000). Xahau has none: an empty page
+   * with a complete coverage. Class `live`.
+   */
+  accountDelegations(address: string, q: { direction: "given" | "held"; limit: number }): Promise<DelegationsPage>;
+  /** Which kind of object an ID is, who owns it and whether it is deleted (the part under `ledger_object`; `ledger object not found` is `not_found`). Class `live`. */
+  ledgerObject(id: string): Promise<LedgerObjectRef>;
+
+  // E11's token calls (data-api D6, `feat/explorer-data-2`, pinned at `2fb4183721af6df58dd345f4a6ef90a293ae70b0`). Only a data API that has D6 has the routes: without it each call fails with the
+  // missing-route outage (kind `server`, never stored), and the routes' own `token not found` stays `not_found`. The token pages ask only while `TOKENS` is on. Every answer is checked inside the
+  // load (token-shape.ts, and its `coverage` with it), and one that is not what the reference promises, or is another token's than the one asked for, is kind `server` too. A token is a currency as
+  // the ledger holds it (3 characters, or 40 upper-case hex digits) and its issuer; the path segment is `{currency}.{issuer}`.
+  /**
+   * The issued tokens, the most held first: `limit` of them after `marker`; with `minHolders` (D6 reads 0 to 1,000,000,000) only those with at least that many holders, with `q` (1 to 64 characters: an
+   * issuer address, or text in the code, name or domain, a currency in hex, an issuer prefix) only those it matches. Sent as `kind`, `limit`, `marker`, `min_holders`, `q`. Class `minute`, whatever the
+   * page: D6 rebuilds the ranking each minute, so a marker is a cursor into this minute's. `kind` is `issued` for now.
+   */
+  tokens(q: { kind: "issued"; limit: number; minHolders?: number; q?: string; marker?: string }, opts?: FreshOptions): Promise<TokensResponse>;
+  /** One token, with its toml, its issuer's settings and its markets: the whole answer, which must be of the token asked for. Class `minute`. `token not found` is `not_found`. */
+  token(asset: { currency: string; issuer: string }, opts?: FreshOptions): Promise<TokenAnswer>;
+  /** The holders of a token, the largest balance first. Class `minute`, whatever the page. `token not found` is `not_found`. */
+  tokenHolders(asset: { currency: string; issuer: string }, q: { limit: number; marker?: string }, opts?: FreshOptions): Promise<TokenHoldersResponse>;
+  /**
+   * The payments that delivered the token, newest first (sent as `descending=true`, `limit`, `marker`). Class `live`, `MARKER_PAGE_CLASS` behind a marker (`listClass`: it is newest first); the TTL is for
+   * a first page only. D6 does not look the token up: a token nobody was paid in has no transfers, which is an answer, and there is no 404.
+   */
+  tokenTransfers(asset: { currency: string; issuer: string }, q: { limit: number; marker?: string }, opts?: FreshOptions): Promise<TokenTransfersResponse>;
+
+  // E12's supply calls (data-api D7, `feat/explorer-data-2`, pinned at `31e97efaa1a6e098435b666e8893c79a0c4bee66`). Only a data API that has D7 has the routes: without it each call fails with the
+  // missing-route outage (kind `server`, never stored). The supply page asks only while `SUPPLY` is on. Each answer is checked inside the load (supply-shape.ts), and one that is not what the
+  // reference promises is kind `server` too.
+  /**
+   * The native supply of the network at one ledger: the newest hourly snapshot, every figure as of `ledger_index`, with the `coverage` of each part read from the history. Takes no parameter. Class
+   * `slow`; the supply page asks for `{ ttl: PERIOD_CALL_TTL_SECONDS }`. Before the first snapshot exists D7 answers 404 `supply not computed yet` (`not_found`; the page tells it as an outage), and a
+   * snapshot of another currency than the network's native one is kind `server`.
+   */
+  networkSupply(opts?: FreshOptions): Promise<NetworkSupply>;
+  /**
+   * What was minted on each UTC day, by source: `limit` days from `start` to `end` (`YYYY-MM-DD`), with the coverage of the mints. Xahau mints; the XRP Ledger answers an empty list. Class `slow`;
+   * the supply page asks for `{ ttl: PERIOD_CALL_TTL_SECONDS }`.
+   */
+  networkMinted(q: MintedQuery, opts?: FreshOptions): Promise<MintedPage>;
 }
 
 /** Query parameters; `undefined` and `false` are left out (every flag of the API is off unless it says `true`). */
@@ -580,6 +804,18 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
    * `immutable` while the index can still be backfilled (see there).
    */
   const listClass = (q: ListQuery): CacheClass => (q.marker && q.descending ? MARKER_PAGE_CLASS : "live");
+  /**
+   * The class of an NFT list: `MARKER_PAGE_CLASS` behind a marker, whichever way the list runs (`first` otherwise), unlike `listClass`, which has it for a newest-first list only.
+   * A page behind a marker is not stable: the collections are re-sorted every few minutes, and the last page of an oldest-first list grows. It is `MARKER_PAGE_CLASS` all the
+   * same because it is rarely asked for again, and what a visitor sees of it a little late (an hour at most) costs nothing: it is cheap to serve stale.
+   */
+  const nftListClass = (q: { marker?: string }, first: CacheClass = "live"): CacheClass => (q.marker ? MARKER_PAGE_CLASS : first);
+
+  /** The path of one of a collection's routes, and its parameters: `/{issuer}/{taxon}` when the key has a taxon (a taxon of 0 included), else `/{issuer}`. */
+  const collectionAt = (route: keyof typeof COLLECTION_ROUTES, key: CollectionKey): { template: Template; params: Record<string, string> } =>
+    key.taxon === undefined
+      ? { template: COLLECTION_ROUTES[route].issuer, params: { issuer: key.issuer } }
+      : { template: COLLECTION_ROUTES[route].taxon, params: { issuer: key.issuer, taxon: String(key.taxon) } };
 
   /**
    * The API adds `transactions` to an expanded ledger only when the ledger has some, unless `transactions=true` is
@@ -612,6 +848,9 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
 
   /** The options of a call that takes `FreshOptions`, as `get` takes them. */
   const fresh = (opts?: FreshOptions) => ({ ttl: opts?.ttl, holdFailure: opts?.holdFailure });
+
+  /** The path parameter of a token's routes: `{currency}.{issuer}`, the currency as the ledger holds it. `get` escapes it as one segment. */
+  const tokenOf = (asset: { currency: string; issuer: string }) => ({ token: `${asset.currency}.${asset.issuer}` });
 
   /** What every account analytics call asks of the cache (spec 2.7): its failure held a few seconds, and its load shared with the same load in flight. */
   const analyticsOptions = { holdFailure: true, shareInFlight: true } as const;
@@ -804,5 +1043,98 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
       }),
     ammGovernance: (pool, q) =>
       get<Page<"governance", AmmGovernanceRow>>(PATHS.ammPoolGovernance, { pool }, listQuery(q), listClass(q), { finish: checkGovernancePage }),
+    // E8's NFT calls. A collection key picks the form of the path; a query is written in the order of the reference's table, the page (`descending`, `limit`, `marker`) last.
+    nftVolume: (q, opts) =>
+      "live" in q
+        ? get<NftVolume>(PATHS.nftVolume, {}, { live: q.live }, "minute", { ...fresh(opts), finish: (body, path) => checkNftVolume(body, path, "live") })
+        : get<NftVolume>(PATHS.nftVolume, {}, volumeQuery(q), "slow", { ...fresh(opts), finish: (body, path) => checkNftVolume(body, path, "daily") }),
+    nftSales: (q) => get<NftSalesPage>(PATHS.nftSales, {}, listQuery(q), nftListClass(q), { finish: checkNftSalesPage }),
+    // `get` leaves a `false` out, and D3 is ascending only for the text "false": ascending is that text, descending (D3's default) nothing.
+    nftCollections: (q) =>
+      get<NftCollectionsPage>(
+        PATHS.nftCollections,
+        {},
+        { limit: q.limit, sort: q.sort, descending: q.descending === false ? "false" : undefined, issuer: q.issuer || undefined, marker: q.marker || undefined },
+        nftListClass(q, "minute"),
+        { finish: checkCollectionsPage },
+      ),
+    nftCollection: (key) => {
+      const { template, params } = collectionAt("collection", key);
+      return get<NftCollectionAnswer>(template, params, {}, "minute", { finish: checkCollection });
+    },
+    nftCollectionStats: (key, q) => {
+      const { template, params } = collectionAt("stats", key);
+      return get<NftCollectionDays>(template, params, { start: q.start, end: q.end }, "slow", { ttl: PERIOD_CALL_TTL_SECONDS, finish: checkCollectionDays });
+    },
+    nftCollectionSales: (key, q) => {
+      const { template, params } = collectionAt("sales", key);
+      return get<NftSalesPage>(template, params, listQuery(q), nftListClass(q), { finish: checkNftSalesPage });
+    },
+    nftCollectionNfts: (key, q) => {
+      const { template, params } = collectionAt("nfts", key);
+      return get<NftsPage>(template, params, { owner: q.owner || undefined, include_burned: q.includeBurned, ...listQuery(q) }, nftListClass(q), {
+        finish: (body, path) => checkNftsPage(body, path, key),
+      });
+    },
+    nftCollectionHolders: (key, q) => {
+      const { template, params } = collectionAt("holders", key);
+      return get<NftHoldersPage>(template, params, listQuery(q), nftListClass(q), { finish: checkHoldersPage });
+    },
+    nft: (id) => get<NftAnswer>(PATHS.nft, { nft_id: id }, {}, "live", { finish: checkNft }),
+    nftOffers: (id, q) =>
+      get<NftOffersPage>(PATHS.nftOffers, { nft_id: id }, { limit: q.limit, marker: q.marker || undefined }, nftListClass(q), { finish: checkNftOffersPage }),
+    nftHistory: (id, q) =>
+      get<NftEventsPage>(PATHS.nftHistory, { nft_id: id }, { event: q.event?.length ? q.event.join(",") : undefined, ...listQuery(q) }, nftListClass(q), {
+        finish: checkNftEventsPage,
+      }),
+    accountNfts: (address, q) => get<NftsPage>(PATHS.accountNfts, { address }, listQuery(q), nftListClass(q), { finish: checkNftsPage }),
+    // E9's names and toml calls. The addresses go as given, in one comma list (`URLSearchParams` writes the commas as `%2C`).
+    accountNames: (addresses, opts) =>
+      get<AccountNamesResponse>(PATHS.accountNames, {}, { addresses: addresses.join(",") }, "minute", {
+        ...fresh(opts),
+        finish: (body) => checkAccountNames(body, addresses),
+      }),
+    toml: (domain) => get<TomlAnswer>(PATHS.toml, { domain }, {}, "minute", { finish: (body) => checkToml(body, domain) }),
+    // E10's object calls. The object and the lookup are in the ledger as of now: `live`. A history is newest first and written `descending`, `limit`, `marker`; behind a marker it is
+    // `MARKER_PAGE_CLASS` (`listClass`: it is newest first), the first page `live`. The lookup answers `{ result, ledger_object }`: the part under `ledger_object` is what is checked and returned.
+    escrow: (id) => get<EscrowAnswer>(PATHS.escrow, { escrow_id: id }, {}, "live", { finish: (body, path) => checkObjectAnswer("escrow", body, path) }),
+    escrowHistory: (id, q) =>
+      get<ObjectHistoryPage>(PATHS.escrowHistory, { escrow_id: id }, listQuery(q), listClass(q), { finish: (body, path) => checkObjectHistory("escrow", body, path) }),
+    check: (id) => get<CheckAnswer>(PATHS.check, { check_id: id }, {}, "live", { finish: (body, path) => checkObjectAnswer("check", body, path) }),
+    checkHistory: (id, q) =>
+      get<ObjectHistoryPage>(PATHS.checkHistory, { check_id: id }, listQuery(q), listClass(q), { finish: (body, path) => checkObjectHistory("check", body, path) }),
+    paymentChannel: (id) =>
+      get<PaymentChannelAnswer>(PATHS.paymentChannel, { channel_id: id }, {}, "live", { finish: (body, path) => checkObjectAnswer("payment_channel", body, path) }),
+    paymentChannelHistory: (id, q) =>
+      get<ObjectHistoryPage>(PATHS.paymentChannelHistory, { channel_id: id }, listQuery(q), listClass(q), {
+        finish: (body, path) => checkObjectHistory("payment_channel", body, path),
+      }),
+    accountDelegations: (address, q) =>
+      get<DelegationsPage>(PATHS.accountDelegations, { address }, { direction: q.direction, limit: q.limit }, "live", { finish: checkDelegations }),
+    ledgerObject: (id) => get<LedgerObjectRef>(PATHS.ledgerObject, { object_id: id }, {}, "live", { unwrap: "ledger_object", finish: checkLedgerObject }),
+    // E11's token calls. The list, the detail and the holders are a minute, whatever the page (D6's ranking is rebuilt each minute); the transfers are the payments of the ledgers, newest first:
+    // `live`, and `MARKER_PAGE_CLASS` behind a marker, with the TTL for a first page only (`listClass`). A query is written in the order of the reference's table.
+    tokens: (q, opts) =>
+      get<TokensResponse>(PATHS.tokens, {}, { kind: q.kind, limit: q.limit, marker: q.marker || undefined, min_holders: q.minHolders, q: q.q || undefined }, "minute", {
+        ...fresh(opts),
+        finish: checkTokens,
+      }),
+    token: (asset, opts) =>
+      get<TokenAnswer>(PATHS.token, tokenOf(asset), {}, "minute", { ...fresh(opts), finish: (body, path) => checkToken(body, path, asset) }),
+    tokenHolders: (asset, q, opts) =>
+      get<TokenHoldersResponse>(PATHS.tokenHolders, tokenOf(asset), { limit: q.limit, marker: q.marker || undefined }, "minute", { ...fresh(opts), finish: checkTokenHolders }),
+    tokenTransfers: (asset, q, opts) => {
+      const newestFirst = { descending: true, limit: q.limit, marker: q.marker } as const;
+      return get<TokenTransfersResponse>(PATHS.tokenTransfers, tokenOf(asset), listQuery(newestFirst), listClass(newestFirst), {
+        ttl: q.marker ? undefined : opts?.ttl,
+        holdFailure: opts?.holdFailure,
+        finish: checkTokenTransfers,
+      });
+    },
+    // E12's supply calls: both `slow`, whatever TTL the page keeps them for. The snapshot is told the native currency of the network, so that a data API answering the other network's is a failure.
+    networkSupply: (opts) =>
+      get<NetworkSupply>(PATHS.networkSupply, {}, {}, "slow", { ...fresh(opts), finish: (body, path) => checkSupply(body, path, net.native) }),
+    networkMinted: (q, opts) =>
+      get<MintedPage>(PATHS.networkMinted, {}, { interval: q.interval, start: q.start, end: q.end, limit: q.limit }, "slow", { ...fresh(opts), finish: checkMintedPage }),
   };
 }

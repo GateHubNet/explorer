@@ -1,0 +1,32 @@
+{
+  "check": {
+    "account": "r9CaVb4X1JVQoi6Q8Gw5cznAMRFARJDWyN",
+    "check_id": "60FCB1E8C72A695CBB6BDF718D30AF2310A9BED6D3F6D92F54C0E429186D1A42",
+    "created": {
+      "ledger_index": 107698980,
+      "time": "2026-10-16T16:50:02Z",
+      "tx_hash": "CCDBCADF2DE0EF5E85A3332C4CADE9A0C28F3B5E7220C4890E27D196415D0326"
+    },
+    "destination": "rBi1QrVjwaNofisZAQnovoXdHkS73FG1tJ",
+    "expiration": "2026-10-16T17:49:51Z",
+    "invoice_id": "AB9E9A322F4A89059C5402523B218CA53745DE3672A109BD14BB1A186640AD36",
+    "send_max": {
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "1"
+    },
+    "sequence": 106635339,
+    "source_tag": 804681468,
+    "status": "expired"
+  },
+  "close_time": "2026-10-29T03:50:41Z",
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 102145584
+  },
+  "history": [
+    {"account":"r9CaVb4X1JVQoi6Q8Gw5cznAMRFARJDWyN","event":"create","expiration":"2026-10-16T17:49:51Z","ledger_index":107698980,"result":"tesSUCCESS","send_max":{"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","value":"1"},"time":"2026-10-16T16:50:02Z","tx_hash":"CCDBCADF2DE0EF5E85A3332C4CADE9A0C28F3B5E7220C4890E27D196415D0326","tx_type":"CheckCreate"}
+  ],
+  "ledger_index": 107972102,
+  "result": "success"
+}

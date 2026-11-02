@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi, type MockInstance } from "vitest";
 
 import type {
+  AccountNamesResponse,
   AccountTxStatsRow,
   AccountValueRow,
   ActiveAccounts,
@@ -8,6 +9,7 @@ import type {
   AmendmentsList,
   AmmGovernanceRow,
   AmmLiquidityEvent,
+  AmmPart,
   AmmPool,
   AmmPoolDay,
   AmmSwap,
@@ -17,18 +19,48 @@ import type {
   AnalyticsCounterparties,
   AnalyticsExchanges,
   Candle,
+  CheckAnswer,
+  Coverage,
+  Delegation,
+  DelegationsPage,
+  EscrowAnswer,
   ExchangeVolumeComponent,
   FeeBucketRow,
   FeeRow,
   FeeStatsRow,
+  IssuedTokensTotals,
+  LedgerObjectRef,
   LedgerValidations,
   MarketRow,
   MarketsResponse,
+  MintedPage,
+  MintedPart,
+  NetworkSupply,
+  NftAnswer,
+  NftCollectionAnswer,
+  NftCollectionDays,
+  NftCollectionsPage,
+  NftEventsPage,
+  NftHoldersPage,
+  NftOffersPage,
+  NftSalesPage,
+  NftsPage,
+  NftVolume,
+  ObjectHistoryPage,
+  ObjectRef,
   Page,
   PairExchange,
+  PaymentChannelAnswer,
   PaymentVolumeComponent,
   ReducedRow,
+  ReservesPart,
   StatsRow,
+  TokenAnswer,
+  TokenHoldersResponse,
+  TokenMarket,
+  TokensResponse,
+  TokenTransfersResponse,
+  TomlAnswer,
   TxObject,
   ValidatorDetail,
   ValidatorsList,
@@ -64,14 +96,62 @@ import {
   ammSwapsSample,
 } from "../support/amm-samples";
 import { amendmentDetailSample, amendmentsSample, SAMPLE_KEYS, summarySample, validationsSample, validatorDetailSample, validatorRowSample } from "../support/d1-samples";
+import { mintedPageSample, supplySample } from "../support/d7-samples";
+import {
+  collectionSample,
+  nftAnswerSample,
+  nftCollectionAnswerSample,
+  nftCollectionDaysSample,
+  nftCollectionsPageSample,
+  nftEventsPageSample,
+  nftHoldersPageSample,
+  nftOffersPageSample,
+  nftSalesPageSample,
+  nftSample,
+  nftsPageSample,
+  nftVolumeRowSample,
+  nftVolumeSample,
+  NFT_ID,
+  NFT_ISSUER,
+  OTHER_ISSUER,
+  uriTokenSample,
+  URI_TOKEN_ISSUER,
+} from "../support/nft-samples";
+import {
+  CHANNEL_ID,
+  CHECK_ID,
+  checkAnswerSample,
+  DELEGATE,
+  DELEGATION_ID,
+  delegationsSample,
+  DELEGATOR,
+  ESCROW_ID,
+  escrowAnswerSample,
+  historySample,
+  ledgerObjectSample,
+  paymentChannelAnswerSample,
+} from "../support/object-samples";
 import { passThroughCache, recordingCache } from "../support/subrequest-cache";
 import { allSwitches } from "../support/switches";
+import {
+  holdersSample,
+  TOKEN_SAMPLE_CURRENCY,
+  TOKEN_SAMPLE_ISSUER,
+  TOKEN_SAMPLE_OTHER_ISSUER,
+  tokenDetailSample,
+  tokenHolderSample,
+  tokenSample,
+  tokensSample,
+  TRANSFERS_MARKER,
+  transfersSample,
+} from "../support/token-samples";
 import { dataApiError, mockUpstream, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
 
 // The Data API client, in the Workers runtime. Nothing here reaches the network: `fetch` is replaced in every
 // test, and the data API hosts of the env are `.invalid` anyway.
 
 const env: Env = {
+  ENVIRONMENT: "development",
   XRPL_DATA_API_URL: "https://xrpl.data.example.invalid",
   XAHAU_DATA_API_URL: "https://xahau.data.example.invalid/",
   XRPL_NODE_URL: "https://s1.ripple.com:51234/",
@@ -3253,6 +3333,1667 @@ describe("D1's validators and amendments calls", () => {
     expectTypeOf<AmendmentsList["amendments"][number]["xls_url"]>().toEqualTypeOf<string | undefined>();
     expectTypeOf<NonNullable<AmendmentsList["amendments"][number]["majority"]>["ledger_index"]>().toEqualTypeOf<number | undefined>();
     expectTypeOf<NonNullable<AmendmentsList["amendments"][number]["majority"]>["tx_hash"]>().toEqualTypeOf<string | undefined>();
+  });
+});
+
+describe("D3's NFT calls", () => {
+  const COLLECTION = { issuer: NFT_ISSUER, taxon: 10 };
+  const COLLECTION_PATH = `/v2/nft_collections/${NFT_ISSUER}/10`;
+  const EVENTS = ["mint", "burn", "modify", "sale", "transfer"] as const;
+
+  interface NftCall {
+    name: string;
+    call: (api: DataApi) => Promise<unknown>;
+    /** Path and query of the request, in the order the client writes it, after the host. */
+    url: string;
+    cls: CacheClass;
+    /** The TTL the call keeps its answer for, when it asks for one (the key says `[kept N s]`). */
+    ttl?: number;
+    /** Whether the route is one of a collection: it answers `collection not found` for one the index has none of, and the others `nft not found` or nothing of the sort. */
+    of: "collection" | "nft" | "list";
+    good: () => unknown;
+    /** What makes `good` an answer the check refuses, and the field the message names. */
+    bad: () => unknown;
+    field: string;
+  }
+
+  const TWELVE: NftCall[] = [
+    {
+      name: "nftVolume",
+      call: (api) => api.nftVolume({ live: "day" }),
+      url: "/v2/network/nft_volume?live=day",
+      cls: "minute",
+      of: "list",
+      good: () => nftVolumeSample(),
+      bad: () => ({ ...nftVolumeSample(), rows: {} }),
+      field: "rows",
+    },
+    {
+      name: "nftSales",
+      call: (api) => api.nftSales({ descending: true, limit: 10 }),
+      url: "/v2/nft_sales?descending=true&limit=10",
+      cls: "live",
+      of: "list",
+      good: () => nftSalesPageSample(),
+      bad: () => ({ ...nftSalesPageSample(), sales: {} }),
+      field: "sales",
+    },
+    {
+      name: "nftCollections",
+      call: (api) => api.nftCollections({ limit: 20, sort: "volume" }),
+      url: "/v2/nft_collections?limit=20&sort=volume",
+      cls: "minute",
+      of: "list",
+      good: () => nftCollectionsPageSample(),
+      // The page without its `total`: the list says how many collections match, whatever the page.
+      bad: () => ({ ...nftCollectionsPageSample(), total: undefined }),
+      field: "total",
+    },
+    {
+      name: "nftCollection",
+      call: (api) => api.nftCollection(COLLECTION),
+      url: COLLECTION_PATH,
+      cls: "minute",
+      of: "collection",
+      good: () => nftCollectionAnswerSample(),
+      bad: () => nftCollectionAnswerSample({ collection: collectionSample({ supply: "1" as never }) }),
+      field: "supply",
+    },
+    {
+      name: "nftCollectionStats",
+      call: (api) => api.nftCollectionStats(COLLECTION, { start: "2026-10-20", end: "2026-10-27" }),
+      url: `${COLLECTION_PATH}/stats?start=2026-10-20&end=2026-10-27`,
+      cls: "slow",
+      ttl: PERIOD_CALL_TTL_SECONDS,
+      of: "collection",
+      good: () => nftCollectionDaysSample(),
+      bad: () => ({ ...nftCollectionDaysSample(), days: {} }),
+      field: "days",
+    },
+    {
+      name: "nftCollectionSales",
+      call: (api) => api.nftCollectionSales(COLLECTION, { descending: true, limit: 20 }),
+      url: `${COLLECTION_PATH}/sales?descending=true&limit=20`,
+      cls: "live",
+      of: "collection",
+      good: () => nftSalesPageSample(),
+      bad: () => nftSalesPageSample({ sales: [{ ...nftSalesPageSample().sales[0]!, mode: "auction" as never }] }),
+      field: "mode",
+    },
+    {
+      name: "nftCollectionNfts",
+      call: (api) => api.nftCollectionNfts(COLLECTION, { limit: 20, marker: "M" }),
+      url: `${COLLECTION_PATH}/nfts?limit=20&marker=M`,
+      cls: MARKER_PAGE_CLASS,
+      of: "collection",
+      good: () => nftsPageSample(),
+      // An NFT of another collection than the one asked for.
+      bad: () => nftsPageSample({ nfts: [nftSample({ issuer: OTHER_ISSUER })] }),
+      field: "nfts[0].issuer",
+    },
+    {
+      name: "nftCollectionHolders",
+      call: (api) => api.nftCollectionHolders(COLLECTION, { limit: 20 }),
+      url: `${COLLECTION_PATH}/holders?limit=20`,
+      cls: "live",
+      of: "collection",
+      good: () => nftHoldersPageSample(),
+      bad: () => ({ ...nftHoldersPageSample(), holders: {} }),
+      field: "holders",
+    },
+    {
+      name: "nft",
+      call: (api) => api.nft(NFT_ID),
+      url: `/v2/nfts/${NFT_ID}`,
+      cls: "live",
+      of: "nft",
+      good: () => nftAnswerSample(),
+      bad: () => nftAnswerSample({ nft: nftSample({ burned: "false" as never }) }),
+      field: "burned",
+    },
+    {
+      name: "nftOffers",
+      call: (api) => api.nftOffers(NFT_ID, { limit: 50 }),
+      url: `/v2/nfts/${NFT_ID}/offers?limit=50`,
+      cls: "live",
+      of: "nft",
+      good: () => nftOffersPageSample(),
+      bad: () => ({ ...nftOffersPageSample(), offers: {} }),
+      field: "offers",
+    },
+    {
+      name: "nftHistory",
+      call: (api) => api.nftHistory(NFT_ID, { descending: true, limit: 20, event: EVENTS }),
+      url: `/v2/nfts/${NFT_ID}/history?event=mint%2Cburn%2Cmodify%2Csale%2Ctransfer&descending=true&limit=20`,
+      cls: "live",
+      of: "nft",
+      good: () => nftEventsPageSample(),
+      bad: () => ({ ...nftEventsPageSample(), events: {} }),
+      field: "events",
+    },
+    {
+      name: "accountNfts",
+      call: (api) => api.accountNfts(ACCOUNT, { limit: 20 }),
+      url: `/v2/accounts/${ACCOUNT}/nfts?limit=20`,
+      cls: "live",
+      of: "list",
+      good: () => nftsPageSample(),
+      bad: () => nftsPageSample({ nfts: [nftSample({ nft_id: NFT_ID.toLowerCase() })] }),
+      field: "nft_id",
+    },
+  ];
+
+  /** What D3 answers for the path asked, in the body of the sample of that route. */
+  const answer = async (input: RequestInfo | URL) => {
+    const { pathname } = new URL(input instanceof Request ? input.url : String(input));
+    const parts = pathname.split("/").filter(Boolean);
+    const last = parts.at(-1);
+    if (pathname === "/v2/network/nft_volume") return json(nftVolumeSample());
+    if (pathname === "/v2/nft_sales") return json(nftSalesPageSample());
+    if (pathname === "/v2/nft_collections") return json(nftCollectionsPageSample());
+    if (parts[1] === "accounts") return json(nftsPageSample());
+    if (parts[1] === "nfts") return json(last === "history" ? nftEventsPageSample() : last === "offers" ? nftOffersPageSample() : nftAnswerSample());
+    if (last === "nfts") return json(nftsPageSample());
+    if (last === "holders") return json(nftHoldersPageSample());
+    if (last === "sales") return json(nftSalesPageSample());
+    if (last === "stats") return json(nftCollectionDaysSample());
+    return json(nftCollectionAnswerSample());
+  };
+
+  const recording = () => {
+    const cache = recordingCache();
+    return { cache, api: createDataApi(xrpl, env, cache) };
+  };
+
+  it("asks D3's paths with their queries, classes and TTLs", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    for (const c of TWELVE) await c.call(api);
+    // The daily form of the volume (the network page's, a window of days): slow, kept as long as the caller says, the query in the order of `VolumeQuery`.
+    await api.nftVolume({ interval: "day", start: "2026-09-18", end: "2026-10-17", limit: 1000 }, { ttl: PERIOD_CALL_TTL_SECONDS });
+    // A collection of Xahau is an issuer alone: `/{issuer}`, and the same routes below it.
+    await api.nftCollection({ issuer: URI_TOKEN_ISSUER });
+
+    // The keys are `GET <host><path and query as sent>`, and a call kept for a TTL of its own says so.
+    expect(cache.calls.map((call) => [call.key, call.cls, call.ttlOverride])).toEqual([
+      [`GET ${BASE}/v2/network/nft_volume?live=day`, "minute", undefined],
+      [`GET ${BASE}/v2/nft_sales?descending=true&limit=10`, "live", undefined],
+      [`GET ${BASE}/v2/nft_collections?limit=20&sort=volume`, "minute", undefined],
+      [`GET ${BASE}/v2/nft_collections/${NFT_ISSUER}/10`, "minute", undefined],
+      [`GET ${BASE}/v2/nft_collections/${NFT_ISSUER}/10/stats?start=2026-10-20&end=2026-10-27 [kept 300 s]`, "slow", 300],
+      [`GET ${BASE}/v2/nft_collections/${NFT_ISSUER}/10/sales?descending=true&limit=20`, "live", undefined],
+      [`GET ${BASE}/v2/nft_collections/${NFT_ISSUER}/10/nfts?limit=20&marker=M`, MARKER_PAGE_CLASS, undefined],
+      [`GET ${BASE}/v2/nft_collections/${NFT_ISSUER}/10/holders?limit=20`, "live", undefined],
+      [`GET ${BASE}/v2/nfts/${NFT_ID}`, "live", undefined],
+      [`GET ${BASE}/v2/nfts/${NFT_ID}/offers?limit=50`, "live", undefined],
+      // `event` is one comma list (URLSearchParams writes the comma as %2C).
+      [`GET ${BASE}/v2/nfts/${NFT_ID}/history?event=mint%2Cburn%2Cmodify%2Csale%2Ctransfer&descending=true&limit=20`, "live", undefined],
+      [`GET ${BASE}/v2/accounts/${ACCOUNT}/nfts?limit=20`, "live", undefined],
+      [`GET ${BASE}/v2/network/nft_volume?interval=day&start=2026-09-18&end=2026-10-17&limit=1000 [kept 300 s]`, "slow", 300],
+      [`GET ${BASE}/v2/nft_collections/${URI_TOKEN_ISSUER}`, "minute", undefined],
+    ]);
+    // What went out is the same path and query, with the key and nothing else of the visitor's.
+    expect(fetchSpy.mock.calls.map((_call, index) => sentRequest(index).url)).toEqual([...TWELVE.map((c) => `${BASE}${c.url}`), `${BASE}/v2/network/nft_volume?interval=day&start=2026-09-18&end=2026-10-17&limit=1000`, `${BASE}/v2/nft_collections/${URI_TOKEN_ISSUER}`]);
+    expect(sentRequest(0).headers.get("X-API-Key")).toBe("test-key");
+    expect(CACHE_CLASSES.minute.edgeTtl).toBe(60);
+  });
+
+  it("writes a collection as /{issuer}/{taxon} on XRPL (a taxon of 0 included) and /{issuer} on Xahau, for each of its five routes", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+    const forms = [
+      [{ issuer: NFT_ISSUER, taxon: 0 }, `/v2/nft_collections/${NFT_ISSUER}/0`],
+      [{ issuer: NFT_ISSUER, taxon: 4294967295 }, `/v2/nft_collections/${NFT_ISSUER}/4294967295`],
+      [{ issuer: URI_TOKEN_ISSUER }, `/v2/nft_collections/${URI_TOKEN_ISSUER}`],
+    ] as const;
+
+    for (const [key] of forms) {
+      await api.nftCollection(key);
+      await api.nftCollectionStats(key, { start: "2026-10-20", end: "2026-10-27" });
+      await api.nftCollectionSales(key, { limit: 20 });
+      // The sample's NFT is of the first collection only: for another the page is refused, after the request that is looked at.
+      await api.nftCollectionNfts(key, { limit: 20 }).catch(() => undefined);
+      await api.nftCollectionHolders(key, { limit: 20 });
+    }
+
+    expect(cache.calls.map((call) => call.key.slice(`GET ${BASE}`.length).replace(/ \[kept 300 s\]$/, ""))).toEqual(
+      forms.flatMap(([, path]) => [path, `${path}/stats?start=2026-10-20&end=2026-10-27`, `${path}/sales?limit=20`, `${path}/nfts?limit=20`, `${path}/holders?limit=20`]),
+    );
+  });
+
+  it.each(TWELVE.map((c) => [c.name, c] as const))("%s: a malformed 200 is a server error and is not stored", async (name, c) => {
+    const { api, storedBy } = storing(`d3-malformed-${name}`);
+    fetchSpy.mockResolvedValueOnce(json(c.bad()));
+
+    const error = await failureOf(c.call(api));
+    expect(error.kind).toBe("server");
+    expect(error.status).toBe(200);
+    expect(error.message).toContain("answered something unexpected");
+    expect(error.message).toContain(c.field);
+    expect(error.message).toContain(`data API GET ${c.url}`);
+
+    // Nothing was stored: the next call makes a new upstream request; only the good answer is stored.
+    fetchSpy.mockResolvedValueOnce(json(c.bad()));
+    expect(await storedBy(() => c.call(api).catch(() => undefined))).toEqual([]);
+    fetchSpy.mockResolvedValueOnce(json(c.good()));
+    expect((await storedBy(() => c.call(api))).length).toBeGreaterThan(0);
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+  });
+
+  it("an answer whose coverage is none is a server error too, and the daily volume's rows need not be one", async () => {
+    const { api } = storing("d3-malformed-coverage");
+    fetchSpy.mockResolvedValueOnce(json({ ...nftAnswerSample(), coverage: { complete: "false" } }));
+    expect(await failureOf(api.nft(NFT_ID))).toMatchObject({ kind: "server", status: 200, message: expect.stringContaining("coverage.complete is not a boolean") });
+
+    const days = nftVolumeSample({ count: 2, rows: [nftVolumeRowSample(), nftVolumeRowSample({ components: [], count: 0, total: "0" })] });
+    fetchSpy.mockResolvedValueOnce(json(days));
+    expect(await api.nftVolume({ interval: "day", start: "2026-10-24", end: "2026-10-25", limit: 1000 })).toEqual(days);
+    // The rolling day is at most one row: D3 answers `[]` until the syncer has written its set, which is an answer; two rows is not.
+    fetchSpy.mockResolvedValueOnce(json(days));
+    expect(await failureOf(api.nftVolume({ live: "day" }))).toMatchObject({ kind: "server", message: expect.stringContaining("2 rows") });
+    const none = nftVolumeSample({ count: 0, rows: [] });
+    fetchSpy.mockResolvedValueOnce(json(none));
+    expect(await api.nftVolume({ live: "day" })).toEqual(none);
+  });
+
+  it("keeps nft not found and collection not found as not_found, and makes Cannot GET a server error", async () => {
+    const { api, storedBy } = storing("d3-failures");
+    const notFound = (message: string) => json({ result: "error", message }, { status: 404 });
+
+    for (const c of TWELVE) {
+      // The routes of an NFT and of a collection say what they could not find; D3's lists do not (they have none of that).
+      if (c.of !== "list") {
+        fetchSpy.mockResolvedValueOnce(notFound(c.of === "nft" ? "nft not found" : "collection not found"));
+        const missing = await failureOf(c.call(api));
+        expect([c.name, missing.kind, missing.status]).toEqual([c.name, "not_found", 404]);
+        expect(missing.message).toContain(c.of === "nft" ? "nft not found" : "collection not found");
+        expect(missing.message, c.name).not.toContain("no such route");
+      }
+
+      // An API without D3 answers the framework's words: an outage, which is never stored and never a 404 page.
+      const path = c.url.split("?")[0];
+      fetchSpy.mockImplementation(async () => notFound(`Cannot GET ${path}`));
+      const first = await failureOf(c.call(api));
+      expect([c.name, first.kind, first.status]).toEqual([c.name, "server", 404]);
+      expect(first.message).toBe(`data API GET ${c.url} answered 404: Cannot GET ${path} (the data API has no such route)`);
+      expect(await storedBy(() => c.call(api).catch(() => undefined)), c.name).toEqual([]);
+    }
+
+    // A 400 the route answers with is the visitor's: `bad_request`.
+    fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "invalid taxon" }, { status: 400 }));
+    expect((await failureOf(api.nftCollection({ issuer: NFT_ISSUER, taxon: 1 }))).kind).toBe("bad_request");
+    // And a 500 of the route is a server failure with its status.
+    fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "unable to retrieve nft" }, { status: 500 }));
+    expect(await failureOf(api.nft(NFT_ID))).toMatchObject({ kind: "server", status: 500 });
+  });
+
+  it("is the class a list has first, and MARKER_PAGE_CLASS behind a marker, whichever way the list runs", async () => {
+    const lists: Array<[name: string, call: (api: DataApi, marker?: string) => Promise<unknown>, first: CacheClass]> = [
+      ["nftSales", (a, marker) => a.nftSales({ limit: 10, marker }), "live"],
+      ["nftSales, newest first", (a, marker) => a.nftSales({ descending: true, limit: 10, marker }), "live"],
+      ["nftCollections", (a, marker) => a.nftCollections({ limit: 20, marker }), "minute"],
+      ["nftCollectionSales", (a, marker) => a.nftCollectionSales(COLLECTION, { limit: 20, marker }), "live"],
+      ["nftCollectionNfts", (a, marker) => a.nftCollectionNfts(COLLECTION, { limit: 20, marker }), "live"],
+      ["nftCollectionHolders", (a, marker) => a.nftCollectionHolders(COLLECTION, { limit: 20, marker }), "live"],
+      ["nftOffers", (a, marker) => a.nftOffers(NFT_ID, { limit: 50, marker }), "live"],
+      ["nftHistory", (a, marker) => a.nftHistory(NFT_ID, { limit: 20, marker }), "live"],
+      ["nftHistory, newest first", (a, marker) => a.nftHistory(NFT_ID, { descending: true, limit: 20, marker }), "live"],
+      ["accountNfts", (a, marker) => a.accountNfts(ACCOUNT, { limit: 20, marker }), "live"],
+    ];
+    for (const [name, call, first] of lists) {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await call(api);
+      await call(api, "WzEwNzg3ODc3NSwxMDQsMV0");
+      // An empty marker is none.
+      await call(api, "");
+
+      expect(cache.calls.map((c) => c.cls), name).toEqual([first, MARKER_PAGE_CLASS, first]);
+      expect(cache.calls[1]!.key, name).toContain("marker=WzEwNzg3ODc3NSwxMDQsMV0");
+      expect(cache.calls[2]!.key, name).not.toContain("marker");
+    }
+    expect(MARKER_PAGE_CLASS).toBe("slow");
+  });
+
+  describe("the list of collections", () => {
+    it("sends descending=false as text when ascending, and nothing when not, because get() leaves a false out and D3 reads the ascending order only from the text", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.nftCollections({ limit: 20, sort: "supply", descending: false });
+      await api.nftCollections({ limit: 20, sort: "supply", descending: true });
+      await api.nftCollections({ limit: 20, sort: "supply" });
+
+      expect(cache.calls.map((c) => c.key.slice(`GET ${BASE}`.length))).toEqual([
+        "/v2/nft_collections?limit=20&sort=supply&descending=false",
+        "/v2/nft_collections?limit=20&sort=supply",
+        "/v2/nft_collections?limit=20&sort=supply",
+      ]);
+      expect(sentRequest(0).url).toBe(`${BASE}/v2/nft_collections?limit=20&sort=supply&descending=false`);
+    });
+
+    it("sends the issuer and the marker after, each only when it is asked for, and each sort as it is", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.nftCollections({ limit: 1000, sort: "holders", descending: false, issuer: NFT_ISSUER, marker: "M" });
+      await api.nftCollections({ limit: 200, issuer: "" });
+      await api.nftCollections({ limit: 200 });
+
+      expect(cache.calls.map((c) => [c.key.slice(`GET ${BASE}`.length), c.cls])).toEqual([
+        [`/v2/nft_collections?limit=1000&sort=holders&descending=false&issuer=${NFT_ISSUER}&marker=M`, MARKER_PAGE_CLASS],
+        // An empty issuer, like an empty marker, is none.
+        ["/v2/nft_collections?limit=200", "minute"],
+        ["/v2/nft_collections?limit=200", "minute"],
+      ]);
+    });
+  });
+
+  describe("the collection's NFTs", () => {
+    it("sends the owner and whether to include the burned before the page, each only when asked for", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.nftCollectionNfts(COLLECTION, { owner: NFT_ISSUER, includeBurned: true, limit: 20 });
+      await api.nftCollectionNfts(COLLECTION, { owner: "", includeBurned: false, limit: 20 });
+
+      expect(cache.calls.map((c) => c.key.slice(`GET ${BASE}${COLLECTION_PATH}`.length))).toEqual([`/nfts?owner=${NFT_ISSUER}&include_burned=true&limit=20`, "/nfts?limit=20"]);
+    });
+
+    it("takes the NFTs of a collection of Xahau, which have no taxon", async () => {
+      const { api } = recording();
+      const page = nftsPageSample({ nfts: [uriTokenSample()] });
+      fetchSpy.mockResolvedValueOnce(json(page));
+
+      expect((await api.nftCollectionNfts({ issuer: URI_TOKEN_ISSUER }, { limit: 20 })).nfts).toHaveLength(1);
+      // The same page for the XRPL collection of that issuer is not its page.
+      fetchSpy.mockResolvedValueOnce(json(page));
+      expect(await failureOf(api.nftCollectionNfts({ issuer: URI_TOKEN_ISSUER, taxon: 1 }, { limit: 20 }))).toMatchObject({ kind: "server", message: expect.stringContaining("nfts[0].taxon") });
+    });
+  });
+
+  describe("the volume", () => {
+    it("keeps the rolling period a minute and has no key of its own for a TTL it is not asked for, the days a slow call kept for the TTL the caller names", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+      const window = { interval: "day", start: "2026-09-18", end: "2026-10-17", limit: 1000 } as const;
+
+      await api.nftVolume({ live: "7day" });
+      await api.nftVolume({ live: "30day" }, { holdFailure: true });
+      await api.nftVolume(window);
+      await api.nftVolume(window, { ttl: PERIOD_CALL_TTL_SECONDS, holdFailure: true });
+      await api.nftVolume({ ...window, exchangeCurrency: "USD", exchangeIssuer: OTHER_ISSUER });
+
+      expect(cache.calls.map((c) => [c.key.slice(`GET ${BASE}/v2/network/nft_volume?`.length), c.cls, c.ttlOverride, c.holdFailure])).toEqual([
+        ["live=7day", "minute", undefined, undefined],
+        ["live=30day", "minute", undefined, true],
+        ["interval=day&start=2026-09-18&end=2026-10-17&limit=1000", "slow", undefined, undefined],
+        ["interval=day&start=2026-09-18&end=2026-10-17&limit=1000 [kept 300 s]", "slow", 300, true],
+        [`interval=day&start=2026-09-18&end=2026-10-17&limit=1000&exchange_currency=USD&exchange_issuer=${OTHER_ISSUER}`, "slow", undefined, undefined],
+      ]);
+    });
+  });
+
+  describe("the history", () => {
+    it("sends the event filter as one comma list, in the order given, and no filter for none", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.nftHistory(NFT_ID, { limit: 20, event: ["sale"] });
+      await api.nftHistory(NFT_ID, { limit: 20, event: ["offer_create", "offer_cancel", "offer_removed"] });
+      await api.nftHistory(NFT_ID, { limit: 20, event: [] });
+      await api.nftHistory(NFT_ID, { descending: true, limit: 20 });
+
+      expect(cache.calls.map((c) => c.key.slice(`GET ${BASE}/v2/nfts/${NFT_ID}/history?`.length))).toEqual([
+        "event=sale&limit=20",
+        "event=offer_create%2Coffer_cancel%2Coffer_removed&limit=20",
+        "limit=20",
+        "descending=true&limit=20",
+      ]);
+    });
+  });
+
+  it("asks the host of the network it was created for, with the key", async () => {
+    fetchSpy.mockImplementation(answer);
+
+    await createDataApi(xahau, env, passThroughCache).nftCollection({ issuer: URI_TOKEN_ISSUER });
+
+    expect(sentRequest().url).toBe(`https://xahau.data.example.invalid/v2/nft_collections/${URI_TOKEN_ISSUER}`);
+    expect(sentRequest().headers.get("X-API-Key")).toBe("test-key");
+  });
+
+  it("escapes what it puts in a path, so that an identifier cannot reach another endpoint", async () => {
+    fetchSpy.mockImplementation(answer);
+    const api = createDataApi(xrpl, env, passThroughCache);
+
+    await api.nft("a/b?c#d").catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/nfts/a%2Fb%3Fc%23d`);
+    await api.nftOffers("a/b", { limit: 50 }).catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/nfts/a%2Fb/offers?limit=50`);
+    await api.accountNfts("a/b?c#d", { limit: 20 }).catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/accounts/a%2Fb%3Fc%23d/nfts?limit=20`);
+    await api.nftCollectionHolders({ issuer: "a/b", taxon: 1 }, { limit: 20 }).catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/nft_collections/a%2Fb/1/holders?limit=20`);
+  });
+
+  it.each(["..", ".", ""])("refuses %j as an id, an address or an issuer without sending anything", async (id) => {
+    const api = createDataApi(xrpl, env, passThroughCache);
+
+    expect((await failureOf(api.nft(id))).kind).toBe("bad_request");
+    expect((await failureOf(api.nftOffers(id, { limit: 50 }))).kind).toBe("bad_request");
+    expect((await failureOf(api.nftHistory(id, { limit: 20 }))).kind).toBe("bad_request");
+    expect((await failureOf(api.accountNfts(id, { limit: 20 }))).kind).toBe("bad_request");
+    expect((await failureOf(api.nftCollection({ issuer: id }))).kind).toBe("bad_request");
+    expect((await failureOf(api.nftCollectionSales({ issuer: id, taxon: 1 }, { limit: 20 }))).kind).toBe("bad_request");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("keys the two networks apart", async () => {
+    const cache = recordingCache();
+    fetchSpy.mockImplementation(answer);
+
+    await createDataApi(xrpl, env, cache).nftSales({ limit: 10 });
+    await createDataApi(xahau, env, cache).nftSales({ limit: 10 });
+
+    expect(new Set(cache.calls.map((c) => c.key)).size).toBe(2);
+  });
+
+  it("types each answer by what the reference gives it", () => {
+    // A cache that answers nothing: only the types of the calls are looked at, and the promises are left alone.
+    const api = createDataApi(xrpl, env, { json: () => new Promise<never>(() => {}) });
+
+    expectTypeOf(api.nftVolume({ live: "day" })).toEqualTypeOf<Promise<NftVolume>>();
+    expectTypeOf(api.nftVolume({ interval: "day", start: "2026-09-18", end: "2026-10-17", limit: 1000 })).toEqualTypeOf<Promise<NftVolume>>();
+    expectTypeOf(api.nftSales({ limit: 10 })).toEqualTypeOf<Promise<NftSalesPage>>();
+    expectTypeOf(api.nftCollections({ limit: 20, sort: "holders", descending: false, issuer: NFT_ISSUER, marker: "M" })).toEqualTypeOf<Promise<NftCollectionsPage>>();
+    expectTypeOf(api.nftCollection(COLLECTION)).toEqualTypeOf<Promise<NftCollectionAnswer>>();
+    expectTypeOf(api.nftCollectionStats(COLLECTION, { start: "2026-10-20", end: "2026-10-27" })).toEqualTypeOf<Promise<NftCollectionDays>>();
+    expectTypeOf(api.nftCollectionSales(COLLECTION, { limit: 20 })).toEqualTypeOf<Promise<NftSalesPage>>();
+    expectTypeOf(api.nftCollectionNfts(COLLECTION, { limit: 20, owner: ACCOUNT, includeBurned: true })).toEqualTypeOf<Promise<NftsPage>>();
+    expectTypeOf(api.nftCollectionHolders(COLLECTION, { limit: 20 })).toEqualTypeOf<Promise<NftHoldersPage>>();
+    expectTypeOf(api.nft(NFT_ID)).toEqualTypeOf<Promise<NftAnswer>>();
+    expectTypeOf(api.nftOffers(NFT_ID, { limit: 50 })).toEqualTypeOf<Promise<NftOffersPage>>();
+    expectTypeOf(api.nftHistory(NFT_ID, { limit: 20, event: ["sale", "transfer"] })).toEqualTypeOf<Promise<NftEventsPage>>();
+    expectTypeOf(api.accountNfts(ACCOUNT, { limit: 20 })).toEqualTypeOf<Promise<NftsPage>>();
+    // The keys the reference lets an answer go without.
+    expectTypeOf<NftsPage["marker"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<NftAnswer["nft"]["taxon"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<NftAnswer["coverage"]["from_ledger_index"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<NftAnswer["coverage"]["complete"]>().toEqualTypeOf<boolean>();
+    expectTypeOf<NftCollectionAnswer["collection"]["taxon"]>().toEqualTypeOf<number | undefined>();
+  });
+});
+
+// E9's two calls (display-names spec 2.1): the names of up to 100 addresses and what a domain's toml says, D4's `/v2/account_names` and `/v2/toml/{domain}`
+// (data-api-new `feat/explorer-data-2` at 3feb11a, docs/api-reference.md, "Account names and tomls"). Each answer is checked inside the load the cache runs
+// (names-shape.ts), so that one that is not what the reference promises is a failure of kind `server` and is never stored. Both are class `minute`: D4 reloads
+// the names every 60 s and answers `max-age=60`, and changes a toml's row hourly.
+describe("E9's names and toml calls", () => {
+  const NAMED = "rrrrrrrrrrrrrrrrrrrpnkLzyT5b";
+  const OTHER = "rrrrrrrrrrrrrrrrrrrpnkW55rwD";
+  const DOMAIN = "northpeak.example";
+
+  /** An answer for the addresses asked: an entry for each, in the order asked, that nothing names. */
+  const namesFor = (addresses: readonly string[]): AccountNamesResponse => ({
+    result: "success",
+    count: addresses.length,
+    account_names: addresses.map((address) => ({ address })),
+  });
+  const tomlFor = (domain: string): TomlAnswer => ({
+    result: "success",
+    toml: {
+      domain,
+      toml_url: `https://${domain}/.well-known/xrp-ledger.toml`,
+      status: "ok",
+      checked: "2026-10-24T07:12:09.410Z",
+      fetched: "2026-10-24T07:12:09.410Z",
+      accounts: [{ address: NAMED, desc: "Northpeak Treasury" }],
+      principals: ["Mara Lindqvist"],
+    },
+  });
+
+  /** What D4 answers for the path asked: the names of the addresses in the query, or the toml of the domain in the path. */
+  const answer = async (input: RequestInfo | URL) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    if (url.pathname.endsWith("/account_names")) return json(namesFor((url.searchParams.get("addresses") ?? "").split(",")));
+    return json(tomlFor(decodeURIComponent(url.pathname.split("/").at(-1)!)));
+  };
+
+  const recording = () => {
+    const cache = recordingCache();
+    return { cache, api: createDataApi(xrpl, env, cache) };
+  };
+
+  const notFound = (message: string) => json({ result: "error", message }, { status: 404 });
+
+  // Failure tests first, each on a host of its own: the Cache API and the hold of this file outlive a test.
+  describe("a failure", () => {
+    it("keeps 'toml not found' as not_found, and makes Cannot GET (a data API without D4) a server error, which is never stored", async () => {
+      const { api, storedBy } = storing("e9-toml-failures");
+
+      fetchSpy.mockResolvedValueOnce(notFound("toml not found"));
+      const missing = await failureOf(api.toml("gone.example"));
+      expect([missing.kind, missing.status]).toEqual(["not_found", 404]);
+      expect(missing.message).toBe("data API GET /v2/toml/gone.example answered 404: toml not found");
+      expect(isNotFound(missing)).toBe(true);
+
+      fetchSpy.mockImplementation(async () => notFound("Cannot GET /v2/toml/x.example"));
+      const noRoute = await failureOf(api.toml("x.example"));
+      expect([noRoute.kind, noRoute.status]).toEqual(["server", 404]);
+      expect(noRoute.message).toBe("data API GET /v2/toml/x.example answered 404: Cannot GET /v2/toml/x.example (the data API has no such route)");
+      expect(isMissingRoute(noRoute)).toBe(true);
+      expect(isNotFound(noRoute)).toBe(false);
+
+      // Neither was stored: the next call asks again.
+      fetchSpy.mockClear();
+      fetchSpy.mockImplementation(async () => notFound("toml not found"));
+      expect(await storedBy(() => api.toml("gone.example").catch(() => undefined))).toEqual([]);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      await failureOf(api.toml("gone.example"));
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("makes Cannot GET of the names route a server error, D4's 400s the visitor's (bad_request) and its 500s a server failure, and stores none of them", async () => {
+      const { api, storedBy } = storing("e9-names-failures");
+
+      fetchSpy.mockImplementation(async () => notFound("Cannot GET /v2/account_names"));
+      const noRoute = await failureOf(api.accountNames([NAMED]));
+      expect([noRoute.kind, noRoute.status]).toEqual(["server", 404]);
+      expect(noRoute.message).toBe(`data API GET /v2/account_names?addresses=${NAMED} answered 404: Cannot GET /v2/account_names (the data API has no such route)`);
+      expect(await storedBy(() => api.accountNames([NAMED]).catch(() => undefined))).toEqual([]);
+
+      for (const message of ["addresses is required", "too many addresses - at most 100", "invalid ripple address"]) {
+        fetchSpy.mockResolvedValueOnce(json({ result: "error", message }, { status: 400 }));
+        const refused = await failureOf(api.accountNames([NAMED, OTHER]));
+        expect([message, refused.kind, refused.status]).toEqual([message, "bad_request", 400]);
+        expect(refused.message).toContain(message);
+      }
+
+      fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "unable to retrieve account names" }, { status: 500 }));
+      expect(await failureOf(api.accountNames([NAMED]))).toMatchObject({ kind: "server", status: 500 });
+      fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "unable to retrieve toml" }, { status: 500 }));
+      expect(await failureOf(api.toml(DOMAIN))).toMatchObject({ kind: "server", status: 500 });
+
+      // A 429 is the API limiting us.
+      fetchSpy.mockResolvedValueOnce(json({ error: "rate limit exceeded" }, { status: 429, headers: { "Content-Type": "application/json", "Retry-After": "7" } }));
+      expect(await failureOf(api.accountNames([NAMED]))).toMatchObject({ kind: "rate_limited", retryAfter: 7 });
+    });
+
+    type Pair = [name: string, call: (api: DataApi) => Promise<unknown>, good: unknown, bad: unknown, what: string];
+    const MALFORMED: Pair[] = [
+      [
+        "accountNames, a count that is not the addresses asked",
+        (a) => a.accountNames([NAMED, OTHER]),
+        namesFor([NAMED, OTHER]),
+        { ...namesFor([NAMED, OTHER]), count: 3 },
+        "count",
+      ],
+      [
+        "accountNames, an entry for another address",
+        (a) => a.accountNames([NAMED, OTHER]),
+        namesFor([NAMED, OTHER]),
+        { ...namesFor([NAMED, OTHER]), account_names: [{ address: OTHER }, { address: NAMED }] },
+        "account_names[0].address",
+      ],
+      [
+        "accountNames, a label without a description",
+        (a) => a.accountNames([NAMED]),
+        namesFor([NAMED]),
+        { ...namesFor([NAMED]), account_names: [{ address: NAMED, labels: { scam: {} } }] },
+        "account_names[0].labels.scam.description",
+      ],
+      ["toml, the toml of another domain", (a) => a.toml(DOMAIN), tomlFor(DOMAIN), tomlFor("lowtide.example"), "toml.domain"],
+      [
+        "toml, a status that is neither ok nor failed",
+        (a) => a.toml(DOMAIN),
+        tomlFor(DOMAIN),
+        { ...tomlFor(DOMAIN), toml: { ...tomlFor(DOMAIN).toml, status: "pending" } },
+        "toml.status",
+      ],
+    ];
+
+    it.each(MALFORMED)("%s: a malformed 200 is a server error naming the field, and is not stored", async (name, call, good, bad, what) => {
+      const { api, storedBy } = storing(`e9-malformed-${what.replace(/\W+/g, "-")}`);
+      fetchSpy.mockResolvedValueOnce(json(bad));
+
+      const error = await failureOf(call(api));
+      expect(error.kind).toBe("server");
+      expect(error.status).toBe(200);
+      expect(error.message).toContain("answered something unexpected");
+      expect(error.message).toContain(what);
+
+      // Nothing was stored: the next call, and the one after it, make new upstream requests; only the good answer is stored, and then no request is made.
+      fetchSpy.mockResolvedValueOnce(json(bad));
+      expect(await storedBy(() => call(api).catch(() => undefined))).toEqual([]);
+      fetchSpy.mockResolvedValueOnce(json(good));
+      expect((await storedBy(() => call(api))).length).toBeGreaterThan(0);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      expect(await call(api)).toEqual(good);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe("accountNames", () => {
+    it("asks /v2/account_names with the addresses as given in one comma list, class minute", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      const names = await api.accountNames([NAMED, OTHER]);
+
+      expect(names).toEqual(namesFor([NAMED, OTHER]));
+      expect(sentRequest().url).toBe(`${BASE}/v2/account_names?addresses=${NAMED}%2C${OTHER}`);
+      expect(sentRequest().headers.get("X-API-Key")).toBe("test-key");
+      expect(cache.calls).toHaveLength(1);
+      expect(cache.calls[0]!.cls).toBe("minute");
+      expect(cache.calls[0]!.ttlOverride).toBeUndefined();
+      expect(cache.calls[0]!.key).toBe(`GET ${BASE}/v2/account_names?addresses=${NAMED}%2C${OTHER}`);
+    });
+
+    it("sends the addresses in the order it was given them (loadNames sorts), one or a repeated one included", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.accountNames([OTHER, NAMED]);
+      await api.accountNames([NAMED]);
+      await api.accountNames([NAMED, NAMED]);
+
+      expect(cache.calls.map((call) => call.key.slice(`GET ${BASE}/v2/account_names?addresses=`.length))).toEqual([`${OTHER}%2C${NAMED}`, NAMED, `${NAMED}%2C${NAMED}`]);
+    });
+
+    it("passes holdFailure to the cache when asked, and keeps it out of the key: the same call, with it and without, is the same entry", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.accountNames([NAMED], { holdFailure: true });
+      await api.accountNames([NAMED]);
+      await api.accountNames([NAMED], { holdFailure: false });
+
+      expect(cache.calls.map((call) => "holdFailure" in call)).toEqual([true, false, false]);
+      expect(cache.calls[0]!.holdFailure).toBe(true);
+      expect(new Set(cache.calls.map((call) => call.key)).size).toBe(1);
+    });
+
+    it("keeps an answer a TTL of the caller's own, with an entry of its own", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.accountNames([NAMED], { ttl: 30 });
+      await api.accountNames([NAMED]);
+
+      expect(cache.calls[0]!.ttlOverride).toBe(30);
+      expect(cache.calls[0]!.key).toBe(`GET ${BASE}/v2/account_names?addresses=${NAMED} [kept 30 s]`);
+      expect(cache.calls[1]!.key).toBe(`GET ${BASE}/v2/account_names?addresses=${NAMED}`);
+    });
+
+    it("asks the host of the network it was created for", async () => {
+      fetchSpy.mockImplementation(answer);
+
+      await createDataApi(xahau, env, passThroughCache).accountNames([NAMED]);
+
+      expect(sentRequest().url).toBe(`https://xahau.data.example.invalid/v2/account_names?addresses=${NAMED}`);
+    });
+  });
+
+  describe("toml", () => {
+    it("asks /v2/toml/{domain}, class minute", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      const answered = await api.toml(DOMAIN);
+
+      expect(answered).toEqual(tomlFor(DOMAIN));
+      expect(sentRequest().url).toBe(`${BASE}/v2/toml/${DOMAIN}`);
+      expect(sentRequest().headers.get("X-API-Key")).toBe("test-key");
+      expect(cache.calls).toHaveLength(1);
+      expect(cache.calls[0]!.cls).toBe("minute");
+      expect(cache.calls[0]!.ttlOverride).toBeUndefined();
+      expect(cache.calls[0]!.key).toBe(`GET ${BASE}/v2/toml/${DOMAIN}`);
+      expect("holdFailure" in cache.calls[0]!).toBe(false);
+    });
+
+    it("takes the answer of a check that failed", async () => {
+      const { api } = recording();
+      const failed: TomlAnswer = {
+        result: "success",
+        toml: {
+          domain: "gone.example",
+          toml_url: "https://gone.example/.well-known/xrp-ledger.toml",
+          status: "failed",
+          reason: "http_status",
+          status_code: 404,
+          checked: "2026-10-20T11:00:00.250Z",
+        },
+      };
+      fetchSpy.mockResolvedValueOnce(json(failed));
+
+      expect(await api.toml("gone.example")).toEqual(failed);
+    });
+
+    it("escapes the domain it puts in a path, so that it cannot reach another endpoint", async () => {
+      const { api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.toml("a/b?c#d");
+      expect(sentRequest().url).toBe(`${BASE}/v2/toml/a%2Fb%3Fc%23d`);
+    });
+
+    it.each(["..", ".", ""])("refuses %j as a domain without sending anything", async (domain) => {
+      const { api } = recording();
+
+      expect((await failureOf(api.toml(domain))).kind).toBe("bad_request");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  it("keys the two networks apart", async () => {
+    const cache = recordingCache();
+    fetchSpy.mockImplementation(answer);
+
+    await createDataApi(xrpl, env, cache).accountNames([NAMED]);
+    await createDataApi(xahau, env, cache).accountNames([NAMED]);
+    await createDataApi(xrpl, env, cache).toml(DOMAIN);
+    await createDataApi(xahau, env, cache).toml(DOMAIN);
+
+    expect(new Set(cache.calls.map((call) => call.key)).size).toBe(4);
+  });
+
+  it("types each answer by what the reference gives it", () => {
+    // A cache that answers nothing: only the types of the calls are looked at, and the promises are left alone.
+    const api = createDataApi(xrpl, env, { json: () => new Promise<never>(() => {}) });
+
+    expectTypeOf(api.accountNames([NAMED, OTHER])).toEqualTypeOf<Promise<AccountNamesResponse>>();
+    expectTypeOf(api.accountNames([NAMED], { holdFailure: true, ttl: 5 })).toEqualTypeOf<Promise<AccountNamesResponse>>();
+    expectTypeOf(api.toml(DOMAIN)).toEqualTypeOf<Promise<TomlAnswer>>();
+    // The keys the reference lets an answer go without.
+    expectTypeOf<AccountNamesResponse["account_names"][number]["display_name"]>().toEqualTypeOf<{ text: string; kind: string } | undefined>();
+    expectTypeOf<TomlAnswer["toml"]["fetched"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<TomlAnswer["toml"]["accounts"]>().toEqualTypeOf<{ address: string; desc?: string }[] | undefined>();
+  });
+});
+
+// E10's eight calls (ledger-object pages spec 2.1): D5's escrows, checks and payment channels with their histories, an account's delegations and the lookup of an ID
+// (data-api-new `feat/explorer-data-2` at 0c2e58c, docs/api-reference.md, "Ledger objects"). Each answer is checked inside the load the cache runs (object-shape.ts), so that one
+// that is not what the reference promises is a failure of kind `server` and is never stored. The object and the lookup are class `live`; a page of older events, reached with a
+// marker, is `MARKER_PAGE_CLASS`.
+describe("E10's object calls", () => {
+  const OTHER_ID = "A".repeat(64);
+  const MARKER = "WzEwNzk0NTQzOCw5OF0";
+
+  interface ObjectCall {
+    name: string;
+    call: (api: DataApi) => Promise<unknown>;
+    /** Path and query of the request, in the order the client writes it, after the host. */
+    url: string;
+    cls: CacheClass;
+    /** The words of the route's own 404 (an ID with no object); the delegations have none. */
+    missing?: string;
+    /** The words of its 400, which E10 never sends (it checks IDs first). */
+    invalid?: string;
+    /** What D5 answers. */
+    good: () => unknown;
+    /** What makes `good` an answer the check refuses, and the field the message names. */
+    bad: () => unknown;
+    field: string;
+  }
+
+  const checkHistorySample = () => historySample({ history: checkAnswerSample().history });
+  const channelHistorySample = () => historySample({ history: paymentChannelAnswerSample().history, count: 2 });
+  const withBadHistory = <T extends { history: unknown }>(page: T): T => ({ ...page, history: {} });
+
+  const EIGHT: ObjectCall[] = [
+    {
+      name: "escrow",
+      call: (api) => api.escrow(ESCROW_ID),
+      url: `/v2/escrows/${ESCROW_ID}`,
+      cls: "live",
+      missing: "escrow not found",
+      invalid: "invalid escrow id",
+      good: () => escrowAnswerSample(),
+      bad: () => escrowAnswerSample({ escrow: { ...escrowAnswerSample().escrow, status: "unknown" as never } }),
+      field: "status",
+    },
+    {
+      name: "escrowHistory",
+      call: (api) => api.escrowHistory(ESCROW_ID, { descending: true, limit: 50, marker: "M" }),
+      url: `/v2/escrows/${ESCROW_ID}/history?descending=true&limit=50&marker=M`,
+      cls: MARKER_PAGE_CLASS,
+      missing: "escrow not found",
+      invalid: "invalid marker",
+      good: () => historySample(),
+      bad: () => withBadHistory(historySample()),
+      field: "history",
+    },
+    {
+      name: "check",
+      call: (api) => api.check(CHECK_ID),
+      url: `/v2/checks/${CHECK_ID}`,
+      cls: "live",
+      missing: "check not found",
+      invalid: "invalid check id",
+      good: () => checkAnswerSample(),
+      bad: () => checkAnswerSample({ check: { ...checkAnswerSample().check, send_max: { currency: "USD", issuer: "rNope", value: "1" } } }),
+      field: "issuer",
+    },
+    {
+      name: "checkHistory",
+      call: (api) => api.checkHistory(CHECK_ID, { descending: true, limit: 50, marker: "M" }),
+      url: `/v2/checks/${CHECK_ID}/history?descending=true&limit=50&marker=M`,
+      cls: MARKER_PAGE_CLASS,
+      missing: "check not found",
+      invalid: "invalid marker",
+      good: () => checkHistorySample(),
+      bad: () => withBadHistory(checkHistorySample()),
+      field: "history",
+    },
+    {
+      name: "paymentChannel",
+      call: (api) => api.paymentChannel(CHANNEL_ID),
+      url: `/v2/payment_channels/${CHANNEL_ID}`,
+      cls: "live",
+      missing: "payment channel not found",
+      invalid: "invalid channel id",
+      good: () => paymentChannelAnswerSample(),
+      bad: () => paymentChannelAnswerSample({ payment_channel: { ...paymentChannelAnswerSample().payment_channel, settle_delay: "1209600" as never } }),
+      field: "settle_delay",
+    },
+    {
+      name: "paymentChannelHistory",
+      call: (api) => api.paymentChannelHistory(CHANNEL_ID, { descending: true, limit: 50, marker: "M" }),
+      url: `/v2/payment_channels/${CHANNEL_ID}/history?descending=true&limit=50&marker=M`,
+      cls: MARKER_PAGE_CLASS,
+      missing: "payment channel not found",
+      invalid: "invalid marker",
+      good: () => channelHistorySample(),
+      bad: () => withBadHistory(channelHistorySample()),
+      field: "history",
+    },
+    {
+      name: "accountDelegations",
+      call: (api) => api.accountDelegations(DELEGATOR, { direction: "given", limit: 200 }),
+      url: `/v2/accounts/${DELEGATOR}/delegations?direction=given&limit=200`,
+      cls: "live",
+      invalid: "invalid direction",
+      good: () => delegationsSample(),
+      bad: () => delegationsSample({ delegations: [{ ...delegationsSample().delegations[0]!, authorize: "rNope" }] }),
+      field: "authorize",
+    },
+    {
+      name: "ledgerObject",
+      call: (api) => api.ledgerObject(DELEGATION_ID),
+      url: `/v2/ledger_objects/${DELEGATION_ID}`,
+      cls: "live",
+      missing: "ledger object not found",
+      invalid: "invalid ledger object id",
+      good: () => ({ result: "success", ledger_object: ledgerObjectSample() }),
+      bad: () => ({ result: "success", ledger_object: ledgerObjectSample({ object_type: "Offer" as never }) }),
+      field: "object_type",
+    },
+  ];
+
+  /** What D5 answers for the path asked, in the body of the sample of that route. */
+  const answer = async (input: RequestInfo | URL) => {
+    const { pathname } = new URL(input instanceof Request ? input.url : String(input));
+    const found = EIGHT.find((c) => c.url.split("?")[0] === pathname);
+    if (found === undefined) throw new Error(`unexpected request for ${pathname}`);
+    return json(found.good());
+  };
+
+  const recording = () => {
+    const cache = recordingCache();
+    return { cache, api: createDataApi(xrpl, env, cache) };
+  };
+
+  const notFound = (message: string) => json({ result: "error", message }, { status: 404 });
+
+  // Failure tests first, each on a host of its own: the Cache API and the hold of this file outlive a test.
+  describe("a failure", () => {
+    it.each(EIGHT.filter((c) => c.missing !== undefined).map((c) => [c.name, c] as const))("%s: keeps its own 404 as not_found, and makes Cannot GET (a data API without D5) a server error", async (name, c) => {
+      const { api, storedBy } = storing(`d5-failures-${name}`);
+      const path = c.url.split("?")[0]!;
+
+      fetchSpy.mockResolvedValueOnce(notFound(c.missing!));
+      const missing = await failureOf(c.call(api));
+      expect([missing.kind, missing.status]).toEqual(["not_found", 404]);
+      expect(missing.message).toBe(`data API GET ${c.url} answered 404: ${c.missing}`);
+      expect(isNotFound(missing)).toBe(true);
+
+      // An API without D5 answers the framework's words: an outage, which is never stored and never a 404 page.
+      fetchSpy.mockImplementation(async () => notFound(`Cannot GET ${path}`));
+      const noRoute = await failureOf(c.call(api));
+      expect([noRoute.kind, noRoute.status]).toEqual(["server", 404]);
+      expect(noRoute.message).toBe(`data API GET ${c.url} answered 404: Cannot GET ${path} (the data API has no such route)`);
+      expect(isMissingRoute(noRoute)).toBe(true);
+      expect(isNotFound(noRoute)).toBe(false);
+      expect(await storedBy(() => c.call(api).catch(() => undefined))).toEqual([]);
+    });
+
+    it("makes the delegations' Cannot GET a server error, and never stores it", async () => {
+      const { api, storedBy } = storing("d5-failures-delegations");
+      const path = `/v2/accounts/${DELEGATOR}/delegations`;
+      fetchSpy.mockImplementation(async () => notFound(`Cannot GET ${path}`));
+
+      const noRoute = await failureOf(api.accountDelegations(DELEGATOR, { direction: "given", limit: 200 }));
+      expect([noRoute.kind, noRoute.status]).toEqual(["server", 404]);
+      expect(isMissingRoute(noRoute)).toBe(true);
+      expect(await storedBy(() => api.accountDelegations(DELEGATOR, { direction: "given", limit: 200 }).catch(() => undefined))).toEqual([]);
+    });
+
+    it.each(EIGHT.map((c) => [c.name, c] as const))("%s: D5's 400 is the visitor's (bad_request), its 500 a server failure, its 429 the API limiting us, and none is stored", async (name, c) => {
+      const { api, storedBy } = storing(`d5-errors-${name}`);
+
+      fetchSpy.mockResolvedValueOnce(json({ result: "error", message: c.invalid }, { status: 400 }));
+      const refused = await failureOf(c.call(api));
+      expect([refused.kind, refused.status]).toEqual(["bad_request", 400]);
+      expect(refused.message).toContain(c.invalid);
+
+      fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "unable to retrieve" }, { status: 500 }));
+      expect(await failureOf(c.call(api))).toMatchObject({ kind: "server", status: 500 });
+
+      fetchSpy.mockResolvedValueOnce(json({ error: "rate limit exceeded" }, { status: 429, headers: { "Content-Type": "application/json", "Retry-After": "7" } }));
+      expect(await failureOf(c.call(api))).toMatchObject({ kind: "rate_limited", retryAfter: 7 });
+
+      fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "unable to retrieve" }, { status: 500 }));
+      expect(await storedBy(() => c.call(api).catch(() => undefined))).toEqual([]);
+    });
+
+    it.each(EIGHT.map((c) => [c.name, c] as const))("%s: a malformed 200 is a server error naming the field, and is not stored", async (name, c) => {
+      const { api, storedBy } = storing(`d5-malformed-${name}`);
+      fetchSpy.mockResolvedValueOnce(json(c.bad()));
+
+      const error = await failureOf(c.call(api));
+      expect(error.kind).toBe("server");
+      expect(error.status).toBe(200);
+      expect(error.message).toContain(`data API GET ${c.url}`);
+      // The field is looked for in the reason alone: the request every message holds says "history" or "account" for several of the calls.
+      expect(error.message.split("answered something unexpected: ")[1]).toContain(c.field);
+
+      // Nothing was stored: the next call, and the one after it, make new upstream requests; only the good answer is stored, and then no request is made.
+      fetchSpy.mockResolvedValueOnce(json(c.bad()));
+      expect(await storedBy(() => c.call(api).catch(() => undefined))).toEqual([]);
+      fetchSpy.mockResolvedValueOnce(json(c.good()));
+      expect((await storedBy(() => c.call(api))).length).toBeGreaterThan(0);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      await c.call(api);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    });
+
+    it("refuses the answer for another object than the one asked for, as a server error that is not stored", async () => {
+      const { api, storedBy } = storing("d5-other-object");
+      fetchSpy.mockResolvedValueOnce(json(escrowAnswerSample()));
+
+      const error = await failureOf(api.escrow(OTHER_ID));
+      expect(error).toMatchObject({ kind: "server", status: 200 });
+      expect(error.message.split("answered something unexpected: ")[1]).toContain("escrow_id");
+
+      fetchSpy.mockResolvedValueOnce(json({ result: "success", ledger_object: ledgerObjectSample() }));
+      expect(await storedBy(() => api.ledgerObject(OTHER_ID).catch(() => undefined))).toEqual([]);
+    });
+
+    it("refuses a delegations page of another account, or of the other direction, than the one asked for, as a server error that is not stored", async () => {
+      const { api, storedBy } = storing("d5-other-account");
+      fetchSpy.mockResolvedValueOnce(json(delegationsSample()));
+
+      const error = await failureOf(api.accountDelegations(DELEGATE, { direction: "given", limit: 200 }));
+      expect(error).toMatchObject({ kind: "server", status: 200 });
+      expect(error.message.split("answered something unexpected: ")[1]).toContain("delegations[0].account");
+
+      // The page of the account that gave it, asked as the delegate's (held): its authorize is the delegate's, not the account's.
+      fetchSpy.mockResolvedValueOnce(json(delegationsSample()));
+      expect(await storedBy(() => api.accountDelegations(DELEGATOR, { direction: "held", limit: 200 }).catch(() => undefined))).toEqual([]);
+      fetchSpy.mockResolvedValueOnce(json(delegationsSample()));
+      expect((await storedBy(() => api.accountDelegations(DELEGATE, { direction: "held", limit: 200 }))).length).toBeGreaterThan(0);
+    });
+
+    it("makes a lookup answered without ledger_object a server error", async () => {
+      const { api } = storing("d5-no-ledger-object");
+      fetchSpy.mockResolvedValueOnce(json({ result: "success" }));
+
+      expect(await failureOf(api.ledgerObject(DELEGATION_ID))).toMatchObject({
+        kind: "server",
+        status: 200,
+        message: expect.stringContaining('answered without "ledger_object"'),
+      });
+    });
+  });
+
+  it("asks D5's eight paths with their queries and classes", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    for (const c of EIGHT) await c.call(api);
+
+    // The keys are `GET <host><path and query as sent>`; the history's query is `descending`, `limit`, `marker`, the delegations' `direction`, `limit`.
+    expect(cache.calls.map((call) => [call.key, call.cls, call.ttlOverride])).toEqual(EIGHT.map((c) => [`GET ${BASE}${c.url}`, c.cls, undefined]));
+    expect(cache.calls.map((call) => "holdFailure" in call)).toEqual(EIGHT.map(() => false));
+    // What went out is the same path and query, with the key and nothing else of the visitor's.
+    expect(fetchSpy.mock.calls.map((_call, index) => sentRequest(index).url)).toEqual(EIGHT.map((c) => `${BASE}${c.url}`));
+    expect(sentRequest(0).headers.get("X-API-Key")).toBe("test-key");
+    expect(MARKER_PAGE_CLASS).toBe("slow");
+  });
+
+  it("returns what each call asked for: the whole answer, and for the lookup the part under ledger_object", async () => {
+    const { api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    expect(await api.escrow(ESCROW_ID)).toEqual(escrowAnswerSample());
+    expect(await api.check(CHECK_ID)).toEqual(checkAnswerSample());
+    expect(await api.paymentChannel(CHANNEL_ID)).toEqual(paymentChannelAnswerSample());
+    expect(await api.escrowHistory(ESCROW_ID, { descending: true, limit: 50, marker: "M" })).toEqual(historySample());
+    expect(await api.accountDelegations(DELEGATOR, { direction: "given", limit: 200 })).toEqual(delegationsSample());
+    expect(await api.ledgerObject(DELEGATION_ID)).toEqual(ledgerObjectSample());
+  });
+
+  it("sends the delegations' direction and limit as asked", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(async () => json(delegationsSample()));
+
+    await api.accountDelegations(DELEGATE, { direction: "held", limit: 1000 });
+
+    expect(cache.calls.map((call) => call.key)).toEqual([`GET ${BASE}/v2/accounts/${DELEGATE}/delegations?direction=held&limit=1000`]);
+  });
+
+  it("is class live for the first page of a history, MARKER_PAGE_CLASS behind a marker, and an empty marker is none", async () => {
+    const histories: Array<[name: string, call: (api: DataApi, marker?: string) => Promise<unknown>, route: string]> = [
+      ["escrowHistory", (a, marker) => a.escrowHistory(ESCROW_ID, { descending: true, limit: 50, marker }), `/v2/escrows/${ESCROW_ID}/history`],
+      ["checkHistory", (a, marker) => a.checkHistory(CHECK_ID, { descending: true, limit: 50, marker }), `/v2/checks/${CHECK_ID}/history`],
+      ["paymentChannelHistory", (a, marker) => a.paymentChannelHistory(CHANNEL_ID, { descending: true, limit: 50, marker }), `/v2/payment_channels/${CHANNEL_ID}/history`],
+    ];
+    for (const [name, call, route] of histories) {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await call(api).catch(() => undefined);
+      await call(api, MARKER);
+      // An empty marker is none.
+      await call(api, "").catch(() => undefined);
+
+      expect(cache.calls.map((c) => c.cls), name).toEqual(["live", MARKER_PAGE_CLASS, "live"]);
+      expect(cache.calls.map((c) => c.key.slice(`GET ${BASE}${route}`.length)), name).toEqual(["?descending=true&limit=50", `?descending=true&limit=50&marker=${MARKER}`, "?descending=true&limit=50"]);
+    }
+  });
+
+  it("takes the delegations of Xahau: none, with the coverage of a feature the network cannot have", async () => {
+    const none = delegationsSample({ coverage: { from_ledger_index: 8852809, complete: true }, ledger_index: 26399329, close_time: "2026-10-09T12:49:32Z", count: 0, delegations: [] });
+    fetchSpy.mockResolvedValueOnce(json(none));
+
+    expect(await createDataApi(xahau, env, passThroughCache).accountDelegations(DELEGATOR, { direction: "given", limit: 200 })).toEqual(none);
+    expect(sentRequest().url).toBe(`https://xahau.data.example.invalid/v2/accounts/${DELEGATOR}/delegations?direction=given&limit=200`);
+    expect(sentRequest().headers.get("X-API-Key")).toBe("test-key");
+  });
+
+  it("escapes what it puts in a path, so that an identifier cannot reach another endpoint", async () => {
+    fetchSpy.mockImplementation(answer);
+    const api = createDataApi(xrpl, env, passThroughCache);
+
+    await api.escrow("a/b?c#d").catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/escrows/a%2Fb%3Fc%23d`);
+    await api.checkHistory("a/b", { descending: true, limit: 50 }).catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/checks/a%2Fb/history?descending=true&limit=50`);
+    await api.accountDelegations("a/b?c#d", { direction: "given", limit: 200 }).catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/accounts/a%2Fb%3Fc%23d/delegations?direction=given&limit=200`);
+    await api.ledgerObject("a/b").catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/ledger_objects/a%2Fb`);
+  });
+
+  it.each(["..", ".", ""])("refuses %j as an ID or an address without sending anything", async (id) => {
+    const api = createDataApi(xrpl, env, passThroughCache);
+
+    expect((await failureOf(api.escrow(id))).kind).toBe("bad_request");
+    expect((await failureOf(api.escrowHistory(id, { descending: true, limit: 50 }))).kind).toBe("bad_request");
+    expect((await failureOf(api.check(id))).kind).toBe("bad_request");
+    expect((await failureOf(api.checkHistory(id, { descending: true, limit: 50 }))).kind).toBe("bad_request");
+    expect((await failureOf(api.paymentChannel(id))).kind).toBe("bad_request");
+    expect((await failureOf(api.paymentChannelHistory(id, { descending: true, limit: 50 }))).kind).toBe("bad_request");
+    expect((await failureOf(api.accountDelegations(id, { direction: "given", limit: 200 }))).kind).toBe("bad_request");
+    expect((await failureOf(api.ledgerObject(id))).kind).toBe("bad_request");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("keys the two networks apart", async () => {
+    const cache = recordingCache();
+    fetchSpy.mockImplementation(async () => json(delegationsSample()));
+
+    await createDataApi(xrpl, env, cache).accountDelegations(DELEGATOR, { direction: "given", limit: 200 });
+    await createDataApi(xahau, env, cache).accountDelegations(DELEGATOR, { direction: "given", limit: 200 });
+
+    expect(new Set(cache.calls.map((c) => c.key)).size).toBe(2);
+  });
+
+  it("types each answer by what the reference gives it", () => {
+    // A cache that answers nothing: only the types of the calls are looked at, and the promises are left alone.
+    const api = createDataApi(xrpl, env, { json: () => new Promise<never>(() => {}) });
+
+    expectTypeOf(api.escrow(ESCROW_ID)).toEqualTypeOf<Promise<EscrowAnswer>>();
+    expectTypeOf(api.escrowHistory(ESCROW_ID, { descending: true, limit: 50, marker: "M" })).toEqualTypeOf<Promise<ObjectHistoryPage>>();
+    expectTypeOf(api.check(CHECK_ID)).toEqualTypeOf<Promise<CheckAnswer>>();
+    expectTypeOf(api.checkHistory(CHECK_ID, { descending: true, limit: 50 })).toEqualTypeOf<Promise<ObjectHistoryPage>>();
+    expectTypeOf(api.paymentChannel(CHANNEL_ID)).toEqualTypeOf<Promise<PaymentChannelAnswer>>();
+    expectTypeOf(api.paymentChannelHistory(CHANNEL_ID, { descending: true, limit: 50 })).toEqualTypeOf<Promise<ObjectHistoryPage>>();
+    expectTypeOf(api.accountDelegations(DELEGATOR, { direction: "held", limit: 200 })).toEqualTypeOf<Promise<DelegationsPage>>();
+    expectTypeOf(api.ledgerObject(DELEGATION_ID)).toEqualTypeOf<Promise<LedgerObjectRef>>();
+    // The keys the reference lets an answer go without.
+    expectTypeOf<EscrowAnswer["history_marker"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<EscrowAnswer["escrow"]["created"]>().toEqualTypeOf<ObjectRef | undefined>();
+    expectTypeOf<EscrowAnswer["coverage"]["complete"]>().toEqualTypeOf<boolean>();
+    expectTypeOf<ObjectHistoryPage["marker"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<Delegation["created"]>().toEqualTypeOf<ObjectRef | undefined>();
+    // The history pages are asked newest first.
+    expectTypeOf<Parameters<DataApi["escrowHistory"]>[1]["descending"]>().toEqualTypeOf<true>();
+  });
+});
+
+describe("D6's token calls", () => {
+  const ASSET = { currency: TOKEN_SAMPLE_CURRENCY, issuer: TOKEN_SAMPLE_ISSUER };
+  /** The path segment of the token: the currency as the ledger holds it, a dot, the issuer. */
+  const TOKEN = `${TOKEN_SAMPLE_CURRENCY}.${TOKEN_SAMPLE_ISSUER}`;
+
+  interface TokenCall {
+    name: string;
+    call: (api: DataApi) => Promise<unknown>;
+    /** Path and query of the request, in the order the client writes it, after the host. */
+    url: string;
+    cls: CacheClass;
+    /** The words of the route's own 404; the list and the transfers have none (the transfers never look the token up). */
+    missing?: string;
+    /** What D6 answers. */
+    good: () => unknown;
+    /** What makes `good` an answer the check refuses, and the field the message names. */
+    bad: () => unknown;
+    field: string;
+  }
+
+  const FOUR: TokenCall[] = [
+    {
+      name: "tokens",
+      call: (api) => api.tokens({ kind: "issued", limit: 20, minHolders: 10 }),
+      url: "/v2/tokens?kind=issued&limit=20&min_holders=10",
+      cls: "minute",
+      good: () => tokensSample(),
+      bad: () => tokensSample({ tokens: {} as never }),
+      field: "tokens",
+    },
+    {
+      name: "token",
+      call: (api) => api.token(ASSET),
+      url: `/v2/tokens/${TOKEN}`,
+      cls: "minute",
+      missing: "token not found",
+      good: () => tokenSample(),
+      bad: () => tokenSample({ token: tokenDetailSample({ supply: 7320 as never }) }),
+      field: "supply",
+    },
+    {
+      name: "tokenHolders",
+      call: (api) => api.tokenHolders(ASSET, { limit: 10 }),
+      url: `/v2/tokens/${TOKEN}/holders?limit=10`,
+      cls: "minute",
+      missing: "token not found",
+      good: () => holdersSample(),
+      bad: () => holdersSample({ holders: [tokenHolderSample({ share: "0.0055" })] }),
+      field: "share",
+    },
+    {
+      name: "tokenTransfers",
+      call: (api) => api.tokenTransfers(ASSET, { limit: 20 }),
+      url: `/v2/tokens/${TOKEN}/transfers?descending=true&limit=20`,
+      cls: "live",
+      good: () => transfersSample(),
+      bad: () => transfersSample({ transfers: {} as never }),
+      field: "transfers",
+    },
+  ];
+
+  /** What D6 answers for the path asked, in the body of the sample of that route. */
+  const answer = async (input: RequestInfo | URL) => {
+    const { pathname } = new URL(input instanceof Request ? input.url : String(input));
+    const found = FOUR.find((c) => c.url.split("?")[0] === pathname);
+    if (found === undefined) throw new Error(`unexpected request for ${pathname}`);
+    return json(found.good());
+  };
+
+  const recording = () => {
+    const cache = recordingCache();
+    return { cache, api: createDataApi(xrpl, env, cache) };
+  };
+
+  const notFound = (message: string) => json({ result: "error", message }, { status: 404 });
+
+  // Failure tests first, each on a host of its own: the Cache API and the hold of this file outlive a test.
+  describe("a failure", () => {
+    it.each(FOUR.map((c) => [c.name, c] as const))("%s: a malformed 200 is a server error naming the field, and is not stored", async (name, c) => {
+      const { api, storedBy } = storing(`d6-malformed-${name}`);
+      fetchSpy.mockResolvedValueOnce(json(c.bad()));
+
+      const error = await failureOf(c.call(api));
+      expect(error.kind).toBe("server");
+      expect(error.status).toBe(200);
+      expect(error.message).toContain(`data API GET ${c.url}`);
+      // The field is looked for in the reason alone: the request every message holds says "tokens" for three of the calls.
+      expect(error.message.split("answered something unexpected: ")[1]).toContain(c.field);
+
+      // Nothing was stored: the next call, and the one after it, make new upstream requests; only the good answer is stored, and then no request is made.
+      fetchSpy.mockResolvedValueOnce(json(c.bad()));
+      expect(await storedBy(() => c.call(api).catch(() => undefined))).toEqual([]);
+      fetchSpy.mockResolvedValueOnce(json(c.good()));
+      expect((await storedBy(() => c.call(api))).length).toBeGreaterThan(0);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      await c.call(api);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    });
+
+    it.each(FOUR.map((c) => [c.name, c] as const))("%s: keeps its own 404 as not_found, and makes Cannot GET (a data API without D6) a server error that is not stored", async (name, c) => {
+      const { api, storedBy } = storing(`d6-failures-${name}`);
+      const path = c.url.split("?")[0]!;
+
+      if (c.missing !== undefined) {
+        fetchSpy.mockResolvedValueOnce(notFound(c.missing));
+        const missing = await failureOf(c.call(api));
+        expect([missing.kind, missing.status]).toEqual(["not_found", 404]);
+        expect(missing.message).toBe(`data API GET ${c.url} answered 404: ${c.missing}`);
+        expect(isNotFound(missing)).toBe(true);
+        expect(isMissingRoute(missing)).toBe(false);
+      }
+
+      // An API without D6 answers the framework's words: an outage, which is never stored and never a 404 page.
+      fetchSpy.mockImplementation(async () => notFound(`Cannot GET ${path}`));
+      const noRoute = await failureOf(c.call(api));
+      expect([noRoute.kind, noRoute.status]).toEqual(["server", 404]);
+      expect(noRoute.message).toBe(`data API GET ${c.url} answered 404: Cannot GET ${path} (the data API has no such route)`);
+      expect(isMissingRoute(noRoute)).toBe(true);
+      expect(isNotFound(noRoute)).toBe(false);
+      expect(await storedBy(() => c.call(api).catch(() => undefined))).toEqual([]);
+    });
+
+    it("refuses the answer for another token than the one asked, as a server error that is not stored", async () => {
+      const { api, storedBy } = storing("d6-other-token");
+      const other = { currency: TOKEN_SAMPLE_CURRENCY, issuer: TOKEN_SAMPLE_OTHER_ISSUER };
+      fetchSpy.mockResolvedValueOnce(json(tokenSample()));
+
+      const error = await failureOf(api.token(other));
+      expect(error).toMatchObject({ kind: "server", status: 200 });
+      expect(error.message.split("answered something unexpected: ")[1]).toContain("token.issuer");
+
+      fetchSpy.mockResolvedValueOnce(json(tokenSample()));
+      expect(await storedBy(() => api.token(other).catch(() => undefined))).toEqual([]);
+      // The same answer is the one for the token asked.
+      fetchSpy.mockResolvedValueOnce(json(tokenSample()));
+      expect((await storedBy(() => api.token(ASSET))).length).toBeGreaterThan(0);
+    });
+
+    it("does not make a market whose last is Infinity (D6's ratio of a pair with a stored rate of 0) a failure: the answer is stored without that last", async () => {
+      const { api, storedBy } = storing("d6-infinity");
+      const body = tokenSample();
+      body.token.markets[0]!.last = "Infinity";
+      fetchSpy.mockResolvedValueOnce(json(body));
+
+      let answered: TokenAnswer | undefined;
+      expect((await storedBy(async (a) => (answered = await a.token(ASSET)))).length).toBeGreaterThan(0);
+
+      expect("last" in answered!.token.markets[0]!).toBe(false);
+      expect(answered!.token.markets[1]).toEqual(tokenSample().token.markets[1]);
+      // What was stored is the answer without that last: the next call reads it, and asks nothing.
+      const again = await api.token(ASSET);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect("last" in again.token.markets[0]!).toBe(false);
+    });
+
+    it("takes a list before the first generation exists, with no totals and no total", async () => {
+      const { api } = storing("d6-no-generation");
+      const none = { result: "success", coverage: { complete: false }, kind: "issued", count: 0, tokens: [] };
+      fetchSpy.mockResolvedValueOnce(json(none));
+
+      expect(await api.tokens({ kind: "issued", limit: 20 })).toEqual(none);
+    });
+  });
+
+  it("asks D6's four paths with their queries and classes", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    for (const c of FOUR) await c.call(api);
+
+    // The keys are `GET <host><path and query as sent>`; the list's query is `kind`, `limit`, then the optional `marker`, `min_holders`, `q`.
+    expect(cache.calls.map((call) => [call.key, call.cls, call.ttlOverride])).toEqual(FOUR.map((c) => [`GET ${BASE}${c.url}`, c.cls, undefined]));
+    expect(cache.calls.map((call) => "holdFailure" in call)).toEqual(FOUR.map(() => false));
+    // What went out is the same path and query, with the key and nothing else of the visitor's.
+    expect(fetchSpy.mock.calls.map((_call, index) => sentRequest(index).url)).toEqual(FOUR.map((c) => `${BASE}${c.url}`));
+    expect(sentRequest(0).headers.get("X-API-Key")).toBe("test-key");
+    expect(sentRequest(1).url).toBe(`${BASE}/v2/tokens/524C555344000000000000000000000000000000.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De`);
+    expect(CACHE_CLASSES.minute.edgeTtl).toBe(60);
+  });
+
+  it("returns what each call asked for: the whole answer", async () => {
+    const { api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    expect(await api.tokens({ kind: "issued", limit: 20, minHolders: 10 })).toEqual(tokensSample());
+    expect(await api.token(ASSET)).toEqual(tokenSample());
+    expect(await api.tokenHolders(ASSET, { limit: 10 })).toEqual(holdersSample());
+    expect(await api.tokenTransfers(ASSET, { limit: 20 })).toEqual(transfersSample());
+  });
+
+  it("writes the list's query as kind, limit, marker, min_holders, q, and leaves out the ones that are none (an empty marker or search is none, a min_holders of 0 is sent)", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    await api.tokens({ kind: "issued", limit: 20, marker: "M", minHolders: 10, q: "north" });
+    await api.tokens({ kind: "issued", limit: 20, marker: "", q: "" });
+    await api.tokens({ kind: "issued", limit: 20, minHolders: 0 });
+
+    // A list is a minute whatever its page: the ranking is rebuilt each minute, and a page behind a marker is not stored for longer.
+    expect(cache.calls.map((c) => [c.key.slice(`GET ${BASE}/v2/tokens`.length), c.cls])).toEqual([
+      ["?kind=issued&limit=20&marker=M&min_holders=10&q=north", "minute"],
+      ["?kind=issued&limit=20", "minute"],
+      ["?kind=issued&limit=20&min_holders=0", "minute"],
+    ]);
+  });
+
+  it("asks the holders a minute whatever their page, with the marker after the limit", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    await api.tokenHolders(ASSET, { limit: 10, marker: "M" });
+    await api.tokenHolders(ASSET, { limit: 10, marker: "" });
+
+    expect(cache.calls.map((c) => [c.key.slice(`GET ${BASE}/v2/tokens/${TOKEN}/holders`.length), c.cls])).toEqual([
+      ["?limit=10&marker=M", "minute"],
+      ["?limit=10", "minute"],
+    ]);
+  });
+
+  it("is class live for the first page of the transfers, MARKER_PAGE_CLASS behind a marker, and an empty marker is none", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    await api.tokenTransfers(ASSET, { limit: 20 });
+    await api.tokenTransfers(ASSET, { limit: 20, marker: TRANSFERS_MARKER });
+    await api.tokenTransfers(ASSET, { limit: 20, marker: "" });
+
+    expect(cache.calls.map((c) => c.cls)).toEqual(["live", MARKER_PAGE_CLASS, "live"]);
+    expect(cache.calls.map((c) => c.key.slice(`GET ${BASE}/v2/tokens/${TOKEN}/transfers`.length))).toEqual([
+      "?descending=true&limit=20",
+      `?descending=true&limit=20&marker=${TRANSFERS_MARKER}`,
+      "?descending=true&limit=20",
+    ]);
+    expect(MARKER_PAGE_CLASS).toBe("slow");
+  });
+
+  it("passes the TTL and the failure hold on: the TTL makes an entry of its own and, for the transfers, only for a first page", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    await api.tokens({ kind: "issued", limit: 20 }, { ttl: 7, holdFailure: true });
+    await api.token(ASSET, { ttl: 7, holdFailure: true });
+    await api.tokenHolders(ASSET, { limit: 10 }, { ttl: 7 });
+    await api.tokenTransfers(ASSET, { limit: 20 }, { ttl: 7, holdFailure: true });
+    await api.tokenTransfers(ASSET, { limit: 20, marker: TRANSFERS_MARKER }, { ttl: 7 });
+
+    expect(cache.calls.map((c) => [c.ttlOverride, c.holdFailure])).toEqual([
+      [7, true],
+      [7, true],
+      [7, undefined],
+      [7, true],
+      [undefined, undefined],
+    ]);
+    expect(cache.calls.map((c) => c.key.endsWith(" [kept 7 s]"))).toEqual([true, true, true, true, false]);
+  });
+
+  it("escapes what it puts in a path, so that a currency cannot reach another endpoint", async () => {
+    fetchSpy.mockImplementation(async () => json(transfersSample()));
+    const api = createDataApi(xrpl, env, passThroughCache);
+
+    // A text code can hold anything but is one segment here: the slash, the question mark and the hash are escaped, the dot (the separator) is not.
+    await api.token({ currency: "a/b?c#d", issuer: TOKEN_SAMPLE_ISSUER }).catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/tokens/a%2Fb%3Fc%23d.${TOKEN_SAMPLE_ISSUER}`);
+    await api.tokenHolders({ currency: "a/b", issuer: TOKEN_SAMPLE_ISSUER }, { limit: 10 }).catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/tokens/a%2Fb.${TOKEN_SAMPLE_ISSUER}/holders?limit=10`);
+    await api.tokenTransfers({ currency: "a|b+c", issuer: TOKEN_SAMPLE_ISSUER }, { limit: 20 });
+    expect(sentRequest().url).toBe(`${BASE}/v2/tokens/a%7Cb%2Bc.${TOKEN_SAMPLE_ISSUER}/transfers?descending=true&limit=20`);
+  });
+
+  it("refuses an empty currency and issuer, which make the segment a single dot that the URL parser would resolve away, without sending anything", async () => {
+    const api = createDataApi(xrpl, env, passThroughCache);
+    const nothing = { currency: "", issuer: "" };
+
+    expect((await failureOf(api.token(nothing))).kind).toBe("bad_request");
+    expect((await failureOf(api.tokenHolders(nothing, { limit: 10 }))).kind).toBe("bad_request");
+    expect((await failureOf(api.tokenTransfers(nothing, { limit: 20 }))).kind).toBe("bad_request");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("keys the two networks apart", async () => {
+    const cache = recordingCache();
+    fetchSpy.mockImplementation(async () => json(tokensSample()));
+
+    await createDataApi(xrpl, env, cache).tokens({ kind: "issued", limit: 20 });
+    await createDataApi(xahau, env, cache).tokens({ kind: "issued", limit: 20 });
+
+    expect(new Set(cache.calls.map((c) => c.key)).size).toBe(2);
+  });
+
+  it("types each answer by what the reference gives it", () => {
+    // A cache that answers nothing: only the types of the calls are looked at, and the promises are left alone.
+    const api = createDataApi(xrpl, env, { json: () => new Promise<never>(() => {}) });
+
+    expectTypeOf(api.tokens({ kind: "issued", limit: 20 })).toEqualTypeOf<Promise<TokensResponse>>();
+    expectTypeOf(api.token(ASSET)).toEqualTypeOf<Promise<TokenAnswer>>();
+    expectTypeOf(api.tokenHolders(ASSET, { limit: 10 })).toEqualTypeOf<Promise<TokenHoldersResponse>>();
+    expectTypeOf(api.tokenTransfers(ASSET, { limit: 20 })).toEqualTypeOf<Promise<TokenTransfersResponse>>();
+    // The keys the reference lets an answer go without: the list before its first generation has no totals; the totals have no holders until the job has counted them; and a market has
+    // no last when D6 wrote Infinity.
+    expectTypeOf<TokensResponse["totals"]>().toEqualTypeOf<IssuedTokensTotals | undefined>();
+    expectTypeOf<TokensResponse["total"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<IssuedTokensTotals["holders"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<TokenMarket["last"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<TokensResponse["coverage"]["complete"]>().toEqualTypeOf<boolean>();
+    expectTypeOf<TokensResponse["kind"]>().toEqualTypeOf<"issued">();
+    expectTypeOf<TokenHoldersResponse["marker"]>().toEqualTypeOf<string | undefined>();
+  });
+});
+
+describe("D7's supply calls", () => {
+  /** The query of the minted days, as the network page's fees call writes its own window: `interval`, `start`, `end`, `limit`. */
+  const WINDOW = { interval: "day", start: "2026-07-20", end: "2026-10-17", limit: 1000 } as const;
+  const SUPPLY_URL = "/v2/network/supply";
+  const MINTED_URL = "/v2/network/supply/minted?interval=day&start=2026-07-20&end=2026-10-17&limit=1000";
+  const KEPT = { ttl: PERIOD_CALL_TTL_SECONDS, holdFailure: false };
+
+  interface SupplyCall {
+    name: "networkSupply" | "networkMinted";
+    call: (api: DataApi, opts?: FreshOptions) => Promise<unknown>;
+    /** Path and query of the request, in the order the client writes it, after the host. */
+    url: string;
+    /** What D7 answers. */
+    good: () => unknown;
+    /** What makes `good` an answer the check refuses, and the field the message names. */
+    bad: () => unknown;
+    field: string;
+  }
+
+  const TWO: SupplyCall[] = [
+    {
+      name: "networkSupply",
+      call: (api, opts) => api.networkSupply(opts),
+      url: SUPPLY_URL,
+      good: () => supplySample("xrpl"),
+      bad: () => supplySample("xrpl", { total: 99985312374.716318 as never }),
+      field: "total",
+    },
+    {
+      name: "networkMinted",
+      call: (api, opts) => api.networkMinted(WINDOW, opts),
+      url: MINTED_URL,
+      good: () => mintedPageSample(),
+      bad: () => mintedPageSample({ rows: {} as never }),
+      field: "rows",
+    },
+  ];
+
+  /** What D7 answers for the path asked, in the body of the sample of that route. */
+  const answer = async (input: RequestInfo | URL) => {
+    const { pathname } = new URL(input instanceof Request ? input.url : String(input));
+    const found = TWO.find((c) => c.url.split("?")[0] === pathname);
+    if (found === undefined) throw new Error(`unexpected request for ${pathname}`);
+    return json(found.good());
+  };
+
+  const notFound = (message: string) => json({ result: "error", message }, { status: 404 });
+
+  // Failure tests first, each on a host of its own: the Cache API and the hold of this file outlive a test.
+  describe("a failure", () => {
+    it.each(TWO.map((c) => [c.name, c] as const))("%s: a malformed 200 is a server error naming the field, and is not stored", async (name, c) => {
+      const { api, storedBy } = storing(`d7-malformed-${name}`);
+      fetchSpy.mockResolvedValueOnce(json(c.bad()));
+
+      const error = await failureOf(c.call(api, KEPT));
+      expect(error.kind).toBe("server");
+      expect(error.status).toBe(200);
+      expect(error.message).toContain(`data API GET ${c.url}`);
+      // The field is looked for in the reason alone: the request every message holds says "supply" for both calls.
+      expect(error.message.split("answered something unexpected: ")[1]).toContain(c.field);
+
+      // Nothing was stored: the next call, and the one after it, make new upstream requests; only the good answer is stored, and then no request is made.
+      fetchSpy.mockResolvedValueOnce(json(c.bad()));
+      expect(await storedBy(() => c.call(api, KEPT).catch(() => undefined))).toEqual([]);
+      fetchSpy.mockResolvedValueOnce(json(c.good()));
+      expect((await storedBy(() => c.call(api, KEPT))).length).toBeGreaterThan(0);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      await c.call(api, KEPT);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    });
+
+    it("reads 404 supply not computed yet as not_found and Cannot GET (a data API without D7) as a server error that is not stored", async () => {
+      const { api, storedBy } = storing("d7-failures");
+
+      // Before the first snapshot exists: the route's own 404, which the page tells as an outage (spec 3.2) and no page takes for a thing that does not exist.
+      fetchSpy.mockResolvedValueOnce(notFound("supply not computed yet"));
+      const early = await failureOf(api.networkSupply(KEPT));
+      expect([early.kind, early.status]).toEqual(["not_found", 404]);
+      expect(early.message).toBe(`data API GET ${SUPPLY_URL} answered 404: supply not computed yet`);
+      expect(isNotFound(early)).toBe(true);
+      expect(isMissingRoute(early)).toBe(false);
+      // Nor was this one stored: the next call goes to the API again (it is not served from a copy of the first), and stores nothing.
+      fetchSpy.mockResolvedValueOnce(notFound("supply not computed yet"));
+      expect(await storedBy(() => api.networkSupply(KEPT).catch(() => undefined))).toEqual([]);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+      // An API without D7 answers the framework's words: an outage, which is never a 404 page.
+      fetchSpy.mockImplementation(async (input) => notFound(`Cannot GET ${new URL(input instanceof Request ? input.url : String(input)).pathname}`));
+      for (const c of TWO) {
+        const noRoute = await failureOf(c.call(api, KEPT));
+        expect([noRoute.kind, noRoute.status], c.name).toEqual(["server", 404]);
+        expect(noRoute.message, c.name).toBe(`data API GET ${c.url} answered 404: Cannot GET ${c.url.split("?")[0]} (the data API has no such route)`);
+        expect(isMissingRoute(noRoute), c.name).toBe(true);
+        expect(isNotFound(noRoute), c.name).toBe(false);
+      }
+      // Neither failure was stored.
+      expect(await storedBy(() => api.networkSupply(KEPT).catch(() => undefined))).toEqual([]);
+      expect(await storedBy(() => api.networkMinted(WINDOW, KEPT).catch(() => undefined))).toEqual([]);
+    });
+
+    it("refuses the answer of the other network: a supply in XAH is no answer on the XRP Ledger, and the check is told each network's own currency", async () => {
+      const cache = recordingCache();
+      fetchSpy.mockResolvedValueOnce(json(supplySample("xahau")));
+      const error = await failureOf(createDataApi(xrpl, env, cache).networkSupply());
+      expect(error).toMatchObject({ kind: "server", status: 200 });
+      expect(error.message.split("answered something unexpected: ")[1]).toContain("currency");
+
+      // Xahau's own is the answer there, and XRPL's is not.
+      fetchSpy.mockResolvedValueOnce(json(supplySample("xahau")));
+      expect(await createDataApi(xahau, env, cache).networkSupply()).toEqual(supplySample("xahau"));
+      fetchSpy.mockResolvedValueOnce(json(supplySample("xrpl")));
+      expect((await failureOf(createDataApi(xahau, env, cache).networkSupply())).message).toContain("currency");
+    });
+  });
+
+  it("asks D7's two paths with their queries, class and TTL", async () => {
+    const cache = recordingCache();
+    const api = createDataApi(xrpl, env, cache);
+    fetchSpy.mockImplementation(answer);
+
+    await api.networkSupply({ ttl: PERIOD_CALL_TTL_SECONDS });
+    await api.networkMinted(WINDOW, { ttl: PERIOD_CALL_TTL_SECONDS });
+
+    // Both are `slow` and kept 300 s, under an entry of their own; the minted query is `interval`, `start`, `end`, `limit` and the supply's none.
+    expect(cache.calls.map((call) => [call.key, call.cls, call.ttlOverride])).toEqual([
+      [`GET ${BASE}/v2/network/supply [kept 300 s]`, "slow", 300],
+      [`GET ${BASE}/v2/network/supply/minted?interval=day&start=2026-07-20&end=2026-10-17&limit=1000 [kept 300 s]`, "slow", 300],
+    ]);
+    // What went out is the same path and query, with the key and nothing else of the visitor's.
+    expect(fetchSpy.mock.calls.map((_call, index) => sentRequest(index).url)).toEqual([`${BASE}${SUPPLY_URL}`, `${BASE}${MINTED_URL}`]);
+    expect(sentRequest(0).headers.get("X-API-Key")).toBe("test-key");
+    expect(PERIOD_CALL_TTL_SECONDS).toBe(300);
+    expect(CACHE_CLASSES.slow.edgeTtl).toBe(3600);
+  });
+
+  it("returns what each call asked for: the whole answer", async () => {
+    fetchSpy.mockImplementation(answer);
+    const api = createDataApi(xrpl, env, recordingCache());
+
+    expect(await api.networkSupply()).toEqual(supplySample("xrpl"));
+    expect(await api.networkMinted(WINDOW)).toEqual(mintedPageSample());
+  });
+
+  it("keeps the class of the call whatever TTL it is asked for, passes the failure hold on, and makes an entry for each TTL", async () => {
+    const cache = recordingCache();
+    const api = createDataApi(xrpl, env, cache);
+    fetchSpy.mockImplementation(answer);
+
+    for (const c of TWO) {
+      await c.call(api);
+      await c.call(api, { holdFailure: true });
+      await c.call(api, { ttl: PERIOD_CALL_TTL_SECONDS, holdFailure: true });
+    }
+
+    // Without options: the class's TTL, no hold. With the hold alone: the same entry. With a TTL: an entry of its own.
+    expect(cache.calls.map((c) => [c.cls, c.ttlOverride, c.holdFailure, c.key.endsWith(" [kept 300 s]")])).toEqual([
+      ["slow", undefined, undefined, false],
+      ["slow", undefined, true, false],
+      ["slow", 300, true, true],
+      ["slow", undefined, undefined, false],
+      ["slow", undefined, true, false],
+      ["slow", 300, true, true],
+    ]);
+    expect(new Set(cache.calls.slice(0, 2).map((c) => c.key)).size).toBe(1);
+  });
+
+  it("is really stored for 300 s when the page asks for the period's TTL", async () => {
+    const { storedBy } = storing("d7-stored");
+    fetchSpy.mockImplementation(answer);
+
+    expect(await storedBy((a) => a.networkSupply({ ttl: PERIOD_CALL_TTL_SECONDS }))).toEqual(["public, max-age=300"]);
+    expect(await storedBy((a) => a.networkMinted(WINDOW, { ttl: PERIOD_CALL_TTL_SECONDS }))).toEqual(["public, max-age=300"]);
+  });
+
+  it("has an entry for each window of the minted days, and for each network", async () => {
+    const cache = recordingCache();
+    fetchSpy.mockImplementation(async () => json(mintedPageSample()));
+
+    await createDataApi(xrpl, env, cache).networkMinted(WINDOW);
+    await createDataApi(xrpl, env, cache).networkMinted({ ...WINDOW, start: "2026-07-21", end: "2026-10-18" });
+    await createDataApi(xahau, env, cache).networkMinted(WINDOW);
+
+    expect(new Set(cache.calls.map((c) => c.key)).size).toBe(3);
+  });
+
+  it("types each answer by what the reference gives it", () => {
+    // A cache that answers nothing: only the types of the calls are looked at, and the promises are left alone.
+    const api = createDataApi(xrpl, env, { json: () => new Promise<never>(() => {}) });
+
+    expectTypeOf(api.networkSupply()).toEqualTypeOf<Promise<NetworkSupply>>();
+    expectTypeOf(api.networkMinted(WINDOW, { ttl: PERIOD_CALL_TTL_SECONDS })).toEqualTypeOf<Promise<MintedPage>>();
+    // The keys the reference lets an answer go without: a network that does not mint has no `minted`, one without AMM no `amm`, and a snapshot with no reserve value no `reserves`; the
+    // XRP Ledger's `burned` has no coverage; the last page has no marker.
+    expectTypeOf<NetworkSupply["minted"]>().toEqualTypeOf<MintedPart | undefined>();
+    expectTypeOf<NetworkSupply["amm"]>().toEqualTypeOf<AmmPart | undefined>();
+    expectTypeOf<NetworkSupply["reserves"]>().toEqualTypeOf<ReservesPart | undefined>();
+    expectTypeOf<NetworkSupply["burned"]["coverage"]>().toEqualTypeOf<Coverage | undefined>();
+    expectTypeOf<MintedPage["marker"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<NetworkSupply["currency"]>().toEqualTypeOf<"XRP" | "XAH">();
+    // The window is written in the order the client sends it, and the only interval is the day.
+    expectTypeOf<Parameters<DataApi["networkMinted"]>[0]["interval"]>().toEqualTypeOf<"day">();
   });
 });
 

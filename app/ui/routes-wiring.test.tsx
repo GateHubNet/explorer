@@ -4,6 +4,8 @@ import { createMemoryRouter, Outlet, RouterProvider, useLoaderData, useParams, t
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { amendmentsHref, type AmendmentStatus } from "../domain/amendments-params";
+import { shortAddress } from "../domain/format";
+import { NAMES_OFF, NO_NAMES, type NamesPart, type NameView } from "../domain/names";
 import { networkHref, parseNetworkParams, queryOf, type NetworkParams } from "../domain/network-params";
 import { validatorsHref, type ValidatorsParams } from "../domain/validators-params";
 import {
@@ -16,23 +18,33 @@ import {
   validatorDetailSample,
   validatorRowSample,
 } from "../../test/support/d1-samples";
+import xrplFees from "../../test/fixtures/http/xrpl/data-api/network/fees@end=2026-10-17&interval=day&limit=1000&start=2026-07-20.json";
+import xrplSupply from "../../test/fixtures/http/xrpl/data-api/network/supply.json";
+import { tradersCard } from "../../test/support/traders-card";
 import type { Loaded } from "../server/account-view";
 import { amendmentPage, type AmendmentPageData } from "../server/amendment-view";
 import { amendmentsPage, type AmendmentsPageData } from "../server/amendments-view";
 import { forwardCacheClass } from "../server/edge-cache";
+import type { FeeBucketRow, LastValidated, NetworkSupply, Page } from "../server/api-types";
+import { supplyPage, type SupplyPageData } from "../server/supply-view";
 import type { HomeLoaderData } from "../server/home-view";
 import type { AmmPart, NetworkLoaderData, SeriesView } from "../server/network-view";
 import type { LivePairData, OlderPairData, PairPageData } from "../server/pair-view";
 import { validatorHistoryPage, validatorPage, type ValidatorHistoryData, type ValidatorLiveData } from "../server/validator-view";
 import { validatorsPage, type ValidatorsPageData } from "../server/validators-view";
+import type { Environment } from "./environment";
+import { NO_FEATURES } from "./features";
 import type { BarListData, CandleData, TimeSeriesData } from "./charts/types";
 import * as home from "../routes/net._index";
 import * as amendment from "../routes/net.amendments.$name";
 import * as amendments from "../routes/net.amendments";
 import * as net from "../routes/net";
+import * as root from "../root";
+import routes from "../routes";
 import * as pair from "../routes/net.markets.$base.$counter";
 import * as network from "../routes/net.network";
 import * as validators from "../routes/net.validators";
+import * as supply from "../routes/net.supply";
 import * as validator from "../routes/net.validators.$key";
 
 // The real route modules, not stand-ins: `net.tsx` and `net._index.tsx` as React Router's own build would load them. What these tests pin is
@@ -45,14 +57,15 @@ import * as validator from "../routes/net.validators.$key";
 // `net.validators.$key.tsx`: live every ledger, and a page of older validations that never polls. The amendments list's, `net.amendments.tsx`, comes next: one part,
 // a beat of a minute, and no merge. The amendment page's, `net.amendments.$name.tsx`, is last: a beat of a minute, and S's part kept.
 
-const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau" } as const;
-const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", ctidNetworkId: 21337, other: "xrpl" } as const;
+const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau", kind: "mainnet", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", displays: ["native", "usd"] } as const;
+const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", ctidNetworkId: 21337, other: "xrpl", kind: "mainnet", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", displays: ["native"] } as const;
 
 const ALICE = "rJF2XanJQGFLS5ZUdcqEzwJcTJ7aFfQvg";
 
-/** The home page's data at ledger `index`, made by build `build`. */
-const dataAt = (index: number, build = "abc1234"): HomeLoaderData => ({
+/** The home page's data at ledger `index`, made by build `build`, with the names part `names` (nothing named by default). */
+const dataAt = (index: number, build = "abc1234", names: NamesPart = NO_NAMES): HomeLoaderData => ({
   build,
+  names,
   latest: { index, hash: "AB".repeat(32), closeTime: 1792256472 + index, supply: "99985312446.118204" },
   txCount: 84,
   average: { transactions: 78, ledgers: 2 },
@@ -127,6 +140,62 @@ function mountHome(serverLoader: () => Promise<HomeLoaderData>, first = dataAt(1
 }
 
 const ledgerTile = () => screen.getByText("Latest validated ledger").closest(".stat")!.querySelector(".stat__value")!.textContent;
+
+// The root route (app/root.tsx): what is outside the `/:net` layout's data reads the environment from its loader data (`useEnvironment()`).
+describe("root.tsx", () => {
+  /** The description of the root's `meta`, given the loader data it is handed (none when the loader did not run or failed). */
+  const descriptionOf = (loaderData: unknown) =>
+    (root.meta({ loaderData, error: undefined } as never) as Array<{ name?: string; content?: string }>).find((tag) => tag.name === "description")?.content;
+
+  /** The root's error boundary drawn as React Router draws it: in the root route, whose data holds the environment (when the loader gave any). */
+  function mountError(environment: Environment | undefined) {
+    const Boundary = () => createElement(root.ErrorBoundary, { error: new Error("boom"), params: {}, loaderData: undefined } as never);
+    const router = createMemoryRouter([{ id: "root", path: "*", loader: () => ({ environment }), Component: Boundary }], {
+      initialEntries: ["/nowhere"],
+      hydrationData: { loaderData: { root: environment === undefined ? undefined : { environment } } },
+    });
+    return render(<RouterProvider router={router} />);
+  }
+
+  it("describes the environment's networks", () => {
+    expect(descriptionOf({ environment: "sandbox" })).toBe("Look up any ledger, transaction or account on XRPL Testnet and Xahau Testnet.");
+    expect(descriptionOf({ environment: "production" })).toBe("Look up any ledger, transaction or account on the XRP Ledger and Xahau.");
+    expect(descriptionOf({ environment: "development" })).toBe("Look up any ledger, transaction or account on the XRP Ledger and Xahau.");
+    expect(descriptionOf(undefined)).toBe("Look up any ledger, transaction or account on the XRP Ledger and Xahau.");
+  });
+
+  it("draws its error page with the environment's switch", () => {
+    mountError("sandbox");
+    const group = screen.getByRole("group", { name: "Network" });
+    expect(within(group).getAllByRole("link").map((a) => a.textContent)).toEqual(["XRPL Testnet", "Xahau Testnet"]);
+    expect(screen.getByRole("link", { name: "Go to the XRPL Testnet home" }).getAttribute("href")).toBe("/xrpl");
+  });
+
+  it("the root error page shows the badge in the sandbox", () => {
+    mountError("sandbox");
+    const header = screen.getByRole("banner");
+    expect(within(header).getByText("Testnet").className).toBe("pill pill--testnet");
+    // After the brand link, in its group, as on every page of the sandbox.
+    expect([...header.querySelector(".hdr__brandgroup")!.children].map((child) => child.className)).toEqual(["hdr__brand", "pill pill--testnet"]);
+    cleanup();
+
+    for (const environment of ["production", "development", undefined] as const) {
+      mountError(environment);
+      expect(document.querySelector(".pill--testnet"), String(environment)).toBeNull();
+      cleanup();
+    }
+  });
+
+  it("draws its error page with the mainnets' switch in production, in development, and without the environment", () => {
+    for (const environment of ["production", "development", undefined] as const) {
+      mountError(environment);
+      const group = screen.getByRole("group", { name: "Network" });
+      expect(within(group).getAllByRole("link").map((a) => a.textContent)).toEqual(["XRPL", "Xahau"]);
+      expect(screen.getByRole("link", { name: "Go to the XRPL home" }).getAttribute("href")).toBe("/xrpl");
+      cleanup();
+    }
+  });
+});
 
 describe("net.tsx", () => {
   const args = (over: Partial<ShouldRevalidateFunctionArgs>) =>
@@ -222,6 +291,52 @@ describe("net._index.tsx", () => {
     await pass(4000);
     expect(serverLoader).toHaveBeenCalledTimes(1);
     expect(ledgerTile()).toBe("#100");
+  });
+
+  describe("its names (display names spec 3.4)", () => {
+    const NORTHPEAK: NameView = { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] };
+    const NORTHPEAK_CUSTODY: NameView = { name: { text: "Northpeak Custody", kind: "verified" }, domain: "northpeak.example", labels: [] };
+    const named = (view: NameView): NamesPart => ({ state: "ok", map: { [ALICE]: view } });
+    /** What the account link of the first transaction says. */
+    const accountLink = () =>
+      within(screen.getByRole("table", { name: "Latest transactions" }))
+        .getAllByRole("link")
+        .find((link) => link.getAttribute("href") === `/xrpl/account/${ALICE}`)!;
+
+    it("draws the accounts of the table by the names of its data", () => {
+      mountHome(vi.fn(async () => dataAt(101)), dataAt(100, "abc1234", named(NORTHPEAK)));
+      expect(accountLink().textContent).toContain("Northpeak Treasury");
+      expect(accountLink().textContent).not.toContain(shortAddress(ALICE));
+    });
+
+    it("draws the short address for an account that has no name, and when the switch is off", () => {
+      mountHome(vi.fn(async () => dataAt(101)), dataAt(100, "abc1234", NAMES_OFF));
+      expect(accountLink().textContent).toBe(shortAddress(ALICE));
+    });
+
+    it("keeps the names on screen through a beat whose names call failed, and takes the names of the next beat that has them", async () => {
+      const answers = [dataAt(101, "abc1234", { state: "failed", map: {} }), dataAt(102, "abc1234", named(NORTHPEAK_CUSTODY))];
+      const serverLoader = vi.fn(async () => answers.shift()!);
+      mountHome(serverLoader, dataAt(100, "abc1234", named(NORTHPEAK)));
+      expect(accountLink().textContent).toContain("Northpeak Treasury");
+
+      await pass(4000);
+      // The beat's ledger is on screen, and so is the name the failed beat could not give again.
+      expect(ledgerTile()).toBe("#101");
+      expect(accountLink().textContent).toContain("Northpeak Treasury");
+      expect(accountLink().textContent).not.toContain(shortAddress(ALICE));
+
+      await pass(4000);
+      expect(ledgerTile()).toBe("#102");
+      expect(accountLink().textContent).toContain("Northpeak Custody");
+    });
+
+    it("keeps the names of rows that left the page for the rows that stay: the clientLoader merges the maps", async () => {
+      mountHome(vi.fn(async () => dataAt(101)), dataAt(100, "abc1234", named(NORTHPEAK)));
+      const beat = dataAt(101, "abc1234", { state: "ok", map: {} });
+      const merged = await home.clientLoader({ params: { net: "xrpl" }, serverLoader: async () => beat } as never);
+      expect(merged).toMatchObject({ names: { state: "ok", map: { [ALICE]: NORTHPEAK } } });
+    });
   });
 
   it("reloads the document, once, when the answer is of another build, and keeps the page until it does", async () => {
@@ -532,7 +647,7 @@ describe("net.network.tsx", () => {
     expect(network.clientLoader).toBeTypeOf("function");
     expect(network.default).toBeTypeOf("function");
     expect(network.headers).toBe(forwardCacheClass);
-    expect(network.handle).toEqual({ navSection: "network" });
+    expect(network.handle).toEqual({ navSection: "network", navPage: "overview" });
   });
 
   it("asks the server's loader again every 4 s, shows what it answers, and does not ask for the layout again", async () => {
@@ -664,14 +779,14 @@ describe("net.network.tsx", () => {
 
   it("draws the page of another view as a new page, keyed by its scope: a first render, which nothing on it animates", async () => {
     const answer = vi.fn<Answer>(async (url) => {
-      const { params } = parseNetworkParams(queryOf(url.href), "xrpl");
+      const { params } = parseNetworkParams(queryOf(url.href), XRPL);
       return networkAt(101, { view: params });
     });
     const { router, container } = mountNetwork(answer, networkAt(100, { view: { period: "30d", display: "native" } }));
     const before = container.querySelector(".network")!;
     expect(before).toBeTruthy();
 
-    await act(async () => void router.navigate(networkHref("xrpl", { period: "1y" })));
+    await act(async () => void router.navigate(networkHref(XRPL, { period: "1y" })));
     await pass(0);
     expect(answer).toHaveBeenCalledTimes(1);
     const after = container.querySelector(".network")!;
@@ -727,7 +842,7 @@ const PAIR_HEAD: LivePairData["head"] = {
   heading: "XRP / USD",
   base: "XRP",
   counter: "USD",
-  issuers: [{ code: "USD", address: USD_ISSUER, href: `/xrpl/account/${USD_ISSUER}` }],
+  issuers: [{ code: "USD", address: USD_ISSUER, href: `/xrpl/account/${USD_ISSUER}`, tokenHref: null }],
   natives: ["XRP"],
   issued: ["USD rhub8V…F3wq"],
   issuedBy: "USD issued by rhub8V…F3wq",
@@ -825,6 +940,7 @@ function pairAt(index: number, over: Partial<LivePairData> = {}, build = "abc123
       note: "1 of 1 account that traded XRP/USD in the last 24 hours, by XRP volume. A trade counts for its buyer and its seller.",
       source: "/v2/active_accounts/{base}/{counter}",
     },
+    names: NO_NAMES,
     ...over,
   };
 }
@@ -838,6 +954,7 @@ const olderPair = (build = "abc1234"): OlderPairData => ({
   ammParts: true,
   note: { text: "Older trades of XRP/USD. The price, chart and order book are on the market's page.", link: "the market's page", href: PAIR_PATH },
   trades: { ...PAIR_TRADES, paging: { newerHref: PAIR_PATH, olderHref: `${PAIR_PATH}?marker=M2&back=M1` } },
+  names: NO_NAMES,
 });
 
 describe("net.markets.$base.$counter.tsx", () => {
@@ -883,12 +1000,64 @@ describe("net.markets.$base.$counter.tsx", () => {
     return { router, layoutRuns, ...view };
   }
 
-  it("has a clientLoader, a handle that names the header's section, the headers that forward the class, and the parts a beat may keep", () => {
+  it("has a clientLoader, a handle that names the header's section, and the headers that forward the class", () => {
     expect(pair.clientLoader).toBeTypeOf("function");
     expect(pair.default).toBeTypeOf("function");
     expect(pair.headers).toBe(forwardCacheClass);
     expect(pair.handle).toEqual({ navSection: "markets" });
-    expect(pair.PAIR_PARTS).toEqual(["stats", "candles", "traders", "book", "pool", "share"]);
+  });
+
+  describe("its names (display names spec 3.4)", () => {
+    const NORTHPEAK: NameView = { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] };
+    const named = (view: NameView): NamesPart => ({ state: "ok", map: { [TRADER]: view } });
+    /** What the account link of the first trade's taker says. */
+    const takerLink = () =>
+      within(screen.getByRole("table", { name: "Recent trades" }))
+        .getAllByRole("link")
+        .find((link) => link.getAttribute("href") === `/xrpl/account/${TRADER}`)!;
+    /** The traders card's bars, as the page draws their labels. */
+    const tradersLabels = () => Array.from(document.querySelectorAll(".barlist__label"), (label) => label.textContent);
+
+    it("draws the takers of the table by the names of its data", () => {
+      mountPair(async () => pairAt(101), pairAt(100, { names: named(NORTHPEAK), traders: tradersCard([TRADER], { [TRADER]: NORTHPEAK }) }));
+      expect(takerLink().textContent).toContain("Northpeak Treasury");
+      expect(takerLink().textContent).not.toContain(shortAddress(TRADER));
+      expect(tradersLabels()).toEqual(["Northpeak Treasury verified name"]);
+    });
+
+    it("draws the short address for an account that has no name, and when the switch is off", () => {
+      mountPair(async () => pairAt(101), pairAt(100, { names: NAMES_OFF }));
+      expect(takerLink().textContent).toBe(shortAddress(TRADER));
+    });
+
+    it("keeps the names on screen through a beat whose names call failed, the traders' bars too, and takes the names of the next beat that has them", async () => {
+      const answers = [pairAt(101, { names: { state: "failed", map: {} }, traders: tradersCard([TRADER]) }), pairAt(102, { names: named({ ...NORTHPEAK, name: { text: "Northpeak Custody", kind: "verified" } }) })];
+      const serverLoader = vi.fn(async () => answers.shift()!);
+      mountPair(serverLoader, pairAt(100, { names: named(NORTHPEAK), traders: tradersCard([TRADER], { [TRADER]: NORTHPEAK }) }));
+      expect(takerLink().textContent).toContain("Northpeak Treasury");
+
+      await pass(4000);
+      // The beat's ledger is on screen, and so is the name its failed call could not give again: in the table and in the bars the view builder wrote without it.
+      expect(lastPrice()).toBe("2.101");
+      expect(takerLink().textContent).toContain("Northpeak Treasury");
+      expect(takerLink().textContent).not.toContain(shortAddress(TRADER));
+      expect(tradersLabels()).toEqual(["Northpeak Treasury verified name"]);
+
+      await pass(4000);
+      expect(lastPrice()).toBe("2.102");
+      expect(takerLink().textContent).toContain("Northpeak Custody");
+    });
+
+    it("keeps the names of accounts that left the page for the ones that stay: the clientLoader merges the maps", async () => {
+      mountPair(async () => pairAt(101), pairAt(100, { names: named(NORTHPEAK) }));
+      const beat = pairAt(101, { names: { state: "ok", map: {} } });
+      const merged = await pair.clientLoader({
+        params: { net: "xrpl", base: "XRP", counter: `USD.${USD_ISSUER}` },
+        request: REQUEST(PAIR_PATH),
+        serverLoader: async () => beat,
+      } as never);
+      expect(merged).toMatchObject({ names: { state: "ok", map: { [TRADER]: NORTHPEAK } } });
+    });
   });
 
   it("asks the server's loader again every 4 s, shows what it answers, and does not ask for the layout again", async () => {
@@ -1060,14 +1229,15 @@ const FAILED = { state: "failed" } as const;
  * The list's data at ledger `index` for `params`, every part loaded, made by build `build`. The quorum is `index - 72` ("28 of 35" at ledger
  * 100): the figure that says which answer is on screen. The one validator it lists is `northpeak.example`.
  */
-function validatorsAt(index: number, over: Partial<ValidatorsData> = {}, build = "abc1234", params: ValidatorsParams = { scope: "unl" }): ValidatorsData {
+function validatorsAt(index: number, over: Partial<ValidatorsData> = {}, build = "abc1234", params: ValidatorsParams = { scope: "unl" }, features = { validatorsMap: false }): ValidatorsData {
   return {
     ...validatorsPage({
-      network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" },
+      network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" },
       params,
       summary: ok(summarySample({ quorum: { value: index - 72, unl_size: 35, negative_unl: 1, node: index - 72 } })),
       list: ok({ result: "success", count: 1, validators: [validatorRowSample()] }),
       amendments: ok(amendmentsSample()),
+      features,
     }),
     anchor: { lastValidated: index, closeTime: 1792256472 + index },
     build,
@@ -1122,7 +1292,7 @@ describe("net.validators.tsx", () => {
     expect(validators.clientLoader).toBeTypeOf("function");
     expect(validators.default).toBeTypeOf("function");
     expect(validators.headers).toBe(forwardCacheClass);
-    expect(validators.handle).toEqual({ navSection: "network" });
+    expect(validators.handle).toEqual({ navSection: "network", navPage: "validators" });
   });
 
   it("asks the server's loader again every 10 s, not every 4, shows what it answers, and does not ask for the layout again", async () => {
@@ -1214,6 +1384,20 @@ describe("net.validators.tsx", () => {
     expect(screen.getByRole("table", { name: "Validators" })).toBeTruthy();
     expect(screen.getByText("northpeak.example")).toBeTruthy();
     expect(screen.queryByText("Couldn’t load the validators.")).toBeNull();
+  });
+
+  it("keeps the map with the list when a beat has L failed", async () => {
+    // The map is counted from L: a beat whose L failed has it failed too, and `VALIDATORS_PARTS` names it so that it is kept with the list (plan ruling R1).
+    const shown = validatorsAt(100, {}, "abc1234", { scope: "unl" }, { validatorsMap: true });
+    expect(shown.map.state).toBe("ok");
+    expect(validatorsAt(101, { list: FAILED, map: FAILED }).map.state).toBe("failed");
+    mountValidators(async () => validatorsAt(101, { list: FAILED, map: FAILED }), shown);
+    expect(screen.getByLabelText("Country")).toBeTruthy();
+    await pass(10_000);
+    // The answer was taken (its quorum is on screen); its failed map was not: the Country select is still drawn from the map on screen, beside the list that was kept.
+    expect(quorum()).toBe("29 of 35");
+    expect(screen.getByLabelText("Country")).toBeTruthy();
+    expect(screen.getByRole("table", { name: "Validators" })).toBeTruthy();
   });
 
   it("keeps the overview and the amendments' filter the same way, each part on its own", async () => {
@@ -1318,13 +1502,15 @@ function validatorAt(index: number, over: Partial<ValidatorData> = {}, build = "
   const page = validationsSample();
   const [first, ...rest] = page.validations;
   return {
+    names: NO_NAMES,
     ...validatorPage({
-      network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" },
+      network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" },
       validator: validatorDetailSample(),
       recent: ok({ ...page, validations: [{ ...first!, ledger_index: index - 1 }, ...rest] }),
       summary: ok(summarySample()),
       amendments: ok(amendmentsSample()),
       anchor: { lastValidated: index, closeTime: 1792252452 + index },
+      features: NO_FEATURES,
     }),
     anchor: { lastValidated: index, closeTime: 1792252452 + index },
     build,
@@ -1335,7 +1521,7 @@ function validatorAt(index: number, over: Partial<ValidatorData> = {}, build = "
 /** A page of the validator's older validations, behind the sample's marker. */
 const validatorHistory = (): ValidatorHistoryData =>
   validatorHistoryPage({
-    network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" },
+    network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" },
     validator: validatorDetailSample(),
     recent: validationsSample(),
     marker: "M1",
@@ -1389,7 +1575,7 @@ describe("net.validators.$key.tsx", () => {
     expect(validator.clientLoader).toBeTypeOf("function");
     expect(validator.default).toBeTypeOf("function");
     expect(validator.headers).toBe(forwardCacheClass);
-    expect(validator.handle).toEqual({ navSection: "network" });
+    expect(validator.handle).toEqual({ navSection: "network", navPage: "validators" });
   });
 
   it("asks the server's loader again every ledger (4 s), and shows what it answers", async () => {
@@ -1436,6 +1622,54 @@ describe("net.validators.$key.tsx", () => {
     // Answered, but behind the page: not drawn.
     expect(answer).toHaveBeenCalledTimes(3);
     expect(newestRow()).toBe("#99");
+  });
+
+  describe("its names (display names spec 3.4)", () => {
+    /** The account the sample's domain lists. */
+    const LISTED = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh";
+    const NORTHPEAK: NameView = { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] };
+    const NORTHPEAK_CUSTODY: NameView = { name: { text: "Northpeak Custody", kind: "verified" }, domain: "northpeak.example", labels: [] };
+    const named = (view: NameView): NamesPart => ({ state: "ok", map: { [LISTED]: view } });
+    /** What the link to the listed account in the identity card says. */
+    const listedLink = () =>
+      within(screen.getByRole("region", { name: "Validator" }))
+        .getAllByRole("link")
+        .find((link) => link.getAttribute("href") === `/xrpl/account/${LISTED}`)!;
+
+    it("draws the accounts the domain lists by the names of its data", () => {
+      mountValidator(async () => validatorAt(101), validatorAt(100, { names: named(NORTHPEAK) }));
+      expect(listedLink().textContent).toContain("Northpeak Treasury");
+      expect(listedLink().textContent).not.toContain(shortAddress(LISTED));
+    });
+
+    it("draws the short address for an account that has no name, and when the switch is off", () => {
+      mountValidator(async () => validatorAt(101), validatorAt(100, { names: NAMES_OFF }));
+      expect(listedLink().textContent).toBe(shortAddress(LISTED));
+    });
+
+    it("keeps the names on screen through a beat whose names call failed, and takes the names of the next beat that has them", async () => {
+      const answers = [validatorAt(101, { names: { state: "failed", map: {} } }), validatorAt(102, { names: named(NORTHPEAK_CUSTODY) })];
+      const serverLoader = vi.fn(async () => answers.shift()!);
+      mountValidator(serverLoader, validatorAt(100, { names: named(NORTHPEAK) }));
+      expect(listedLink().textContent).toContain("Northpeak Treasury");
+
+      await pass(4000);
+      // The beat's ledger is on screen, and so is the name its failed call could not give again.
+      expect(newestRow()).toBe("#100");
+      expect(listedLink().textContent).toContain("Northpeak Treasury");
+      expect(listedLink().textContent).not.toContain(shortAddress(LISTED));
+
+      await pass(4000);
+      expect(newestRow()).toBe("#101");
+      expect(listedLink().textContent).toContain("Northpeak Custody");
+    });
+
+    it("keeps the names of accounts that left the page for the ones that stay: the clientLoader merges the maps", async () => {
+      mountValidator(async () => validatorAt(101), validatorAt(100, { names: named(NORTHPEAK) }));
+      const beat = validatorAt(101, { names: { state: "ok", map: {} } });
+      const merged = await validator.clientLoader({ params: { net: "xrpl", key: VALIDATOR_KEY }, request: new Request(`https://explorer.test/xrpl/validators/${VALIDATOR_KEY}`), serverLoader: async () => beat } as never);
+      expect(merged).toMatchObject({ names: { state: "ok", map: { [LISTED]: NORTHPEAK } } });
+    });
   });
 
   describe("its clientLoader", () => {
@@ -1494,7 +1728,7 @@ type AmendmentsData = AmendmentsPageData & { anchor: { lastValidated: number; cl
 function amendmentsAt(index: number, status?: AmendmentStatus, build = "abc1234"): AmendmentsData {
   return {
     ...amendmentsPage({
-      network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" },
+      network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" },
       amendments: amendmentsSample({ next_flag_ledger: { ledger_index: 107_748_000 + index, voting_ledger: 107_747_999 + index, expected: "2026-10-19T16:05:28Z" } }),
       ...(status !== undefined && { status }),
     }),
@@ -1550,7 +1784,7 @@ describe("net.amendments.tsx", () => {
     expect(amendments.clientLoader).toBeTypeOf("function");
     expect(amendments.default).toBeTypeOf("function");
     expect(amendments.headers).toBe(forwardCacheClass);
-    expect(amendments.handle).toEqual({ navSection: "network" });
+    expect(amendments.handle).toEqual({ navSection: "network", navPage: "amendments" });
   });
 
   it("asks the server's loader again every minute, not every 4 or 10 s, shows what it answers, and does not ask for the layout again", async () => {
@@ -1715,7 +1949,7 @@ type AmendmentData = AmendmentPageData & { anchor: { lastValidated: number; clos
 function amendmentAt(index: number, summary: Loaded<ReturnType<typeof summarySample>> = ok(summarySample()), build = "abc1234"): AmendmentData {
   const detail = amendmentDetailSample();
   return {
-    ...amendmentPage({ network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" }, amendment: { ...detail, votes: { ...detail.votes!, yes: 31 + (index - 100) } }, summary }),
+    ...amendmentPage({ network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" }, amendment: { ...detail, votes: { ...detail.votes!, yes: 31 + (index - 100) } }, summary }),
     anchor: { lastValidated: index, closeTime: 1792256472 + index },
     build,
   };
@@ -1769,7 +2003,7 @@ describe("net.amendments.$name.tsx", () => {
     expect(amendment.clientLoader).toBeTypeOf("function");
     expect(amendment.default).toBeTypeOf("function");
     expect(amendment.headers).toBe(forwardCacheClass);
-    expect(amendment.handle).toEqual({ navSection: "network" });
+    expect(amendment.handle).toEqual({ navSection: "network", navPage: "amendments" });
   });
 
   it("asks the server's loader again every minute, shows what it answers, and does not ask for the layout again", async () => {
@@ -1849,5 +2083,112 @@ describe("net.amendments.$name.tsx", () => {
       await pass(300_000);
       expect(answer).not.toHaveBeenCalled();
     });
+  });
+});
+
+// The supply page's route, `net.supply.tsx`: a page that polls nothing, so no clientLoader and no beat; its `headers`, its `handle` and its `meta`, and a Retry that asks the route's loader again.
+describe("net.supply.tsx", () => {
+  const LAST: LastValidated = {
+    result: "success",
+    ledger_index: "107721455",
+    ledger_hash: "2F7C1D5A9B3E4F60A8D2C71B5E9F3A4D6C8B0E1F2A3B4C5D6E7F8A9B0C1D2E3F",
+    parent_hash: "9A8B7C6D5E4F30211203F4E5D6C7B8A998877665544332211FFEEDDCCBBAA990",
+    close_time: "2026-10-17T17:01:12Z",
+  };
+  const fulfilled = <V,>(value: V): PromiseFulfilledResult<V> => ({ status: "fulfilled", value });
+  /** The page data of XRPL's fixtures, with the burned card failed when `failed`. */
+  const dataOf = (failed = false): SupplyPageData =>
+    supplyPage({ id: "xrpl", name: "XRPL", native: "XRP", hasAmm: true }, xrplSupply as unknown as NetworkSupply, {
+      anchor: fulfilled(LAST),
+      fees: failed ? { status: "rejected", reason: new Error("503") } : fulfilled(xrplFees as unknown as Page<"rows", FeeBucketRow>),
+    }).page;
+
+  function SupplyRoute() {
+    return createElement(supply.default, { loaderData: useLoaderData() as SupplyPageData, params: useParams() as { net: string }, actionData: undefined, matches: [] } as never);
+  }
+
+  /** The layout as `net.tsx` has it and the page as `net.supply.tsx` has it, in a data router, on the data the server rendered. */
+  function mountSupply(first: SupplyPageData, loader: () => SupplyPageData) {
+    const layoutRuns = { count: 0 };
+    const router = createMemoryRouter(
+      [
+        {
+          id: "routes/net",
+          path: "/:net",
+          loader: () => ({ network: XRPL, origin: "https://explorer.test", run: ++layoutRuns.count }),
+          shouldRevalidate: net.shouldRevalidate,
+          Component: Outlet,
+          children: [{ id: "routes/net.supply", path: "supply", loader, Component: SupplyRoute }],
+        },
+      ],
+      { initialEntries: ["/xrpl/supply"], hydrationData: { loaderData: { "routes/net": { network: XRPL, origin: "https://explorer.test", run: 0 }, "routes/net.supply": first } } },
+    );
+    render(<RouterProvider router={router} />);
+    return { router, layoutRuns };
+  }
+
+  it("has the headers that forward the class and the handle that names the header's section, and neither a clientLoader nor a beat: the page polls nothing", () => {
+    expect(supply.default).toBeTypeOf("function");
+    expect(supply.headers).toBe(forwardCacheClass);
+    expect(supply.handle).toEqual({ navSection: "network", navPage: "supply" });
+    expect((supply as Record<string, unknown>).clientLoader).toBeUndefined();
+    expect(supply.loader).toBeTypeOf("function");
+  });
+
+  it("is the route `supply` under :net, after the amendment's", () => {
+    const children = routes.find((route) => route.path === ":net")?.children ?? [];
+    const at = children.findIndex((route) => route.path === "supply");
+    expect(children[at]).toMatchObject({ path: "supply", file: "routes/net.supply.tsx" });
+    expect(children[at - 1]).toMatchObject({ path: "amendments/:name" });
+  });
+
+  it("draws the page from the loader's data", () => {
+    mountSupply(dataOf(), dataOf);
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Supply");
+    expect(screen.getByRole("region", { name: "Where the 100 billion XRP are" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("asks the route's loader again for a Retry, and shows the card it brings, without asking for the layout again", async () => {
+    const answer = vi.fn<() => SupplyPageData>(() => dataOf());
+    const { layoutRuns } = mountSupply(dataOf(true), answer);
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toBe("Couldn’t load XRP burned per day.Retry");
+    fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
+    await act(async () => {});
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(within(screen.getByRole("region", { name: "XRP burned per day" })).getByRole("table", { name: "Burned per day" })).toBeTruthy();
+    expect(layoutRuns.count).toBe(0);
+  });
+
+  it("makes the tags of the page from the layout's network and origin, and none without them", () => {
+    const matches = [{ id: "routes/net", loaderData: { network: XRPL, origin: "https://explorer.test" } }];
+    const list = supply.meta({ loaderData: dataOf(), matches, params: { net: "xrpl" } } as never) as Array<Record<string, string>>;
+    expect(list.find((tag) => "title" in tag)?.title).toBe("Supply · XRPL · explorer");
+    expect(list.find((tag) => tag.tagName === "link" && tag.rel === "canonical")?.href).toBe("https://explorer.test/xrpl/supply");
+    expect(supply.meta({ loaderData: dataOf(), matches: [], params: { net: "xrpl" } } as never)).toEqual([]);
+    expect(supply.meta({ loaderData: undefined, matches, params: { net: "xrpl" } } as never)).toEqual([]);
+  });
+});
+
+// The route table (app/routes.ts): the ledger object pages (spec 1.1) are children of the `/:net` layout, so that their pages sit in its header and footer and its loader's network is theirs.
+describe("routes.ts", () => {
+  it("has an escrow's page and the redirect of its owner and sequence under :net", () => {
+    const net = routes.find((route) => route.path === ":net");
+    const escrows = (net?.children ?? []).filter((route) => route.path?.startsWith("escrows")).map(({ path, file }) => ({ path, file }));
+    expect(escrows).toEqual([
+      { path: "escrows/:id", file: "routes/net.escrows.$id.tsx" },
+      { path: "escrows/:owner/:sequence", file: "routes/net.escrows.$owner.$sequence.tsx" },
+    ]);
+  });
+
+  it("has a check's page and a payment channel's page under :net, each by the ID alone", () => {
+    const net = routes.find((route) => route.path === ":net");
+    const pages = (net?.children ?? []).filter((route) => route.path?.startsWith("checks") || route.path?.startsWith("payment-channels")).map(({ path, file }) => ({ path, file }));
+    expect(pages).toEqual([
+      { path: "checks/:id", file: "routes/net.checks.$id.tsx" },
+      { path: "payment-channels/:id", file: "routes/net.payment-channels.$id.tsx" },
+    ]);
   });
 });

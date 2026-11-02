@@ -28,6 +28,7 @@ import { ammPoolHref, type AmmPoolQuery } from "../../domain/amm-params";
 import type { Asset } from "../../domain/asset";
 import { shortAddress, shortHash } from "../../domain/format";
 import { marketHref } from "../../domain/market-pair";
+import { NO_NAMES, type NameMap } from "../../domain/names";
 import { ammHistoryPage, ammPoolPage, type AmmHistoryPageData, type AmmPoolInput, type AmmPoolPageData } from "../../server/amm-view";
 import type {
   AmmGovernanceRow,
@@ -44,6 +45,7 @@ import type {
 import type { AmmInfo } from "../../server/node-rpc";
 import { UpstreamError } from "../../server/upstream";
 import { NO_FEATURES } from "../features";
+import { NamesProvider } from "../names";
 import { AmmPoolPage } from "./AmmPoolPage";
 
 afterEach(() => {
@@ -201,11 +203,11 @@ function poolInput(over: Partial<AmmPoolInput> = {}): AmmPoolInput {
 }
 
 /** The page data, as the loader hands it to the page: the view builder's output of the input. */
-const build = (over: Partial<AmmPoolInput> = {}): AmmPoolPageData => ammPoolPage(poolInput(over)).page;
+const build = (over: Partial<AmmPoolInput> = {}): AmmPoolPageData => ({ ...ammPoolPage(poolInput(over)).page, names: NO_NAMES });
 
 /** A page of the swaps behind a marker. */
 const history = (over: Partial<Parameters<typeof ammHistoryPage>[0]> = {}): AmmHistoryPageData =>
-  ammHistoryPage({ net: NET(), pool: AMM_POOL, query: { ...QUERY, marker: "M1", back: [] }, index: indexPool(), activity: swapsPage(), ...over }).page;
+  ({ ...ammHistoryPage({ net: NET(), pool: AMM_POOL, query: { ...QUERY, marker: "M1", back: [] }, index: indexPool(), activity: swapsPage(), ...over }).page, names: NO_NAMES });
 
 /** The page in a data router at its own URL, drawn in the browser. `loader` counts the revalidations a Retry asks for. */
 function mount(data: AmmPoolPageData | AmmHistoryPageData, at = POOL_PAGE) {
@@ -284,6 +286,52 @@ describe("AmmPoolPage: the breadcrumb and the pool card", () => {
     const rule = ruleOf(".amm-pool .copy");
     expect(rule).toMatch(/min-width:\s*44px/);
     expect(rule).toMatch(/min-height:\s*44px/);
+  });
+
+  it("draws a named issuer by its name and the mark of how the name is known, and then the whole address, all in the one link to its account", () => {
+    const names: NameMap = { [RL]: { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] } };
+    for (const data of [build(), history()]) {
+      render(
+        routed(
+          <NamesProvider names={names}>
+            <AmmPoolPage data={data} />
+          </NamesProvider>,
+        ),
+      );
+      const fact = region("Pool").querySelector(".amm-pool__fact:nth-child(2)")!;
+      expect(fact.textContent).toBe(`RLUSD issued by Northpeak Treasury verified name ${RL}`);
+      const links = within(fact as HTMLElement).getAllByRole("link");
+      expect(links).toHaveLength(1);
+      expect(links[0]!.getAttribute("href")).toBe(`/xrpl/account/${RL}`);
+      expect(links[0]!.getAttribute("title")).toBe(`Verified by northpeak.example · ${RL}`);
+      cleanup();
+    }
+  });
+
+  describe("with the token pages on (E11 spec 5.2)", () => {
+    const TOKENS_NET = (): AmmPoolInput["net"] => ({ ...NET(), features: { ...NET().features, tokens: true } });
+
+    it("draws the code of an issued side as a link to its token page, underlined as a link in words is, then the words and the issuer's account", () => {
+      for (const data of [build({ net: TOKENS_NET() }), history({ net: TOKENS_NET() })]) {
+        mount(data);
+        const fact = region("Pool").querySelector(".amm-pool__fact:nth-child(2)")! as HTMLElement;
+        expect(fact.textContent).toBe(`RLUSD issued by ${RL}`);
+        const code = within(fact).getByRole("link", { name: "RLUSD" });
+        expect(code.getAttribute("href")).toBe(`/xrpl/token/RLUSD.${RL}`);
+        expect(code.classList.contains("tokenlink")).toBe(true);
+        expect(within(fact).getByRole("link", { name: RL }).getAttribute("href")).toBe(`/xrpl/account/${RL}`);
+        expect(within(fact).getAllByRole("link")).toHaveLength(2);
+        cleanup();
+      }
+    });
+
+    it("draws the code as text while the data has no link for it (TOKENS off)", () => {
+      mount(build());
+      const fact = region("Pool").querySelector(".amm-pool__fact:nth-child(2)")! as HTMLElement;
+      expect(within(fact).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([`/xrpl/account/${RL}`]);
+      expect(fact.querySelector(".tokenlink")).toBeNull();
+      expect(fact.textContent).toBe(`RLUSD issued by ${RL}`);
+    });
   });
 
   it("says who issues each issued side, the issuer in full as a link, and when and by whom the pool was created", () => {
@@ -831,9 +879,10 @@ describe("the files of the pool page that run in the browser", () => {
   it("keeps the account page's time cell free of the chart kit, use-hydrated and StatTile (R18, P36)", () => {
     const KIT = [/\/charts\//, /use-hydrated/, /StatTile/];
     expect(valueImports(read("../components/WhenCell.tsx")).filter((from) => KIT.some((pattern) => pattern.test(from)))).toEqual([]);
-    // The account page imports the cell, and the kit only through its lazy analytics view.
-    const account = valueImports(read("./AccountPage.tsx"));
-    expect(account).toContain("../components/WhenCell");
-    expect(account.filter((from) => KIT.some((pattern) => pattern.test(from)))).toEqual([]);
+    // The account page's list panels (a lazy chunk of the page) import the cell, and the page the kit only through its lazy analytics view.
+    const panels = valueImports(read("./AccountListPanels.tsx"));
+    expect(panels).toContain("../components/WhenCell");
+    expect(panels.filter((from) => KIT.some((pattern) => pattern.test(from)))).toEqual([]);
+    expect(valueImports(read("./AccountPage.tsx")).filter((from) => KIT.some((pattern) => pattern.test(from)))).toEqual([]);
   });
 });

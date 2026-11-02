@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 // The recorded mainnet objects the suite looks at (test/fixtures/http/, the fixture server's files). They are old and final, so
 // they are the same on a real stack that has the history, which is how the suite runs against one (E2E_DATA_API_URL).
 
@@ -27,6 +29,15 @@ export const XAHAU_ACCOUNT = "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto";
 /** A deleted XRPL account: the index has its creation and its recorded AccountDelete, the node has no account (README "Upstream fixtures"). */
 export const XRPL_DELETED = "r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC";
 
+/** A deleted Xahau account the names fixtures label `scam` and give neither a name nor a domain (the index has its history, the node has no account). */
+export const XAHAU_DELETED = "rMoPk1MiYJbmdNL8xr5s11r7jrxzBhJWLD";
+
+/**
+ * An active Xahau account whose names entry has the domain saltmarsh.example, which is not verified: its toml's check failed (HTTP 404). The fixtures have no file of the account itself, so its page
+ * renders only with the answers `xahauSaltmarshPage()` (fixture-control.ts) puts in.
+ */
+export const XAHAU_SALTMARSH = "rJ5mvuNKjbjdghjCn5AGXXJFhJGgqdg9Q5";
+
 /** Valid, and in no recording: neither the index nor the node has it. */
 export const NEVER_FUNDED = "rPzx7uasocDdgSNWoWxFytF8VRsAdLU9SC";
 
@@ -51,6 +62,16 @@ export const SNK_XRP_LAST_LEDGER = 100132150;
 export const SWAP_THROUGH_POOL = "52E2AD5B382D4588BECF6A743E7AE5C84D49A5C06968EC7700E8333BF41E1C60";
 
 /**
+ * Escrows of the object fixtures (scripts/object-fixtures.ts), each the case of test/support/object-case-rules.ts its name says, which the Worker's specs find in the files by those rules;
+ * the Playwright process cannot read the files the way Vite does, so the IDs are written here, and test/unit/object-fixtures.test.ts fails when a regeneration moves one of them.
+ * `cancellable` (escrow-cancellable) has a Pending window of an hour on a bar of two weeks, the window bar's narrowest button; `finished` (escrow-finished) has the removed banner.
+ */
+export const XRPL_ESCROW = {
+  cancellable: "0D1331F9B60A0BCEC44FA9A0A1C60BEE947936ED5BF17A8DFA7D1BA9DA22273E",
+  finished: "FA8631A0C654F964699C8B9A1277DA0C3F62D034190E62062F2D662A9D23C1B4",
+} as const;
+
+/**
  * Whether the suite runs against a real stack or a deployed Worker (E2E_DATA_API_URL, E2E_BASE_URL) and not the fixtures. The
  * recorded ledgers and transactions are the same there; what the fixtures hold by hand is not (the account files: six transactions in
  * two pages, a balance of 10.001625 XRP, an address nobody funded), so the tests that read those say `test.skip(LIVE, ...)`.
@@ -58,3 +79,57 @@ export const SWAP_THROUGH_POOL = "52E2AD5B382D4588BECF6A743E7AE5C84D49A5C06968EC
 export const LIVE = Boolean(process.env.E2E_DATA_API_URL || process.env.E2E_BASE_URL);
 
 export const count = (n: number) => n.toLocaleString("en-US");
+
+/** An entry of the names fixtures (`account_names.json`), as D4 answers it: what a page draws an account by (display names spec 4, 10). */
+export interface FixtureName {
+  display_name?: { text: string; kind: "verified" | "account" | "domain" };
+  account_network_name?: string;
+  domain?: string;
+  labels?: Record<string, { description?: string; source?: string; url?: string }>;
+}
+
+const fixtureNames = (net: "xrpl" | "xahau") =>
+  JSON.parse(readFileSync(new URL(`../fixtures/http/${net}/data-api/account_names.json`, import.meta.url), "utf8")) as Record<string, FixtureName | undefined>;
+
+/**
+ * The entry the network's names fixtures (`account_names.json`, synthetic: test/fixtures/PROVENANCE.md) give an account, `undefined` for an account they give none. A real stack has names of
+ * its own, so a test that reads this does not check it against one (`LIVE`).
+ */
+export const fixtureEntryOf = (net: "xrpl" | "xahau", address: string): FixtureName | undefined => fixtureNames(net)[address];
+
+/**
+ * The name the network's names fixtures give an account, the text a page draws it by (display names): `undefined` for an account they give none. A real stack has names of its own, so a test
+ * that reads this does not check it against one (`LIVE`).
+ */
+export function fixtureNameOf(net: "xrpl" | "xahau", address: string): string | undefined {
+  return fixtureEntryOf(net, address)?.display_name?.text;
+}
+
+/** What a toml fixture says that a page tells (`data-api/toml/{domain}.json`, synthetic): the accounts it lists, its currencies and its principals. */
+export interface FixtureToml {
+  accounts?: Array<{ address: string; desc?: string }>;
+  currencies?: Array<{ code: string }>;
+  principals?: string[];
+}
+
+/** What the network's toml fixtures say of `domain`: the `toml` of the data API's answer. */
+export function fixtureTomlOf(net: "xrpl" | "xahau", domain: string): FixtureToml {
+  return (JSON.parse(readFileSync(new URL(`../fixtures/http/${net}/data-api/toml/${domain}.json`, import.meta.url), "utf8")) as { toml: FixtureToml }).toml;
+}
+
+/**
+ * The `<title>` of an account's page, with `lead` before it (the Analytics tab's "Analytics · "), as a pattern (display names spec 7): `Account {name} ({short address}) · {network} · explorer`
+ * for an account the fixtures give a verified name and no label, which a title may say. A real stack has names of its own (and not this account's), so against one it is the shape alone:
+ * the short address, with a name before it or none. An account the fixtures name otherwise (labelled, a domain's name, a network name) has no such title: the test that asked fails.
+ */
+export function accountTitle(net: "xrpl" | "xahau", address: string, lead = ""): RegExp {
+  const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const short = `${address.slice(0, 6)}…${address.slice(-4)}`;
+  const suffix = ` · ${net === "xrpl" ? "XRPL" : "Xahau"} · explorer`;
+  if (LIVE) return new RegExp(`^${escaped(lead)}Account (?:.+ \\()?${escaped(short)}\\)?${escaped(suffix)}$`);
+  const entry = fixtureNames(net)[address];
+  if (entry?.display_name?.kind !== "verified" || Object.keys(entry.labels ?? {}).length > 0 || entry.account_network_name !== undefined) {
+    throw new Error(`the fixtures give ${address} no verified name without a label or a network name, so its title has none`);
+  }
+  return new RegExp(`^${escaped(`${lead}Account ${entry.display_name.text} (${short})${suffix}`)}$`);
+}

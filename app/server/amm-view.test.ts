@@ -8,6 +8,7 @@ import type { Asset } from "../domain/asset";
 import { tokenOf } from "../domain/fnv";
 import { formatAmount, formatPrice, shortAddress, shortHash } from "../domain/format";
 import { marketHref, naturalOrientation, QUOTE_RANK } from "../domain/market-pair";
+import type { NameMap, NameView } from "../domain/names";
 import { formatDateTime } from "../domain/time-words";
 import { addDays, windowOf, type PeriodWindow, type WindowPeriod } from "../domain/window";
 import type { SmallMultiplesData, TimeSeriesData } from "../ui/charts/types";
@@ -50,6 +51,7 @@ import {
   governanceRows,
   intervalText,
   liquidityRows,
+  listAccounts,
   NOT_COMPUTED_NOTE,
   ammHistoryPage,
   ammListPage,
@@ -57,6 +59,7 @@ import {
   ammPoolFacts,
   ammPoolPage,
   createdOf,
+  drawnAccounts,
   MODE_CLASS,
   nextBidPrice,
   noAmmPage,
@@ -70,6 +73,7 @@ import {
   type AmmActivityPage,
   type AmmListInput,
   type AmmListPageData,
+  type AmmRowView,
   type AmmListProblem,
   type AmmPoolInput,
   type AmmPoolMode,
@@ -201,12 +205,15 @@ function rowsOf(over: Partial<AmmListInput> = {}) {
   return pools.rows;
 }
 
-function totalsOf(page: AmmListPageData) {
+/** A row's words under its pair, as the page writes them: "rhWTXC…tcS3 · RLUSD rMxCKb…m5De". */
+const detailText = (row: AmmRowView): string => [row.detail.account, ...row.detail.issuers.map((part) => `${part.code} ${part.issuer}`)].join(" · ");
+
+function totalsOf(page: Omit<AmmListPageData, "names">) {
   if (page.totals.state !== "ok") throw new Error("the totals failed");
   return page.totals;
 }
 
-function chartOf(page: AmmListPageData) {
+function chartOf(page: Omit<AmmListPageData, "names">) {
   if (page.chart.state !== "ok") throw new Error("the chart failed");
   return page.chart;
 }
@@ -280,7 +287,7 @@ describe("the list: a row of the table", () => {
       pair: "XRP / RLUSD",
       coins: ["XRP", "RLUSD"],
       href: "/xrpl/amm/rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
-      detail: "rhWTXC…tcS3 · RLUSD rMxCKb…m5De",
+      detail: { account: "rhWTXC…tcS3", issuers: [{ code: "RLUSD", issuer: "rMxCKb…m5De", labels: [] }] },
       deleted: false,
     });
   });
@@ -290,7 +297,7 @@ describe("the list: a row of the table", () => {
       pools: fulfilled(ammPoolsSample({ pools: [ammPoolSample({ base_currency: RLUSD, base_issuer: RL, counter_currency: USDC, counter_issuer: USDC_ISSUER })] })),
     });
     expect(row!.pair).toBe("USDC / RLUSD");
-    expect(row!.detail).toBe("rhWTXC…tcS3 · USDC rGm7WC…uWhE · RLUSD rMxCKb…m5De");
+    expect(detailText(row!)).toBe("rhWTXC…tcS3 · USDC rGm7WC…uWhE · RLUSD rMxCKb…m5De");
     // Stored RLUSD/USDC: the sample's base reserve (1250.5) is the RLUSD's, its counter reserve (2500) the USDC's, which is shown first.
     expect(row!.reserves).toEqual(["2,500 USDC", "1,250.5 RLUSD"]);
   });
@@ -391,9 +398,9 @@ describe("the list: a row of the table", () => {
     const slot = (over: Partial<NonNullable<AmmPool["auction_slot"]>> | null, input: Partial<AmmListInput> = {}) =>
       rowsOf({ pools: fulfilled(ammPoolsSample({ pools: [xrpRlusd({ auction_slot: over === null ? undefined : { holder: AMM_HOLDER, ...over } })] })), ...input })[0]!.slot;
 
-    const HELD = { text: "rPT1Sj…pAYe", href: "/xrpl/account/rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe", open: false };
-    const OPEN = { text: "Open", href: null, open: true };
-    const UNKNOWN = { text: "—", href: null, open: false };
+    const HELD = { holder: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe" };
+    const OPEN = { text: "Open", open: true };
+    const UNKNOWN = { text: "—", open: false };
 
     it("is the holder, short, linking its account, while the expiration is after the live set's end", () => {
       expect(slot({ expiration: "2026-10-17T17:01:01Z" })).toEqual(HELD);
@@ -449,7 +456,8 @@ describe("the list: a row of the table", () => {
 
     it("says that it is open only for Open: a holder and a dash are not", () => {
       const neither = { live: rejected(new TooLate()), last: rejected(new TooLate()), history: null };
-      expect([slot(null).open, slot({ expiration: "2027-01-01T00:00:00Z" }).open, slot({ expiration: "2027-01-01T00:00:00Z" }, neither).open]).toEqual([true, false, false]);
+      const open = (shown: AmmRowView["slot"]) => "open" in shown && shown.open;
+      expect([open(slot(null)), open(slot({ expiration: "2027-01-01T00:00:00Z" })), open(slot({ expiration: "2027-01-01T00:00:00Z" }, neither))]).toEqual([true, false, false]);
     });
   });
 
@@ -772,7 +780,7 @@ describe("the list: what failed", () => {
     /** A pool whose slot is held until just after the newest ledger closed (17:01:12): held by the ledger's close time, as the live set is not there. */
     const held = (over: Partial<AmmListInput> = {}) =>
       rowsOf({ pools: fulfilled(ammPoolsSample({ pools: [xrpRlusd({ auction_slot: { holder: AMM_HOLDER, expiration: "2026-10-17T17:01:13Z" } })] })), ...over })[0]!;
-    const HELD = { text: "rPT1Sj…pAYe", href: "/xrpl/account/rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe", open: false };
+    const HELD = { holder: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe" };
 
     it.each([
       ["has no rows at all", { result: "success", count: 0 }],
@@ -813,12 +821,12 @@ describe("the list: what failed", () => {
       const { page, problems } = ammListPage(inputOf(neither));
       expect(page).toMatchObject({ kind: "list", totals: TOTALS_FAILED, chart: CHART_FAILED, pools: { state: "ok", note: NO_VOLUME_NOTE } });
       expect(said(problems)).toEqual(["totals: took too long", "chart: took too long"]);
-      expect(held(neither)).toMatchObject({ volume: "—", slot: { text: "—", href: null, open: false } });
+      expect(held(neither)).toMatchObject({ volume: "—", slot: { text: "—", open: false } });
     });
 
     it("has no time at all when the live set failed and the newest ledger is null, and still stands", () => {
       const neither = { last: fulfilled(null as unknown as LastValidated), live: rejected(new TooLate()), history: null };
-      expect(held(neither).slot).toEqual({ text: "—", href: null, open: false });
+      expect(held(neither).slot).toEqual({ text: "—", open: false });
       expect(ammListPage(inputOf(neither)).page.pools.state).toBe("ok");
     });
   });
@@ -937,7 +945,7 @@ describe("the list: the recorded pools", () => {
     const row = rowOf(AMM_POOL);
     expect(row).toMatchObject({ pair: "XRP / RLUSD", value: "3.7M", fee: "0.205%", volume: "543K" });
     expect(row.reserves).toEqual(["1.85M XRP", "2.42M RLUSD"]);
-    expect(row.detail).toBe("rhWTXC…tcS3 · RLUSD rMxCKb…m5De");
+    expect(detailText(row)).toBe("rhWTXC…tcS3 · RLUSD rMxCKb…m5De");
   });
 
   it("shows the pool of two tokens, with no component and no value, with dashes", () => {
@@ -957,6 +965,98 @@ describe("the list: the recorded pools", () => {
   it("shows the deleted pool with its tag and no value, and empty reserves as zeros", () => {
     const row = rowOf("rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz");
     expect(row).toMatchObject({ deleted: true, value: "—", fee: "0.250%", reserves: ["0 SNK", "0 XRP"] });
+  });
+});
+
+describe("the list: the names of the issuers (display names spec 1)", () => {
+  const verified = (text: string, domain: string): NameView => ({ name: { text, kind: "verified" }, domain, labels: [] });
+  /** Fictional: the RLUSD issuer is verified, the USDC issuer is only named by its own domain. */
+  const names: NameMap = {
+    [RL]: verified("Northpeak Treasury", "northpeak.example"),
+    [USDC_ISSUER]: { name: { text: "lowtide.example", kind: "domain" }, domain: "lowtide.example", labels: [] },
+  };
+  const tokens = ammPoolsSample({ pools: [ammPoolSample({ base_currency: RLUSD, base_issuer: RL, counter_currency: USDC, counter_issuer: USDC_ISSUER })] });
+
+  it("writes an issuer with a verified name, or one GateHub gave, by that name after the short account: 'RLUSD Northpeak Treasury', a name the page does not set in mono", () => {
+    const [row] = rowsOf({ names });
+    expect(detailText(row!)).toBe(`${shortAddress(AMM_POOL)} · RLUSD Northpeak Treasury`);
+    expect(row!.detail.issuers).toEqual([{ code: "RLUSD", issuer: "Northpeak Treasury", name: true, labels: [] }]);
+    const gatehub: NameMap = { [RL]: { name: { text: "Harborline Exchange", kind: "account" }, network: "hot wallet", labels: [] } };
+    expect(detailText(rowsOf({ names: gatehub })[0]!)).toBe(`${shortAddress(AMM_POOL)} · RLUSD Harborline Exchange · hot wallet`);
+  });
+
+  it("keeps the short address of an issuer that is labelled, or that only its own domain names, and carries a labelled issuer's labels for its mark (decision 12)", () => {
+    const [row] = rowsOf({ pools: fulfilled(tokens), names });
+    expect(detailText(row!)).toBe(`${shortAddress(AMM_POOL)} · USDC ${shortAddress(USDC_ISSUER)} · RLUSD Northpeak Treasury`);
+    expect(row!.detail.issuers[0]).toEqual({ code: "USDC", issuer: shortAddress(USDC_ISSUER), labels: [] });
+    const labelled: NameMap = { [RL]: { ...names[RL]!, labels: ["scam"] } };
+    expect(rowsOf({ names: labelled })[0]!.detail.issuers).toEqual([{ code: "RLUSD", issuer: shortAddress(RL), labels: ["scam"] }]);
+    // An issuer with labels and no name is marked too.
+    expect(rowsOf({ names: { [RL]: { labels: ["scam", "spam"] } } })[0]!.detail.issuers).toEqual([{ code: "RLUSD", issuer: shortAddress(RL), labels: ["scam", "spam"] }]);
+  });
+
+  it("is today's row when no names are given, and the pool account is always short", () => {
+    expect(rowsOf({ names: {} })).toEqual(rowsOf());
+    expect(rowsOf({ names: { [AMM_POOL]: verified("Pool Name", "pool.example") } })).toEqual(rowsOf());
+  });
+
+  it("changes nothing of the page but the issuers' words", () => {
+    const { page: plain } = listed();
+    const { page: named } = listed({ names });
+    const { pools: _plain, ...restPlain } = plain;
+    const { pools: _named, ...restNamed } = named;
+    expect(restNamed).toEqual(restPlain);
+    if (plain.pools.state !== "ok" || named.pools.state !== "ok") throw new Error("pools");
+    expect(named.pools.rows.map(({ detail: _a, ...rest }) => rest)).toEqual(plain.pools.rows.map(({ detail: _b, ...rest }) => rest));
+  });
+});
+
+describe("listAccounts: the accounts the list draws", () => {
+  /** A pool of the sample, with no slot unless the test gives one (the sample's is held). */
+  const pool = (over: Partial<AmmPool>) => ammPoolSample({ base_currency: RLUSD, base_issuer: RL, counter_currency: "XRP", auction_slot: undefined, ...over });
+  const accountsOf = (pools: AmmListInput["pools"], over: Partial<AmmListInput> = {}) => listAccounts(inputOf({ pools, ...over }));
+  /** Held past the live set's end (the data's "now"), so that the page links its holder. */
+  const held = { holder: AMM_HOLDER, price: "1", discounted_fee: 5, expiration: "2027-01-01T00:00:00Z" };
+
+  it("is the issuers of the rows, row by row, the base's first, as met", () => {
+    const pools = ammPoolsSample({
+      pools: [
+        pool({ counter_currency: USDC, counter_issuer: USDC_ISSUER }),
+        pool({ amm_account: AMM_OTHER }),
+        ammPoolSample({ base_currency: "USD", base_issuer: AMM_ISSUER, counter_currency: "XRP", auction_slot: undefined }),
+      ],
+    });
+    expect(accountsOf(fulfilled(pools))).toEqual([RL, USDC_ISSUER, RL, AMM_ISSUER]);
+  });
+
+  it("adds the holder of a slot the page links, after its row's issuers: an account drawn as a link (an AccountLink) is named", () => {
+    const asked = accountsOf(fulfilled(ammPoolsSample({ pools: [pool({ created_by: AMM_ACCOUNT, auction_slot: held })] })));
+    expect(asked).toEqual([RL, AMM_HOLDER]);
+    const [row] = rowsOf({ pools: fulfilled(ammPoolsSample({ pools: [pool({ auction_slot: held })] })) });
+    expect(row!.slot).toEqual({ holder: AMM_HOLDER });
+  });
+
+  it("leaves out every other address the answer holds: the pool and its creator, and the holder of a slot shown Open (expired) or as a dash (a deleted pool, or no time to tell)", () => {
+    const expired = { ...held, expiration: "2026-03-02T17:05:00Z" };
+    const neither = { live: rejected(new TooLate()), last: rejected(new TooLate()), history: null };
+    for (const [pools, over] of [
+      [fulfilled(ammPoolsSample({ pools: [pool({ created_by: AMM_ACCOUNT, auction_slot: expired })] })), {}],
+      [fulfilled(ammPoolsSample({ pools: [pool({ deleted: true, auction_slot: held })] })), {}],
+      [fulfilled(ammPoolsSample({ pools: [pool({ auction_slot: held })] })), neither],
+    ] as const) {
+      const asked = accountsOf(pools, over);
+      expect(asked).toEqual([RL]);
+      for (const other of [AMM_POOL, AMM_ACCOUNT, AMM_HOLDER]) expect(asked).not.toContain(other);
+    }
+  });
+
+  it("is empty for a pool of the native currency alone, for no pools, for a call that was not asked or failed, and for an answer that is not a list", () => {
+    expect(accountsOf(fulfilled(ammPoolsSample({ pools: [ammPoolSample({ base_issuer: undefined, base_currency: "XRP", counter_currency: "XAH", auction_slot: undefined })] })))).toEqual([]);
+    expect(accountsOf(fulfilled(ammPoolsSample({ pools: [] })))).toEqual([]);
+    expect(accountsOf(null)).toEqual([]);
+    expect(accountsOf(rejected(new Error("503")))).toEqual([]);
+    expect(accountsOf(fulfilled({ result: "success", count: 1, pools: "no" } as never))).toEqual([]);
+    expect(accountsOf(fulfilled(null as never))).toEqual([]);
   });
 });
 
@@ -2469,27 +2569,29 @@ function poolInput(over: Partial<AmmPoolInput> = {}): AmmPoolInput {
   };
 }
 
-const poolPage = (over: Partial<AmmPoolInput> = {}): AmmPoolPageData => ammPoolPage(poolInput(over)).page;
+/** The page as the builder makes it: the loader adds its names part. */
+type PoolPageBuilt = Omit<AmmPoolPageData, "names">;
+const poolPage = (over: Partial<AmmPoolInput> = {}): PoolPageBuilt => ammPoolPage(poolInput(over)).page;
 
-function stateOf(page: AmmPoolPageData) {
+function stateOf(page: PoolPageBuilt) {
   if (page.state === null) throw new Error("the page has no state card");
   return page.state;
 }
 
 /** A stat of the state card by its id, as a single figure (all but the reserves). */
-function statOf(page: AmmPoolPageData, id: Exclude<AmmStat["id"], "reserves">) {
+function statOf(page: PoolPageBuilt, id: Exclude<AmmStat["id"], "reserves">) {
   const stat = stateOf(page).stats.find((candidate) => candidate.id === id);
   if (stat === undefined || stat.id === "reserves") throw new Error(`no stat ${id}`);
   return stat;
 }
 
-function reservesOf(page: AmmPoolPageData): [string, string] {
+function reservesOf(page: PoolPageBuilt): [string, string] {
   const stat = stateOf(page).stats.find((candidate) => candidate.id === "reserves");
   if (stat === undefined || stat.id !== "reserves") throw new Error("no reserves");
   return stat.reserves;
 }
 
-function slotOfPage(page: AmmPoolPageData) {
+function slotOfPage(page: PoolPageBuilt) {
   if (page.slot === null || page.slot.state !== "ok") throw new Error("the slot card is not drawn");
   return page.slot;
 }
@@ -2686,7 +2788,30 @@ describe("ammPoolPage: the crumbs and the pool card", () => {
     expect(header.title).toBe("XRP / RLUSD pool");
     expect(header.coins).toEqual(["XRP", "RLUSD"]);
     expect(header.account).toEqual({ address: AMM_POOL, href: `/xrpl/account/${AMM_POOL}` });
-    expect(header.issuers).toEqual([{ code: "RLUSD", text: `RLUSD issued by ${RL}`, issuer: { address: RL, href: `/xrpl/account/${RL}` } }]);
+    expect(header.issuers).toEqual([{ code: "RLUSD", text: `RLUSD issued by ${RL}`, issuer: { address: RL, href: `/xrpl/account/${RL}` }, tokenHref: null }]);
+  });
+
+  describe("the token links of the issuer lines (E11 spec 5.2)", () => {
+    const TOKENS_NET: AmmPoolInput["net"] = { ...POOL_NET, features: { ...POOL_NET.features, tokens: true } };
+
+    it("leads the code of each issued side to its token page while TOKENS is on, and leaves it null while it is off", () => {
+      expect(poolPage({ net: TOKENS_NET }).header.issuers.map((issuer) => issuer.tokenHref)).toEqual([`/xrpl/token/RLUSD.${RL}`]);
+      expect(poolPage().header.issuers.map((issuer) => issuer.tokenHref)).toEqual([null]);
+    });
+
+    it("links both issued sides of a pool of two tokens, in display order", () => {
+      const header = poolPage({ net: TOKENS_NET, index: usdcPool(), node: fulfilled(usdcInfo()) }).header;
+      expect(header.issuers.map((issuer) => [issuer.code, issuer.tokenHref])).toEqual([
+        ["USDC", `/xrpl/token/USDC.${USDC_ISSUER}`],
+        ["RLUSD", `/xrpl/token/RLUSD.${RL}`],
+      ]);
+    });
+
+    it("has no line, so no link, for the native side, and the pool card of a page behind a marker has the same links", () => {
+      expect(poolPage({ net: TOKENS_NET }).header.issuers).toHaveLength(1);
+      const behind = ammHistoryPage({ net: TOKENS_NET, pool: AMM_POOL, query: { period: "90d", tab: "liquidity", marker: AMM_MARKER, back: [] }, index: indexPool(), activity: { result: "success", count: 1, liquidity: [ammLiquiditySample()] } });
+      expect(behind.page.header.issuers.map((issuer) => issuer.tokenHref)).toEqual([`/xrpl/token/RLUSD.${RL}`]);
+    });
   });
 
   it("names each issuer of a pool of two tokens, in display order", () => {
@@ -3305,7 +3430,7 @@ describe("ammHistoryPage: a page behind a marker", () => {
       title: "XRP / RLUSD pool",
       market: `/xrpl/markets/XRP/RLUSD.${RL}`,
       account: { address: AMM_POOL, href: `/xrpl/account/${AMM_POOL}` },
-      issuers: [{ code: "RLUSD", text: `RLUSD issued by ${RL}`, issuer: { address: RL, href: `/xrpl/account/${RL}` } }],
+      issuers: [{ code: "RLUSD", text: `RLUSD issued by ${RL}`, issuer: { address: RL, href: `/xrpl/account/${RL}` }, tokenHref: null }],
     });
   });
 
@@ -3530,5 +3655,272 @@ describe("the pool page: no float and no exponent reaches the page (P38)", () =>
       expect(page.header.created).toMatchObject({ date: "2026-10-12", by: { address: "rEh4WnsrdmE7V1XeTsWi5dM7FHH8hYuea3" } });
       expect(page.meta.created).toEqual({ date: "2026-10-12", at: unixAt("2026-10-12T19:36:41Z") });
     });
+  });
+});
+
+// ---- The names of the accounts the AMM pool page draws (display names spec 1 and 4.3) ----------------------------------------------------------------
+
+describe("the pool page: the names", () => {
+  const verified = (text: string, domain: string): NameView => ({ name: { text, kind: "verified" }, domain, labels: [] });
+  const NORTHPEAK = verified("Northpeak Treasury", "northpeak.example");
+  const HARBORLINE: NameView = { name: { text: "Harborline Exchange", kind: "account" }, network: "hot wallet", labels: ["advisory"] };
+  const vote = (account: string, trading_fee: number, vote_weight: number) => ({ account, trading_fee, vote_weight });
+
+  describe("voteShares", () => {
+    const votes = [vote(AMM_ACCOUNT, 250, 21400), vote(AMM_HOLDER, 300, 5000), vote(AMM_OTHER, 400, 500)];
+
+    it("draws a named voter by its name, its short address and what it votes for under it, and the mark of how its name is known", () => {
+      const { items } = voteShares(votes, "xrpl", { [AMM_ACCOUNT]: NORTHPEAK });
+      expect(items[0]).toEqual({
+        id: AMM_ACCOUNT,
+        label: "Northpeak Treasury",
+        sublabel: `${shortAddress(AMM_ACCOUNT)} · votes for 0.250%`,
+        value: "21.4",
+        share: "21%",
+        href: `/xrpl/account/${AMM_ACCOUNT}`,
+        mark: { kind: "verified", labels: [] },
+      });
+    });
+
+    it("keeps the short address and 'votes for' of a voter that has labels only, with the labels' mark", () => {
+      const { items } = voteShares(votes, "xrpl", { [AMM_HOLDER]: { labels: ["scam"] } });
+      expect(items[1]).toEqual({
+        id: AMM_HOLDER,
+        label: shortAddress(AMM_HOLDER),
+        sublabel: "votes for 0.300%",
+        value: "5",
+        share: "5%",
+        href: `/xrpl/account/${AMM_HOLDER}`,
+        mark: { labels: ["scam"] },
+      });
+    });
+
+    it("carries the labels of a named voter in its mark, and its account network name in its label", () => {
+      const { items } = voteShares(votes, "xrpl", { [AMM_OTHER]: HARBORLINE });
+      expect(items[2]).toMatchObject({ label: "Harborline Exchange · hot wallet", sublabel: `${shortAddress(AMM_OTHER)} · votes for 0.400%`, mark: { kind: "account", labels: ["advisory"] } });
+    });
+
+    it("is what it was for a voter nobody names, whatever the others are: no mark, no change in the words", () => {
+      const plain = voteShares(votes, "xrpl");
+      const { items } = voteShares(votes, "xrpl", { [AMM_ACCOUNT]: NORTHPEAK });
+      expect(items.slice(1)).toEqual(plain.items.slice(1));
+      for (const item of plain.items) expect(item).not.toHaveProperty("mark");
+      expect(voteShares(votes, "xrpl", {})).toEqual(plain);
+    });
+
+    it("covers the names in the token: a beat that changes only a mark redraws the list", () => {
+      const token = (names: NameMap) => voteShares(votes, "xrpl", names).token;
+      const base = token({ [AMM_ACCOUNT]: NORTHPEAK });
+      expect(token({ [AMM_ACCOUNT]: NORTHPEAK })).toBe(base);
+      expect(token({})).not.toBe(base);
+      expect(token({ [AMM_ACCOUNT]: { ...NORTHPEAK, labels: ["spam"] } })).not.toBe(base);
+    });
+  });
+
+  describe("swapRows: the issuers of a pool of one code on both sides", () => {
+    const ours: Asset = { currency: "USD", issuer: AMM_ISSUER };
+    const theirs: Asset = { currency: "USD", issuer: RL };
+    const usdUsd = displayPair(ours, theirs, "XRP");
+    const usdSwap = (over: Partial<AmmSwap> = {}): AmmSwap =>
+      ammSwapSample({ base_currency: "USD", base_issuer: AMM_ISSUER, counter_currency: "USD", counter_issuer: RL, base_amount: "10", counter_amount: "9.9", seller: AMM_POOL, buyer: AMM_ACCOUNT, ...over });
+
+    it("names an issuer verified or named by GateHub in the direction title, as the other texts of the page name an issuer", () => {
+      const [row] = swapRows([usdSwap()], usdUsd, "xrpl", { [RL]: NORTHPEAK, [AMM_ISSUER]: HARBORLINE });
+      // The labelled one keeps its short address.
+      expect(row!.directionTitle).toBe(`USD of Northpeak Treasury → USD of ${shortAddress(AMM_ISSUER)}`);
+      const [other] = swapRows([usdSwap()], usdUsd, "xrpl", { [RL]: { name: { text: "Harborline Exchange", kind: "account" }, network: "hot wallet", labels: [] }, [AMM_ISSUER]: NORTHPEAK });
+      expect(other!.directionTitle).toBe("USD of Harborline Exchange · hot wallet → USD of Northpeak Treasury");
+    });
+
+    it("is the short addresses when no names are given, and changes nothing but the title", () => {
+      const [plain] = swapRows([usdSwap()], usdUsd, "xrpl");
+      expect(plain!.directionTitle).toBe(`USD of ${shortAddress(RL)} → USD of ${shortAddress(AMM_ISSUER)}`);
+      const [named] = swapRows([usdSwap()], usdUsd, "xrpl", { [RL]: NORTHPEAK });
+      const { directionTitle: _named, ...restNamed } = named!;
+      const { directionTitle: _plain, ...restPlain } = plain!;
+      expect(restNamed).toEqual(restPlain);
+    });
+
+    it("has no title for a pool whose codes tell its sides apart, names or not", () => {
+      const [row] = swapRows([ammSwapSample({ base_currency: RLUSD, base_issuer: RL, base_amount: "1250", counter_amount: "512.4" })], displayPair(rlusd, xrp, "XRP"), "xrpl", { [RL]: NORTHPEAK });
+      expect(row!.directionTitle).toBeNull();
+    });
+  });
+
+  describe("poolCharts: the issuers' sublabels", () => {
+    it("writes an issuer's sublabel by its name when it is verified or named by GateHub, else by its short address", () => {
+      const input = chartInput();
+      const named = drawn(poolCharts({ ...input, names: { [RL]: NORTHPEAK } }).reserves);
+      expect(named.data.panels.map((panel) => [panel.label, panel.sublabel])).toEqual([
+        ["XRP", undefined],
+        ["RLUSD", "Northpeak Treasury"],
+      ]);
+      const labelled = drawn(poolCharts({ ...input, names: { [RL]: { ...NORTHPEAK, labels: ["scam"] } } }).reserves);
+      expect(labelled.data.panels[1]!.sublabel).toBe(shortAddress(RL));
+      expect(drawn(poolCharts({ ...input, names: {} }).reserves)).toEqual(drawn(poolCharts(input).reserves));
+    });
+
+    it("changes only the sublabel (and the token that covers it): the values and the other cards are the same", () => {
+      const input = chartInput();
+      const [plain, named] = [poolCharts(input), poolCharts({ ...input, names: { [RL]: NORTHPEAK } })];
+      expect(named.value).toEqual(plain.value);
+      expect(named.volume).toEqual(plain.volume);
+      expect(named.price).toEqual(plain.price);
+      expect(named.fee).toEqual(plain.fee);
+      expect(drawn(named.reserves).data.token).not.toBe(drawn(plain.reserves).data.token);
+      expect(drawn(named.reserves).data.panels.map((panel) => panel.values)).toEqual(drawn(plain.reserves).data.panels.map((panel) => panel.values));
+    });
+  });
+
+  describe("ammPoolPage", () => {
+    const names: NameMap = { [AMM_ACCOUNT]: NORTHPEAK, [AMM_HOLDER]: { labels: ["scam"] }, [RL]: NORTHPEAK, [AMM_POOL]: HARBORLINE };
+
+    it("draws the votes and the issuer sublabel through the names, and nothing else of the page changes", () => {
+      const plain = poolPage();
+      const named = poolPage({ names });
+      if (named.votes?.state !== "ok" || named.votes.data === null) throw new Error("votes");
+      expect(named.votes.data).toEqual(voteShares(poolInfo().vote_slots, "xrpl", names));
+      expect(drawn(named.charts.reserves).data.panels[1]!.sublabel).toBe("Northpeak Treasury");
+
+      const { votes: _votes, charts: _charts, ...restNamed } = named;
+      const { votes: _plainVotes, charts: _plainCharts, ...restPlain } = plain;
+      expect(restNamed).toEqual(restPlain);
+    });
+
+    it("keeps the head as it is whatever the names are: the pool card draws the whole address, and its tags read the short ones (display names spec 7)", () => {
+      const named = poolPage({ names });
+      expect(named.header).toEqual(poolPage().header);
+      expect(named.meta).toEqual(poolPage().meta);
+      expect(named.crumbs).toEqual(poolPage().crumbs);
+      expect(JSON.stringify(named.meta)).not.toContain("Northpeak");
+    });
+
+    it("keeps the accounts of the rows as addresses: the browser names them where it draws them", () => {
+      expect(poolPage({ names }).activity).toEqual(poolPage().activity);
+    });
+
+    it("carries no names part: the loader adds it", () => {
+      expect(poolPage({ names })).not.toHaveProperty("names");
+    });
+
+    it("writes the swaps' direction titles of a pool of one code through the names", () => {
+      const usdUsd = {
+        index: indexPool({ base_currency: "USD", base_issuer: AMM_ISSUER, counter_currency: "USD", counter_issuer: RL }),
+        node: fulfilled(poolInfo({ amount: { currency: "USD", issuer: AMM_ISSUER, value: "1000" }, amount2: { currency: "USD", issuer: RL, value: "1100" } })),
+        activity: fulfilled(swapsPage([ammSwapSample({ base_currency: "USD", base_issuer: AMM_ISSUER, counter_currency: "USD", counter_issuer: RL, seller: AMM_POOL })])),
+      };
+      const list = listOfPage(poolPage({ ...usdUsd, names: { [RL]: NORTHPEAK } }));
+      if (list.tab !== "swaps") throw new Error("swaps");
+      expect(list.rows[0]!.directionTitle).toBe(`USD of Northpeak Treasury → USD of ${shortAddress(AMM_ISSUER)}`);
+    });
+  });
+
+  describe("ammHistoryPage", () => {
+    const query: AmmPoolQuery = { period: "90d", tab: "swaps", marker: AMM_MARKER, back: [] };
+    const usdSwaps: AmmActivityPage = {
+      result: "success",
+      count: 1,
+      exchanges: [ammSwapSample({ base_currency: "USD", base_issuer: AMM_ISSUER, counter_currency: "USD", counter_issuer: RL, seller: AMM_POOL })],
+    };
+    const index = indexPool({ base_currency: "USD", base_issuer: AMM_ISSUER, counter_currency: "USD", counter_issuer: RL });
+
+    it("writes the direction titles through the names, and carries no names part", () => {
+      const { page } = ammHistoryPage({ net: POOL_NET, pool: AMM_POOL, query, index, activity: usdSwaps, names: { [RL]: NORTHPEAK } });
+      const list = listOfPage(page);
+      if (list.tab !== "swaps") throw new Error("swaps");
+      expect(list.rows[0]!.directionTitle).toBe(`USD of Northpeak Treasury → USD of ${shortAddress(AMM_ISSUER)}`);
+      expect(page).not.toHaveProperty("names");
+    });
+
+    it("keeps its head and its tags as they are", () => {
+      const plain = ammHistoryPage({ net: POOL_NET, pool: AMM_POOL, query, index, activity: usdSwaps }).page;
+      const named = ammHistoryPage({ net: POOL_NET, pool: AMM_POOL, query, index, activity: usdSwaps, names: { [RL]: NORTHPEAK, [AMM_POOL]: HARBORLINE } }).page;
+      expect(named.header).toEqual(plain.header);
+      expect(named.meta).toEqual(plain.meta);
+    });
+  });
+});
+
+describe("drawnAccounts: the accounts the pool page draws", () => {
+  const SELLER = "rBg5JN5ShW8ZRV1TJhxVJRYcXVbPGC3ARi";
+  const BUYER = "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh";
+  const TAKER = "rJF2XanJQGFLS5ZUdcqEzwJcTJ7aFfQvg";
+  const PROVIDER = "rPEPPER7kfTD9w2To4CQk6UCfuHM9c6GDY";
+  const INITIATOR = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh";
+  const CREATOR = "rLUEXYuLiQptky37CqLcm9USQpPiz5rkpD";
+
+  it("is the pool's account, its issuers, its creator, the slot's holder and authorized accounts, the voters and the swaps' takers, each once, in the order drawn", () => {
+    const authorized = "rBg5JN5ShW8ZRV1TJhxVJRYcXVbPGC3ARi";
+    const page = poolPage({
+      node: fulfilled(poolInfo({ auction_slot: heldSlot({ time_interval: 12, expiration: EXPIRATION, auth_accounts: [authorized] }) })),
+      created: fulfilled({ result: "success", count: 1, liquidity: [createEvent({ account: CREATOR })] }),
+    });
+    // The pool card draws the pool's account and RLUSD's issuer (each an `AccountLink` in full). The holder is a voter too; the heaviest vote first. The default swap's taker is AMM_ACCOUNT, a voter.
+    expect(drawnAccounts(page)).toEqual([AMM_POOL, RL, CREATOR, AMM_HOLDER, authorized, AMM_ACCOUNT, AMM_OTHER]);
+  });
+
+  it("is each row of the tab's accounts: a swap's taker, a deposit's provider, and a vote's or a bid's account", () => {
+    const swaps = poolPage({ activity: fulfilled(swapsPage([rlusdSwap({ taker: TAKER })])) });
+    expect(drawnAccounts(swaps)).toContain(TAKER);
+    const liquidity = poolPage({ query: { ...QUERY, tab: "liquidity" }, activity: fulfilled({ result: "success", count: 1, liquidity: [ammLiquiditySample({ account: PROVIDER })] }) });
+    expect(drawnAccounts(liquidity)).toContain(PROVIDER);
+    const governance = poolPage({ query: { ...QUERY, tab: "governance" }, activity: fulfilled({ result: "success", count: 2, governance: [ammVoteSample({ account: PROVIDER }), ammBidSample({ account: TAKER })] }) });
+    expect(drawnAccounts(governance)).toEqual(expect.arrayContaining([PROVIDER, TAKER]));
+  });
+
+  it("leaves out every address the page holds but does not draw as an account: a swap's buyer and seller, a deposit's initiator, a bid's holder and authorized accounts, the LP token's issuer", () => {
+    const swaps = poolPage({ activity: fulfilled(swapsPage([rlusdSwap({ taker: TAKER, buyer: BUYER, seller: SELLER })])) });
+    expect(drawnAccounts(swaps)).not.toContain(BUYER);
+    expect(drawnAccounts(swaps)).not.toContain(SELLER);
+
+    const liquidity = poolPage({ query: { ...QUERY, tab: "liquidity" }, activity: fulfilled({ result: "success", count: 1, liquidity: [ammLiquiditySample({ account: PROVIDER, initiator: INITIATOR })] }) });
+    expect(drawnAccounts(liquidity)).toContain(PROVIDER);
+    expect(drawnAccounts(liquidity)).not.toContain(INITIATOR);
+
+    const bid = ammBidSample({ account: TAKER, auction_slot: { holder: BUYER, discounted_fee: 50, expiration: "2026-10-17T09:00:00Z", auth_accounts: [INITIATOR] } });
+    const governance = poolPage({ query: { ...QUERY, tab: "governance" }, activity: fulfilled({ result: "success", count: 1, governance: [bid] }) });
+    expect(drawnAccounts(governance)).toContain(TAKER);
+    expect(drawnAccounts(governance)).not.toContain(BUYER);
+    expect(drawnAccounts(governance)).not.toContain(INITIATOR);
+  });
+
+  it("is a clawback's initiator, which the table draws after 'by'", () => {
+    const clawback = ammLiquiditySample({ event: "clawback", account: PROVIDER, initiator: INITIATOR });
+    const page = poolPage({ query: { ...QUERY, tab: "liquidity" }, activity: fulfilled({ result: "success", count: 1, liquidity: [clawback] }) });
+    expect(drawnAccounts(page)).toEqual(expect.arrayContaining([PROVIDER, INITIATOR]));
+  });
+
+  it("is only what the cards that stand draw: no voters while the node is down; the issuers whatever the charts, since the pool card draws them in full", () => {
+    const down = poolPage({ mode: "node-down", node: rejected(serverError()) });
+    expect(drawnAccounts(down)).not.toContain(AMM_OTHER);
+    expect(drawnAccounts(down)).toContain(RL);
+    // The pool card's issuer lines do not wait for the reserves chart.
+    const noChart = poolPage({ days: rejected(new TooLate()) });
+    expect(drawnAccounts(noChart)).toContain(RL);
+    const noWindow = poolPage({ last: rejected(new TooLate()) });
+    expect(drawnAccounts(noWindow)).toContain(RL);
+    // A pool of one code has both issuers on its card.
+    const usdUsd = poolPage({
+      index: indexPool({ base_currency: "USD", base_issuer: AMM_ISSUER, counter_currency: "USD", counter_issuer: RL }),
+      node: fulfilled(poolInfo({ amount: { currency: "USD", issuer: AMM_ISSUER, value: "1000" }, amount2: { currency: "USD", issuer: RL, value: "1100" } })),
+      days: rejected(new TooLate()),
+      activity: fulfilled(swapsPage([ammSwapSample({ base_currency: "USD", base_issuer: AMM_ISSUER, counter_currency: "USD", counter_issuer: RL, seller: AMM_POOL })])),
+    });
+    expect(drawnAccounts(usdUsd)).toEqual(expect.arrayContaining([RL, AMM_ISSUER]));
+  });
+
+  it("is the pool, its issuers and the rows' accounts for a page behind a marker, and nothing of the cards it does not have", () => {
+    const index = indexPool({ base_currency: "USD", base_issuer: AMM_ISSUER, counter_currency: "USD", counter_issuer: RL });
+    const activity: AmmActivityPage = {
+      result: "success",
+      count: 1,
+      exchanges: [ammSwapSample({ base_currency: "USD", base_issuer: AMM_ISSUER, counter_currency: "USD", counter_issuer: RL, seller: AMM_POOL, taker: TAKER, buyer: BUYER })],
+    };
+    const { page } = ammHistoryPage({ net: POOL_NET, pool: AMM_POOL, query: { period: "90d", tab: "swaps", marker: AMM_MARKER, back: [] }, index, activity });
+    expect(drawnAccounts(page).sort()).toEqual([AMM_POOL, TAKER, AMM_ISSUER, RL].sort());
+    // Codes that tell the sides apart: the one issued side is on the card all the same.
+    const rlusdIndex = indexPool();
+    const apart = ammHistoryPage({ net: POOL_NET, pool: AMM_POOL, query: { period: "90d", tab: "swaps", marker: AMM_MARKER, back: [] }, index: rlusdIndex, activity: swapsPage([rlusdSwap({ taker: TAKER })]) }).page;
+    expect(drawnAccounts(apart)).toEqual([AMM_POOL, RL, TAKER]);
   });
 });

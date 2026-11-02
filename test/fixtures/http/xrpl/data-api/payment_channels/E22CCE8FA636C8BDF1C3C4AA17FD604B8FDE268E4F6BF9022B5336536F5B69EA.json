@@ -1,0 +1,45 @@
+{
+  "close_time": "2026-10-29T03:50:41Z",
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 102145584
+  },
+  "history": [
+    {"account":"rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR","amount":{"currency":"XRP","value":"1"},"balance":{"currency":"XRP","value":"0.032185"},"balance_change":{"currency":"XRP","value":"0.032185"},"event":"claim","ledger_index":107641123,"result":"tesSUCCESS","time":"2026-10-14T02:25:30Z","tx_hash":"886A9054CD78D4C2F1250999F8D65DB3048F8FC9AFB24523AD755B29797AC790","tx_type":"PaymentChannelClaim"},
+    {"account":"rQQQrUdN1cLdNmxH4dHfKgmX5P4kf3ZrM","amount":{"currency":"XRP","value":"1"},"balance":{"currency":"XRP","value":"0"},"event":"create","ledger_index":107624182,"result":"tesSUCCESS","settle_delay":1209600,"time":"2026-10-13T08:05:31Z","tx_hash":"E8A8466AF9E1E5E6339F1EAC64A9B8AD7AB4BE42613605511EDC80E1FCD34127","tx_type":"PaymentChannelCreate"}
+  ],
+  "ledger_index": 107972102,
+  "payment_channel": {
+    "account": "rQQQrUdN1cLdNmxH4dHfKgmX5P4kf3ZrM",
+    "amount": {
+      "currency": "XRP",
+      "value": "1"
+    },
+    "balance": {
+      "currency": "XRP",
+      "value": "0.032185"
+    },
+    "channel_id": "E22CCE8FA636C8BDF1C3C4AA17FD604B8FDE268E4F6BF9022B5336536F5B69EA",
+    "claims": 1,
+    "created": {
+      "ledger_index": 107624182,
+      "time": "2026-10-13T08:05:31Z",
+      "tx_hash": "E8A8466AF9E1E5E6339F1EAC64A9B8AD7AB4BE42613605511EDC80E1FCD34127"
+    },
+    "destination": "rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR",
+    "funds": 0,
+    "opened_with": {
+      "currency": "XRP",
+      "value": "1"
+    },
+    "public_key": "03D63CA73239D94AAF52574A20E3BC26CBDB811CA55A5914FAA28836F079CE0DC3",
+    "remaining": {
+      "currency": "XRP",
+      "value": "0.967815"
+    },
+    "sequence": 61531741,
+    "settle_delay": 1209600,
+    "status": "open"
+  },
+  "result": "success"
+}

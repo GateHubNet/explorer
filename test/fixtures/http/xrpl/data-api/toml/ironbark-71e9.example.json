@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "ironbark-71e9.example",
+    "toml_url": "https://ironbark-71e9.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rUd7VNJkCfvq7M9n9bAGHDNDMi6hQLhCzb",
+        "desc": "Ironbark Exchange"
+      }
+    ]
+  }
+}

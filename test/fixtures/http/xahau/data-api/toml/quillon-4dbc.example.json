@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "quillon-4dbc.example",
+    "toml_url": "https://quillon-4dbc.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rMEqg6FDiM4Xd8AA8AjfBUunpjhb8fqXwP",
+        "desc": "Quillon Holdings"
+      }
+    ]
+  }
+}

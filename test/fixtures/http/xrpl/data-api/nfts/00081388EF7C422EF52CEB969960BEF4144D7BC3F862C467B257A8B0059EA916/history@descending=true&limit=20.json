@@ -1,0 +1,12 @@
+{
+  "count": 2,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 107874617
+  },
+  "events": [
+    {"account":"rMTaAGVd77vAbzDv8qhoMgnZR1T5R3w6Wq","amount":"71.63","currency":"XRP","destination":"rpx9JThQ2y37FaGeeJP7PXDUVEXY3PHZSC","event":"offer_create","event_index":0,"executed_time":"2026-10-24T21:56:20Z","expiration":"2026-10-25T01:56:13Z","is_sell_offer":false,"issuer":"r4qHM7vWeLTtWPVoEzDjT6AskpQjSmui7B","kind":"nftoken","ledger_index":107879890,"nft_id":"00081388EF7C422EF52CEB969960BEF4144D7BC3F862C467B257A8B0059EA916","offer_id":"782C04740FB5BE361F343C119E141146BAF1180C6188DCF66EB9351E4080F049","serial":94284054,"taxon":1,"tx_hash":"DC0D57241CAB6E35C53A193678091E287E6DC39E118EA439AD848D8F1A32797D","tx_index":31,"tx_type":"NFTokenCreateOffer"},
+    {"account":"rMTaAGVd77vAbzDv8qhoMgnZR1T5R3w6Wq","amount":"83.068363","currency":"XRP","destination":"rpx9JThQ2y37FaGeeJP7PXDUVEXY3PHZSC","event":"offer_cancel","event_index":0,"executed_time":"2026-10-24T21:30:41Z","expiration":"2026-10-24T21:30:27Z","is_sell_offer":false,"issuer":"r4qHM7vWeLTtWPVoEzDjT6AskpQjSmui7B","kind":"nftoken","ledger_index":107879497,"nft_id":"00081388EF7C422EF52CEB969960BEF4144D7BC3F862C467B257A8B0059EA916","offer_id":"7C74AD354127D720069E9899BB5ECF25E3E4FC0298A431C23886C9A646393B35","serial":94284054,"taxon":1,"tx_hash":"F95D9F60DDA1865DF1ED424941BE464D6C54428EF2E6CB7D126BA9DAF63EDB45","tx_index":67,"tx_type":"NFTokenCancelOffer"}
+  ],
+  "result": "success"
+}

@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 26533927
+  },
+  "events": [
+    {"account":"rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto","event":"mint","event_index":0,"executed_time":"2026-10-15T03:35:11Z","issuer":"rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto","kind":"uritoken","ledger_index":26533927,"nft_id":"8E940BB8B5533E2AC239DEFB78DDE8B317B73947D6458D7DACFD80C0CDB088B5","to":"rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto","tx_hash":"12D491172F30DEDEEEC5958FE819769F18F3185B1565D6CFBA1991585598ABFA","tx_index":8,"tx_type":"URITokenMint","uri":"68747470733A2F2F6E66742E6578616D706C652F72486B74664755622F312E6A736F6E"}
+  ],
+  "result": "success"
+}

@@ -1,0 +1,33 @@
+{
+  "check": {
+    "account": "rByxx8wgAQC7JXS1Wvm3tVEXJYSk3UxyG3",
+    "check_id": "A13EFD941DB3E97F09C1985099A0CF89767CC34F56DB1A06595720F13B743923",
+    "delivered": {
+      "currency": "XRP",
+      "value": "50"
+    },
+    "destination": "rTWaZ8yXyDZXU8x6CUxEB3CF9wEUSJf5w",
+    "removed": {
+      "ledger_index": 107671568,
+      "time": "2026-10-15T11:17:50Z",
+      "tx_hash": "E2DCFD86573904F2597479C0426954360835A7D8B7AFC9402FE085BB09078E3A",
+      "tx_type": "CheckCash"
+    },
+    "send_max": {
+      "currency": "XRP",
+      "value": "51"
+    },
+    "sequence": 94047338,
+    "status": "cashed"
+  },
+  "close_time": "2026-10-29T03:50:41Z",
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 102145584
+  },
+  "history": [
+    {"account":"rTWaZ8yXyDZXU8x6CUxEB3CF9wEUSJf5w","delivered":{"currency":"XRP","value":"50"},"event":"cash","ledger_index":107671568,"result":"tesSUCCESS","time":"2026-10-15T11:17:50Z","tx_hash":"E2DCFD86573904F2597479C0426954360835A7D8B7AFC9402FE085BB09078E3A","tx_type":"CheckCash"}
+  ],
+  "ledger_index": 107972102,
+  "result": "success"
+}

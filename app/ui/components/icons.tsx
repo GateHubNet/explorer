@@ -46,6 +46,8 @@ export const CopyIcon = icon(
 export const ArrowRightIcon = icon(<path d="M5 12h14M13 6l6 6-6 6" />, { strokeWidth: 2, size: 16 });
 export const ChevronLeftIcon = icon(<path d="M15 6l-6 6 6 6" />, { strokeWidth: 2.2, size: 14 });
 export const ChevronRightIcon = icon(<path d="M9 6l6 6-6 6" />, { strokeWidth: 2.2, size: 14 });
+/** The Network menu's summary: 12 px on the board's stroke (2.4), turned half a turn by `.menu[open]`. */
+export const ChevronDownIcon = icon(<path d="m6 9 6 6 6-6" />, { strokeWidth: 2.4, size: 12 });
 export const MenuIcon = icon(<path d="M4 7h16M4 12h16M4 17h16" />, { strokeWidth: 2, size: 20 });
 export const CloseIcon = icon(<path d="M6 6l12 12M18 6L6 18" />, { strokeWidth: 2, size: 20 });
 export const SunIcon = icon(

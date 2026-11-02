@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "nettle-d8f9.example",
+    "toml_url": "https://nettle-d8f9.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q",
+        "desc": "Nettle Exchange"
+      }
+    ]
+  }
+}

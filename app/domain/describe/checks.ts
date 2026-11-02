@@ -1,11 +1,19 @@
 // CheckCreate, CheckCash and CheckCancel.
 
-import { account, amountSegment, closingDetails, detail, fieldDetail, rippleTime, seq } from "./helpers";
-import type { Detail, HandlerMap, Input, Summary } from "./types";
+import { ledgerId } from "../object-link";
+import { account, amountSegment, closingDetails, createdDetail, detail, fieldDetail, objectFieldDetail, objectSegment, rippleTime, seq } from "./helpers";
+import type { Detail, HandlerMap, Input, Segment, Summary } from "./types";
 
-function describeCheckCreate({ tx, native, verb }: Input): Summary {
+/** "a check", linking to the check's page by the `CheckID` of a cashing or a cancellation; text when it has none. */
+function checkOf(tx: Input["tx"]): Segment | string {
+  const id = ledgerId(tx.CheckID);
+  return id === undefined ? "a check" : objectSegment("check", { id }, "a check");
+}
+
+function describeCheckCreate({ tx, meta, native, verb }: Input): Summary {
   const max = amountSegment(tx.SendMax, native);
   const details: Detail[] = [
+    ...createdDetail(meta, "Check", "Check"),
     detail("Destination", account(tx.Destination)),
     ...fieldDetail(tx, "DestinationTag", "Destination tag"),
     detail("Send max", max),
@@ -29,19 +37,19 @@ function describeCheckCash({ tx, native, verb }: Input): Summary {
         ? [" for at least ", amountSegment(tx.DeliverMin, native)]
         : "";
   const details: Detail[] = [
-    ...fieldDetail(tx, "CheckID", "Check ID"),
+    ...objectFieldDetail(tx, "CheckID", "Check ID", "check"),
     ...(tx.Amount !== undefined ? [detail("Amount", amountSegment(tx.Amount, native))] : []),
     ...(tx.DeliverMin !== undefined ? [detail("Deliver min", amountSegment(tx.DeliverMin, native))] : []),
     ...closingDetails(tx, []),
   ];
-  return { title: "Check cashing", predicate: seq(`${verb("cashed", "cash")} a check`, worth), details };
+  return { title: "Check cashing", predicate: seq(`${verb("cashed", "cash")} `, checkOf(tx), worth), details };
 }
 
 function describeCheckCancel({ tx, verb }: Input): Summary {
   return {
     title: "Check cancellation",
-    predicate: seq(`${verb("cancelled", "cancel")} a check`),
-    details: [...fieldDetail(tx, "CheckID", "Check ID"), ...closingDetails(tx, [])],
+    predicate: seq(`${verb("cancelled", "cancel")} `, checkOf(tx)),
+    details: [...objectFieldDetail(tx, "CheckID", "Check ID", "check"), ...closingDetails(tx, [])],
   };
 }
 

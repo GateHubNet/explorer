@@ -13,8 +13,14 @@ import { validatorsPage, versionSlots, type ValidatorsPageData } from "./validat
 
 // ---- The world of the tests ------------------------------------------------------------------------------------------------------------------
 
-const XRPL: NetworkInfo = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" };
-const XAHAU: NetworkInfo = { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" };
+const XRPL: NetworkInfo = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" };
+const XAHAU: NetworkInfo = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", software: "xahaud" };
+
+const XRPL_TESTNET: NetworkInfo = { id: "xrpl", kind: "testnet", name: "XRPL Testnet", label: "XRPL Testnet", longName: "XRPL Testnet", dexName: "the XRPL Testnet DEX", native: "XRP", software: "rippled" };
+const XAHAU_TESTNET: NetworkInfo = { id: "xahau", kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", longName: "Xahau Testnet", dexName: "the Xahau Testnet DEX", native: "XAH", software: "xahaud" };
+
+/** Xahau Testnet's fixed list as the data API serves it (D-env §5): the publisher `local`, with no site, no key and no expiration. */
+const FIXED_LIST: UnlPublisher = { id: "local", url: "", public_key: "", status: "ok", sequence: 1, version: 1, fetched: "2026-10-19T15:51:26.114Z", validators: 4, seen_24h: 4 };
 
 const ok = <T>(value: T): Loaded<T> => ({ state: "ok", value });
 const FAILED: Loaded<never> = { state: "failed" };
@@ -84,9 +90,13 @@ function build(over: Partial<Input> = {}): ValidatorsPageData {
     summary: ok(summarySample()),
     list: ok(listOf(fleet())),
     amendments: ok(amendmentsSample()),
+    // The switch is off unless a test is about the map: the older tests are of the page E6 built.
+    features: { validatorsMap: false },
     ...over,
   });
 }
+
+const MAP_ON = { validatorsMap: true } as const;
 
 /** The parts that must have loaded. */
 function shown(data: ValidatorsPageData) {
@@ -165,6 +175,193 @@ describe("validatorsPage: the filters", () => {
   });
 });
 
+// ---- The country filter (E13 spec 4.4) -------------------------------------------------------------------------------------------------------
+
+/**
+ * The fleet with what D8 says of each row's toml: northpeak and shoreline are in DE (shoreline's owner is in FR), tidewater is in FR (its owner in DE), `nameless` was read and gave
+ * `{}`, `quiet` has no toml (not read yet), and a sixth validator's toml names only an owner country and a network. Only the server country places a row.
+ */
+function placedFleet(): ValidatorRow[] {
+  const [north, shore, tide, nameless, quiet] = fleet() as [ValidatorRow, ValidatorRow, ValidatorRow, ValidatorRow, ValidatorRow];
+  const sixth = validatorRowSample({ validation_public_key: KEY_FIFTH, domain: "sixth.example", unl: false, unl_lists: [], toml: { owner_country: "US", network: "main" } });
+  return [
+    { ...north, toml: { server_country: "DE" } },
+    { ...shore, toml: { server_country: "DE", owner_country: "FR" } },
+    { ...tide, toml: { server_country: "FR", owner_country: "DE" } },
+    { ...nameless, toml: {} },
+    quiet,
+    sixth,
+  ];
+}
+
+describe("validatorsPage: the country filter", () => {
+  const placed = ok(listOf(placedFleet()));
+  const keysFor = (params: ValidatorsParams, amendments: Input["amendments"] = ok(amendmentsSample())) => keysOf(build({ params, list: placed, amendments }));
+
+  it("keeps the rows whose toml gives that server country, with the scope", () => {
+    expect(keysFor({ scope: "unl", country: "DE" })).toEqual([KEY_NORTH, KEY_SHORE]);
+    expect(keysFor({ scope: "all", country: "DE" })).toEqual([KEY_NORTH, KEY_SHORE]);
+    expect(keysFor({ scope: "all", country: "FR" })).toEqual([KEY_TIDE]);
+    // tidewater is in FR and off the UNL: the scope still applies.
+    expect(keysFor({ scope: "unl", country: "FR" })).toEqual([]);
+    expect(keysFor({ scope: "all", country: "US" })).toEqual([]);
+  });
+
+  it("reads the server country and not the owner country", () => {
+    // shoreline's owner is in FR and tidewater's in DE, the sixth's in US: none of them is placed by it.
+    expect(keysFor({ scope: "all", country: "FR" })).not.toContain(KEY_SHORE);
+    expect(keysFor({ scope: "all", country: "DE" })).not.toContain(KEY_TIDE);
+    expect(keysFor({ scope: "all", country: "US" })).not.toContain(KEY_FIFTH);
+  });
+
+  it("keeps for unknown the rows with no server country: an absent toml, a toml of {} and a toml of other keys", () => {
+    expect(keysFor({ scope: "all", country: "unknown" })).toEqual([KEY_NAMELESS, KEY_QUIET, KEY_FIFTH]);
+    expect(keysFor({ scope: "unl", country: "unknown" })).toEqual([KEY_QUIET]);
+    // A list with no toml at all (an API without D8) is all unknown location.
+    expect(keysOf(build({ params: { scope: "all", country: "unknown" } }))).toEqual([KEY_NORTH, KEY_SHORE, KEY_TIDE, KEY_NAMELESS, KEY_QUIET]);
+    expect(keysOf(build({ params: { scope: "all", country: "DE" } }))).toEqual([]);
+  });
+
+  it("applies with the publisher, the amendment and the search, and keeps D1's order", () => {
+    expect(keysFor({ scope: "all", country: "DE", publisher: "unl.xrplf.org" })).toEqual([KEY_NORTH]);
+    expect(keysFor({ scope: "all", country: "DE", amendment: "XChainBridge" })).toEqual([KEY_NORTH, KEY_SHORE]);
+    expect(keysFor({ scope: "all", country: "DE", q: "SHORE" })).toEqual([KEY_SHORE]);
+    expect(keysFor({ scope: "all", country: "unknown", amendment: "DID" })).toEqual([KEY_NAMELESS]);
+    expect(keysFor({ scope: "all", country: "DE", publisher: "unl.xrplf.org", amendment: "XChainBridge", q: "shore" })).toEqual([]);
+    const backwards = [...placedFleet()].reverse();
+    expect(keysOf(build({ params: { scope: "all", country: "DE" }, list: ok(listOf(backwards)) }))).toEqual([KEY_SHORE, KEY_NORTH]);
+  });
+
+  it("does not change the counts of the UNL and All, which are of the whole list", () => {
+    expect(listPart(build({ params: { scope: "unl", country: "DE" }, list: placed })).counts).toEqual({ unl: 3, all: 6 });
+    expect(listPart(build({ params: { scope: "all", country: "unknown" }, list: placed })).counts).toEqual({ unl: 3, all: 6 });
+  });
+
+  it("counts country as a filter: the footer says matches, and Clear filters clears it", () => {
+    const footerOf = (params: ValidatorsParams) => listPart(build({ params, list: placed })).footer[0];
+    expect(footerOf({ scope: "all", country: "DE" })).toBe("2 matches");
+    expect(footerOf({ scope: "all", country: "FR" })).toBe("1 match");
+    expect(footerOf({ scope: "unl", country: "FR" })).toBe("0 matches");
+    expect(footerOf({ scope: "all", country: "unknown" })).toBe("3 matches");
+    expect(footerOf({ scope: "all" })).toBe("6 validators");
+    expect(listPart(build({ params: { scope: "unl", country: "FR" }, list: placed })).empty).toBe(true);
+    // The scope alone is no filter, a country is: the link is offered, and goes to the scope alone.
+    expect(build({ params: { scope: "unl" }, list: placed }).hrefs.clear).toBeNull();
+    expect(build({ params: { scope: "unl", country: "DE" }, list: placed }).hrefs.clear).toBe("/xrpl/validators");
+    expect(build({ params: { scope: "all", country: "DE", q: "x" }, list: placed }).hrefs.clear).toBe("/xrpl/validators?scope=all");
+  });
+
+  it("keeps the country in the links of the scopes", () => {
+    const { hrefs } = build({ params: { scope: "all", country: "DE" }, list: placed });
+    expect(hrefs.scope).toEqual({ unl: "/xrpl/validators?country=DE", all: "/xrpl/validators?scope=all&country=DE" });
+    expect(hrefs.action).toBe("/xrpl/validators");
+    expect(build({ params: { scope: "unl", country: "unknown", q: "x" }, list: placed }).hrefs.scope.all).toBe("/xrpl/validators?scope=all&country=unknown&q=x");
+  });
+});
+
+// ---- The map, the place under each row and the empty-UNL sentence (E13 spec 4.1, 4.2 and 4.4) ----------------------------------------------------
+
+describe("validatorsPage: the countries card's data", () => {
+  const placed = ok(listOf(placedFleet()));
+  const mapOf = (over: Partial<Input> = {}) => {
+    const { map } = build({ features: MAP_ON, list: placed, ...over });
+    if (map.state !== "ok") throw new Error(`the map is ${map.state}`);
+    return map;
+  };
+
+  it("gives the map from every row of L, whatever the chip and filters", () => {
+    const figures = (map: ReturnType<typeof mapOf>) => map.rows.map((row) => [row.code, row.validators, row.unl, row.share]);
+    const wholeList = mapOf({ params: { scope: "unl" } });
+    expect(wholeList.total).toBe(6);
+    expect(figures(wholeList)).toEqual([
+      ["DE", "2", "2", "33.3%"],
+      ["FR", "1", "0", "16.7%"],
+    ]);
+    expect(wholeList.unknown.count).toBe("3");
+    // A search that keeps one row, the UNL chip, a publisher and an amendment change the list and not the card.
+    for (const params of [{ scope: "unl", q: "tidewater" }, { scope: "all", q: "nothing-matches-this" }, { scope: "unl", publisher: "vl.ripple.com" }, { scope: "all", amendment: "DID" }] as const) {
+      const map = mapOf({ params });
+      expect([map.total, figures(map), map.unknown.count], JSON.stringify(params)).toEqual([6, figures(wholeList), "3"]);
+    }
+    // The chosen country is the view's: the card says so, and its rows are still every country's.
+    const chosen = mapOf({ params: { scope: "all", country: "FR" } });
+    expect(chosen.chosen).toEqual({ name: "France", clear: "/xrpl/validators?scope=all" });
+    expect(chosen.rows.map((row) => row.code)).toEqual(["DE", "FR"]);
+    // L's marker: the card counts the first 1,000 and says so.
+    expect(mapOf().limited).toBeNull();
+    expect(mapOf({ list: ok(listOf(placedFleet(), "WzEwMDAsIm5IQiJd")) }).limited).toBe("The first 1,000 validators in this order are shown.");
+  });
+
+  it("has the map off with the switch off, failed with L failed", () => {
+    expect(build({ list: placed }).map).toEqual({ state: "off" });
+    expect(build({ features: { validatorsMap: false }, list: FAILED }).map).toEqual({ state: "off" });
+    expect(build({ features: MAP_ON, list: FAILED }).map).toEqual({ state: "failed" });
+    expect(build({ features: MAP_ON, list: MISSING }).map).toEqual({ state: "failed" });
+    // The map is the list's: the other parts failing take nothing from it.
+    expect(build({ features: MAP_ON, list: placed, summary: FAILED, amendments: FAILED }).map.state).toBe("ok");
+  });
+
+  it("names the place of a row, and none without a server country or with the switch off", () => {
+    const placeOf = (data: ValidatorsPageData) => listPart(data).rows.map((row) => [row.validation_public_key, row.place]);
+    expect(placeOf(build({ features: MAP_ON, list: placed, params: { scope: "all" } }))).toEqual([
+      [KEY_NORTH, "Germany"],
+      [KEY_SHORE, "Germany"],
+      [KEY_TIDE, "France"],
+      // read and gave `{}`, not read yet, and a toml with an owner country alone: no server country.
+      [KEY_NAMELESS, null],
+      [KEY_QUIET, null],
+      [KEY_FIFTH, null],
+    ]);
+    // A code this build's table lacks is named by itself.
+    const [north, ...rest] = placedFleet() as [ValidatorRow, ...ValidatorRow[]];
+    expect(placeOf(build({ features: MAP_ON, list: ok(listOf([{ ...north, toml: { server_country: "QQ" } }, ...rest])) }))[0]).toEqual([KEY_NORTH, "QQ"]);
+    // The switch off: a row has no place whatever its toml says.
+    expect(placeOf(build({ list: placed, params: { scope: "all" } })).every(([, place]) => place === null)).toBe(true);
+  });
+
+  it("says no validator of the country is on the default UNL, with a link to All", () => {
+    // FR has one validator, tidewater, which is off the UNL: the UNL chip shows none of it.
+    const data = build({ features: MAP_ON, list: placed, params: { scope: "unl", country: "FR" } });
+    expect(listPart(data).empty).toBe(true);
+    expect(listPart(data).unlEmpty).toEqual({
+      text: "No validator in France is on the default UNL.",
+      link: { text: "Show the 1 in All", href: "/xrpl/validators?scope=all&country=FR" },
+    });
+    // The other filters stay in the link; the count is of the rows All would show with them.
+    expect(listPart(build({ features: MAP_ON, list: placed, params: { scope: "unl", country: "FR", q: "tide" } })).unlEmpty?.link).toEqual({
+      text: "Show the 1 in All",
+      href: "/xrpl/validators?scope=all&country=FR&q=tide",
+    });
+  });
+
+  it("has no such sentence where it would be wrong: All, a country with UNL members, unknown location, no row in All, other filters that keep none, or the switch off", () => {
+    const unlEmptyOf = (params: ValidatorsParams, over: Partial<Input> = {}) => listPart(build({ features: MAP_ON, list: placed, params, ...over })).unlEmpty;
+    expect(unlEmptyOf({ scope: "all", country: "FR" })).toBeNull();
+    // DE has rows on the UNL, so the list is not empty.
+    expect(unlEmptyOf({ scope: "unl", country: "DE" })).toBeNull();
+    // `unknown` is no country: the view keeps E6's "No validators match these filters.".
+    expect(unlEmptyOf({ scope: "unl", country: "unknown", q: "nameless" })).toBeNull();
+    // A code with no row in All says nothing about the UNL.
+    expect(unlEmptyOf({ scope: "unl", country: "JP" })).toBeNull();
+    // With a search that none of FR's rows meets, All would not show a row either: no link that promises one.
+    expect(unlEmptyOf({ scope: "unl", country: "FR", q: "northpeak" })).toBeNull();
+    expect(unlEmptyOf({ scope: "unl", country: "FR" }, { features: { validatorsMap: false } })).toBeNull();
+  });
+
+  it("gives E6's sentence, not the UNL one, when another filter hides the UNL validators the country has", () => {
+    // DE has two on the UNL. Tidewater and `nameless` are moved to DE too, off it: a search or an amendment that only they meet keeps nothing of the UNL view, but DE is not without UNL validators.
+    const fleetInDe = placedFleet().map((row) => (row.validation_public_key === KEY_TIDE || row.validation_public_key === KEY_NAMELESS ? { ...row, toml: { server_country: "DE" } } : row));
+    const unlOf = (params: ValidatorsParams) => listPart(build({ features: MAP_ON, list: ok(listOf(fleetInDe)), params }));
+    for (const params of [{ scope: "unl", country: "DE", q: "tidewater" }, { scope: "unl", country: "DE", amendment: "DID" }] satisfies ValidatorsParams[]) {
+      const list = unlOf(params);
+      expect(list.empty).toBe(true);
+      expect(list.unlEmpty).toBeNull();
+      // All finds one validator, so the old sentence offered "Show the 1 in All" while it denied the UNL validators Germany has.
+      expect(unlOf({ ...params, scope: "all" }).rows).toHaveLength(1);
+    }
+  });
+});
+
 // ---- The intro, the notices and the filter options -------------------------------------------------------------------------------------------
 
 describe("validatorsPage: intro, notices and options", () => {
@@ -219,6 +416,73 @@ describe("validatorsPage: intro, notices and options", () => {
     const [, current] = summarySample().unl.publishers as [UnlPublisher, UnlPublisher];
     expect(summaryOf(build({ summary: summaryWith({ unl: { trusted: 35, publishers: [current] } }) })).publishers).toBeNull();
     expect(summaryOf(build({ summary: summaryWith({ unl: { trusted: 0, publishers: [] } }) })).publishers).toBeNull();
+  });
+
+  it("labels local Fixed list in the select", () => {
+    const [, current] = summarySample().unl.publishers as [UnlPublisher, UnlPublisher];
+    const summary = summaryWith({ unl: { trusted: 39, publishers: [current, FIXED_LIST] } });
+    const both = validatorRowSample({ unl_lists: ["local", "vl.ripple.com"] });
+    const data = build({ network: XAHAU_TESTNET, summary, list: ok(listOf([both])) });
+    // The value is the id (it is what `?publisher=` takes); only the words are the label.
+    expect(summaryOf(data).publishers).toEqual([
+      { value: "vl.ripple.com", label: "vl.ripple.com" },
+      { value: "local", label: "Fixed list" },
+    ]);
+  });
+
+  it("words the UNL tag of a row on the fixed list as 'the fixed list', not as the label", () => {
+    const fixed = validatorRowSample({ unl_lists: ["local"] });
+    const both = validatorRowSample({ validation_public_key: KEY_SHORE, unl_lists: ["local", "vl.altnet.rippletest.net"] });
+    const data = build({ network: XAHAU_TESTNET, list: ok(listOf([fixed, both])) });
+    expect(listPart(data).rows.map((row) => row.listedBy)).toEqual(["Listed by the fixed list", "Listed by vl.altnet.rippletest.net and the fixed list"]);
+  });
+
+  it("still filters by the id local, not by its label", () => {
+    const [, current] = summarySample().unl.publishers as [UnlPublisher, UnlPublisher];
+    const summary = summaryWith({ unl: { trusted: 39, publishers: [current, FIXED_LIST] } });
+    const fixed = validatorRowSample({ unl_lists: ["local"] });
+    const published = validatorRowSample({ validation_public_key: KEY_SHORE, unl_lists: ["vl.ripple.com"] });
+    const list = ok(listOf([fixed, published]));
+    expect(keysOf(build({ network: XAHAU_TESTNET, summary, list, params: { scope: "unl", publisher: "local" } }))).toEqual([KEY_NORTH]);
+    expect(keysOf(build({ network: XAHAU_TESTNET, summary, list, params: { scope: "unl", publisher: "Fixed list" } }))).toEqual([]);
+  });
+
+  it("gives local no notice, with any status", () => {
+    const [expired, current] = summarySample().unl.publishers as [UnlPublisher, UnlPublisher];
+    const local = (over: Partial<UnlPublisher>): UnlPublisher => ({ ...FIXED_LIST, ...over });
+    for (const fixed of [local({}), local({ status: "expired", expiration: "2026-10-18T15:54:20Z" }), local({ status: "expired" }), local({ status: "unavailable", last_error: "timeout" })]) {
+      // Alone, and beside a current list: no notice, and not "No validator is trusted until one is." either.
+      expect(summaryOf(build({ summary: summaryWith({ unl: { trusted: 4, publishers: [fixed] } }) })).notices).toEqual([]);
+      expect(summaryOf(build({ summary: summaryWith({ unl: { trusted: 39, publishers: [current, fixed] } }) })).notices).toEqual([]);
+    }
+    // The other lists keep theirs: local is left out of the notices, and of the check that none of the lists is fetched.
+    expect(expired.id).toBe("unl.xrplf.org");
+    expect(summaryOf(build({ summary: summaryWith({ unl: { trusted: 39, publishers: [expired, FIXED_LIST] } }) })).notices).toEqual([
+      "unl.xrplf.org's list expired on Oct 18, 2026. The data API still uses it, as a node would rather use an old list than none.",
+    ]);
+  });
+
+  it("says 'of those on the fixed list' when local is the only list, and 'listed by … and on the fixed list' beside others", () => {
+    const [, current] = summarySample().unl.publishers as [UnlPublisher, UnlPublisher];
+    const subOf = (publishers: UnlPublisher[]) => plain(tilesOf(build({ network: XAHAU_TESTNET, summary: summaryWith({ unl: { trusted: 4, publishers } }) }))[1]!.sub);
+    expect(subOf([FIXED_LIST])).toBe("seen in 24 h, of those on the fixed list");
+    expect(subOf([current, FIXED_LIST])).toBe("seen in 24 h, of those listed by vl.ripple.com and on the fixed list");
+  });
+
+  it("writes the testnet intro", () => {
+    const altnet: UnlPublisher = { ...summarySample().unl.publishers[1]!, id: "vl.altnet.rippletest.net", url: "https://vl.altnet.rippletest.net" };
+    const xrpl = build({ network: XRPL_TESTNET, summary: summaryWith({ unl: { trusted: 5, publishers: [altnet] } }) });
+    expect(plain(xrpl.intro)).toBe(
+      "The default UNL is the list of validators the nodes of XRPL Testnet trust, published by vl.altnet.rippletest.net. All adds every other validator whose validations reached the data API in the last 24 hours.",
+    );
+    const xahau = build({ network: XAHAU_TESTNET, summary: summaryWith({ unl: { trusted: 4, publishers: [FIXED_LIST] } }) });
+    expect(plain(xahau.intro)).toBe(
+      "The default UNL is the list of validators the nodes of Xahau Testnet trust, fixed in their configuration. All adds every other validator whose validations reached the data API in the last 24 hours.",
+    );
+    // Without S, a testnet's intro names no one either.
+    expect(plain(build({ network: XAHAU_TESTNET, summary: FAILED }).intro)).toBe(
+      "The default UNL is the list of validators the nodes of Xahau Testnet trust. All adds every other validator whose validations reached the data API in the last 24 hours.",
+    );
   });
 
   it("offers the amendments being decided, in A's order, with the name or the short ID and the share of yes", () => {
@@ -624,17 +888,19 @@ describe("validatorsPage: the rows", () => {
       sub: shortHash(KEY_NORTH),
       domainStatus: "verified",
       unl: true,
-      unlPublishers: ["unl.xrplf.org", "vl.ripple.com"],
+      listedBy: "Listed by unl.xrplf.org and vl.ripple.com",
       negativeUnl: false,
       version: { text: "3.4.1", latest: true },
     });
+    // The UNL tag reads `listedBy`; a list of the publishers' labels beside it would be sent for every row (up to a thousand) and read by no one.
+    expect(rowOf(data, KEY_NORTH)).not.toHaveProperty("unlPublishers");
     expect(rowOf(data, KEY_NAMELESS)).toMatchObject({
       name: { text: shortHash(KEY_NAMELESS), mono: true },
       href: `/xrpl/validators/${KEY_NAMELESS}`,
       sub: "no domain",
       domainStatus: null,
       unl: false,
-      unlPublishers: [],
+      listedBy: "",
     });
   });
 

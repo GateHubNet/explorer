@@ -19,14 +19,17 @@ import { logProblem } from "../server/logging";
 import { isMarker } from "../server/marker";
 import { metaContext } from "../server/meta";
 import { pairMeta } from "../server/meta-pair";
+import { collectAddresses, loadNames } from "../server/names-load";
 import { requireNetwork } from "../server/network-route";
 import type { Network } from "../server/networks";
-import { existenceOf, olderPage, pairHead, pairPage, type LivePairData, type OlderPairData, type PairPageData } from "../server/pair-view";
+import { existenceOf, olderPage, pairHead, pairPage, type LivePairData, type OlderPairData, type PairInput, type PairPageData } from "../server/pair-view";
 import { parsePairPath, redirectToCanonical } from "../server/pair-route";
 import { UpstreamError } from "../server/upstream";
-import { createLiveOnScreen, keepLoaded } from "../ui/live-page";
+import { createLiveOnScreen } from "../ui/live-page";
+import { NamesProvider } from "../ui/names";
 import type { NetworkInfo } from "../ui/networks";
 import { MarketPairPage } from "../ui/pages/MarketPairPage";
+import { mergePairBeat } from "../ui/pages/pair-beat";
 import type { NetworkRouteHandle } from "../ui/route-handle";
 import { useLiveControls } from "../ui/use-live-controls";
 import { useNetwork } from "../ui/use-network";
@@ -39,13 +42,6 @@ export const headers = forwardCacheClass;
 
 // The header marks its Markets item as the section the page is in (`aria-current="true"`).
 export const handle = { navSection: "markets" } satisfies NetworkRouteHandle;
-
-/**
- * The parts of the page's data that a beat may keep when its answer has them failed and the page shows them loaded (`keepLoaded`, spec 3.10),
- * each one call or chain: the 24 h figures (#3), the candles (#4), the traders (#5), the order book (#6 and #7, one part: half a book is never
- * shown), the pool (#8) and its share (#9). The trades and the price are #2's, without which there is no answer to keep anything from.
- */
-export const PAIR_PARTS = ["stats", "candles", "traders", "book", "pool", "share"] as const;
 
 /** The trades of a page of the list (spec 3.6). */
 const TRADES_PAGE = 20;
@@ -80,8 +76,8 @@ const ammOf = (view: PairParams) => (view.trades === null ? undefined : TRADES_A
  *   is not the canonical one is a 302 to the one URL (`redirectToCanonical`). The path is React Router's `url` (the `.data` of the route's own
  *   request taken off, the escapes kept) and the query the request's own text (`queryOf`: `_routes` dropped, nothing decoded), so the `.data`
  *   request of a canonical view answers its data. No call is made before these.
- * - **Behind a marker** (spec 3.11): one call, the page of trades, awaited whole and stored as `MARKER_PAGE_CLASS`. The API refusing the marker,
- *   or nothing behind it, is a 404.
+ * - **Behind a marker** (spec 3.11): one call, the page of trades, awaited whole and stored as `MARKER_PAGE_CLASS`, then one names call for the issuers of the head and
+ *   the takers of its rows (display names spec 1 and 5), awaited too. The API refusing the marker, or nothing behind it, is a 404.
  * - **Otherwise every call is made side by side and all are awaited** (spec 3.3, 3.7): #2, #5, #6, #7, #8; the anchor chain, #1 then #3 and
  *   #4; the AMM chain, #1 then #9. Without #1 or #2 there is no page (a 503, thrown once everything has settled), and an anchor that is not a
  *   number is the API failing too. Each card call and chain has failed when it has not answered `CARD_DEADLINE_MS` after the loader began
@@ -92,6 +88,11 @@ const ammOf = (view: PairParams) => (view.trades === null ? undefined : TRADES_A
  *   and the AMM parts the switch leaves out are answers.
  * - **Every call asks for the failure hold** (spec 1.7): the page polls, so a failing upstream is remembered for 5 s and not asked again by
  *   every beat of every open tab. #1 is the home page's key, so a failure is held for both pages.
+ * - **One names call** (display names spec 1 and 5), after the existence of the market is told: the issuers of the head and the takers of the rows of the trades (each an
+ *   `AccountLink`) and the accounts of the traders list (a `BarList` item, named by the view builder), asked for with the failure hold too. The page is built once to see which accounts
+ *   it draws (the pool's account is left out of the traders, and only the top 5 are shown), and again with their names when any has something to show. A names
+ *   call that fails or is late never fails the page: the accounts are short addresses, the request is degraded (served, not stored), and an open page keeps the
+ *   names it shows (`mergePairBeat`). The title and the description keep the short issuers (display names spec 7).
  *
  * The data carries the Worker's `BUILD_ID`, for an open page to tell a deploy (`live-page.ts`).
  */
@@ -117,11 +118,11 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
   if (tidied) return tidied;
 
   const pair: PairView = { net, base: path.base, counter: path.counter, view };
-  return view.marker === undefined ? livePage(context, request, started, pair) : olderTrades(context, pair);
+  return view.marker === undefined ? livePage(context, request, started, pair) : olderTrades(context, request, pair);
 }
 
 /** The page behind a marker (spec 3.11): the one call, awaited whole. */
-async function olderTrades(context: Route.LoaderArgs["context"], { net, base, counter, view }: PairView) {
+async function olderTrades(context: Route.LoaderArgs["context"], request: Request, { net, base, counter, view }: PairView) {
   const { api } = clientsFor(context, net);
   let trades: Page<"exchanges", PairExchange>;
   try {
@@ -139,7 +140,10 @@ async function olderTrades(context: Route.LoaderArgs["context"], { net, base, co
   if (trades.exchanges.length === 0) throw cached({ notFound: OLDER_NOT_FOUND }, "short", { status: 404 });
 
   const page = olderPage({ network: net, base, counter, params: view, trades });
-  return cached({ ...page, build: getEnv(context).BUILD_ID } satisfies OlderPairData, MARKER_PAGE_CLASS);
+  // The takers of the rows and the issuers of the head: the page draws each as an `AccountLink`, which reads its name from the page's names.
+  const drawn = collectAddresses(page.head.issuers.map((issuer) => issuer.address), page.trades.rows.map((row) => row.taker));
+  const { part: names } = await loadNames(api, drawn, { context, request, features: net.features, holdFailure: true });
+  return cached({ ...page, names, build: getEnv(context).BUILD_ID } satisfies OlderPairData, MARKER_PAGE_CLASS);
 }
 
 /** The live page (spec 3.7): every call side by side, then the existence of the market, then the page from what came. */
@@ -244,7 +248,7 @@ async function livePage(context: Route.LoaderArgs["context"], request: Request, 
     return upstreamOutage(outage, "the market");
   }
 
-  const { page, problems } = pairPage({
+  const input: PairInput = {
     network: net,
     base,
     counter,
@@ -259,7 +263,18 @@ async function livePage(context: Route.LoaderArgs["context"], request: Request, 
     bids: book.bids,
     pool: pool === null ? null : settle("pool", pool),
     share: share === null ? null : settle("share", share),
-  });
+  };
+  // The page as it is built without names says which accounts it draws: the issuers of its head, the takers of its rows and the accounts of its traders list (not the pool's, not the
+  // ones past the top 5).
+  const draft = pairPage(input);
+  const drawn = collectAddresses(
+    draft.page.head.issuers.map((issuer) => issuer.address),
+    draft.page.trades.rows.map((row) => row.taker),
+    draft.page.traders.state === "ok" ? draft.page.traders.data.items.map((item) => item.id) : [],
+  );
+  const { part: names } = await loadNames(api, drawn, { context, request, features: net.features, holdFailure: true });
+  // The traders' items are written with the names: built again when there is a name to write, else the draft is the page.
+  const { page, problems } = Object.keys(names.map).length === 0 ? draft : pairPage({ ...input, names: names.map });
   for (const part of problems) {
     // A part whose calls answered failed in the view builder: a pool of other assets than the pair's (`poolSides`), or a share whose 24 h
     // figures failed (logged as the stats') or are no number.
@@ -270,7 +285,7 @@ async function livePage(context: Route.LoaderArgs["context"], request: Request, 
   }
   if (problems.length > 0) markDegraded(context, problems.join("; "));
 
-  return cached({ ...page, anchor, build: getEnv(context).BUILD_ID } satisfies LivePairData, "live-home");
+  return cached({ ...page, anchor, names, build: getEnv(context).BUILD_ID } satisfies LivePairData, "live-home");
 }
 
 export function meta({ loaderData, matches, params }: Route.MetaArgs) {
@@ -283,11 +298,11 @@ export function meta({ loaderData, matches, params }: Route.MetaArgs) {
 /**
  * What the pair page on screen shows, and what happens when its refresh does not work (the home page's `onScreen`, `live-page.ts`): the page
  * keeps what it shows, counts the failures, refuses an answer that is behind the ledger it is at or of another build, and keeps each part it
- * shows loaded when an answer has that part failed (`keepLoaded` over `PAIR_PARTS`). A page behind a marker never shows itself here.
+ * shows loaded when an answer has that part failed, the names among them (`mergePairBeat`, app/ui/pages/pair-beat.ts). A page behind a marker never shows itself here.
  */
 const onScreen = createLiveOnScreen<PairPageData>({
   order: (data) => (data.mode === "live" ? data.anchor.lastValidated : 0),
-  merge: (next, shown) => (next.mode === "live" && shown.mode === "live" ? keepLoaded(next, shown, PAIR_PARTS) : next),
+  merge: mergePairBeat,
 });
 
 /**
@@ -316,7 +331,11 @@ export function clientLoader({ params, request, serverLoader }: Route.ClientLoad
 function LivePair({ network, data, scope }: { network: NetworkInfo; data: LivePairData; scope: string }) {
   const live = useLiveControls(onScreen);
   useEffect(() => onScreen.show(scope, data), [scope, data]);
-  return <MarketPairPage key={scope} network={network} data={data} live={live} />;
+  return (
+    <NamesProvider names={data.names.map}>
+      <MarketPairPage key={scope} network={network} data={data} live={live} />
+    </NamesProvider>
+  );
 }
 
 export default function MarketPair({ loaderData, params }: Route.ComponentProps) {
@@ -326,6 +345,8 @@ export default function MarketPair({ loaderData, params }: Route.ComponentProps)
   return loaderData.mode === "live" ? (
     <LivePair network={network} data={loaderData} scope={pairScope(params, queryOf(search))} />
   ) : (
-    <MarketPairPage network={network} data={loaderData} />
+    <NamesProvider names={loaderData.names.map}>
+      <MarketPairPage network={network} data={loaderData} />
+    </NamesProvider>
   );
 }

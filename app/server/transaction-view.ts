@@ -4,9 +4,11 @@
 // data, only as the text of the raw tabs, so the code that reads metadata stays out of the browser bundle. No I/O.
 
 import { encodeCtid } from "../domain/ctid";
-import { describe, type Detail, type FlowStep, type Segment } from "../domain/describe";
+import { delegateOf, describe, isInnerBatch, type Detail, type FlowStep, type Segment } from "../domain/describe";
 import { decodeHex } from "../domain/describe/helpers";
 import { dropsToNative, formatAmount, formatCurrency, shortAddress, shortHash } from "../domain/format";
+import type { NamesPart } from "../domain/names";
+import { shortNftId } from "../domain/nft-params";
 import { balanceChanges, objectsTouched } from "../domain/parse";
 import { isPoolAccountRoot, nodesOf } from "../domain/parse/objects";
 import type { BalanceChange, Native, TouchedObject, TxJson, TxMeta } from "../domain/parse/types";
@@ -109,8 +111,8 @@ export function binaryOf(answer: TxBinary | TxStoredJson): Extract<BinaryRaw, { 
 
 // ---- The page ------------------------------------------------------------------------------------------------------------
 
-/** What an account was in the transaction, when it was something: the row of the balance changes says so. */
-export type ChangeRole = "sender" | "destination" | "pool";
+/** What an account was in the transaction, when it was something: the row of the balance changes says so. A delegate's row holds the fee it paid. */
+export type ChangeRole = "sender" | "delegate" | "destination" | "pool";
 
 export type ChangeRow = BalanceChange & { role?: ChangeRole };
 
@@ -144,6 +146,14 @@ export interface TransactionPageData {
   sentence: Segment[];
   /** The sentence as plain text, for the page's description. */
   summary: string;
+  /** The account that signed the transaction and paid its fee on behalf of `account` (its `Delegate` field); `null` for one the account sent itself. */
+  delegate: string | null;
+  /** "{delegate} sent it on behalf of {account}.", which the page puts after the sentence, in the same paragraph; `null` without a delegate. */
+  sentBy: Segment[] | null;
+  /** A line under the sentence (a `DelegateSet`'s: the new list replaces the old one); `null` for most transactions. */
+  note: Segment[] | null;
+  /** One of a `Batch` (`tfInnerBatchTxn`): sent within the Batch, which paid its fee. */
+  innerBatch: boolean;
   /** Sender, the pools or offers on the way, destination: only for a transaction that moved something. */
   flow: FlowStep[] | null;
   account: string;
@@ -153,12 +163,20 @@ export interface TransactionPageData {
   /** The type's own details, with the destination ahead of them when the type does not list it. */
   details: Detail[];
   memos: Memo[];
-  /** The sender's native change is the whole change of its balance, so it includes the fee (spec 1.1). */
+  /**
+   * A native change is the whole change of the account's balance, so the fee payer's includes the fee (spec 1.1): the sender's, or the delegate's for a transaction a delegate sent
+   * (ledger object pages spec 6.2; one of a `Batch`, whose fee the Batch paid, holds none).
+   */
   changes: ChangeRow[];
   objects: TouchedObject[];
   /** `null` when they are not shown (a transaction from the node: they appear once it is indexed). */
   neighbours: { previous: Neighbour | null; next: Neighbour | null } | null;
   raw: { tx: string; meta: string; binary: BinaryRaw };
+  /**
+   * The names of the addresses the page draws (display names spec 3.4): those of `sentence`, `sentBy`, `note`, `flow`, `account`, `delegate`, `details`, `changes` and `objects`, never of the raw data. The loader
+   * adds it after `transactionPage`. `failed` when the names call did not work, `off` when the switch is. The title, the description, the card and `summary` keep short addresses (spec 7).
+   */
+  names: NamesPart;
 }
 
 /** Memos shown, and the characters of one, before the rest is left to the raw tabs. */
@@ -193,10 +211,10 @@ function memosOf(tx: TxJson): Memo[] {
   return memos;
 }
 
-/** A sentence as plain text: accounts shortened, amounts as the page writes them, a pool by its pair. */
+/** A sentence as plain text: accounts shortened, amounts as the page writes them, a pool by its pair, a permission by its name, an escrow, a check or a channel by its words. */
 export function plainText(segments: readonly Segment[]): string {
   return segments
-    .map((segment) => {
+    .map((segment): string => {
       switch (segment.t) {
         case "text":
           return segment.v;
@@ -206,6 +224,12 @@ export function plainText(segments: readonly Segment[]): string {
           return `${formatAmount(segment.value)} ${formatCurrency(segment.currency)}`;
         case "pool":
           return segment.pair;
+        case "nft":
+          return shortNftId(segment.v);
+        case "permission":
+          return segment.name;
+        case "object":
+          return segment.v;
       }
     })
     .join("");
@@ -220,23 +244,36 @@ function ctidOf(ledgerIndex: number, position: number, networkId: number): strin
   }
 }
 
-/** Where each account of the balance changes stands in the transaction: the sender, the destination, an AMM pool. */
+/**
+ * Where each account of the balance changes stands in the transaction: the sender, the delegate that sent it (whose change holds the fee, which the page's caption says; before the
+ * destination, for a delegate that paid itself), the destination, an AMM pool.
+ */
 function withRoles(changes: BalanceChange[], tx: TxJson, meta: TxMeta): ChangeRow[] {
   const pools = new Set<string>();
   for (const node of nodesOf(meta)) {
     if (isPoolAccountRoot(node) && typeof node.fields.Account === "string") pools.add(node.fields.Account);
   }
+  const delegate = delegateOf(tx);
   return changes.map((change) => {
     const role: ChangeRole | undefined =
-      change.account === tx.Account ? "sender" : change.account === tx.Destination ? "destination" : pools.has(change.account) ? "pool" : undefined;
+      change.account === tx.Account
+        ? "sender"
+        : change.account === delegate
+          ? "delegate"
+          : change.account === tx.Destination
+            ? "destination"
+            : pools.has(change.account)
+              ? "pool"
+              : undefined;
     return role === undefined ? change : { ...change, role };
   });
 }
 
+/** The page's data but for its names, which the loader asks for once it has the page (`TransactionPageData.names`). */
 export function transactionPage(
   source: TransactionSource,
   opts: { network: { native: Native; ctidNetworkId: number }; neighbours: Neighbours | null; binary: BinaryRaw },
-): TransactionPageData {
+): Omit<TransactionPageData, "names"> {
   const { tx, meta } = source;
   const description = describe(tx, meta, { native: opts.network.native });
   const position = meta.TransactionIndex;
@@ -267,6 +304,10 @@ export function transactionPage(
     result: description.result,
     sentence: description.sentence,
     summary: plainText(description.sentence),
+    delegate: description.delegate ?? null,
+    sentBy: description.sentBy ?? null,
+    note: description.note ?? null,
+    innerBatch: isInnerBatch(tx),
     flow,
     account: tx.Account,
     fee: typeof tx.Fee === "string" ? dropsToNative(tx.Fee) : "0",

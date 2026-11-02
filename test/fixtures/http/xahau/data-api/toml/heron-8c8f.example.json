@@ -1,0 +1,10 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "heron-8c8f.example",
+    "toml_url": "https://heron-8c8f.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z"
+  }
+}

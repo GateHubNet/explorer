@@ -104,6 +104,7 @@ export interface AmendmentPageData {
    * voted on: what D1 still lists for it (its validators' "no", or no recent vote) is no vote that counts, so it has no tables, and the page shows `note` in their place.
    */
   votes: { unl: VoteRowView[]; others: VoteRowView[]; counts: { yes: number; no: number; none: number; otherYes: number } } | { note: string };
+  /** S's publishers by id (the fixed list is `local`): the page words them with `onListsText`. */
   summary: { state: "ok"; publishers: string[]; othersSeen: number } | { state: "failed" };
   /** §8's title and description. */
   meta: { title: string; description: string };

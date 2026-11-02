@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "cinder-7bf1.example",
+    "toml_url": "https://cinder-7bf1.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rmv53yu8Wid6kj6AC6NvmiwSXNxRa8vTH",
+        "desc": "Cinder Exchange"
+      }
+    ]
+  }
+}

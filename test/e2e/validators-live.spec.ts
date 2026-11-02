@@ -66,7 +66,7 @@ test.describe("the validators list without the amendments", () => {
     await hydrated(page);
     await expect(votesYesFor(page)).toHaveCount(0);
     // The rest of the page is the page: the table, the search and "Listed by", and no card says it failed (the filter is all A feeds).
-    await expect(rowsOf(page.getByRole("table", { name: "Validators" })).first()).toBeVisible();
+    await expect(rowsOf(page.getByRole("table", { name: "Validators", exact: true })).first()).toBeVisible();
     await expect(page.getByLabel("Listed by")).toBeVisible();
     await expect(page.getByRole("alert")).toHaveCount(0);
 

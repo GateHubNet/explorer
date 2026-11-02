@@ -1,8 +1,10 @@
 import type { Page } from "@playwright/test";
 
 import { featuresOff } from "../../scripts/e2e-env";
-import { count, XAHAU_LEDGER, XAHAU_LEDGER_NEXT, XRP_RLUSD_POOL, XRPL_ACCOUNT } from "./fixtures";
-import { expect, hydrated, test } from "./support";
+import { XRPL_COLLECTION, XRPL_NFT } from "../support/nft-names";
+import { accountTitle, count, LIVE, XAHAU_LEDGER, XAHAU_LEDGER_NEXT, XRP_RLUSD_POOL, XRPL_ACCOUNT } from "./fixtures";
+import { expect, hydrated, reactOwns, test } from "./support";
+import { tokenCase } from "./token-pages";
 
 // The tags of a page are made by its `meta` export, which the browser runs too when a visitor follows a link inside the page: no new
 // document, so nothing the server renders for it. The Worker's own tests (test/worker/meta.spec.ts) see only the server-rendered tags.
@@ -114,18 +116,94 @@ test.describe("the tags of a page reached by a link in the page", () => {
     expect(manifests).toEqual([]);
   });
 
+  // The NFT routes are in the first page's route table too: moving from the list to a collection, its NFT and the older sales (and back to the home page) asks for no manifest.
+  test("ask for no route manifest while moving between the NFT routes", async ({ page }) => {
+    test.skip(featuresOff(process.env).has("NFTS"), "NFTS is off in the Worker under test: the NFT pages are not found");
+    test.skip(LIVE, "the pages are drawn from the generated NFT fixtures (test/support/nft-names.ts), which a real stack does not hold");
+    const manifests: string[] = [];
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/__manifest") manifests.push(request.url());
+    });
+    await page.goto("/xrpl");
+    await hydrated(page);
+    await page.evaluate(() => Object.assign(window, { sameDocument: true }));
+
+    const nav = page.getByRole("navigation", { name: "Main" });
+    await nav.getByRole("link", { name: "NFTs", exact: true }).hover();
+    await nav.getByRole("link", { name: "NFTs", exact: true }).click();
+    await page.waitForURL("**/xrpl/nfts");
+    await expect(page).toHaveTitle("NFTs · XRPL · explorer");
+
+    const { issuer, taxon } = XRPL_COLLECTION.featured;
+    const collection = `/xrpl/nfts/${issuer}/${taxon}`;
+    await page.locator(`a[href="${collection}"]`).first().click();
+    await page.waitForURL(`**${collection}`);
+    await expect(page).toHaveTitle(/^Collection /);
+
+    // An NFT of the collection's Sales tab, by the very href that was read.
+    const href = (await page.locator('a[href^="/xrpl/nft/"]').first().getAttribute("href"))!;
+    await page.locator(`a[href="${href}"]`).first().click();
+    await page.waitForURL(`**${href}`);
+    await expect(page).toHaveTitle(/^NFT #/);
+
+    // Back to the list, and the older sales behind its marker.
+    await nav.getByRole("link", { name: "NFTs", exact: true }).click();
+    await page.waitForURL("**/xrpl/nfts");
+    await page.getByRole("link", { name: "Older sales" }).click();
+    await page.waitForURL(/\/xrpl\/nfts\/sales\?marker=/);
+    await expect(page).toHaveTitle("NFT sales · XRPL · explorer");
+
+    expect(await sameDocument(page)).toBe(true);
+    expect(manifests).toEqual([]);
+  });
+
+  // The token routes are in the first page's route table too: moving from the list to a token, its holders and the way back asks for no manifest.
+  test("ask for no route manifest while moving between the token routes", async ({ page }) => {
+    test.skip(featuresOff(process.env).has("TOKENS"), "TOKENS is off in the Worker under test: the token pages are not found");
+    test.skip(LIVE, "the pages are drawn from the generated token fixtures (test/e2e/token-pages.ts), which a real stack does not hold");
+    const { path } = tokenCase("xrpl", "rlusd");
+    const manifests: string[] = [];
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/__manifest") manifests.push(request.url());
+    });
+    await page.goto("/xrpl");
+    await hydrated(page);
+    await page.evaluate(() => Object.assign(window, { sameDocument: true }));
+
+    const nav = page.getByRole("navigation", { name: "Main" });
+    await nav.getByRole("link", { name: "Tokens", exact: true }).hover();
+    await nav.getByRole("link", { name: "Tokens", exact: true }).click();
+    await page.waitForURL("**/xrpl/tokens");
+    await expect(page).toHaveTitle("Tokens · XRPL · explorer");
+
+    await page.locator(`a[href="/xrpl/token/${path}"]`).first().click();
+    await page.waitForURL(`**/xrpl/token/${path}`);
+    await expect(page).toHaveTitle(/^Ripple USD \(RLUSD\) · XRPL · explorer$/);
+
+    await page.getByRole("link", { name: /^All \d+ holders →$/ }).click();
+    await page.waitForURL(`**/xrpl/token/${path}/holders`);
+    await expect(page).toHaveTitle("Holders of RLUSD · XRPL · explorer");
+
+    expect(await sameDocument(page)).toBe(true);
+    expect(manifests).toEqual([]);
+  });
+
   test("lose the canonical link and gain `noindex` on a page behind a marker, and get them back", async ({ page, baseURL }) => {
     const origin = new URL(baseURL!).origin;
     await page.goto(`/xrpl/account/${XRPL_ACCOUNT}`);
     await hydrated(page);
     await page.evaluate(() => Object.assign(window, { sameDocument: true }));
     const first = await head(page);
-    expect(first.title).toBe("Account rBbW6i…W5jh · XRPL · explorer");
+    // The account's title says its name (display names spec 7): a verified one in the fixtures.
+    expect(first.title).toMatch(accountTitle("xrpl", XRPL_ACCOUNT));
     expect(first.canonical).toBe(`${origin}/xrpl/account/${XRPL_ACCOUNT}`);
     expect(first.robots).toBeNull();
     expect(first.ogImage).toBe(`${origin}/og/xrpl/account/${XRPL_ACCOUNT}.png`);
 
-    await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" }).click();
+    // The list is the lazy panels' chunk's (AccountPage.tsx): its links are the router's once React has hydrated them, and a click before then is the browser's own, a new document.
+    const older = page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" });
+    await reactOwns(older);
+    await older.click();
     await page.waitForURL(/\?marker=/);
     await expect.poll(async () => (await head(page)).robots).toBe("noindex, follow");
     const behind = await head(page);
@@ -157,7 +235,7 @@ test.describe("the tags of a page reached by a link in the page", () => {
     await page.waitForURL(`**${account}?tab=analytics`);
     await expect.poll(async () => (await head(page)).robots).toBe("noindex, follow");
     expect(await head(page)).toEqual({
-      title: "Analytics · Account rBbW6i…W5jh · XRPL · explorer",
+      title: expect.stringMatching(accountTitle("xrpl", XRPL_ACCOUNT, "Analytics · ")),
       canonical: null,
       robots: "noindex, follow",
       ogTitle: null,
@@ -169,14 +247,14 @@ test.describe("the tags of a page reached by a link in the page", () => {
     // Another period of it: the period in the title, and the same tags.
     await page.getByRole("group", { name: "Analytics filters" }).getByRole("link", { name: "1 year" }).click();
     await page.waitForURL(`**${account}?tab=analytics&period=1y`);
-    await expect(page).toHaveTitle("Analytics, last 52 weeks · Account rBbW6i…W5jh · XRPL · explorer");
+    await expect(page).toHaveTitle(accountTitle("xrpl", XRPL_ACCOUNT, "Analytics, last 52 weeks · "));
     expect((await head(page)).robots).toBe("noindex, follow");
     expect((await head(page)).canonical).toBeNull();
 
     // Back twice with the browser's button, to the account page: its own tags again, in the same document.
     await page.goBack();
     await page.waitForURL(`**${account}?tab=analytics`);
-    await expect(page).toHaveTitle("Analytics · Account rBbW6i…W5jh · XRPL · explorer");
+    await expect(page).toHaveTitle(accountTitle("xrpl", XRPL_ACCOUNT, "Analytics · "));
     await page.goBack();
     await page.waitForURL((url) => url.pathname === account && url.search === "");
     await expect.poll(async () => (await head(page)).canonical).toBe(first.canonical);
@@ -226,6 +304,157 @@ test.describe("the tags of a page reached by a link in the page", () => {
     await page.waitForURL((url) => url.pathname === pool && url.search === "");
     await expect.poll(async () => (await head(page)).canonical).toBe(first.canonical);
     expect(await head(page)).toEqual(first);
+    expect(await sameDocument(page)).toBe(true);
+  });
+
+  test("follow the NFT list to a collection and its NFT, with each page's own tags, and `noindex` behind a marker, and get them back", async ({ page, baseURL }) => {
+    test.skip(featuresOff(process.env).has("NFTS"), "NFTS is off in the Worker under test: the NFT pages are not found");
+    test.skip(LIVE, "the pages are drawn from the generated NFT fixtures (test/support/nft-names.ts), which a real stack does not hold");
+    const origin = new URL(baseURL!).origin;
+    const { issuer, taxon } = XRPL_COLLECTION.featured;
+    const collection = `/xrpl/nfts/${issuer}/${taxon}`;
+    await page.goto("/xrpl/nfts");
+    await hydrated(page);
+    await page.evaluate(() => Object.assign(window, { sameDocument: true }));
+    expect(await head(page)).toEqual({
+      title: "NFTs · XRPL · explorer",
+      canonical: `${origin}/xrpl/nfts`,
+      robots: null,
+      ogTitle: "NFTs · XRPL · explorer",
+      ogUrl: `${origin}/xrpl/nfts`,
+      // The list has no image of its own to share: the plain summary card.
+      ogImage: null,
+      twitterCard: "summary",
+    });
+
+    // A row of the collections' table: a link in the page, to the collection's page.
+    await page.getByRole("table", { name: "Collections", exact: true }).locator(`a[href="${collection}"]`).click();
+    await page.waitForURL(`**${collection}`);
+    await expect(page).toHaveTitle("Collection rLxc1b…rwMy · taxon 0 · XRPL · explorer");
+    const first = await head(page);
+    expect(first.canonical).toBe(`${origin}${collection}`);
+    expect(first.ogUrl).toBe(first.canonical);
+    expect(first.robots).toBeNull();
+
+    // Its older sales: a page behind a marker, kept out of the index, with nothing to share and no canonical URL.
+    await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" }).click();
+    await page.waitForURL(/\?marker=/);
+    await expect.poll(async () => (await head(page)).robots).toBe("noindex, follow");
+    const behind = await head(page);
+    expect(behind.canonical).toBeNull();
+    expect(behind.ogTitle).toBeNull();
+    expect(behind.ogImage).toBeNull();
+    await page.getByRole("link", { name: "Back to the collection" }).click();
+    await page.waitForURL((url) => url.pathname === collection && url.search === "");
+    await expect.poll(async () => (await head(page)).canonical).toBe(first.canonical);
+    expect((await head(page)).robots).toBeNull();
+
+    // An NFT of the collection's Sales tab: its own tags and its own image.
+    const nft = `/xrpl/nft/${XRPL_NFT.featured}`;
+    await page.goto(nft);
+    await hydrated(page);
+    await expect(page).toHaveTitle("NFT #107,604,335 of rLxc1b…rwMy · taxon 0 · XRPL · explorer");
+    expect(await head(page)).toMatchObject({ canonical: `${origin}${nft}`, robots: null, ogImage: `${origin}/og/xrpl/nft/${XRPL_NFT.featured}.png` });
+  });
+
+  test("search for an NFT only the network has: its page is kept out of the index with no canonical link, and the list's tags come back, in one document", async ({ page, baseURL }) => {
+    test.skip(featuresOff(process.env).has("NFTS"), "NFTS is off in the Worker under test: the NFT pages are not found");
+    test.skip(LIVE, "the pages are drawn from the generated NFT fixtures (test/support/nft-names.ts), which a real stack does not hold");
+    const origin = new URL(baseURL!).origin;
+    await page.goto("/xrpl/nfts");
+    await hydrated(page);
+    await page.evaluate(() => Object.assign(window, { sameDocument: true }));
+
+    await page.getByRole("banner").getByRole("searchbox", { name: "Search XRPL" }).fill(XRPL_NFT.network);
+    await page.getByRole("banner").getByRole("searchbox", { name: "Search XRPL" }).press("Enter");
+    await page.waitForURL(`**/xrpl/nft/${XRPL_NFT.network}`);
+    await expect(page).toHaveTitle(/^NFT #98,894,589 of raNypR…RV92 · taxon 123,589,321 · XRPL · explorer$/);
+    await expect.poll(async () => (await head(page)).robots).toBe("noindex");
+    expect(await head(page)).toMatchObject({ canonical: null, ogImage: null });
+
+    // The header's NFTs item is a link in the page too: the list's own tags come back.
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "NFTs", exact: true }).click();
+    await page.waitForURL((url) => url.pathname === "/xrpl/nfts" && url.search === "");
+    await expect.poll(async () => (await head(page)).canonical).toBe(`${origin}/xrpl/nfts`);
+    expect((await head(page)).robots).toBeNull();
+    expect(await sameDocument(page)).toBe(true);
+  });
+
+  test("follow the token list to a token and its holders, with each page's own tags, and `noindex` behind a marker, and get them back", async ({ page, baseURL }) => {
+    test.skip(featuresOff(process.env).has("TOKENS"), "TOKENS is off in the Worker under test: the token pages are not found");
+    test.skip(LIVE, "the pages are drawn from the generated token fixtures (test/e2e/token-pages.ts), which a real stack does not hold");
+    const origin = new URL(baseURL!).origin;
+    const { path } = tokenCase("xrpl", "rlusd");
+    const token = `/xrpl/token/${path}`;
+    await page.goto("/xrpl/tokens");
+    await hydrated(page);
+    await page.evaluate(() => Object.assign(window, { sameDocument: true }));
+    expect(await head(page)).toEqual({
+      title: "Tokens · XRPL · explorer",
+      canonical: `${origin}/xrpl/tokens`,
+      robots: null,
+      ogTitle: "Tokens · XRPL · explorer",
+      ogUrl: `${origin}/xrpl/tokens`,
+      // The list has no image of its own to share: the plain summary card.
+      ogImage: null,
+      twitterCard: "summary",
+    });
+
+    // A row of the list: a link in the page, to the token's page, which has its own tags and its own image.
+    await page.getByRole("table", { name: "Issued tokens", exact: true }).locator(`a[href="${token}"]`).click();
+    await page.waitForURL(`**${token}`);
+    await expect(page).toHaveTitle("Ripple USD (RLUSD) · XRPL · explorer");
+    const first = await head(page);
+    expect(first).toEqual({
+      title: "Ripple USD (RLUSD) · XRPL · explorer",
+      canonical: `${origin}${token}`,
+      robots: null,
+      ogTitle: "Ripple USD (RLUSD) · XRPL · explorer",
+      ogUrl: `${origin}${token}`,
+      ogImage: `${origin}/og/xrpl/token/${path}.png`,
+      twitterCard: "summary_large_image",
+    });
+
+    // Its older transfers: a page behind a marker, kept out of the index, with nothing to share and no canonical URL.
+    await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" }).click();
+    await page.waitForURL(/\?marker=/);
+    await expect.poll(async () => (await head(page)).robots).toBe("noindex, follow");
+    expect(await head(page)).toEqual({
+      title: "Older transfers of RLUSD · XRPL · explorer",
+      canonical: null,
+      robots: "noindex, follow",
+      ogTitle: null,
+      ogUrl: null,
+      ogImage: null,
+      twitterCard: null,
+    });
+    await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Newer" }).click();
+    await page.waitForURL((url) => url.pathname === token && url.search === "");
+    await expect.poll(async () => (await head(page)).canonical).toBe(first.canonical);
+    expect(await head(page)).toEqual(first);
+
+    // Its holders: indexable, with a summary card and no image (a ranking rebuilt every minute would have its picture out of date at once).
+    await page.getByRole("link", { name: /^All \d+ holders →$/ }).click();
+    await page.waitForURL(`**${token}/holders`);
+    await expect(page).toHaveTitle("Holders of RLUSD · XRPL · explorer");
+    const holders = await head(page);
+    expect(holders).toEqual({
+      title: "Holders of RLUSD · XRPL · explorer",
+      canonical: `${origin}${token}/holders`,
+      robots: null,
+      ogTitle: "Holders of RLUSD · XRPL · explorer",
+      ogUrl: `${origin}${token}/holders`,
+      ogImage: null,
+      twitterCard: "summary",
+    });
+    await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "More holders" }).click();
+    await page.waitForURL(/\?marker=/);
+    await expect.poll(async () => (await head(page)).robots).toBe("noindex, follow");
+    expect(await head(page)).toMatchObject({ title: "Holders of RLUSD · XRPL · explorer", canonical: null, ogImage: null, twitterCard: null });
+    await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Previous" }).click();
+    await page.waitForURL((url) => url.pathname === `${token}/holders` && url.search === "");
+    await expect.poll(async () => (await head(page)).canonical).toBe(holders.canonical);
+    expect(await head(page)).toEqual(holders);
     expect(await sameDocument(page)).toBe(true);
   });
 

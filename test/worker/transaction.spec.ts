@@ -1,9 +1,17 @@
+import { encodeAccountID } from "ripple-address-codec";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { encodeCtid } from "../../app/domain/ctid";
 import { formatAmount, shortAddress, shortHash } from "../../app/domain/format";
+import { linkTextOf, nameTitleOf } from "../../app/domain/names";
+import type { TxObject } from "../../app/server/api-types";
+import { NAMED_PAGE_TTL_SECONDS } from "../../app/server/cache-class";
+import { collectAddresses } from "../../app/server/names-collect";
+import { transactionPage, txFromIndex } from "../../app/server/transaction-view";
+import { answerNamesAfterTheirEnd, expectAccountsDrawn, expectLinkedAccountsNamed, expectTextWithAccounts, inCalls, linkedAccounts, linksTo, namesCalls, viewOf } from "../support/names";
 import { anchors, elementText, hrefs, pageClient, tableRows, textOf } from "../support/pages";
 import { recordedHashes } from "../support/ledger-hashes";
+import { objectCase } from "../support/object-cases";
 import { dataApiError, mockUpstream, type UpstreamMock } from "../support/upstream";
 
 // The transaction page, `/{net}/tx/{hash|ctid}`, on the real Worker against the recorded answers of the data API and the
@@ -48,6 +56,18 @@ function robots(html: string): string | undefined {
 
 /** The upstream keys of the requests a mock has seen. */
 const keys = (m: UpstreamMock) => m.requests.map((request) => `${request.net} ${request.key}`);
+/** The upstream keys of the requests a mock has seen, but for the names calls. */
+const keysButNames = (m: UpstreamMock) => keys(m).filter((key) => !key.includes("/v2/account_names"));
+
+/**
+ * The page data the loader makes of a recorded transaction, and the addresses of its raw data (which the page never names). What the page asks the names of is compared with the
+ * accounts it links (`linkedAccounts`), not with a list of the parts the loader passes.
+ */
+async function pageAndRaw(net: Net, hash: string) {
+  const source = txFromIndex((await recorded(net, hash)) as unknown as TxObject);
+  const data = transactionPage(source, { network: { native: net === "xrpl" ? "XRP" : "XAH", ctidNetworkId: net === "xrpl" ? 0 : 21337 }, neighbours: null, binary: { state: "failed" } });
+  return { data, raw: collectAddresses(source.tx, source.meta) };
+}
 
 // XRPL: a plain XRP Payment (ledger 102186243, place 63), a Payment through an AMM pool (107694747, place 0, the first of its
 // ledger), the last transaction of the newest recorded ledger (a Batch, 107721455, place 106 of 107), an OfferCreate that failed
@@ -57,8 +77,14 @@ const SWAP = "52E2AD5B382D4588BECF6A743E7AE5C84D49A5C06968EC7700E8333BF41E1C60";
 const LAST_OF_LEDGER = "1A00E4CC5EB143E8BFF4578019BDF45ECEA40C37F113D261ECFB276243858872";
 const KILLED = "D05D52934A382E975B131A3E729CDA7CA3C59E94CE9F3DC3DC91A6ADFC5C140F";
 const REMIT = "8C50C44787A12B785AA62377D0AFA6C4711E8E07EF68BA6E83DC286F7EE79AAF";
+/** The accounts of PAYMENT. */
+const SENDER = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+const DESTINATION = "rDFDjdFgCEGgYoAxdZVp3AepoErfrPfy48";
 
+/** What an `immutable` redirect is stored as: a year (it shows no name). */
 const OWNED = { cls: "immutable", ttl: 31_536_000 };
+/** A transaction page while the names are on: kept an hour, not a year (display names decision 2). */
+const NAMED = { cls: "immutable", ttl: NAMED_PAGE_TTL_SECONDS };
 
 // An override may be a function or a `Response` value (the mock captures a value's status, headers and body when it is made); this file
 // uses functions.
@@ -66,6 +92,34 @@ const OWNED = { cls: "immutable", ttl: 31_536_000 };
 // First in the file: a failed call is never stored, but the answers that worked are, so a failing one is asked for before
 // anything has been, and for transactions and ledgers that nothing else in the file asks for.
 describe("when an upstream fails", () => {
+  // A names call that fails never fails the page: it shows the addresses and is served, not stored, so that the next visitor asks again. A transaction no other test asks for.
+  it("a failed names call: the addresses, and the page is not stored", async () => {
+    const hash = "20254F31198DE60948CB0488464D9D9E55B262486D5C366FD6046374254ADF25";
+    mock = mockUpstream("xrpl", { "GET /v2/account_names": dataApiError(503, "unavailable") });
+    const first = await get(`/xrpl/tx/${hash}`);
+    const html = await first.text();
+
+    expect(first.status).toBe(200);
+    expect(first.headers.get("X-Cache")).toBe("MISS");
+    const shown = linkedAccounts(html, "xrpl");
+    expect(namesCalls(mock)).toEqual(inCalls(shown));
+    // Every account is its address, short or whole as the page draws it, and none has a name or a mark.
+    expect(shown.length).toBeGreaterThan(0);
+    for (const address of shown) {
+      for (const link of linksTo(html, "xrpl", address)) expect([shortAddress(address), address], `the link to ${address}`).toContain(link.text);
+    }
+    expect(textOf(html)).toContain(`Hash ${hash}`);
+    expect(await stored(`/xrpl/tx/${hash}`)).toBeUndefined();
+
+    // Not stored, so the second request is a render too.
+    const second = await get(`/xrpl/tx/${hash}`);
+    await second.text();
+    expect(second.status).toBe(200);
+    expect(second.headers.get("X-Cache")).toBe("MISS");
+    expect(namesCalls(mock)).toHaveLength(2 * inCalls(shown).length);
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
   it("answers 503 when the data API fails, does not ask the node in its place, and stores nothing", async () => {
     const hash = "2C9538843C61FE4120577EDCD885C9B4E6AC6694C9DF3603528B81A2D9FC084A";
     mock = mockUpstream("xrpl", { [`GET /v2/transactions/${hash}`]: () => dataApiError(503, "unavailable") });
@@ -241,7 +295,7 @@ describe("a 200 that is not what the API promises is never stored", () => {
     expect(html).toMatch(/<h1[^>]*>[^<]*<\/h1>/);
     expect(textOf(html)).toContain(`Hash ${SPOILT_TX}`);
     expect(mock.requests.some((r) => r.key === `GET /v2/transactions/${SPOILT_TX}` && r.source === "fixture")).toBe(true);
-    expect(await storedAs(`/xrpl/tx/${SPOILT_TX}`)).toEqual(OWNED);
+    expect(await storedAs(`/xrpl/tx/${SPOILT_TX}`)).toEqual(NAMED);
   });
 
   it("a ledger answer without its list of transactions is a 503, not an empty ledger, and the neighbours are there afterwards", async () => {
@@ -259,7 +313,7 @@ describe("a 200 that is not what the API promises is never stored", () => {
     const hashes = await recordedHashes("xrpl", 107671591);
     expect(textOf(html)).toContain(`transaction 50 of ${hashes.length}`);
     expect(anchors(html).find((a) => a.text === "Next · #51")?.attrs).toContain(`href="/xrpl/tx/${hashes[51]}"`);
-    expect(await storedAs(`/xrpl/tx/${SPOILT_LIST_TX}`)).toEqual(OWNED);
+    expect(await storedAs(`/xrpl/tx/${SPOILT_LIST_TX}`)).toEqual(NAMED);
   });
 
   it("a ledger's list with something that is not a hash in it is a 503 too, and a good list is read afterwards", async () => {
@@ -300,7 +354,7 @@ describe("a 200 that is not what the API promises is never stored", () => {
     const binary = await recorded("xrpl", SPOILT_BINARY_TX, true);
     expect(textOf(again.html)).toContain(binary.tx as unknown as string);
     expect(textOf(again.html)).not.toContain("could not be loaded");
-    expect(await storedAs(`/xrpl/tx/${SPOILT_BINARY_TX}?again=1`)).toEqual(OWNED);
+    expect(await storedAs(`/xrpl/tx/${SPOILT_BINARY_TX}?again=1`)).toEqual(NAMED);
   });
 
   it("says in a log line why a binary form was not taken", async () => {
@@ -345,12 +399,43 @@ describe("a 200 that is not what the API promises is never stored", () => {
     expect(text).not.toContain("could not be loaded");
     expect(text).not.toContain("Reload");
     expect(response.headers.get("Cache-Control")).toBe("max-age=60");
-    expect(await storedAs(`/xrpl/tx/${hash}`)).toEqual(OWNED);
+    expect(await storedAs(`/xrpl/tx/${hash}`)).toEqual(NAMED);
     expect(mock.unusedOverrides()).toEqual([]);
   });
 });
 
 describe("a Payment", () => {
+  // The first success for this payment: the Worker keeps the answer of a names call a minute, and this is the test that sees the call.
+  it("draws the sender by its name in the sentence, the flow, the details and the tables, and the details row keeps the whole address", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${PAYMENT}`);
+    const sender = SENDER;
+    const view = (await viewOf("xrpl", sender))!;
+    expect(view.name?.kind, "the fixtures verify the sender").toBe("verified");
+
+    // One names call, for the accounts the page links.
+    expect(namesCalls(mock)).toEqual(inCalls(linkedAccounts(html, "xrpl")));
+
+    // The sentence, the flow and the balance changes: the name, not the short address.
+    expect(elementText(html, "sentence")).toContain(linkTextOf(view));
+    expect(elementText(html, "sentence")).not.toContain(shortAddress(sender));
+    const flow = /aria-label="Flow of funds"[\s\S]*?<\/section>/.exec(html)![0];
+    expect(textOf(flow)).toContain(linkTextOf(view));
+    expect(tableRows(html, "Balance changes")[1]![0]).toContain(linkTextOf(view));
+    // The details row: the name, and the whole address after it.
+    const account = /<dt[^>]*>Account<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/.exec(html)![1]!;
+    expect(textOf(account)).toContain(linkTextOf(view));
+    expect(textOf(account)).toContain(sender);
+    // Every account link of the page is by what the fixtures say; the sender is among the named.
+    const drawn = await expectAccountsDrawn(html, "xrpl");
+    expect(drawn.named).toContain(sender);
+    // Title, description and `plainText` keep the short address (spec 7): the name is not in the head.
+    const head = html.slice(0, html.indexOf("</head>"));
+    expect(head).toContain(shortAddress(sender));
+    expect(head).not.toContain(linkTextOf(view));
+    expect(head).not.toContain(nameTitleOf(view, sender));
+  });
+
   it("shows the title, the result with its code, the summary sentence and the flow", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(`/xrpl/tx/${PAYMENT}`);
@@ -358,9 +443,8 @@ describe("a Payment", () => {
 
     expect(html).toMatch(/<h1[^>]*>Payment<\/h1>/);
     expect(text).toContain("Success tesSUCCESS");
-    expect(elementText(html, "sentence")).toBe(
-      `${shortAddress("rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh")} sent 2.306481 XRP to ${shortAddress("rDFDjdFgCEGgYoAxdZVp3AepoErfrPfy48")}.`,
-    );
+    // The sentence is the sender and the destination as the fixtures have them drawn (an account they name by its name and the words of its marks, any other by its short address).
+    await expectTextWithAccounts(elementText(html, "sentence")!, "xrpl", [{ account: SENDER }, " sent 2.306481 XRP to ", { account: DESTINATION }, "."]);
     // The flow: sender, destination, with what moved.
     expect(text).toContain("Sender");
     expect(text).toContain("−2.306481 XRP");
@@ -385,8 +469,10 @@ describe("a Payment", () => {
     expect(text).toContain(`Ledger #102,186,243 · transaction 63 of ${hashes.length}`);
     expect(hrefs(html)).toContain("/xrpl/ledger/102186243");
     expect(text).toMatch(/Date \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC/);
-    expect(text).toContain("Account rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh");
-    expect(text).toContain("Destination rDFDjdFgCEGgYoAxdZVp3AepoErfrPfy48");
+    // A named account shows its name, and the details row keeps its whole address (spec 6): a `full` link.
+    const detail = (label: string) => textOf(new RegExp(`<dt[^>]*>${label}</dt>\\s*<dd[^>]*>([\\s\\S]*?)</dd>`).exec(html)![1]!);
+    await expectTextWithAccounts(detail("Account"), "xrpl", [{ account: SENDER, full: true }]);
+    await expectTextWithAccounts(detail("Destination"), "xrpl", [{ account: DESTINATION, full: true }]);
     expect(text).toContain("Amount 2.306481 XRP");
     expect(text).toContain("Fee 0.000012 XRP · burned");
     expect(text).toContain(`Sequence ${formatAmount(String(tx.Sequence))}`);
@@ -399,13 +485,17 @@ describe("a Payment", () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(`/xrpl/tx/${PAYMENT}`);
     const rows = tableRows(html, "Balance changes");
-    expect(rows).toEqual([
-      ["Account", "Currency", "Change", "Balance after"],
-      [`${shortAddress("rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh")} sender`, "XRP", "−2.306493", "6.202021"],
-      [`${shortAddress("rDFDjdFgCEGgYoAxdZVp3AepoErfrPfy48")} destination`, "XRP", "+2.306481", "6.202034"],
+    expect(rows.map((row) => row.slice(1))).toEqual([
+      ["Currency", "Change", "Balance after"],
+      ["XRP", "−2.306493", "6.202021"],
+      ["XRP", "+2.306481", "6.202034"],
     ]);
+    // The account column: the account by its name or its short address, then its role.
+    expect(rows[0]![0]).toBe("Account");
+    await expectTextWithAccounts(rows[1]![0]!, "xrpl", [{ account: SENDER }, " sender"]);
+    await expectTextWithAccounts(rows[2]![0]!, "xrpl", [{ account: DESTINATION }, " destination"]);
     expect(textOf(html)).toContain("the sender’s XRP change includes the fee");
-    expect(hrefs(html)).toContain("/xrpl/account/rDFDjdFgCEGgYoAxdZVp3AepoErfrPfy48");
+    expect(hrefs(html)).toContain(`/xrpl/account/${DESTINATION}`);
   });
 
   it("lists the ledger objects it touched", async () => {
@@ -414,10 +504,9 @@ describe("a Payment", () => {
     const list = /<ul[^>]*aria-label="Ledger objects touched"[^>]*>([\s\S]*?)<\/ul>/.exec(html);
     expect(list).not.toBeNull();
     const items = [...list![1]!.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map((m) => textOf(m[1]!));
-    expect(items).toEqual([
-      `Modified AccountRoot ${shortAddress("rDFDjdFgCEGgYoAxdZVp3AepoErfrPfy48")}`,
-      `Modified AccountRoot ${shortAddress("rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh")}`,
-    ]);
+    expect(items).toHaveLength(2);
+    await expectTextWithAccounts(items[0]!, "xrpl", ["Modified AccountRoot ", { account: DESTINATION }]);
+    await expectTextWithAccounts(items[1]!, "xrpl", ["Modified AccountRoot ", { account: SENDER }]);
   });
 
   it("links the transactions before and after it in the ledger, by place", async () => {
@@ -461,26 +550,28 @@ describe("a Payment", () => {
     expect(raw).toContain(">Raw data</h2>");
   });
 
-  it("asks for the transaction, its binary form and the transactions of its ledger, side by side, and nothing else", async () => {
+  it("asks for the transaction, its binary form and the transactions of its ledger, side by side, then for the names, and nothing else", async () => {
     mock = mockUpstream("xrpl");
     // A transaction no other test of the file asks for, so that nothing is in the cache.
     const hash = "CB1B7721CCC2C842B86A178A26BF50160F57CEC9E95291A9C5349071B89C3822";
     await page(`/xrpl/tx/${hash}`);
-    expect(keys(mock).sort()).toEqual(
+    expect(keysButNames(mock).sort()).toEqual(
       [
         `xrpl GET /v2/transactions/${hash}`,
         `xrpl GET /v2/transactions/${hash}?binary=true`,
         "xrpl GET /v2/ledgers/107506489?transactions=true",
       ].sort(),
     );
+    // And the names of the accounts it shows, in one call: the names call is made after the others, for the accounts of what was read.
+    expect(namesCalls(mock)).toHaveLength(1);
   });
 
-  it("is immutable: stored for a year, and the browser keeps it a minute", async () => {
+  it("is immutable: stored for an hour while it shows names (not a year), and the browser keeps it a minute", async () => {
     mock = mockUpstream("xrpl");
     const { response } = await page(`/xrpl/tx/${PAYMENT}`);
     expect(response.headers.get("Cache-Control")).toBe("max-age=60");
     expect(response.headers.has("X-Cache-Class")).toBe(false);
-    expect(await storedAs(`/xrpl/tx/${PAYMENT}`)).toEqual(OWNED);
+    expect(await storedAs(`/xrpl/tx/${PAYMENT}`)).toEqual(NAMED);
   });
 
   it("has a title and a description built from the transaction, and is indexable", async () => {
@@ -490,6 +581,67 @@ describe("a Payment", () => {
     const description = /<meta[^>]*name="description"[^>]*content="([^"]*)"/.exec(html)?.[1];
     expect(description).toBe("Payment of 2.306481 XRP from rBbW6i…W5jh to rDFDjd…fy48 · XRPL ledger 102,186,243");
     expect(robots(html)).toBeUndefined();
+  });
+});
+
+// The page names the accounts it draws, and only those: the metadata of a transaction holds many more (an AMM deposit touches the pool's holders), which no one
+// sees and no call asks for. An AMM deposit no other test asks for.
+describe("the addresses a transaction page asks the names of", () => {
+  it("are those of the accounts it links (the sentence, the flow, the account, the details, the changes and the objects), never those only in the raw data", async () => {
+    const hash = "94E38B2BCCA96997BCEC32925AEB289D35EC9FD67977995102D91A7E3DD71FEF";
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${hash}`);
+    const { raw } = await pageAndRaw("xrpl", hash);
+    const shown = linkedAccounts(html, "xrpl");
+    const unseen = raw.filter((address) => !shown.includes(address));
+
+    // The transaction's metadata does hold addresses that the page does not draw, so the check can tell.
+    expect(unseen.length).toBeGreaterThan(1);
+    expect(shown.length).toBeGreaterThan(0);
+    expect(namesCalls(mock)).toEqual(inCalls(shown));
+    for (const address of unseen) {
+      expect(namesCalls(mock).flat(), `${address} is not asked for`).not.toContain(address);
+      expect(linksTo(html, "xrpl", address), `${address} is not linked`).toEqual([]);
+    }
+    await expectAccountsDrawn(html, "xrpl");
+  });
+
+  // An amount's issuer is written in the amount's title (`Amount`), not as a link: a sentence and a detail that hold one ask nothing for it. The OfferCreate that failed with tecKILLED
+  // (its only balance change is the sender's fee, so no "with {issuer}" links the issuer either).
+  it("never asks the names of an amount's issuer that the page writes only in a title", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${KILLED}`);
+    const { data } = await pageAndRaw("xrpl", KILLED);
+    const segments = [...data.sentence, ...data.details.flatMap((detail) => detail.value)];
+    const issuers = [...new Set(segments.flatMap((segment) => (segment.t === "amount" && segment.issuer !== undefined ? [segment.issuer] : [])))];
+    const shown = linkedAccounts(html, "xrpl");
+    // The sentence does write an issued amount, and the page links its issuer nowhere, so that the check can tell.
+    expect(issuers.length).toBeGreaterThan(0);
+    for (const issuer of issuers) expect(shown, `${issuer} is not linked`).not.toContain(issuer);
+
+    expect(namesCalls(mock)).toEqual(inCalls(shown));
+    for (const issuer of issuers) expect(namesCalls(mock).flat(), `${issuer} is not asked for`).not.toContain(issuer);
+  });
+
+  // A memo is text the sender wrote: an address in it is on the page as text, and it is neither a link nor a name to ask for. An OfferCreate no other test asks for, given a memo.
+  it("never asks the names of an address that is only in a memo", async () => {
+    const hash = "1CB29CFC3F54D4D3537B14DB17BD13AF9448C53BD5053B3523E27643E2CD7462";
+    const inMemo = encodeAccountID(Uint8Array.from({ length: 20 }, (_, i) => 0x30 + i));
+    const memoData = Array.from(new TextEncoder().encode(inMemo), (byte) => byte.toString(16).padStart(2, "0"))
+      .join("")
+      .toUpperCase();
+    const recordedTx = await recorded("xrpl", hash);
+    mock = mockUpstream("xrpl", {
+      [`GET /v2/transactions/${hash}`]: { result: "success", transaction: { ...recordedTx, tx: { ...recordedTx.tx, Memos: [{ Memo: { MemoData: memoData } }] } } },
+    });
+    const { html } = await page(`/xrpl/tx/${hash}`);
+    const shown = linkedAccounts(html, "xrpl");
+
+    expect(textOf(html)).toContain(`Memo ${inMemo}`);
+    expect(shown).not.toContain(inMemo);
+    expect(namesCalls(mock)).toEqual(inCalls(shown));
+    expect(linksTo(html, "xrpl", inMemo)).toEqual([]);
+    expect(mock.unusedOverrides()).toEqual([]);
   });
 });
 
@@ -526,14 +678,16 @@ describe("a Payment through an AMM pool", () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(`/xrpl/tx/${SWAP}`);
     const rows = tableRows(html, "Balance changes");
-    const pool = shortAddress("rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3");
+    // The pool by its name when the fixtures name it (this pool is named by GateHub), then its role.
+    const POOL = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
+    const poolRows = rows.filter((row) => row[0]!.endsWith("AMM pool"));
+    expect(poolRows).toHaveLength(2);
+    for (const row of poolRows) await expectTextWithAccounts(row[0]!, "xrpl", [{ account: POOL }, " AMM pool"]);
+    expect(poolRows.map((row) => row[2])).toEqual(["−179.448166793", "+134"]);
     // An issued currency shows the other side of its trust line under its code: here the issuer, for the pool's holding of it.
-    const issuer = shortAddress("rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De");
-    expect(rows.filter((row) => row[0] === `${pool} AMM pool`).map((row) => [row[1], row[2]])).toEqual([
-      [`RLUSD with ${issuer}`, "−179.448166793"],
-      ["XRP", "+134"],
-    ]);
-    expect(rows[1]![0]).toBe(`${shortAddress("rMsrQGK9fZ6B2164QGLnjLMxBYSCY5xJ4W")} sender`);
+    await expectTextWithAccounts(poolRows[0]![1]!, "xrpl", ["RLUSD with ", { account: "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De" }]);
+    expect(poolRows[1]![1]).toBe("XRP");
+    await expectTextWithAccounts(rows[1]![0]!, "xrpl", [{ account: "rMsrQGK9fZ6B2164QGLnjLMxBYSCY5xJ4W" }, " sender"]);
     expect(rows[1]!.slice(1)).toEqual(["XRP", "−134.000012", "8.978027"]);
     expect(hrefs(html)).toContain("/xrpl/account/rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De");
   });
@@ -559,7 +713,7 @@ describe("the last transaction of a ledger", () => {
     expect(textOf(html)).toContain("Next · last in ledger");
     expect(anchors(html).some((a) => a.text.startsWith("Next"))).toBe(false);
     expect(anchors(html).find((a) => a.text === "Previous · #105")?.attrs).toContain(`href="/xrpl/tx/${hashes[105]}"`);
-    expect(await storedAs(`/xrpl/tx/${LAST_OF_LEDGER}`)).toEqual(OWNED);
+    expect(await storedAs(`/xrpl/tx/${LAST_OF_LEDGER}`)).toEqual(NAMED);
   });
 });
 
@@ -603,7 +757,199 @@ describe("a Xahau transaction", () => {
     expect(hrefs(html)).toContain("/xahau/ledger/26540613");
     expect(hrefs(html)).toContain(`/xahau/tx/${hashes[87]}`);
     expect(text).toContain("Xahau / Ledger 26,540,613");
-    expect(await storedAs(`/xahau/tx/${REMIT}`)).toEqual(OWNED);
+    // Xahau has no delegation: no transaction there has a Delegate, so none has a "Sent by" row.
+    expect(text).not.toContain("Sent by");
+    expect(text).not.toContain("on behalf of");
+    expect(await storedAs(`/xahau/tx/${REMIT}`)).toEqual(NAMED);
+  });
+});
+
+// A transaction a delegate sent, and a DelegateSet (ledger object pages spec 6.2): C9's synthetic delegated Payment of the fixtures, whose `Delegate` paid the fee, found by its rule
+// (`objectCase`), and the recorded DelegateSet. DELEGATION is on in this project: the "Sent by" row links the delegation. Each is asked for here only.
+describe("a transaction a delegate sent", () => {
+  it("says who sent it after the sentence, has a Sent by row after Account and the delegate's fee, and names exactly the accounts it links", async () => {
+    const { id: hash, owner: sender } = await objectCase("xrpl", "delegated-payment");
+    const delegate = (await recorded("xrpl", hash)).tx.Delegate as string;
+    mock = mockUpstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const { html } = await page(`/xrpl/tx/${hash}`);
+    const text = textOf(html);
+
+    expect(elementText(html, "sentence")).toMatch(/ sent it on behalf of /);
+    expect(text).toContain("Sent by");
+    const row = /<dt[^>]*>Sent by<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/.exec(html)![1]!;
+    // The delegate in full (its name, then its whole address), what that means with the sender's plain name, and the link to the sender's Delegation tab.
+    expect(textOf(row)).toContain(delegate);
+    expect(textOf(row)).toContain(`The delegate signed this transaction and paid its fee, using a permission Fixture ${sender.slice(-4)} gave it. View the delegation`);
+    expect(hrefs(row)).toEqual([`/xrpl/account/${delegate}`, `/xrpl/account/${sender}?tab=delegation`]);
+    expect(text).toMatch(/Fee 0\.006 XRP · paid by the delegate, burned/);
+    // The Account row comes before the Sent by row.
+    expect(html.indexOf(">Account</dt>")).toBeLessThan(html.indexOf(">Sent by</dt>"));
+
+    // The names asked are the accounts linked, the delegate among them, each drawn by its name.
+    expect(linkedAccounts(html, "xrpl")).toContain(delegate);
+    expect(namesCalls(mock)).toEqual(inCalls(linkedAccounts(html, "xrpl")));
+    expectLinkedAccountsNamed(mock, html, "xrpl");
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  // The recorded delegated inner OfferCreate of a Batch (xrpl-objects' `delegated_batch_inner`): its Batch paid the fee, and its delegate is in no node of its metadata, so the
+  // "Sent by" row and the words after the sentence are the only places the page draws it.
+  it("says a delegated inner transaction of a Batch was sent within it, leaves its fee to the Batch, and asks the name of the delegate it draws only there", async () => {
+    const hash = "8A57855B074280D7783182F3556BADD92246252E6EFFE0FD7E807E0B200FC2D8";
+    const { tx, meta } = await recorded("xrpl", hash);
+    const delegate = tx.Delegate as string;
+    expect(JSON.stringify(meta)).not.toContain(delegate);
+    mock = mockUpstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const { html } = await page(`/xrpl/tx/${hash}`);
+
+    const row = /<dt[^>]*>Sent by<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/.exec(html)![1]!;
+    expect(textOf(row)).toContain(`The delegate sent this within its Batch, using a permission Fixture ${tx.Account.slice(-4)} gave it. View the delegation`);
+    expect(textOf(html)).toMatch(/Fee 0 XRP · burned/);
+    expect(textOf(html)).not.toContain("paid by the delegate");
+    expect(namesCalls(mock).flat()).toContain(delegate);
+    expect(namesCalls(mock)).toEqual(inCalls(linkedAccounts(html, "xrpl")));
+    expectLinkedAccountsNamed(mock, html, "xrpl");
+  });
+
+  it("draws a DelegateSet's permissions as chips, in the sentence and the details, with the note under the sentence", async () => {
+    const hash = "4250B72A5AB63CEB5501CFDDA3B4C9765B85941BB6AECE9720FC6C0D5F524B66";
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${hash}`);
+    const text = textOf(html);
+
+    expect(html).toMatch(/<h1[^>]*>Delegation<\/h1>/);
+    expect(elementText(html, "sentence")).toMatch(/ let .+ send OfferCreate: Any OfferCreate transaction and OfferCancel: Any OfferCancel transaction on its behalf\.$/);
+    expect(html.match(/class="permchip"/g)).toHaveLength(4);
+    expect(html).toContain('title="Transaction type. Any OfferCreate transaction"');
+    expect(text).toMatch(/This replaces any permissions .+ had given .+ before; it does not add to them\./);
+    expect(text).toContain("· 2 of 10");
+    // The account sent it itself: no Sent by row.
+    expect(text).not.toContain("Sent by");
+    // The Delegate it made, among the objects it touched, leads to the Delegation tab of the account that gave it (ledger object pages spec 7; DELEGATION is on).
+    const touched = html.slice(html.indexOf('aria-label="Ledger objects touched"'));
+    expect(anchors(touched.slice(0, touched.indexOf("</ul>"))).find((a) => a.text === "Delegate")?.attrs).toContain('href="/xrpl/account/rnt8PbBFT7idcLyj9PNgxjZi9Z1RiRX3QL?tab=delegation"');
+  });
+});
+
+// The escrows, checks and payment channels a transaction names, and the ledger objects it touched (ledger object pages spec 7): links to their pages while LEDGER_OBJECTS is on (it is in this
+// project; the same pages with it off are in ledger-objects-off.spec.ts). An escrow released or cancelled is the node its metadata deleted; on Xahau a transaction may name it by its EscrowID,
+// and its Owner field is then the escrow's destination: the sentence names the node's Account (C21). Each transaction is asked for here only.
+describe("the ledger objects of a transaction", () => {
+  /** The HTML of the sentence, and of the list of the ledger objects touched. */
+  const sentenceOf = (html: string) => html.slice(html.indexOf('class="sentence summary__sentence"'), html.indexOf("</p>", html.indexOf('class="sentence summary__sentence"')));
+  const touchedOf = (html: string) => html.slice(html.indexOf('aria-label="Ledger objects touched"'), html.indexOf("</ul>", html.indexOf('aria-label="Ledger objects touched"')));
+  /** Each link's text and where it leads. */
+  const linksOf = (html: string) => anchors(html).map((a) => [a.text, /href="([^"]*)"/.exec(a.attrs)?.[1]]);
+
+  it("words an MPT escrow's creation, which the escrow's timeline links to, with no raw JSON in its sentence or its Amount detail", async () => {
+    const { id } = await objectCase("xrpl", "escrow-mpt");
+    mock = mockUpstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const { html: escrow } = await page(`/xrpl/escrows/${id}`);
+    const created = hrefs(escrow).find((href) => href.startsWith("/xrpl/tx/"))!;
+    const { html } = await page(created);
+
+    const sentence = elementText(html, "summary__sentence")!;
+    expect(sentence).toMatch(/ locked 250 units of MPT 0000012A… for /);
+    expect(sentence).not.toContain("{");
+    const amount = /<dt[^>]*>Amount<\/dt><dd[^>]*>([\s\S]*?)<\/dd>/.exec(html)![1]!;
+    expect(textOf(amount)).toBe("250 units of MPT 0000012A…");
+  });
+
+  it("links the escrow an EscrowFinish released, in its sentence and among the objects it touched, by the node its metadata deleted, and names exactly the accounts it links", async () => {
+    const hash = "375202E930018352EA63F82A1DCAF7795916DC5117C74D013119E67955C157DA";
+    const ESCROW = "FA8631A0C654F964699C8B9A1277DA0C3F62D034190E62062F2D662A9D23C1B4";
+    const [finisher, owner] = ["rPw6JAdM9BGwH4y4LxJQBDybaGNhFLCspU", "rfd4xkXuigdGJV2XYkbosFzBQaLsc6M8Vm"];
+    mock = mockUpstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const { html } = await page(`/xrpl/tx/${hash}`);
+
+    const sentence = sentenceOf(html);
+    expect(elementText(html, "summary__sentence")).toMatch(new RegExp(`^Fixture ${finisher.slice(-4)} .*released escrow 107945427 of Fixture ${owner.slice(-4)}\\b`));
+    expect(hrefs(sentence)).toEqual([`/xrpl/account/${finisher}`, `/xrpl/escrows/${ESCROW}`, `/xrpl/account/${owner}`]);
+    expect(anchors(sentence).find((a) => a.text === "escrow 107945427")?.attrs).toContain(`title="${ESCROW}"`);
+    expect(linksOf(touchedOf(html))).toContainEqual(["Escrow", `/xrpl/escrows/${ESCROW}`]);
+    // An object's link is no account's: the names asked are the accounts linked, each drawn by its name.
+    expect(namesCalls(mock)).toEqual(inCalls(linkedAccounts(html, "xrpl")));
+    expectLinkedAccountsNamed(mock, html, "xrpl");
+  });
+
+  it("links the escrow a Xahau EscrowFinish names by its EscrowID, whose owner is the deleted node's Account and not the transaction's Owner (ledger 10090323)", async () => {
+    const hash = "D1B7A0AD6C6DA3551F97F1C63E4035DABC7C58AE21F9F758090C588B824973BA";
+    const ESCROW = "10C5F525E3D07CAC9CD2BF3F53367653504B7D8A54451E311F5B38E70442457F";
+    mock = mockUpstream("xahau");
+    const { html } = await page(`/xahau/tx/${hash}`);
+
+    expect(hrefs(sentenceOf(html))).toEqual(["/xahau/account/r223rsyz1cfqPbjmiX6oYu1hFgNwCkWZH", `/xahau/escrows/${ESCROW}`, "/xahau/account/rD74dUPRFNfgnY2NzrxxYRXN4BrfGSN6Mv"]);
+    expect(linksOf(sentenceOf(html))[1]).toEqual(["an escrow", `/xahau/escrows/${ESCROW}`]);
+    expect(linksOf(touchedOf(html))).toContainEqual(["Escrow", `/xahau/escrows/${ESCROW}`]);
+  });
+
+  it("links the check a CheckCreate wrote, in its Check detail (the short ID, the whole one as its title) and among the objects it touched", async () => {
+    const hash = "DE0C4334780CE8115BCCB7E41371B85D13D284F82F48EFB98BE8D2F894207E0E";
+    const CHECK = "DA6BE1644276D17524D4C5645D322D4A0249B444C0A3C320EA941597243F30EA";
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${hash}`);
+
+    const detail = /<dt[^>]*>Check<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/.exec(html)![1]!;
+    expect(linksOf(detail)).toEqual([[shortHash(CHECK), `/xrpl/checks/${CHECK}`]]);
+    expect(anchors(detail)[0]!.attrs).toContain(`title="${CHECK}"`);
+    expect(linksOf(touchedOf(html))).toContainEqual(["Check", `/xrpl/checks/${CHECK}`]);
+    // Its sentence names no object: the detail does.
+    expect(hrefs(sentenceOf(html)).some((href) => href.includes("/checks/"))).toBe(false);
+  });
+});
+
+// An NFT or URIToken in a transaction's sentence and details is a link to the NFT's page (NFTS is "on" in these tests; the same
+// pages with it off are in nfts-off.spec.ts), the short id in mono with the whole id as its title.
+describe("the NFTs of a transaction", () => {
+  // Recorded: an NFTokenAcceptOffer that accepted a sell offer (the NFT is the one of the offer its metadata deletes), an NFTokenMint
+  // (the NFT is the id its minter's page gained), and, on Xahau, a URITokenBuy.
+  const ACCEPT = "423839F3B288D53874DAECE9AE3ACCE2A23E20E2C16E5DA594F425907D9E2052";
+  const ACCEPTED = "00081388AF09C1D4B4D1E8031467F3508DFFADABEA73255F370449870655E6D8";
+  const MINT = "7D16D6C749CAB260C906BEC2D9CF9B37F7D1D36F26421873CF838C9BCDF056AD";
+  const MINTED = "00081388AF09C1D4B4D1E8031467F3508DFFADABEA73255FA9ECC9070655E758";
+  const BUY = "FDE327991B2702E7BF849A36487CEA0DE9BB307F5110F1621C9B8EEE6696AC5F";
+  const BOUGHT = "F84062E34601C92FB68BBBD4FCD7698E0623DED13ECBD1BA913FF6400D5CEE02";
+
+  /** The anchors that lead to an NFT's page. */
+  const nftLinks = (html: string) => anchors(html).filter((a) => /href="\/(xrpl|xahau)\/nft\//.test(a.attrs));
+
+  it("links the NFT an accepted offer was for, in the details, to its page: the short id in mono, the whole id as the title", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${ACCEPT}`);
+
+    const links = nftLinks(html);
+    expect(links).toHaveLength(1);
+    expect(links[0]!.text).toBe("00081388…E6D8");
+    expect(links[0]!.attrs).toContain(`href="/xrpl/nft/${ACCEPTED}"`);
+    expect(links[0]!.attrs).toContain(`title="${ACCEPTED}"`);
+    expect(links[0]!.attrs).toMatch(/class="mono"/);
+    expect(textOf(html)).toContain("NFT 00081388…E6D8");
+    expect(hrefs(html)).toContain(`/xrpl/nft/${ACCEPTED}`);
+  });
+
+  it("links the NFT a mint made, in the sentence and in the details, and the sentence reads 'minted NFT …'", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${MINT}`);
+
+    // The minter by its name when the fixtures name it (the mark's words follow a name); the sentence goes on as before.
+    await expectTextWithAccounts(elementText(html, "sentence")!, "xrpl", [{ account: "rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV" }, " minted NFT 00081388…E758, taxon 500, transfer fee 5%."]);
+    const links = nftLinks(html);
+    expect(links.map((a) => a.text)).toEqual(["00081388…E758", "00081388…E758"]);
+    expect(links.every((a) => a.attrs.includes(`href="/xrpl/nft/${MINTED}"`))).toBe(true);
+    // The description of the page, which a link preview carries, says the NFT too (as its short id, never 'undefined').
+    expect(html).toMatch(/<meta name="description" content="[^"]*minted NFT 00081388…E758, taxon 500, transfer fee 5% · XRPL ledger 107,671,538"/);
+  });
+
+  it("links the URIToken a Xahau purchase was of, to its page on Xahau", async () => {
+    mock = mockUpstream("xahau");
+    const { html } = await page(`/xahau/tx/${BUY}`);
+
+    const links = nftLinks(html);
+    expect(links).toHaveLength(1);
+    expect(links[0]!.attrs).toContain(`href="/xahau/nft/${BOUGHT}"`);
+    expect(links[0]!.attrs).toContain(`title="${BOUGHT}"`);
+    expect(links[0]!.text).toBe("F84062E3…EE02");
+    expect(textOf(html)).toContain("URIToken F84062E3…EE02");
   });
 });
 
@@ -806,7 +1152,12 @@ describe("a transaction the index does not have yet", () => {
   const HASH = "D437E9B6486965D1E97D3737FD00A4B0C9615DFFF3ECC813EF6A3A6CB44B945F";
 
   it("is shown from the node, with a note, and stored for 60 s as short", async () => {
-    mock = mockUpstream("xahau", { [`GET /v2/transactions/${HASH}`]: null });
+    // The page from the node is named too. The names are the test's own (each account asked for is named after its end), so that the test does not depend on which of the
+    // transaction's accounts the fixtures name.
+    mock = mockUpstream("xahau", {
+      [`GET /v2/transactions/${HASH}`]: null,
+      "GET /v2/account_names": answerNamesAfterTheirEnd(),
+    });
     const { response, html } = await page(`/xahau/tx/${HASH}`);
     const text = textOf(html);
 
@@ -820,6 +1171,9 @@ describe("a transaction the index does not have yet", () => {
     expect(response.headers.get("Cache-Control")).toBe("max-age=0");
     expect(await storedAs(`/xahau/tx/${HASH}`)).toEqual({ cls: "short", ttl: 60 });
     expect(mock.requests.filter((r) => r.kind === "node").map((r) => r.key.split(" ").slice(0, 2).join(" "))).toEqual(["node tx"]);
+
+    // Its accounts are named: the page asked for the ones it links, and draws each by its name and the title of how it is known.
+    expectLinkedAccountsNamed(mock, html, "xahau");
     expect(mock.unusedOverrides()).toEqual([]);
   });
 
@@ -873,6 +1227,6 @@ describe("the page as loader data for a client-side navigation", () => {
     await response.text();
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("max-age=60");
-    expect(await storedAs(`/xahau/tx/${hash}.data`)).toEqual(OWNED);
+    expect(await storedAs(`/xahau/tx/${hash}.data`)).toEqual(NAMED);
   });
 });

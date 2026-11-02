@@ -1,0 +1,41 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 93663334,
+    "complete": false
+  },
+  "kind": "issued",
+  "ledger_index": 107721455,
+  "close_time": "2026-10-17T17:01:12Z",
+  "totals": {
+    "tokens": 100,
+    "tokens_with_10_holders": 60,
+    "holders": 1579,
+    "native_volume": "17067234.131442"
+  },
+  "total": 100,
+  "count": 20,
+  "marker": "WyJpc3N1ZWQiLDQ4LCJyd0ZHTGZwRVlRS2hHaXBKUEt5emhGZHZnRjRTYUxVUXptIiwiVVNEIl0",
+  "tokens": [
+    {"rank":1,"currency":"524C555344000000000000000000000000000000","code":"RLUSD","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","holders":96,"trust_lines":127,"supply":"21898528.59363","price":"0.40742598","price_change":"-9.34","price_time":"2026-10-17T14:50:12Z","native_volume":"7307.43","trades":503,"domain":"ripple.com","listed":true,"name":"Ripple USD"},
+    {"rank":2,"currency":"GBP","code":"GBP","issuer":"rnzjfsruieJp3cnnKZotMS3FE61fe3WdPJ","holders":95,"trust_lines":100,"supply":"40243.71","price":"1.2000000e-7","price_change":"-2.82","price_time":"2026-10-17T08:36:42Z","native_volume":"412063.952","trades":344,"domain":"thistle-b1e5.example","listed":true,"name":"Willowmere GBP"},
+    {"rank":3,"currency":"JPY","code":"JPY","issuer":"rJjUPJudY9eWsSyrgXgb4MybfRP4v3vhcd","holders":94,"trust_lines":97,"supply":"59675.92","native_volume":"0","trades":0,"listed":false},
+    {"rank":4,"currency":"612E622E63000000000000000000000000000000","code":"a.b.c","issuer":"r9rmJcAoymw7A588YbZcHwP53a63rjNfN","holders":82,"trust_lines":85,"supply":"45859.94","price":"0.82465940","price_change":"-14.93","price_time":"2026-10-17T16:02:06Z","native_volume":"291872.743","trades":266,"listed":false},
+    {"rank":5,"currency":"NZD","code":"NZD","issuer":"rHrtYyKfpGjzWG8sn9ffXXqjF4Vk7AWjTd","holders":82,"trust_lines":87,"supply":"19700.68","price":"2.4994143","price_change":"5.03","price_time":"2026-10-17T02:01:22Z","native_volume":"168552.548","trades":290,"domain":"harbourgate-939f.example","listed":false},
+    {"rank":6,"currency":"CHF","code":"CHF","issuer":"rByTgbq96K8GWPESSC9zP4CQx6svrUhyUC","holders":73,"trust_lines":75,"supply":"42962.6","price":"3.1320892","price_change":"-11.05","price_time":"2026-10-17T15:10:38Z","native_volume":"17364.257","trades":222,"domain":"riverstone-659a.example","listed":false},
+    {"rank":7,"currency":"4E494D4255530000000000000000000000000000","code":"NIMBUS","issuer":"rDSoMjAccxR71EUew6H2ydvwiCXhgggyVb","holders":72,"trust_lines":73,"supply":"42679.43","price":"0.56955006","price_change":"-5.55","price_time":"2026-10-17T00:36:47Z","native_volume":"370723.132","trades":45,"domain":"riverstone-49f9.example","listed":false},
+    {"rank":8,"currency":"5553444300000000000000000000000000000000","code":"USDC","issuer":"rfCtDAxk5C9VhhFCeLzFHzKWwGk2qRYyDU","holders":72,"trust_lines":74,"supply":"1449.14","price":"3.9397044","price_change":"-6.84","price_time":"2026-10-16T18:57:04Z","native_volume":"487422.907","trades":294,"domain":"fernhill-b6dd.example","listed":true,"name":"Lanternway USDC"},
+    {"rank":9,"currency":"USD","code":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","holders":72,"trust_lines":77,"supply":"8056808.906342","price":"0.40863434","price_change":"5.76","price_time":"2026-10-17T09:41:11Z","native_volume":"6623.312","trades":349,"domain":"bitstamp.net","listed":false},
+    {"rank":10,"currency":"ETH","code":"ETH","issuer":"rDSoMjAccxR71EUew6H2ydvwiCXhgggyVb","holders":68,"trust_lines":69,"supply":"48075.76","price":"3.2224141","price_change":"-2.14","price_time":"2026-10-17T11:38:37Z","native_volume":"65171.013","trades":155,"domain":"riverstone-49f9.example","listed":true,"name":"Northpeak ETH"},
+    {"rank":11,"currency":"41534847524F5645000000000000000000000000","code":"ASHGROVE","issuer":"rDSp2xmEEjRn1XkhGbQ51skDXF53UVohdw","holders":63,"trust_lines":66,"supply":"8912.46","price":"0.22078407","price_change":"-0.69","price_time":"2026-10-16T20:00:00Z","native_volume":"325990.167","trades":46,"domain":"ashgrove-856e.example","listed":false},
+    {"rank":12,"currency":"4B45535452454C00000000000000000000000000","code":"KESTREL","issuer":"rUBrZPM8bU5YGjNpKvFZaX923pmykutk5N","holders":63,"trust_lines":65,"supply":"13410.83","price":"1.2350333","price_change":"12.67","price_time":"2026-10-17T13:31:57Z","native_volume":"227874.341","trades":278,"domain":"stonebridge-cc4a.example","listed":true,"name":"Copperline KESTREL"},
+    {"rank":13,"currency":"MXN","code":"MXN","issuer":"rEPttnA5mxzbmMSsLoiAMp6AHZiNNgvyR1","holders":61,"trust_lines":62,"supply":"53600.49","price":"0.51892912","price_change":"5.39","price_time":"2026-10-17T09:24:32Z","native_volume":"287579.277","trades":364,"domain":"saltmarsh-f01b.example","listed":false},
+    {"rank":14,"currency":"424C554557415645000000000000000000000000","code":"BLUEWAVE","issuer":"rLjdSRYGdEp33d1F61p6DiJvxhYijPWPFU","holders":60,"trust_lines":63,"supply":"43757.9","native_volume":"0","trades":0,"listed":false},
+    {"rank":15,"currency":"5553445400000000000000000000000000000000","code":"USDT","issuer":"rBfxgwG5sj2MzAKPWtRE5v8N88agjSRES5","holders":57,"trust_lines":59,"supply":"10431.01","native_volume":"0","trades":0,"listed":false},
+    {"rank":16,"currency":"DKK","code":"DKK","issuer":"rDSp2xmEEjRn1XkhGbQ51skDXF53UVohdw","holders":56,"trust_lines":56,"supply":"30270.38","price":"3.6604492","price_change":"-0.66","price_time":"2026-10-17T05:38:52Z","native_volume":"421776.098","trades":301,"domain":"ashgrove-856e.example","listed":false},
+    {"rank":17,"currency":"4C494F4E53000000000000000000000000000000","code":"LIONS","issuer":"rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS","holders":54,"trust_lines":63,"supply":"7754369128.371586","price":"3.4303654e-7","price_change":"-13.85","price_time":"2026-10-16T18:13:58Z","native_volume":"1818.975442","trades":131,"listed":false},
+    {"rank":18,"currency":"4D41524C4F570000000000000000000000000000","code":"MARLOW","issuer":"rnNCDAz9cJsM9Neiz2hkzqVwTAmdX1CBZP","holders":53,"trust_lines":54,"supply":"7284.24","native_volume":"0","trades":0,"listed":false},
+    {"rank":19,"currency":"INR","code":"INR","issuer":"rncNRMDXrBc3KjrcRhX2Z6hSAA7Z8FaaSz","holders":53,"trust_lines":53,"supply":"4204.54","price":"3.6122919","price_time":"2026-09-24T17:01:12Z","native_volume":"0","trades":0,"domain":"northpeak-7696.example","listed":true,"name":"Ashgrove INR"},
+    {"rank":20,"currency":"USD","code":"USD","issuer":"rwFGLfpEYQKhGipJPKyzhFdvgF4SaLUQzm","holders":48,"trust_lines":51,"supply":"26604.7","price":"0.0026690492","price_change":"-5.82","price_time":"2026-10-17T06:09:51Z","native_volume":"44018.344","trades":67,"domain":"bluewave-fd8f.example","listed":true,"name":"Kestrel USD"}
+  ]
+}

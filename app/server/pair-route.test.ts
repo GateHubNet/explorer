@@ -2,7 +2,7 @@ import { classicAddressToXAddress } from "ripple-address-codec";
 import { describe, expect, it } from "vitest";
 
 import { type Asset } from "../domain/asset";
-import { parsePairPath, redirectToCanonical, type PairPath } from "./pair-route";
+import { parsePairPath, redirectToCanonical, redirectToHref, type PairPath } from "./pair-route";
 
 const XRPL = { id: "xrpl", native: "XRP" } as const;
 const XAHAU = { id: "xahau", native: "XAH" } as const;
@@ -262,5 +262,31 @@ describe("redirectToCanonical", () => {
   it("keeps a canonical path with an escape as it is written", () => {
     const escaped = { path: `/xrpl/markets/A%23BC.${RL}/XRP`, search: "" };
     expect(redirectToCanonical({ path: `/xrpl/markets/A%23BC.${RL}/%58RP`, search: "" }, escaped)?.headers.get("Location")).toBe(escaped.path);
+  });
+});
+
+describe("redirectToHref", () => {
+  it("is null when the path and the query are the href's", () => {
+    expect(redirectToHref({ path: "/xrpl/nfts/sales", search: "" }, "/xrpl/nfts/sales")).toBeNull();
+    expect(redirectToHref({ path: "/xrpl/nfts", search: "period=7day&sort=supply" }, "/xrpl/nfts?period=7day&sort=supply")).toBeNull();
+    expect(redirectToHref({ path: "/xrpl/nfts", search: "?period=7day" }, "/xrpl/nfts?period=7day")).toBeNull();
+  });
+
+  it("is a 302 of class immutable to the href when only the path differs", () => {
+    const response = redirectToHref({ path: "/xrpl/NFTs", search: "period=7day" }, "/xrpl/nfts?period=7day");
+    expect(response?.status).toBe(302);
+    expect(response?.headers.get("X-Cache-Class")).toBe("immutable");
+    expect(response?.headers.get("Location")).toBe("/xrpl/nfts?period=7day");
+  });
+
+  it("is a 302 of class short to the href when the query differs, whatever the path", () => {
+    const query = redirectToHref({ path: "/xrpl/nfts", search: "sort=supply&period=7day&x=1" }, "/xrpl/nfts?period=7day&sort=supply");
+    expect(query?.status).toBe(302);
+    expect(query?.headers.get("X-Cache-Class")).toBe("short");
+    expect(query?.headers.get("Location")).toBe("/xrpl/nfts?period=7day&sort=supply");
+    const dropped = redirectToHref({ path: "/xrpl/nfts", search: "x=1" }, "/xrpl/nfts");
+    expect(dropped?.headers.get("X-Cache-Class")).toBe("short");
+    expect(dropped?.headers.get("Location")).toBe("/xrpl/nfts");
+    expect(redirectToHref({ path: "/xrpl/NFTs", search: "x=1" }, "/xrpl/nfts")?.headers.get("X-Cache-Class")).toBe("short");
   });
 });

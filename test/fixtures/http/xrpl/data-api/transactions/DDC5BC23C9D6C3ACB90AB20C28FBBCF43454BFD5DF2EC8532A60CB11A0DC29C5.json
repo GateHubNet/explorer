@@ -1,0 +1,25 @@
+{
+  "result": "success",
+  "transaction": {
+    "date": "2026-09-28T16:40:31+00:00",
+    "hash": "DDC5BC23C9D6C3ACB90AB20C28FBBCF43454BFD5DF2EC8532A60CB11A0DC29C5",
+    "ledger_index": 107296498,
+    "meta": {
+      "AffectedNodes": [{"CreatedNode":{"LedgerEntryType":"PayChannel","LedgerIndex":"B5AEC697DEA9EA4F87F6DF5AE07F475BD10096646B57077EC1743A00702543A3","NewFields":{"Account":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","Amount":"50000000","Destination":"rfJXwnj9j5ALzAbYp2azD4Zn6E69pevFMB","DestinationNode":"0","PublicKey":"03BD9BE9089DF014E1417D621A8B5207D171A3E03E25A49106E529539648D76538","Sequence":98405610,"SettleDelay":2592000}}}],
+      "TransactionIndex": 125,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "tx": {
+      "Account": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+      "Amount": "50000000",
+      "Destination": "rfJXwnj9j5ALzAbYp2azD4Zn6E69pevFMB",
+      "Fee": "12",
+      "Flags": 0,
+      "LastLedgerSequence": 107296518,
+      "PublicKey": "03BD9BE9089DF014E1417D621A8B5207D171A3E03E25A49106E529539648D76538",
+      "Sequence": 98405610,
+      "SettleDelay": 2592000,
+      "TransactionType": "PaymentChannelCreate"
+    }
+  }
+}

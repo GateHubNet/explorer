@@ -23,6 +23,24 @@
 // amm-derive.ts; PROVENANCE.md, "AMM answers"). These modules, and derived-trades.ts, import this one in turn, so nothing of theirs is used here before
 // `generate` is called, and none of them uses another's exports while it loads (scripts/fixture-imports.test.ts).
 //
+// The NFT pages' answers are nft-fixtures.ts's, derived by nft-derive.ts from the NFT ledgers D3 recorded (`ledgers/xrpl-nft/`, `ledgers/xahau-nft/`, read through `readLedgerSet`:
+// they are newer than the day the rest is dated to, so they are not among `SETS`, and their transactions are not served), around synthetic padding and holdings, and the nodes'
+// NFT answers; `generate` joins them too (PROVENANCE.md, "NFT answers"). Like the rest, those modules read nothing of this one while they load.
+//
+// The ledger-object pages' answers (D5's escrows, checks, payment channels and lookups) are object-fixtures.ts's, derived by object-derive.ts from the objects ledgers D5 recorded
+// (`ledgers/xrpl-objects/`, `ledgers/xahau-objects/`, read through `readLedgerSet`: newer than the day the rest is dated to, so they are not among `SETS`), around synthetic objects, with
+// the transactions behind them that the sets do not serve already, and the nodes' `ledger_entry` of the objects still in the ledger; `generate` joins them per network
+// (PROVENANCE.md, "Ledger object answers"). That module too reads nothing of this one while it loads.
+//
+// The token pages' answers (D6's four routes: `data-api/tokens@…`, `data-api/tokens/…`) are token-fixtures.ts's: synthetic around real issuers, with holders and transfers from the recordings
+// where they have them; `generate` joins them per network, with their keys as D6 orders them (`builtFixtureText`; PROVENANCE.md, "Token answers"). That module too reads nothing of this one while it loads.
+//
+// The supply page's answers (D7's two routes: `data-api/network/supply.json`, `data-api/network/supply/minted@…`) are supply-fixtures.ts's: synthetic, with D7's examples' figures and the key orders of its
+// reference (`builtFixtureText`; PROVENANCE.md, "Synthetic supply"); `generate` joins them per network, after the validators'. That module imports nothing but types of this one.
+//
+// The display names' files (`data-api/account_names.json` and `data-api/toml/<domain>.json`) are names-fixtures.ts's: synthetic, over the addresses of every other file of
+// the network, generated or written by hand, so `generate` joins them last (PROVENANCE.md, "Synthetic names and tomls"). That module reads nothing of this one either.
+//
 // `?binary=true` answers (`transactions/<HASH>@binary=true.json`) hold `tx` and `meta` as the hex of their serialization,
 // made here with ripple-binary-codec (a devDependency: the Worker never serializes). XRPL uses the codec's own definitions,
 // Xahau the ones recorded from a Xahau node (test/fixtures/definitions/xahau/server_definitions.json, see PROVENANCE.md).
@@ -32,13 +50,18 @@ import { gunzipSync } from "node:zlib";
 
 import { DEFAULT_DEFINITIONS, encode, XrplDefinitions, type XrplDefinitionsBase } from "ripple-binary-codec";
 
-import type { FeeRow, LastValidated, Ledger, LedgerExpanded, LedgerValidations, LedgerWithHashes, Page, TxBinary, TxObject } from "../app/server/api-types";
+import type { AmmPool, FeeRow, LastValidated, Ledger, LedgerExpanded, LedgerValidations, LedgerWithHashes, Page, TxBinary, TxObject } from "../app/server/api-types";
 import { dataApiFile, nodeFile, type NetworkName } from "../test/support/upstream-core";
 import { ammFixtures } from "./amm-fixtures";
 import { ammInfoFixtures } from "./amm-info-fixtures";
 import { ANALYTICS_ROW_LISTS, analyticsFixtures } from "./analytics-fixtures";
 import { marketFixtures } from "./market-fixtures";
+import { namesFixtures } from "./names-fixtures";
 import { networkFixtures } from "./network-fixtures";
+import { nftFixtures, nftLedgerEntryIds } from "./nft-fixtures";
+import { objectFixtures, objectPaths } from "./object-fixtures";
+import { SUPPLY_ROW_LISTS, supplyFixtures } from "./supply-fixtures";
+import { TOKEN_ROW_LISTS, tokenFixtures } from "./token-fixtures";
 import { VALIDATORS_ROW_LISTS, validatorsFixtures } from "./validators-fixtures";
 
 export const LEDGERS = new URL("../test/fixtures/ledgers/", import.meta.url);
@@ -74,6 +97,12 @@ export const EXPANDED: Record<NetworkName, number[]> = {
   xahau: [26540187, 26540188, 26596843],
 };
 
+/**
+ * The recorded ledger the supply snapshot of each network is of: XRPL's, the older of the two ledgers it serves in full, closed about 50 minutes before the newest (so the page does not
+ * call the snapshot stale), and Xahau's, the newest (D7's cycle is an hour: the newest recorded ledger of a network is the one a snapshot would be of there).
+ */
+const SUPPLY_LEDGER: Record<NetworkName, number> = { xrpl: 107_720_688, xahau: 26_596_843 };
+
 /** How many of the newest ledgers and transactions the list endpoints (`limit=8`) give. */
 const LATEST = 8;
 
@@ -107,16 +136,24 @@ export interface RawLedger {
   };
 }
 
+const byLedgerIndex = (a: RawLedger, b: RawLedger): number => Number(a.ledger.ledger_index) - Number(b.ledger.ledger_index);
+
+/**
+ * The ledgers of one recorded set (a directory of test/fixtures/ledgers/), oldest first. The sets of `SETS` make up a network, and `readLedgers` reads them; a set that is not in
+ * `SETS` is read through this: the NFT sets (`xrpl-nft`, `xahau-nft`, scripts/nft-derive.ts) were recorded after T, the day the network's other answers are dated to, and are not
+ * served as ledgers or transactions (PROVENANCE.md, "NFT answers").
+ */
+export function readLedgerSet(set: string): RawLedger[] {
+  const dir = new URL(`${set}/`, LEDGERS);
+  return readdirSync(dir)
+    .filter((name) => name.endsWith(".json.gz"))
+    .map((file) => JSON.parse(gunzipSync(readFileSync(new URL(file, dir))).toString("utf8")) as RawLedger)
+    .sort(byLedgerIndex);
+}
+
 /** The ledgers of a network, from its recorded sets, oldest first. */
 export function readLedgers(net: NetworkName): RawLedger[] {
-  const ledgers: RawLedger[] = [];
-  for (const set of SETS[net]) {
-    const dir = new URL(`${set}/`, LEDGERS);
-    for (const file of readdirSync(dir).filter((name) => name.endsWith(".json.gz"))) {
-      ledgers.push(JSON.parse(gunzipSync(readFileSync(new URL(file, dir))).toString("utf8")) as RawLedger);
-    }
-  }
-  return ledgers.sort((a, b) => Number(a.ledger.ledger_index) - Number(b.ledger.ledger_index));
+  return SETS[net].flatMap(readLedgerSet).sort(byLedgerIndex);
 }
 
 /** The hashes the recordings' manifests name: one transaction per type found and per AMM case. */
@@ -345,16 +382,24 @@ export function fixtureText(value: unknown, rowLists: readonly string[] = []): s
   return `${layout(sorted(value), 0, "", rowLists)}\n`;
 }
 
+/**
+ * The same layout with the keys as the value was built: the token files, whose key orders are D6's and are pinned by test/unit/token-fixtures.test.ts in the files themselves. The value has
+ * no `undefined` key.
+ */
+export function builtFixtureText(value: unknown, rowLists: readonly string[] = []): string {
+  return `${layout(value, 0, "", rowLists)}\n`;
+}
+
 // ---- Which files are written by hand ---------------------------------------------------------------------------------
 
 /**
  * Paths (below test/fixtures/http/) of files that hold account data and are written by hand, and of the order books that are recorded from the
  * public nodes (`node/book_offers/`, scripts/record-node-fixtures.ts); the generator leaves them all. An account's analytics answers (`stats/` and
- * `analytics/` below its directory) are not: analytics-fixtures.ts writes them (`isAnalyticsGenerated`).
+ * `analytics/` below its directory) are not: analytics-fixtures.ts writes them (`isAnalyticsGenerated`), nor are its NFTs (`nfts@…`, `isNftGenerated`).
  */
 export function isHandWritten(path: string): boolean {
   return (
-    (/^(xrpl|xahau)\/data-api\/accounts\//.test(path) && !isAnalyticsGenerated(path)) ||
+    (/^(xrpl|xahau)\/data-api\/accounts\//.test(path) && !isAnalyticsGenerated(path) && !isNftGenerated(path)) ||
     /^(xrpl|xahau)\/node\/(account_info|account_objects)\//.test(path) ||
     /^(xrpl|xahau)\/node\/server_state\.json$/.test(path) ||
     /^(xrpl|xahau)\/node\/book_offers\//.test(path)
@@ -406,12 +451,82 @@ export function isAnalyticsGenerated(path: string): boolean {
 }
 
 /**
+ * Paths (below test/fixtures/http/) of the NFT pages' files that nft-fixtures.ts writes (E8): an NFT's answers (`data-api/nfts/<ID>.json`, `…/<ID>/history@…`, `…/<ID>/offers@…`),
+ * the NFTs an account holds (`data-api/accounts/<A>/nfts@…`, which `isHandWritten` leaves to the generator as it does an account's analytics answers), the collections (the
+ * list `data-api/nft_collections@…`, a collection `data-api/nft_collections/<issuer>[/<taxon>].json` and its `stats@`, `sales@`, `nfts@` and `holders@` below it), the sales
+ * (`data-api/nft_sales@…`), the NFT volume (`data-api/network/nft_volume@…`) and the nodes' NFT answers (`node/nft_info/`, `node/nft_sell_offers/`, `node/nft_buy_offers/` and
+ * `node/ledger_entry/<ID>.json` of the Xahau URIToken entries it writes, `nftLedgerEntryIds`; the is_burned answer among them is generated too). Reviewed in the generator, they have a size budget of their own
+ * (test/unit/http-fixtures.test.ts, left out of the budget of the recorded files), and test/unit/nft-fixtures.test.ts keeps this in step with the generator. (`isSynthetic` does
+ * not match the NFT volume: its names are `payment`, `exchange` and `amm`.)
+ */
+export function isNftGenerated(path: string): boolean {
+  return (
+    /^(xrpl|xahau)\/data-api\/nfts\//.test(path) ||
+    /^(xrpl|xahau)\/data-api\/accounts\/[^/]+\/nfts@/.test(path) ||
+    /^(xrpl|xahau)\/data-api\/(nft_collections[@/]|nft_sales@)/.test(path) ||
+    /^(xrpl|xahau)\/data-api\/network\/nft_volume@/.test(path) ||
+    /^(xrpl|xahau)\/node\/(nft_info|nft_sell_offers|nft_buy_offers)\//.test(path) ||
+    // `node/ledger_entry/` is the ledger-object pages' too (`isObjectGenerated`): only the URIToken entries the NFT generator writes are its (C5).
+    (/^(xrpl|xahau)\/node\/ledger_entry\//.test(path) && nftLedgerEntryIds().has(/^(xrpl|xahau)\/node\/ledger_entry\/([0-9A-F]{64})\.json$/.exec(path)?.[2] ?? ""))
+  );
+}
+
+/**
+ * Paths (below test/fixtures/http/) of the ledger-object pages' files that object-fixtures.ts writes (E10): an escrow's, a check's and a payment channel's answers and the pages of
+ * their history (`data-api/escrows/`, `checks/`, `payment_channels/`), the lookups (`data-api/ledger_objects/`), the nodes' `ledger_entry` that are not the NFT generator's (C5), and
+ * the transactions, their binary forms and the ledgers' lists of hashes that it writes and `generate()` does not (C3). Reviewed in the generator, they have a size budget of their own
+ * (test/unit/http-fixtures.test.ts, left out of the recorded files' budget: C4), and test/unit/object-fixtures.test.ts keeps this in step with the generator.
+ */
+export function isObjectGenerated(path: string): boolean {
+  if (/^(xrpl|xahau)\/data-api\/(escrows|checks|payment_channels|ledger_objects)\//.test(path)) return true;
+  if (/^(xrpl|xahau)\/node\/ledger_entry\//.test(path)) return !isNftGenerated(path);
+  if (/^(xrpl|xahau)\/data-api\/(transactions\/[0-9A-F]{64}(@binary=true)?|ledgers\/\d+@transactions=true)\.json$/.test(path)) return objectPaths().has(path);
+  return false;
+}
+
+/**
+ * Paths (below test/fixtures/http/) of the token pages' files that token-fixtures.ts writes (E11): D6's list (`data-api/tokens@…`) and a token, its holders and its transfers
+ * (`data-api/tokens/…`). The featured tokens' pools files are below `data-api/amm/`, amm-fixtures.ts's (`isAmmGenerated`). Reviewed in the generator, they have a size budget of their own
+ * (test/unit/http-fixtures.test.ts), and test/unit/token-fixtures.test.ts keeps this in step with the generator.
+ */
+export function isTokenGenerated(path: string): boolean {
+  return /^(xrpl|xahau)\/data-api\/tokens[@/]/.test(path);
+}
+
+/**
  * Paths (below test/fixtures/http/) of the validators and amendments pages' files that validators-fixtures.ts writes (D1's six routes: `network/validators…`,
  * `network/amendments…`). Synthetic and reviewed in the generator, they have a size budget of their own (test/unit/http-fixtures.test.ts), and
  * test/unit/validators-fixtures.test.ts keeps this in step with the generator.
  */
 export function isValidatorsGenerated(path: string): boolean {
   return /^(xrpl|xahau)\/data-api\/network\/(validators|amendments)(\/|@|\.json$)/.test(path);
+}
+
+/**
+ * Paths (below test/fixtures/http/) of the supply page's files that supply-fixtures.ts writes (E12): D7's snapshot (`data-api/network/supply.json`) and Xahau's minted days
+ * (`data-api/network/supply/minted@…`). Synthetic and reviewed in the generator, they count against the synthetic aggregates' size budget (test/unit/http-fixtures.test.ts), and
+ * test/unit/supply-fixtures.test.ts keeps this in step with the generator.
+ */
+export function isSupplyGenerated(path: string): boolean {
+  return /^(xrpl|xahau)\/data-api\/network\/supply(\.json$|\/)/.test(path);
+}
+
+/** The newest transactions of a network, newest first, as `/v2/transactions?descending=true&limit=8` gives them. */
+function newestTransactions(ledgers: readonly RawLedger[]): Array<{ raw: RawLedger; tx: RawTx }> {
+  const newest: Array<{ raw: RawLedger; tx: RawTx }> = [];
+  for (const raw of [...ledgers].reverse()) {
+    for (const tx of [...inLedgerOrder(raw)].reverse()) if (newest.length < LATEST) newest.push({ raw, tx });
+    if (newest.length >= LATEST) break;
+  }
+  return newest;
+}
+
+/**
+ * The transactions `generate` serves of a network's recorded sets (`transactions/<HASH>.json`, its binary form and the node's `tx`): one per type the recordings looked for, the
+ * newest ones, and those the hand-written account lists show. object-fixtures.ts serves the transactions of the objects sets but these (C3).
+ */
+export function servedHashes(net: NetworkName, ledgers: readonly RawLedger[] = readLedgers(net)): Set<string> {
+  return new Set([...manifestHashes(net), ...newestTransactions(ledgers).map(({ tx }) => tx.hash), ...accountListHashes(net)]);
 }
 
 /** The hashes of the transactions the hand-written account lists name, so that every row can be opened. */
@@ -535,11 +650,7 @@ export function generate(): Map<string, string> {
     }
 
     // The newest transactions, newest first, as `/v2/transactions?descending=true&limit=8` gives them.
-    const newest: Array<{ raw: RawLedger; tx: RawTx }> = [];
-    for (const raw of [...ledgers].reverse()) {
-      for (const tx of [...inLedgerOrder(raw)].reverse()) if (newest.length < LATEST) newest.push({ raw, tx });
-      if (newest.length >= LATEST) break;
-    }
+    const newest = newestTransactions(ledgers);
     const last = newest.at(-1)!;
     const page: Page<"transactions", TxObject> = {
       result: "success",
@@ -573,9 +684,20 @@ export function generate(): Map<string, string> {
       .map(({ value }) => value as LedgerValidations);
     for (const { path, query, value } of validatorsFixtures(net, dataApiLastValidated(head), ledgerValidations)) put(dataApiFile(net, path, query), value, VALIDATORS_ROW_LISTS);
 
+    // The supply page's answers (D7's two routes, supply-fixtures.ts): synthetic, with D7's examples' keys in the reference's order (`builtFixtureText`, which sorts nothing). The snapshot is of
+    // a recorded ledger, the newest on Xahau and an earlier one on XRPL (`SUPPLY_LEDGER`).
+    const snapshotOf = ledgers.find((raw) => raw.ledger_index === SUPPLY_LEDGER[net]);
+    if (snapshotOf === undefined) throw new Error(`${net}: the supply snapshot's ledger ${SUPPLY_LEDGER[net]} is not among the recordings`);
+    const snapshot = dataApiLastValidated(snapshotOf);
+    for (const { path, query, value } of supplyFixtures(net, dataApiLastValidated(head), { ledger_index: Number(snapshot.ledger_index), close_time: snapshot.close_time })) {
+      const file = dataApiFile(net, path, query);
+      if (file === undefined) throw new Error(`no file for ${path}?${query}`);
+      if (files.has(file)) throw new Error(`${file} is generated twice`);
+      files.set(file, builtFixtureText(value, SUPPLY_ROW_LISTS));
+    }
+
     // Single transactions: one per type the recordings looked for, the newest ones, and those the account lists show.
-    const served = new Set([...manifestHashes(net), ...newest.map(({ tx }) => tx.hash), ...accountListHashes(net)]);
-    for (const hash of served) {
+    for (const hash of servedHashes(net, ledgers)) {
       const found = byHash.get(hash);
       if (!found) throw new Error(`${net}: no recorded transaction ${hash}`);
       const served = dataApiTx(found.raw, found.tx);
@@ -585,11 +707,42 @@ export function generate(): Map<string, string> {
     }
   }
 
-  // The markets pages' answers, the pools' amm_info answers and the AMM pages' answers, each in the layout its generator chose (fixtureText, with the rows of the
-  // markets and AMM lists one to a line). None may take the place of another generated file.
-  for (const [path, text] of [...marketFixtures(), ...ammInfoFixtures(), ...ammFixtures()]) {
+  // The markets pages' answers, the pools' amm_info answers, the AMM pages' answers, the NFT pages' answers and the ledger-object pages' answers, each in the layout its generator
+  // chose (fixtureText, with the rows of the markets, AMM, NFT and object lists one to a line). None may take the place of another generated file.
+  const objects = (Object.keys(SETS) as NetworkName[]).flatMap((net) => objectFixtures(net));
+  const amm = ammFixtures();
+  for (const [path, text] of [...marketFixtures(), ...ammInfoFixtures(), ...amm, ...nftFixtures(), ...objects]) {
     if (files.has(path)) throw new Error(`${path} is generated twice`);
     files.set(path, text);
+  }
+
+  // The token pages' answers (D6's four routes, token-fixtures.ts), with D6's key orders. The pools are the AMM generator's, handed over in memory and never read back from the disk.
+  const pools = [...amm].filter(([path]) => /^xrpl\/data-api\/amm\/pools\/r[^/]+\.json$/.test(path)).map(([, text]) => (JSON.parse(text) as { pool: AmmPool }).pool);
+  for (const net of Object.keys(SETS) as NetworkName[]) {
+    const ledgers = readLedgers(net);
+    for (const { path, query, value } of tokenFixtures(net, { ledgers, last: dataApiLastValidated(ledgers.at(-1)!), pools: net === "xrpl" ? pools : [] })) {
+      const file = dataApiFile(net, path, query);
+      if (file === undefined) throw new Error(`no file for ${path}?${query}`);
+      if (files.has(file)) throw new Error(`${file} is generated twice`);
+      files.set(file, builtFixtureText(value, TOKEN_ROW_LISTS));
+    }
+  }
+
+  // The display names' files, last: each network's names are made over all of its other files, the generated ones above and the ones written by hand or recorded,
+  // read from the disk (names-fixtures.ts writes them as D4 orders its keys, an entry to a line).
+  let handWritten: string[] = [];
+  try {
+    handWritten = filesBelow(HTTP).filter(isHandWritten);
+  } catch {
+    // No fixtures directory yet.
+  }
+  for (const net of Object.keys(SETS) as NetworkName[]) {
+    const ofNetwork = new Map([...files].filter(([path]) => path.startsWith(`${net}/`)));
+    for (const path of handWritten) if (path.startsWith(`${net}/`)) ofNetwork.set(path, readFileSync(new URL(path, HTTP), "utf8"));
+    for (const [path, text] of namesFixtures(net, ofNetwork)) {
+      if (files.has(path)) throw new Error(`${path} is generated twice`);
+      files.set(path, text);
+    }
   }
   return files;
 }

@@ -1,0 +1,23 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 93663334,
+    "complete": false
+  },
+  "kind": "issued",
+  "ledger_index": 107721455,
+  "close_time": "2026-10-17T17:01:12Z",
+  "totals": {
+    "tokens": 100,
+    "tokens_with_10_holders": 60,
+    "holders": 1579,
+    "native_volume": "17067234.131442"
+  },
+  "total": 60,
+  "total_below": 40,
+  "count": 1,
+  "marker": "WyJpc3N1ZWQiLDk2LCJyTXhDS2JFRHdxcjc2UXVoZVNVTWRFR2Y0Qjl4SjhtNURlIiwiNTI0QzU1NTM0NDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCJd",
+  "tokens": [
+    {"rank":1,"currency":"524C555344000000000000000000000000000000","code":"RLUSD","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","holders":96,"trust_lines":127,"supply":"21898528.59363","price":"0.40742598","price_change":"-9.34","price_time":"2026-10-17T14:50:12Z","native_volume":"7307.43","trades":503,"domain":"ripple.com","listed":true,"name":"Ripple USD"}
+  ]
+}

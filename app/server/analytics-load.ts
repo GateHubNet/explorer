@@ -14,8 +14,12 @@
 // - **A page that is not the view** (a 404, a 503) aborts `signal`: every deadline is cleared, whatever is pending resolves `late`, and nothing is
 //   logged, marked or handed to `waitUntil`; calls 1 to 6 that have not started do not start. The fetches are not aborted: another request may share
 //   them (spec 2.7), and a shared one is in the `waitUntil` of the request that started it (`createSubrequestCache`).
+// - **The cards that draw accounts** (the counterparties, the balances' issuers, the pairs' issuers: display names spec 1 and 5) each make one names call
+//   of their own, once their call has answered in time, with what is left of the deadline; they are built with its names, which their data carries. A
+//   names call that fails or is late leaves its card drawn with addresses (`loadNames` marks and logs it): it never makes the card late or failed.
 
 import { analyticsWindow, type AnalyticsPeriod, type AnalyticsWindow } from "../domain/analytics-params";
+import type { NameMap } from "../domain/names";
 import { utcDayOf } from "../domain/window";
 import {
   analyticsFrame,
@@ -31,11 +35,12 @@ import {
   type CardState,
 } from "./analytics-view";
 import { anchorOrThrow } from "./anchor";
-import type { AccountData, Page, TxObject } from "./api-types";
+import type { AccountData, AnalyticsBalances, AnalyticsCounterparties, AnalyticsExchanges, Page, TxObject } from "./api-types";
 import type { DataApi } from "./data-api";
 import { byDeadline, outcome, TooLate } from "./deadline";
 import { getExecutionContext, markDegraded } from "./env";
 import { logProblem } from "./logging";
+import { collectAddresses, loadNames, type NamesPart } from "./names-load";
 import type { Network } from "./networks";
 import { UpstreamError } from "./upstream";
 
@@ -161,10 +166,15 @@ export function loadAnalytics(input: AnalyticsInput): AnalyticsData {
         );
         return { state: "late" };
       }
-      logProblem(`the analytics ${part} of an account could not be loaded`, error, request);
-      markDegraded(context, `analytics ${part} could not be loaded`);
-      return { state: "failed" };
+      return failed(part, error);
     }
+  }
+
+  /** A part whose call failed, or whose answer its builder could not make a card of: logged and marked, so that the page is served and not stored. */
+  function failed(part: CardName | "frame", error: unknown): { state: "failed" } {
+    logProblem(`the analytics ${part} of an account could not be loaded`, error, request);
+    markDegraded(context, `analytics ${part} could not be loaded`);
+    return { state: "failed" };
   }
 
   // Call 0, and for All the first month. Calls 1 to 6 start as soon as it is known: `null` when it cannot be (the frame says why), and when the page was
@@ -186,17 +196,50 @@ export function loadAnalytics(input: AnalyticsInput): AnalyticsData {
     () => calls.then((made) => made && Promise.all(Object.values(made))),
   );
 
+  /** Call `name` of the calls 1 to 6, once they were made: the frame is there, so the window is (a page abandoned before the window was known has no frame: it is late). */
+  const callOf = <A>(name: CardName) => calls.then((made) => made![name] as Promise<PromiseSettledResult<A>>);
+
   /** A card: its call, then its builder over the frame. A frame that failed or was late is the card's state too, without a word of its own. */
   function card<A, T extends object>(name: CardName, build: (frame: AnalyticsFrame, answer: A) => T): Promise<CardState<T>> {
     return frame.then((framed) => {
       if (framed.state !== "ok") return { state: framed.state };
-      // The frame is there, so the window is, and the calls were made (a page abandoned before the window was known has no frame: it is late).
-      const call = calls.then((made) => made![name] as Promise<PromiseSettledResult<A>>);
+      const call = callOf<A>(name);
       const built = call.then((settled) => {
         if (settled.status === "rejected") throw settled.reason;
         return build(framed, settled.value);
       });
       return settle(name, built, () => call);
+    });
+  }
+
+  /**
+   * A card that draws accounts (`drawn`: the addresses of its answer it shows as accounts or issuer texts): its call, raced against the deadline as `card`'s; then, once its answer
+   * is in, one names call for those accounts with what is left of the deadline; then its builder over the frame and their names, which the card carries. The names call is made
+   * after the race, not in it, so that one that fails or is late (`loadNames` marks and logs it) leaves the card drawn with addresses, never late; it ends by the deadline.
+   */
+  function namedCard<A, T extends object>(
+    name: CardName,
+    drawn: (answer: A) => readonly unknown[],
+    build: (frame: AnalyticsFrame, answer: A, names: NameMap) => T,
+  ): Promise<CardState<T & { names: NamesPart }>> {
+    return frame.then(async (framed): Promise<CardState<T & { names: NamesPart }>> => {
+      if (framed.state !== "ok") return { state: framed.state };
+      const call = callOf<A>(name);
+      const answered = await settle(
+        name,
+        call.then((settled) => {
+          if (settled.status === "rejected") throw settled.reason;
+          return { answer: settled.value, addresses: collectAddresses(drawn(settled.value)) };
+        }),
+        () => call,
+      );
+      if (answered.state !== "ok") return answered;
+      const { part } = await loadNames(api, answered.addresses, { context, request, features: network.features, deadlineMs: deadlineAt - Date.now() });
+      try {
+        return { state: "ok", ...build(framed, answered.answer, part.map), names: part };
+      } catch (error) {
+        return failed(name, error);
+      }
     });
   }
 
@@ -206,10 +249,16 @@ export function loadAnalytics(input: AnalyticsInput): AnalyticsData {
     value: card("value", (framed, page: Parameters<typeof valueCard>[1]) => valueCard(framed, page, native)),
     sent: card("sent", (framed, page: Parameters<typeof sentCard>[1]) => sentCard(framed, page, network.id)),
     changes: card("changes", (framed, answer: Parameters<typeof changesCard>[1]) => changesCard(framed, answer, native, dex)),
-    counterparties: card("counterparties", counterpartiesCard),
-    balances: card("balances", balancesCard),
-    pairs: card("pairs", (framed, answer: Parameters<typeof pairsCard>[1]) =>
-      pairsCard(framed, answer, { net: network.id, native, markets: network.features.markets, dex }),
+    counterparties: namedCard(
+      "counterparties",
+      (answer: AnalyticsCounterparties) => answer.counterparties.map((row) => row.account),
+      (framed, answer) => counterpartiesCard(framed, answer),
+    ),
+    balances: namedCard("balances", (answer: AnalyticsBalances) => answer.lines.map((line) => line.counterparty), balancesCard),
+    pairs: namedCard(
+      "pairs",
+      (answer: AnalyticsExchanges) => answer.pairs.flatMap((pair) => [pair.base_issuer, pair.counter_issuer]),
+      (framed, answer, names) => pairsCard(framed, answer, { net: network.id, native, markets: network.features.markets, dex }, names),
     ),
   };
 }

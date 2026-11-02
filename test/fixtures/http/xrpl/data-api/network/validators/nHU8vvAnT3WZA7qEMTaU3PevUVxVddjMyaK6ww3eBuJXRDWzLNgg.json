@@ -94,6 +94,12 @@
   "result": "success",
   "server_version": "1745992596280311808",
   "signing_key": "n9KGTX1cwabCUzvmtJaMoo22gn93UX1CAHLXewe6ycnMqWCeYDFy",
+  "toml": {
+    "network": "main",
+    "owner_country": "AU",
+    "server_country": "AU",
+    "unl": "https://vl.ripple.com"
+  },
   "unl": true,
   "unl_lists": [
     "unl.xrplf.org",

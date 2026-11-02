@@ -6,7 +6,7 @@ import type { MetaDescriptor } from "react-router";
 
 import { PRODUCT_NAME } from "../ui/brand";
 import type { MarketsPageData } from "./markets-view";
-import { absolute, DEX_NAMES, sharing, type MetaContext } from "./meta";
+import { absolute, sharing, type MetaContext } from "./meta";
 
 /**
  * The tags of `/{net}/markets` (markets spec 4.5). The title adds the words a view that is not the default has (`view`, which the view builder
@@ -18,7 +18,7 @@ import { absolute, DEX_NAMES, sharing, type MetaContext } from "./meta";
 export function marketsMeta(page: Pick<MarketsPageData, "view" | "periodWords" | "indexable">, ctx: MetaContext): MetaDescriptor[] {
   const { network, origin } = ctx;
   const title = [`${network.name} markets`, ...page.view, PRODUCT_NAME].join(" · ");
-  const description = `Every pair traded on ${DEX_NAMES[network.id]} with at least 10 trades in the ${page.periodWords}: last price, change, range, volume and a 7-day trend.`;
+  const description = `Every pair traded on ${network.dexName} with at least 10 trades in the ${page.periodWords}: last price, change, range, volume and a 7-day trend.`;
 
   if (!page.indexable) return [{ title }, { name: "description", content: description }, { name: "robots", content: "noindex, follow" }];
   return sharing({ title, description, url: absolute(origin, `/${network.id}/markets`) });

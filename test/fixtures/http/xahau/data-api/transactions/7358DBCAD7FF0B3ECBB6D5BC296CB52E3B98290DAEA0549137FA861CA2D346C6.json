@@ -1,0 +1,27 @@
+{
+  "result": "success",
+  "transaction": {
+    "date": "2024-09-30T12:33:22+00:00",
+    "hash": "7358DBCAD7FF0B3ECBB6D5BC296CB52E3B98290DAEA0549137FA861CA2D346C6",
+    "ledger_index": 8852809,
+    "meta": {
+      "AffectedNodes": [{"ModifiedNode":{"FinalFields":{"Flags":0,"Owner":"rL6rwNe6puyoN5X1BUy8pEQb6Un23m2f1m","RootIndex":"4BEF5F52A799541EF8AFEFAD32E961ECC18880692612C2C636C27727D67972FF"},"LedgerEntryType":"DirectoryNode","LedgerIndex":"4BEF5F52A799541EF8AFEFAD32E961ECC18880692612C2C636C27727D67972FF"}},{"ModifiedNode":{"FinalFields":{"Flags":0,"Owner":"rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR","RootIndex":"590F4B175D6E9627A2E3468597BABFB729B1A4E7599491E2BAB2A3D182F3F5F7"},"LedgerEntryType":"DirectoryNode","LedgerIndex":"590F4B175D6E9627A2E3468597BABFB729B1A4E7599491E2BAB2A3D182F3F5F7"}},{"CreatedNode":{"LedgerEntryType":"PayChannel","LedgerIndex":"760841CB48554EC05365E201E3C1E50001701835BA3E71384DEFC7055BE79F04","NewFields":{"Account":"rL6rwNe6puyoN5X1BUy8pEQb6Un23m2f1m","Amount":"300000","Balance":"0","Destination":"rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR","PublicKey":"ED3E65C66F452D4C5029F4B338213FC6691C43ED04FCBC5AB88850471C9979F425","SettleDelay":1209600,"TransferRate":1000000000}}},{"ModifiedNode":{"LedgerEntryType":"AccountRoot","LedgerIndex":"D6511F55F7C7ADDFCDCE57EF5ECFC2357DB5B0860ADA83030E26EBAB7DB03F1B","PreviousTxnID":"E6751D57C453AFD76B24FCCE40D6E58F44BF877DF897CB3CE18DAAF2782FDFA3","PreviousTxnLgrSeq":8466240}},{"ModifiedNode":{"FinalFields":{"Account":"rL6rwNe6puyoN5X1BUy8pEQb6Un23m2f1m","AccountIndex":"16426","Balance":"1600976","Flags":0,"ImportSequence":87535169,"OwnerCount":2,"Sequence":777987433},"LedgerEntryType":"AccountRoot","LedgerIndex":"DB83F171C35431DB6BF25B63FFE875D92ABE44E8BCFA0BE3593C7FC8392C7BE3","PreviousFields":{"Balance":"1900988","OwnerCount":1,"Sequence":777987432}}}],
+      "TransactionIndex": 1,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "tx": {
+      "Account": "rL6rwNe6puyoN5X1BUy8pEQb6Un23m2f1m",
+      "Amount": "300000",
+      "Destination": "rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR",
+      "Fee": "12",
+      "LastLedgerSequence": 8852817,
+      "NetworkID": 21337,
+      "PublicKey": "ED3E65C66F452D4C5029F4B338213FC6691C43ED04FCBC5AB88850471C9979F425",
+      "Sequence": 777987432,
+      "SettleDelay": 1209600,
+      "SigningPubKey": "ED3E65C66F452D4C5029F4B338213FC6691C43ED04FCBC5AB88850471C9979F425",
+      "TransactionType": "PaymentChannelCreate",
+      "TxnSignature": "266854987517CFBC41CCB71BA85DBD202C4A25F08C0FE1862723AF8B8D92975CAF52D1D32F6C6749CD46D5FAB56F146853DAB7D4CD0FDBC6A7518BE918D66B0E"
+    }
+  }
+}
