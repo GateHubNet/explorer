@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { RouterProvider } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
@@ -175,5 +175,38 @@ describe("the Network menu", () => {
     expect(summary.getAttribute("aria-current")).toBe("true");
     expect(details.querySelectorAll(".menu__item[aria-current]")).toHaveLength(0);
     expect(details.querySelector(".menu__item.is-soon")!.textContent).toBe("Supply soon");
+  });
+});
+
+describe("the folded navigation of a phone", () => {
+  it("is closed by a navigation, a change of the pathname or the search, as the menu's panel is, and not by the same location or a fragment", async () => {
+    // Both pages are the layout's `*` route, so the header is the same element across the navigations: its state is what is tested, not a remount.
+    const { router } = renderUnderNetwork(<Header net={LAYOUT_XRPL} />, ALL_ON, { path: "/xrpl/network", handle: handleOf("/xrpl/network") });
+    const nav = await screen.findByRole("navigation", { name: "Main" });
+    const button = screen.getByRole("button", { name: "Menu" });
+    const folded = () => [nav.classList.contains("is-open"), button.getAttribute("aria-expanded")];
+    const unfold = () => fireEvent.click(button);
+
+    // It starts closed, as the server drew it.
+    expect(folded()).toEqual([false, "false"]);
+    unfold();
+    expect(folded()).toEqual([true, "true"]);
+
+    // The same location (a revalidation, a re-render) leaves it open.
+    await act(() => router.revalidate());
+    expect(folded()).toEqual([true, "true"]);
+
+    await act(() => router.navigate("/xrpl/supply"));
+    expect(folded()).toEqual([false, "false"]);
+
+    unfold();
+    expect(folded()).toEqual([true, "true"]);
+    await act(() => router.navigate("/xrpl/supply?x=1"));
+    expect(folded()).toEqual([false, "false"]);
+
+    // The fragment alone is not a new page.
+    unfold();
+    await act(() => router.navigate("/xrpl/supply?x=1#top"));
+    expect(folded()).toEqual([true, "true"]);
   });
 });

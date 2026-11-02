@@ -367,5 +367,24 @@ test.describe("the layout", () => {
     const next = (await nav(page).locator(":scope > ul > li").nth(4).boundingBox())!;
     expect(next.y).toBeGreaterThanOrEqual(panelBox.y + panelBox.height);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+
+    // A navigation closes the fold too (the final review's finding 5), so that the new page is not under an open nav: Amendments is a link where VALIDATORS is on.
+    if (!VALIDATORS_OFF) {
+      await markDocument(page);
+      await item(page, "Amendments").click();
+      await page.waitForURL("**/xrpl/amendments");
+      const heading = page.getByRole("heading", { level: 1 });
+      await expect(heading).toHaveText("Amendments");
+      // By class: a folded nav is hidden, and a role query does not find it.
+      await expect(page.locator("nav.hdr__nav")).not.toHaveClass(/is-open/);
+      await expect(page.getByRole("button", { name: "Menu" })).toHaveAttribute("aria-expanded", "false");
+      expect(await sameDocument(page)).toBe(true);
+      // The title is where it is on a page loaded fresh, with the fold closed (about 178 px at 375 wide).
+      const navigated = (await heading.boundingBox())!;
+      await page.goto("/xrpl/amendments");
+      await hydrated(page);
+      const fresh = (await heading.boundingBox())!;
+      expect(navigated.y).toBeCloseTo(fresh.y, 0);
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Link, useLocation, useMatches } from "react-router";
 
 import { PRODUCT_NAME } from "../brand";
@@ -99,16 +99,18 @@ function NavMenu({ item, net, section, pathname }: { item: Extract<NavItem, { it
 /**
  * The header of every page of a network: logo, network switch, navigation, search box, theme toggle. In the sandbox a "Testnet" badge follows the
  * logo, from the root's environment (`useEnvironment()`) so that the pages with no `/:net` data have it too; it has no tooltip, which is out of reach
- * by keyboard and touch. On a phone the navigation folds into a menu button and the logo's name goes, the mark, the badge and the switch stay.
- * `search={false}` leaves the box out, for the home page, whose hero has its own.
+ * by keyboard and touch. On a phone the navigation folds into a menu button and the logo's name goes, the mark, the badge and the switch stay; the fold closes when the location's pathname
+ * or search changes, as a menu's panel does (`useDisclosureMenu`), so that it does not stay open over the new page. `search={false}` leaves the box out, for the home page, whose hero has its own.
  */
 export function Header({ net, search = true }: { net: NetworkBrief; search?: boolean }) {
   const menuId = useId();
   const [menuOpen, setMenuOpen] = useState(false);
   const features = useFeatures();
-  const { pathname } = useLocation();
+  const { pathname, search: query } = useLocation();
   const section = navSectionOf(useMatches());
   const testnet = networkKindOf(useEnvironment()) === "testnet";
+  // The first run is the page as the server drew it, closed: setting false again changes nothing.
+  useEffect(() => setMenuOpen(false), [pathname, query]);
 
   return (
     <header className="hdr">
