@@ -123,7 +123,40 @@ describe("checkMptIssuance", () => {
     ["a creation hash that is no hash", "created_tx_hash", (body) => (body.issuance.created_tx_hash = "ABC")],
     ["a missing last ledger", "last_ledger", (body) => delete body.issuance.last_ledger],
     ["a missing destroyed", "destroyed", (body) => delete body.issuance.destroyed],
+    // The ID is the one its sequence and issuer make (rippled's `makeMptID`), whatever ID was asked for: an ID that is well formed and another issuance's is refused too.
+    ["an ID that is not the one its sequence and issuer make", "mpt_issuance_id", (body) => (body.issuance.mpt_issuance_id = MPT_SAMPLE_SECOND_ID)],
+    ["an issuer that is not the one the ID holds", "mpt_issuance_id", (body) => (body.issuance.issuer = MPT_SAMPLE_HOLDER)],
+    ["a sequence that is not the one the ID holds", "mpt_issuance_id", (body) => (body.issuance.sequence = 299)],
   ]);
+
+  // The client asks for one issuance and takes the answer only if it is that one (a data API answering another's would draw the wrong page, and the cache would keep it).
+  describe("when the ID asked for is given", () => {
+    const asking = (id: string) => (body: unknown) => checkMptIssuance(body, undefined, id);
+
+    it("takes the issuance asked for, and returns the answer as it is", () => {
+      const body = good();
+      expect(asking(MPT_SAMPLE_ID)(body)).toBe(body);
+    });
+
+    it("refuses another issuance, however well formed, naming the field", () => {
+      const other = mptSample({ issuance: mptIssuanceSample({ mpt_issuance_id: MPT_SAMPLE_SECOND_ID, sequence: 299 }) });
+      expect(checkMptIssuance(other)).toBe(other);
+      let error: unknown;
+      try {
+        asking(MPT_SAMPLE_ID)(other);
+      } catch (caught) {
+        error = caught;
+      }
+      expect(error).toBeInstanceOf(UpstreamError);
+      expect((error as UpstreamError).kind).toBe("server");
+      expect((error as UpstreamError).status).toBe(200);
+      expect((error as UpstreamError).message).toBe("data API MPT issuance answered something unexpected: issuance.mpt_issuance_id is not the issuance asked for");
+    });
+
+    it("refuses the answer for another ID by the ID's text, so that a lower-case ID asked for is no match (the pages upper-case it before any call)", () => {
+      expect(() => asking(MPT_SAMPLE_ID.toLowerCase())(good())).toThrow("is not the issuance asked for");
+    });
+  });
 
   refusesEach(checkMptIssuance, ISSUANCE, good, "outstanding_amount", (body, value) => (body.issuance.outstanding_amount = value), NOT_AMOUNTS);
   refusesEach(checkMptIssuance, ISSUANCE, good, "asset_scale", (body, value) => (body.issuance.asset_scale = value), [1.5, -1, 256, "2", null]);
@@ -257,6 +290,8 @@ describe("checkMptLookup", () => {
     ["a summary with a lower-case ID", "issuances[0]", (body) => (body.issuances[0].mpt_issuance_id = MPT_SAMPLE_ID.toLowerCase())],
     ["a summary with no issuer", "issuances[0].issuer", (body) => delete body.issuances[0].issuer],
     ["a summary with an issuer that is no address", "issuances[0].issuer", (body) => (body.issuances[0].issuer = "rBad")],
+    // A summary has no sequence to make the ID from, but the ID holds its issuer (bytes 4 to 23), and the page links both.
+    ["a summary whose issuer is not the one its ID holds", "issuances[0].issuer", (body) => (body.issuances[0].issuer = MPT_SAMPLE_HOLDER)],
     ["a summary with an amount of 1.5", "issuances[0].outstanding_amount", (body) => (body.issuances[0].outstanding_amount = "1.5")],
     ["a summary with an asset scale of 256", "issuances[0].asset_scale", (body) => (body.issuances[0].asset_scale = 256)],
     ["a summary with a transfer fee of 50001", "issuances[0].transfer_fee", (body) => (body.issuances[0].transfer_fee = 50_001)],
@@ -356,5 +391,29 @@ describe("checkMptTokens", () => {
     const body = clone(good()) as Body;
     body.coverage = { complete: "no" };
     refuses(checkMptTokens, body, "coverage.complete", TOKENS);
+  });
+});
+
+// A key the API has no value for is left out and `null` is never served (the head of mpt-shape.ts): `null` for any of them is refused, not read as "no value". Each of these is its own branch of the
+// checks (`metadata`, `uris` and `totals` are looked at as objects and lists, `marker` by `listOf`, the others by `optionalFields`), so each is pinned: a later change of `!== undefined` to `!= null` would
+// let them all through.
+describe("a key the API leaves out when it has no value", () => {
+  type NullCase = [key: string, check: (body: unknown) => unknown, what: RegExp, good: () => unknown, nullIt: (body: Body) => void, field: string];
+  const cases: NullCase[] = [
+    ["ticker", checkMptIssuance, ISSUANCE, () => mptSample(), (body) => (body.issuance.ticker = null), "ticker"],
+    ["maximum_amount", checkMptIssuance, ISSUANCE, () => mptSample(), (body) => (body.issuance.maximum_amount = null), "maximum_amount"],
+    ["metadata", checkMptIssuance, ISSUANCE, () => mptSample(), (body) => (body.issuance.metadata = null), "issuance.metadata"],
+    ["uris", checkMptIssuance, ISSUANCE, () => mptSample(), (body) => (body.issuance.metadata.uris = null), "uris"],
+    ["source", checkMptTransfersPage, TRANSFERS, () => mptTransfersSample(), (body) => (body.transfers[0].source = null), "transfers[0].source"],
+    ["fee", checkMptTransfersPage, TRANSFERS, () => mptTransfersSample(), (body) => (body.transfers[0].fee = null), "transfers[0].fee"],
+    ["marker", checkMptHoldersPage, HOLDERS, () => mptHoldersSample(), (body) => (body.marker = null), "marker"],
+    ["totals", checkMptTokens, TOKENS, () => mptTokensSample(), (body) => (body.totals = null), "totals"],
+    ["total", checkMptTokens, TOKENS, () => mptTokensSample(), (body) => (body.total = null), "total"],
+  ];
+
+  it.each(cases)("refuses %s that is null", (_key, check, what, good, nullIt, field) => {
+    const body = clone(good());
+    nullIt(body);
+    refuses(check, body, field, what);
   });
 });

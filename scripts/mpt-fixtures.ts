@@ -49,7 +49,7 @@ import {
 } from "./http-fixtures";
 import { mulberry32, seedOf } from "./synthetic";
 
-export { MPT_FIXTURE_IDS, MPT_RECORDED } from "../test/support/mpt-case-rules";
+export { MPT_FEE_PAYMENT_ISSUANCE, MPT_FIXTURE_IDS, MPT_LOCKED_HOLDING, MPT_MINT_ISSUANCE, MPT_RECORDED } from "../test/support/mpt-case-rules";
 
 /** The recorded set: D9's 27 ledgers of XRPL mainnet, not among `SETS` of http-fixtures.ts (C2). */
 export const MPT_SET = "xrpl-mpt";
@@ -65,9 +65,6 @@ export const MPT_COVERAGE_FROM = 99_226_369;
 
 /** The page sizes of the pages: the card's first page, the holders page's and the transfers page's. */
 export const MPT_PAGES = { holders: [10, 50], transfers: [8, 20] } as const;
-
-/** The issuance of the recorded lock of one holder (`issuance_set_lock_holder`), which the active account holds, locked: its second `MPToken` entry, by hand in its `account_objects` (the first is `htf`'s). */
-export const MPT_LOCKED_HOLDING = "0663EACAC1E295FCE4BA9E9ECD5EC0E84C5089AEE6B00E65";
 
 // ---- Small things -------------------------------------------------------------------------------------------------------------------
 

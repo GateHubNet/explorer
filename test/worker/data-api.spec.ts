@@ -4949,6 +4949,19 @@ describe("D9's MPT calls", () => {
       expect(await storedBy(() => c.call(api).catch(() => undefined))).toEqual([]);
     });
 
+    it("mpt: an issuance of another ID than the one asked for is a server error naming mpt_issuance_id, and is not stored (the answer is well formed: only the ID is another's)", async () => {
+      const { api, storedBy } = storing("d9-mpt-other-issuance");
+      const other = () => json(mptSample({ issuance: mptIssuanceSample({ mpt_issuance_id: SECOND, sequence: 299 }) }));
+      fetchSpy.mockResolvedValueOnce(other());
+
+      const error = await failureOf(api.mpt(ID));
+      expect([error.kind, error.status]).toEqual(["server", 200]);
+      expect(error.message).toBe(`data API GET /v2/mpt/${ID} answered something unexpected: issuance.mpt_issuance_id is not the issuance asked for`);
+
+      fetchSpy.mockResolvedValueOnce(other());
+      expect(await storedBy(() => api.mpt(ID).catch(() => undefined))).toEqual([]);
+    });
+
     it("reads D9's 400 for an ID it cannot read as bad_request", async () => {
       const { api } = storing("d9-bad-request");
       fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "invalid mpt issuance id" }, { status: 400 }));
@@ -5054,6 +5067,22 @@ describe("D9's MPT calls", () => {
       ]);
     });
 
+    it("upper-cases each ID before it sorts and deduplicates, so that a lower-case ID is the same issuance, asked once, and the answer is checked against the upper-case IDs", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      // One ID in lower case, one in mixed case, one in upper case twice over (the same ID in two cases is one).
+      const mixed = `${SECOND.slice(0, 20).toLowerCase()}${SECOND.slice(20)}`;
+      const lookup = await api.mptLookup([mixed, ID.toLowerCase(), ID, SECOND.toLowerCase()]);
+      await api.mptLookup([ID, SECOND]);
+
+      expect(lookup).toEqual(mptLookupSample());
+      expect(cache.calls.map((c) => [c.key.slice(`GET ${BASE}/v2/mpt`.length), c.cls])).toEqual([
+        [`?ids=${ID}%2C${SECOND}`, "slow"],
+        [`?ids=${ID}%2C${SECOND}`, "slow"],
+      ]);
+    });
+
     it("takes 100 distinct IDs, and counts a duplicate once", async () => {
       const { api } = recording();
       const hundred = manyIds(100);
@@ -5072,6 +5101,22 @@ describe("D9's MPT calls", () => {
           (reason: unknown) => reason,
         );
         expect(error, `${ids.length} IDs`).toBeInstanceOf(RangeError);
+      }
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(cache.calls).toEqual([]);
+    });
+
+    it("throws a RangeError for an ID that is not 48 hex digits, whatever else is asked, before any request: one stray ID would turn the whole lookup into a failure", async () => {
+      const { cache, api } = recording();
+      const notIds = [ID.slice(1), `${ID}0`, `0x${ID.slice(2)}`, "", "G".repeat(48), `${ID}\n`, ` ${ID.slice(1)}`, `${ID.slice(0, 47)}٣`, "0".repeat(64), "htf"];
+
+      for (const bad of notIds) {
+        const error = await api.mptLookup([ID, bad]).then(
+          () => undefined,
+          (reason: unknown) => reason,
+        );
+        expect(error, JSON.stringify(bad)).toBeInstanceOf(RangeError);
+        expect((error as RangeError).message, JSON.stringify(bad)).toContain("48 hex digits");
       }
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(cache.calls).toEqual([]);

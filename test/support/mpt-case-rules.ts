@@ -16,7 +16,8 @@
 //   nodeOnly        made up: no answer of the index, only the node's `ledger_entry` (and the active account's `account_objects`): the index lacks it, the page falls back to the node
 //   nowhere         made up: no answer anywhere, not even the node's
 //
-// and the nine recorded transactions (D9's manifest `cases`; the file names its ledger and hash).
+// and the nine recorded transactions (D9's manifest `cases`; the file names its ledger and hash), and the issuances of three of them that the active account's page reaches without being among the
+// ten: the one a holder's lock was set on, the one the payment with a transfer fee was in, and the one the mint was in (MPT_LOCKED_HOLDING, MPT_FEE_PAYMENT_ISSUANCE, MPT_MINT_ISSUANCE).
 
 export const MPT_FIXTURE_IDS = {
   htf: "03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80",
@@ -42,3 +43,12 @@ export const MPT_RECORDED = {
   escrow_create: { ledger: 107211745, hash: "4DFC30E6EE88AF6CE5718368A5F599158809E05584AF86C2E8E8101229A50523" },
   clawback_issued: { ledger: 85885429, hash: "C2071343FB6CB00E495F50BD319B773D7461435E5B19F8EF0E1E2AF2853824D8" },
 } as const satisfies Record<string, { ledger: number; hash: string }>;
+
+/** The issuance of the recorded lock of one holder (`issuance_set_lock_holder`), which the active account holds, locked: its second `MPToken` entry, by hand in its `account_objects` (the first is `htf`'s). */
+export const MPT_LOCKED_HOLDING = "0663EACAC1E295FCE4BA9E9ECD5EC0E84C5089AEE6B00E65";
+
+/** The issuance of the recorded payment with a transfer fee (`payment_transfer_fee`): the one MPT row of the active account's Payments tab, on its third page. */
+export const MPT_FEE_PAYMENT_ISSUANCE = "0598F6E09E30A809E63A1F02DE789586D2F4FDA9EF5200E3";
+
+/** The issuance of the recorded mint (`payment_mint`), which the recorded opt-in (`authorize_holder`) and clawback (`clawback_full`) are of too. */
+export const MPT_MINT_ISSUANCE = "064E273A6D15D1F5614B4D4E3183F835BCD62E7F6FD9FFD8";

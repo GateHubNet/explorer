@@ -24,7 +24,13 @@ import {
   mptokenKey,
   mptPaths,
 } from "../../scripts/mpt-fixtures";
-import { MPT_FIXTURE_IDS as RULES_IDS, MPT_RECORDED as RULES_RECORDED } from "../support/mpt-case-rules";
+import {
+  MPT_FEE_PAYMENT_ISSUANCE,
+  MPT_FIXTURE_IDS as RULES_IDS,
+  MPT_LOCKED_HOLDING as RULES_LOCKED_HOLDING,
+  MPT_MINT_ISSUANCE,
+  MPT_RECORDED as RULES_RECORDED,
+} from "../support/mpt-case-rules";
 import { dataApiFile, nodeFile } from "../support/upstream-core";
 
 // The MPT fixtures (scripts/mpt-fixtures.ts; test/fixtures/PROVENANCE.md, "MPT answers"), as `generate()` writes them and as they are on disk, against D9's keys and rules (data-api `feat/explorer-data-2` at
@@ -111,6 +117,23 @@ describe("the recordings", () => {
   it("are the same literals the rules file has (it is pure, so that a Worker spec can import it), and the scripts re-export", () => {
     expect(RULES_IDS).toBe(ID);
     expect(RULES_RECORDED).toBe(MPT_RECORDED);
+    expect(RULES_LOCKED_HOLDING).toBe(MPT_LOCKED_HOLDING);
+  });
+
+  it("name the issuance of three recorded transactions as each holds it: the lock of a holder, the payment with a transfer fee and the mint (what the active account's page and the transaction page reach)", () => {
+    const txOf = (name: keyof typeof MPT_RECORDED) => ledgers.flatMap((raw) => raw.ledger.transactions).find((tx) => tx.hash === MPT_RECORDED[name].hash) as Json;
+    expect(txOf("issuance_set_lock_holder").MPTokenIssuanceID).toBe(MPT_LOCKED_HOLDING);
+    expect(txOf("payment_transfer_fee").Amount.mpt_issuance_id).toBe(MPT_FEE_PAYMENT_ISSUANCE);
+    expect(txOf("payment_mint").Amount.mpt_issuance_id).toBe(MPT_MINT_ISSUANCE);
+    // The opt-in and the clawback of the same recordings are of the mint's issuance (D9's FINDINGS).
+    expect(txOf("authorize_holder").MPTokenIssuanceID).toBe(MPT_MINT_ISSUANCE);
+    expect(txOf("clawback_full").Amount.mpt_issuance_id).toBe(MPT_MINT_ISSUANCE);
+    // Each is an ID as the pages write one, and none is one of the ten made-up or recorded-create issuances.
+    for (const id of [MPT_LOCKED_HOLDING, MPT_FEE_PAYMENT_ISSUANCE, MPT_MINT_ISSUANCE]) {
+      expect(id).toMatch(/^[0-9A-F]{48}$/);
+      expect(Object.values(ID)).not.toContain(id);
+    }
+    expect(new Set([MPT_LOCKED_HOLDING, MPT_FEE_PAYMENT_ISSUANCE, MPT_MINT_ISSUANCE]).size).toBe(3);
   });
 
   it("make the keys of an issuance and of a holder the way rippled does (SHA-512Half of 0x007E and the ID; of 0x0074, that key and the holder), as a recorded node has them", () => {

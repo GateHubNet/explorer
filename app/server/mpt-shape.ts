@@ -16,8 +16,11 @@
 //   - a transfer's `kind` is one of the seven D9 knows;
 //   - the lookup has one entry for each ID asked, in the order asked, each the ID asked: an issuance (a summary) or, when the index has no state for it, the ID alone;
 //   - the list of the token tab is `kind: "mpt"`. Before the first generation exists it has no `totals`, no `total` and no ledger: all of those are optional (D9 answers `count: 0` and no tokens);
+//   - an issuance is the one asked for, and its ID is the one its `sequence` and `issuer` make (rippled's `makeMptID`, `mptIdOf`); a summary has no sequence, so its `issuer` is the one its ID holds
+//     (`mptIssuerOf`). A data API that answered another issuance would draw the wrong page, and the cache would keep it;
 //   - a holders page and a transfers page do not name the issuance they are of: only their URL does, so no check could tell another's from the one asked for.
 
+import { mptIdOf, mptIssuerOf } from "../domain/mpt-id";
 import { fields, isAccount, isBoolean, isIsoTime, isName, isText, isWhole, listOf, optionalFields, rowsOf } from "./aggregate-shape";
 import type { MptHoldersPage, MptIssuanceAnswer, MptLookup, MptTokensPage, MptTransfersPage } from "./api-types";
 import { checkCoverage } from "./coverage";
@@ -102,14 +105,20 @@ function checkSummaryFields(what: string, where: string, row: Row): void {
 /** The name of the request in a message: the path the client asked for, else the route. */
 const whatOf = (route: string, path: string | undefined): string => (path === undefined ? `data API ${route}` : `data API GET ${path}`);
 
-/** `GET /v2/mpt/{issuanceId}`: one issuance, with its metadata as D9 decoded it. */
-export function checkMptIssuance(body: unknown, path?: string): MptIssuanceAnswer {
+/**
+ * `GET /v2/mpt/{issuanceId}`: one issuance, with its metadata as D9 decoded it. `asked` is the ID the client asked for (upper case, as a page writes it): the answer must be that issuance's. A test of the
+ * shape alone leaves it out; the ID is then still the one its `sequence` and `issuer` make.
+ */
+export function checkMptIssuance(body: unknown, path?: string, asked?: string): MptIssuanceAnswer {
   const what = whatOf("MPT issuance", path);
   const head = answerOf(what, body);
   const issuance = objectAt(what, "issuance", head.issuance);
   fields(what, "issuance", issuance, ["mpt_issuance_id"], isMptId, MPT_ID);
   fields(what, "issuance", issuance, ["issuer"], isAccount, ACCOUNT);
   fields(what, "issuance", issuance, ["sequence"], isSequence, "a whole number up to 4294967295");
+  // After the three it is made of are known to be what they should be (`mptIdOf` throws for a sequence or an issuer that is not).
+  if (issuance.mpt_issuance_id !== mptIdOf(issuance.sequence as number, issuance.issuer as string)) throw malformed(what, "issuance.mpt_issuance_id is not the ID of its sequence and issuer");
+  if (asked !== undefined && issuance.mpt_issuance_id !== asked) throw malformed(what, "issuance.mpt_issuance_id is not the issuance asked for");
   optionalFields(what, "issuance", issuance, ["ticker", "name"], isText, TEXT);
   fields(what, "issuance", issuance, ["asset_scale"], isScale, SCALE);
   optionalFields(what, "issuance", issuance, ["maximum_amount"], isAmount, AMOUNT);
@@ -175,6 +184,8 @@ export function checkMptLookup(body: unknown, ids: readonly string[], path?: str
     // The ID alone is an issuance the index has no state for; anything else is a summary, with all of its keys.
     if (Object.keys(entry).length === 1) continue;
     checkSummaryFields(what, where, entry);
+    // A summary has no sequence: the ID, which is the one asked and a well formed one by now, holds the issuer.
+    if (entry.issuer !== mptIssuerOf(entry.mpt_issuance_id as string)) throw malformed(what, `${where}.issuer is not the issuer of the issuance asked for`);
     fields(what, where, entry, ["destroyed"], isBoolean, BOOLEAN);
   }
   return body as unknown as MptLookup;

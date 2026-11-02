@@ -618,7 +618,8 @@ export interface DataApi {
   /**
    * The issued tokens, the most held first: `limit` of them after `marker`; with `minHolders` (D6 reads 0 to 1,000,000,000) only those with at least that many holders, with `q` (1 to 64 characters: an
    * issuer address, or text in the code, name or domain, a currency in hex, an issuer prefix) only those it matches. Sent as `kind`, `limit`, `marker`, `min_holders`, `q`. Class `minute`, whatever the
-   * page: D6 rebuilds the ranking each minute, so a marker is a cursor into this minute's. `kind` is `issued` for now.
+   * page: D6 rebuilds the ranking each minute, so a marker is a cursor into this minute's. This overload takes `kind: "issued"` (answered as `TokensResponse`, checked as issued tokens);
+   * `kind: "mpt"` is the next one's (E14's, answered as `MptTokensPage`), and the kind of the query decides which.
    */
   tokens(q: IssuedTokensQuery, opts?: FreshOptions): Promise<TokensResponse>;
   /**
@@ -656,7 +657,7 @@ export interface DataApi {
   // outage (kind `server`, never stored), and a route's own `issuance not found` (every ID on a network without MPT too) stays `not_found`. The MPT pages ask only while `MPT` is on. Every answer is checked
   // inside the load (mpt-shape.ts, and its `coverage` with it), and one that is not what the reference promises is kind `server` too. An issuance ID is 48 upper-case hex digits (the pages have checked and
   // upper-cased it before any call); no call asks for the failure hold, as no MPT page polls.
-  /** One issuance, with its metadata as D9 decoded it. Class `minute`. `issuance not found` is `not_found`. */
+  /** One issuance, with its metadata as D9 decoded it. The answer must be the issuance asked for, by the text of `id` (a lower-case ID is refused as another's). Class `minute`. `issuance not found` is `not_found`. */
   mpt(id: string): Promise<MptIssuanceAnswer>;
   /**
    * The holders of an issuance, the largest balance first (`amount` and `escrowed_amount` together). Class `minute`, `MARKER_PAGE_CLASS` behind a marker (a list that is not newest first is not stable, but is
@@ -667,8 +668,9 @@ export interface DataApi {
   mptTransfers(id: string, q: { descending: true; limit: number; marker?: string }): Promise<MptTransfersPage>;
   /**
    * A summary of each of the issuances (D9: 1 to 100), `?ids=` the IDs sorted and without duplicates, so that the key of a page's lookup is the same whatever order its amounts came in; an ID the index
-   * has no state for is answered as the ID alone (`checkMptLookup`: one entry for each ID, in order). Class `slow`. A `RangeError`, with no request, for none and for more than 100 distinct IDs: the
-   * caller keeps to the first 100 (the page's rule) and to a page that has one.
+   * has no state for is answered as the ID alone (`checkMptLookup`: one entry for each ID, in order). Each ID is upper-cased first (so `ids` and the answer are the upper-case IDs, whatever case the
+   * caller had), and the pages upper-case theirs before any call anyway. Class `slow`. A `RangeError`, with no request, for an ID that is not 48 hex digits (one stray ID would fail the whole lookup), for
+   * none and for more than 100 distinct IDs: the caller keeps to the first 100 (the page's rule) and to a page that has one.
    */
   mptLookup(ids: readonly string[]): Promise<MptLookup>;
 }
@@ -680,6 +682,8 @@ type MptTokensQuery = { kind: "mpt"; limit: number; q?: string; marker?: string 
 
 /** How many issuances one lookup may ask for: D9's limit. */
 const MPT_LOOKUP_MAX = 100;
+/** An issuance ID, in either case: D9 upper-cases the IDs of a lookup and answers each as it has it, so the client does that first (and `checkMptLookup` compares the upper-case text). */
+const MPT_LOOKUP_ID = /^[0-9A-Fa-f]{48}$/;
 
 /** Query parameters; `undefined` and `false` are left out (every flag of the API is off unless it says `true`). */
 type Query = Record<string, string | number | boolean | undefined>;
@@ -1193,12 +1197,14 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
       get<MintedPage>(PATHS.networkMinted, {}, { interval: q.interval, start: q.start, end: q.end, limit: q.limit }, "slow", { ...fresh(opts), finish: checkMintedPage }),
     // E14's MPT calls. An issuance, its holders and its transfers are a minute (D9's `mpt_state` job runs every tick of the syncer, and what a page says of an issuance may be a minute late); behind a marker a list is
     // `MARKER_PAGE_CLASS`, whichever way it runs (`nftListClass`, not `listClass`, which gives `live` for a first page). The lookup is `slow`: what an issuance is called and how it is scaled rarely changes.
-    mpt: (id) => get<MptIssuanceAnswer>(PATHS.mpt, { issuanceId: id }, {}, "minute", { finish: checkMptIssuance }),
+    mpt: (id) => get<MptIssuanceAnswer>(PATHS.mpt, { issuanceId: id }, {}, "minute", { finish: (body, path) => checkMptIssuance(body, path, id) }),
     mptHolders: (id, q) =>
       get<MptHoldersPage>(PATHS.mptHolders, { issuanceId: id }, { limit: q.limit, marker: q.marker || undefined }, nftListClass(q, "minute"), { finish: checkMptHoldersPage }),
     mptTransfers: (id, q) => get<MptTransfersPage>(PATHS.mptTransfers, { issuanceId: id }, listQuery(q), nftListClass(q, "minute"), { finish: checkMptTransfersPage }),
     mptLookup: async (ids) => {
-      const asked = [...new Set(ids)].sort();
+      const bad = ids.find((id) => !MPT_LOOKUP_ID.test(id));
+      if (bad !== undefined) throw new RangeError(`a lookup of MPT issuances takes IDs of 48 hex digits, not ${JSON.stringify(bad)}`);
+      const asked = [...new Set(ids.map((id) => id.toUpperCase()))].sort();
       if (asked.length < 1 || asked.length > MPT_LOOKUP_MAX) throw new RangeError(`a lookup of MPT issuances takes 1 to ${MPT_LOOKUP_MAX} distinct IDs, not ${asked.length}`);
       return get<MptLookup>(PATHS.mptLookup, {}, { ids: asked.join(",") }, "slow", { finish: (body, path) => checkMptLookup(body, asked, path) });
     },
