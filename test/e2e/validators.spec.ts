@@ -4,7 +4,7 @@ import type { Page } from "@playwright/test";
 
 import { LIVE } from "./fixtures";
 import { expect, hydrated, test } from "./support";
-import { headOf, listedValidator, needs, rowsOf, SKIP_OFF, VALIDATORS_OFF, validatorsTable, withHistory } from "./validators-pages";
+import { headOf, listedValidator, needs, rowsOf, SKIP_MAP_OFF, SKIP_OFF, tomlFullKey, tomlLongKey, VALIDATORS_MAP_OFF, VALIDATORS_OFF, validatorsTable, withHistory } from "./validators-pages";
 
 // The validators list (`/{net}/validators`) and a validator's page (`/{net}/validators/{key}`) in a browser: the way from the network page, the views
 // (a scope and a filter are URLs), the filter form with and without JavaScript, the versions chart without it, and on a validator's page the copy
@@ -12,7 +12,9 @@ import { headOf, listedValidator, needs, rowsOf, SKIP_OFF, VALIDATORS_OFF, valid
 // a real stack too; nothing here changes what the fixture server answers (validators-live.spec.ts does).
 //
 // Where E2E_FEATURES_OFF lists VALIDATORS (a sandbox or production that has the switch off), the tests of the pages skip themselves and the off-case
-// below runs instead.
+// below runs instead. The same for VALIDATORS_MAP (E13): the countries card, the Country select, the place under a row and the validator's toml card are in their own blocks
+// ("with VALIDATORS_MAP on" and "with VALIDATORS_MAP off"). The countries and the toml cases are read from the pages and, for the toml cases, from the fixtures' files
+// (validators-pages.ts: a real stack has no toml-full to look for, and `needs` skips there).
 
 // The codec as Node loads it (its CommonJS build): Playwright's loader of the specs does not take it as an import.
 const { decodeNodePublic } = createRequire(import.meta.url)("ripple-address-codec") as typeof import("ripple-address-codec");
@@ -24,6 +26,47 @@ const markDocument = (page: Page) => page.evaluate(() => Object.assign(window, {
 const validatorsCard = (page: Page) => page.locator(".network__validators");
 /** The versions card of the list, found by the id of its title. */
 const versionsCard = (page: Page) => page.locator('section[aria-labelledby="validators-versions-title"]');
+/** The countries card of the list, found by the id of its title (E13). */
+const mapCard = (page: Page) => page.locator('section[aria-labelledby="validators-map-title"]');
+/** The card's table: exact, because "Validators" (the list's table) is a substring of it. */
+const countryTable = (page: Page) => mapCard(page).getByRole("table", { name: "Validators by country", exact: true });
+const circlesOf = (page: Page) => mapCard(page).locator("a.vmap__circle");
+/** The list's filter form, where the Country select is. */
+const filters = (page: Page) => page.getByRole("main").getByRole("search", { name: "Filter validators" });
+
+/** A row of the countries table: its name, the code its link leads to (`null` for a name with no link), and its counts. */
+interface CountryRow {
+  name: string;
+  code: string | null;
+  validators: number;
+  unl: number;
+}
+
+async function countriesOf(page: Page): Promise<CountryRow[]> {
+  await expect(rowsOf(countryTable(page)).first()).toBeVisible();
+  return rowsOf(countryTable(page)).evaluateAll((rows) =>
+    rows.map((row) => {
+      const cells = Array.from(row.querySelectorAll('[role="cell"]'), (cell) => cell.textContent ?? "");
+      const href = row.querySelector("a")?.getAttribute("href") ?? null;
+      return {
+        name: cells[0]!.trim(),
+        code: href === null ? null : (new URL(href, "https://explorer.test").searchParams.get("country") ?? null),
+        validators: Number(cells[1]!.replace(/\D/g, "")),
+        unl: Number(cells[2]!.replace(/\D/g, "")),
+      };
+    }),
+  );
+}
+
+/** The countries with a validator on the UNL (the default view shows those) and a link, in the table's order. */
+async function onTheUnl(page: Page): Promise<(CountryRow & { code: string })[]> {
+  const found = (await countriesOf(page)).filter((row): row is CountryRow & { code: string } => row.code !== null && row.unl > 0);
+  needs(found.length >= 2, "two countries with a validator on the UNL (the countries card)");
+  return found;
+}
+
+/** The places the rows of the list say, `· Germany` without its dot. */
+const placesOf = (page: Page) => rowsOf(validatorsTable(page)).locator(".validators__place");
 
 test.describe("with VALIDATORS on", () => {
   test.skip(VALIDATORS_OFF, SKIP_OFF);
@@ -303,6 +346,357 @@ test.describe("with VALIDATORS on", () => {
       expect(new URL(page.url()).pathname).toBe(`/xrpl/validators/${key}`);
       await expect(page.locator(".validator__master")).toContainText(key);
     });
+  });
+});
+
+test.describe("with VALIDATORS_MAP on", () => {
+  test.skip(VALIDATORS_OFF || VALIDATORS_MAP_OFF, SKIP_MAP_OFF);
+
+  test.describe("the countries card", () => {
+    test("draws the map, and serves its asset as svg kept a year", async ({ page }) => {
+      const assets: { url: string; status: number }[] = [];
+      page.on("response", (response) => {
+        if (/world-dots/.test(response.url())) assets.push({ url: response.url(), status: response.status() });
+      });
+      await page.goto("/xrpl/validators");
+      await hydrated(page);
+      const card = mapCard(page);
+      await expect(card.getByRole("heading", { level: 2, name: "Where validators are" })).toBeVisible();
+      await expect(card.getByRole("group", { name: "Map of validators by country" })).toBeVisible();
+      needs((await circlesOf(page).count()) > 0, "validator whose toml gives a server country (a circle)");
+      await expect(card.locator(".fchip")).toContainText("Unknown location:");
+      await expect(card.locator(".vmapcard__attribution")).toContainText("verified xrp-ledger.toml");
+
+      // The dots are a file of the build, drawn with <use>: the page asked for it and the Worker answers it as the build's files are answered.
+      const href = await card.locator("svg.vmap__dots use").getAttribute("href");
+      const asset = new URL(href!, page.url());
+      expect(asset.hash).toBe("#dots");
+      expect(asset.pathname).toMatch(/^\/assets\/world-dots-[\w-]+\.svg$/);
+      const response = await page.request.get(asset.pathname);
+      expect(response.status()).toBe(200);
+      expect(response.headers()["content-type"]).toBe("image/svg+xml");
+      expect(response.headers()["cache-control"]).toBe("public, max-age=31536000, immutable");
+      expect(await response.text()).toContain('<path id="dots"');
+      expect(assets.length).toBeGreaterThanOrEqual(1);
+      expect(assets.every((seen) => seen.status === 200)).toBe(true);
+    });
+
+    test("narrows the list by a circle, a table link, the chip and the select", async ({ page }) => {
+      await page.goto("/xrpl/validators");
+      await hydrated(page);
+      await markDocument(page);
+      const card = mapCard(page);
+      const everyone = await rowsOf(validatorsTable(page)).count();
+      const [first, second] = await onTheUnl(page);
+      // The circle's name is `Germany: 6 validators, 3 on the UNL`; the table's link is the name alone.
+      const circle = (row: CountryRow) => card.getByRole("link", { name: new RegExp(`^${row.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}: `) });
+      const link = (row: CountryRow) => countryTable(page).getByRole("link", { name: row.name, exact: true });
+      const lead = (row: CountryRow & { code: string }) => page.waitForURL((url) => url.pathname === "/xrpl/validators" && url.search === `?country=${row.code}`);
+
+      // A circle: the list is that country's (the default view shows the UNL's), circle and row are current, and the card says what it shows.
+      await circle(first!).click();
+      await lead(first!);
+      await expect(rowsOf(validatorsTable(page))).toHaveCount(first!.unl);
+      await expect(placesOf(page)).toHaveCount(first!.unl);
+      await expect(placesOf(page).filter({ hasNotText: `· ${first!.name}` })).toHaveCount(0);
+      await expect(circle(first!)).toHaveAttribute("aria-current", "true");
+      await expect(link(first!)).toHaveAttribute("aria-current", "true");
+      await expect(rowsOf(countryTable(page)).filter({ has: page.getByRole("link", { name: first!.name, exact: true }) })).toHaveClass(/is-current/);
+      await expect(card.locator(".vmapcard__chosen strong")).toHaveText(first!.name);
+      await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
+      await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
+      // The select shows the view it is on.
+      await expect(filters(page).getByLabel("Country", { exact: true })).toHaveValue(first!.code);
+
+      // "Clear country" is back to the view without it.
+      await card.getByRole("link", { name: "Clear country", exact: true }).click();
+      await page.waitForURL((url) => url.pathname === "/xrpl/validators" && url.search === "");
+      await expect(rowsOf(validatorsTable(page))).toHaveCount(everyone);
+      await expect(card.getByRole("link", { name: "Clear country", exact: true })).toHaveCount(0);
+
+      // A name in the table, and the same link again, which is "show every country".
+      await link(second!).click();
+      await lead(second!);
+      await expect(rowsOf(validatorsTable(page))).toHaveCount(second!.unl);
+      await expect(placesOf(page).filter({ hasNotText: `· ${second!.name}` })).toHaveCount(0);
+      await expect(link(second!)).toHaveAttribute("aria-current", "true");
+      await link(second!).click();
+      await page.waitForURL((url) => url.pathname === "/xrpl/validators" && url.search === "");
+      await expect(rowsOf(validatorsTable(page))).toHaveCount(everyone);
+
+      // The chip: the validators whose location is unknown, which the list shows with no place under them.
+      const chip = card.getByRole("link", { name: /^Unknown location:/ });
+      needs((await chip.count()) === 1, "validator of unknown location (the chip)");
+      await chip.click();
+      await page.waitForURL((url) => url.pathname === "/xrpl/validators" && url.search === "?country=unknown");
+      await expect(card.locator(".vmapcard__chosen strong")).toHaveText("Unknown location");
+      await expect(filters(page).getByLabel("Country", { exact: true })).toHaveValue("unknown");
+      await expect(rowsOf(validatorsTable(page)).first()).toBeVisible();
+      await expect(placesOf(page)).toHaveCount(0);
+      await card.getByRole("link", { name: "Clear country", exact: true }).click();
+      await page.waitForURL((url) => url.pathname === "/xrpl/validators" && url.search === "");
+
+      // The select, with Apply: the same view as the circle's, with no redirect asked for.
+      const asked: string[] = [];
+      page.on("response", (response) => {
+        if (response.status() >= 300 && response.status() < 400) asked.push(response.url());
+      });
+      await filters(page).getByLabel("Country", { exact: true }).selectOption(first!.code);
+      await filters(page).getByRole("button", { name: "Apply" }).click();
+      await lead(first!);
+      await expect(rowsOf(validatorsTable(page))).toHaveCount(first!.unl);
+      await expect(placesOf(page).filter({ hasNotText: `· ${first!.name}` })).toHaveCount(0);
+      await expect(circle(first!)).toHaveAttribute("aria-current", "true");
+      expect(asked).toEqual([]);
+      expect(await sameDocument(page)).toBe(true);
+    });
+
+    test("moves through the circles with the keyboard", async ({ page }) => {
+      await page.goto("/xrpl/validators");
+      await hydrated(page);
+      const card = mapCard(page);
+      needs((await circlesOf(page).count()) >= 3, "three countries on the map");
+      // One circle is the Tab stop, the others are reached with the arrow keys.
+      const stop = card.locator('a.vmap__circle[tabindex="0"]');
+      await expect(stop).toHaveCount(1);
+      const focused = page.locator("a.vmap__circle:focus");
+
+      // Start from a control inside the page: the header's menus (and their hidden links) come first in the tab order.
+      await page.getByRole("button", { name: "Pause live updates" }).focus();
+      for (let tabs = 0; tabs < 30 && (await focused.count()) === 0; tabs += 1) await page.keyboard.press("Tab");
+      await expect(stop).toBeFocused();
+      // The tooltip is the circle's words, shown on focus, and the card is as wide as it needs to be for one.
+      const nameOf = async () => ((await focused.getAttribute("aria-label")) ?? "").split(":")[0]!;
+      await expect(card.locator(".vmap__tip strong")).toHaveText(await nameOf());
+      await page.keyboard.press("Tab");
+      await expect(focused).toHaveCount(0);
+      await page.keyboard.press("Shift+Tab");
+      await expect(stop).toBeFocused();
+
+      // West to east: the points of the circles, as the page wrote them.
+      const west = await circlesOf(page).evaluateAll((circles) =>
+        circles
+          .map((circle) => ({ name: (circle.getAttribute("aria-label") ?? "").split(":")[0]!, left: parseFloat((circle as HTMLElement).style.left), top: parseFloat((circle as HTMLElement).style.top) }))
+          .sort((a, b) => a.left - b.left || a.top - b.top)
+          .map((circle) => circle.name),
+      );
+      await page.keyboard.press("Home");
+      expect(await nameOf()).toBe(west[0]);
+      await expect(card.locator(".vmap__tip strong")).toHaveText(west[0]!);
+      await page.keyboard.press("ArrowRight");
+      expect(await nameOf()).toBe(west[1]);
+      await expect(card.locator(".vmap__tip strong")).toHaveText(west[1]!);
+      await page.keyboard.press("ArrowDown");
+      expect(await nameOf()).toBe(west[2]);
+      await page.keyboard.press("ArrowLeft");
+      expect(await nameOf()).toBe(west[1]);
+      await page.keyboard.press("End");
+      expect(await nameOf()).toBe(west.at(-1));
+      // The last one stays where it is, and Escape puts the tooltip away without moving the focus.
+      await page.keyboard.press("ArrowRight");
+      expect(await nameOf()).toBe(west.at(-1));
+      await page.keyboard.press("Escape");
+      await expect(card.locator(".vmap__tip")).toHaveCount(0);
+      expect(await nameOf()).toBe(west.at(-1));
+
+      // Enter follows the link.
+      const code = await focused.getAttribute("data-code");
+      await page.keyboard.press("Enter");
+      await page.waitForURL((url) => url.pathname === "/xrpl/validators" && url.search === `?country=${code}`);
+      await expect(card.locator(`a.vmap__circle[data-code="${code}"]`)).toHaveAttribute("aria-current", "true");
+    });
+
+    test("works without JavaScript: a circle and a name in the table are links, and the select is a form", async ({ contextFor }) => {
+      const context = await contextFor({ javaScriptEnabled: false });
+      const page = await context.newPage();
+      const assets: number[] = [];
+      page.on("response", (response) => {
+        if (/world-dots/.test(response.url())) assets.push(response.status());
+      });
+      await page.goto("/xrpl/validators");
+      const card = mapCard(page);
+      const [first, second] = await onTheUnl(page);
+      const everyone = await rowsOf(validatorsTable(page)).count();
+      const circle = (row: CountryRow) => card.getByRole("link", { name: new RegExp(`^${row.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}: `) });
+
+      // The circle is a link: a new document, with the country's rows.
+      await circle(first!).click();
+      await page.waitForURL((url) => url.pathname === "/xrpl/validators" && url.search === `?country=${first!.code}`);
+      await expect(rowsOf(validatorsTable(page))).toHaveCount(first!.unl);
+      await expect(placesOf(page).filter({ hasNotText: `· ${first!.name}` })).toHaveCount(0);
+      await expect(circle(first!)).toHaveAttribute("aria-current", "true");
+
+      // A name in the table, then Clear country.
+      await countryTable(page).getByRole("link", { name: second!.name, exact: true }).click();
+      await page.waitForURL((url) => url.search === `?country=${second!.code}`);
+      await expect(rowsOf(validatorsTable(page))).toHaveCount(second!.unl);
+      await card.getByRole("link", { name: "Clear country", exact: true }).click();
+      await page.waitForURL((url) => url.pathname === "/xrpl/validators" && url.search === "");
+      await expect(rowsOf(validatorsTable(page))).toHaveCount(everyone);
+
+      // The select and Apply: the form sends every field, and the Worker's redirect tidies the empty ones away.
+      await filters(page).getByLabel("Country", { exact: true }).selectOption(first!.code);
+      await filters(page).getByRole("button", { name: "Apply" }).click();
+      await page.waitForURL((url) => url.pathname === "/xrpl/validators" && url.search === `?country=${first!.code}`);
+      await expect(rowsOf(validatorsTable(page))).toHaveCount(first!.unl);
+      // The dots came all the same: the page draws them with a <use>, and the browser fetched the file without a script.
+      expect(assets.length).toBeGreaterThanOrEqual(1);
+      expect(assets.every((status) => status === 200)).toBe(true);
+    });
+  });
+
+  test.describe("a validator's toml card", () => {
+    test("shows the validator's toml card, its View toml link and its account names", async ({ page }) => {
+      const full = tomlFullKey("xrpl");
+      needs(full !== null, "validator whose toml D8 has read in full (the fixtures' toml-full)");
+      await page.goto(`/xrpl/validators/${full!.key}`);
+      await hydrated(page);
+      const main = page.getByRole("main");
+      const card = main.getByRole("region", { name: `From ${full!.domain}'s toml` });
+      await expect(card).toBeVisible();
+
+      // The link to the file: the domain's own address, to another site, with the file's name for a screen reader.
+      const view = card.getByRole("link", { name: /^View toml/ });
+      await expect(view).toHaveAttribute("href", `https://${full!.domain}/.well-known/xrp-ledger.toml`);
+      await expect(view).toHaveAttribute("target", "_blank");
+      await expect(view).toHaveAttribute("rel", /\bnofollow\b/);
+      await expect(view.locator(".sr", { hasText: ", xrp-ledger.toml" })).toBeAttached();
+
+      // The two checks and the facts.
+      await expect(card.getByText("Domain, verified both ways")).toBeVisible();
+      await expect(card.getByRole("listitem")).toHaveCount(2);
+      await expect(card.getByText(`The validator's manifest names ${full!.domain}.`)).toBeVisible();
+      for (const label of ["Server country", "Network", "On a UNL, says the toml", "Principals", "Last modified"]) await expect(card.getByText(label, { exact: true })).toBeVisible();
+      await expect(card.getByText("Mara Lindqvist and Tomas Okafor")).toBeVisible();
+
+      // The accounts the domain lists are the card's now, each with the name E9's names give it (the short address is the link's text when nobody names it).
+      await expect(main.getByText(`Accounts ${full!.domain} lists`)).toHaveCount(0);
+      const accounts = card.getByRole("group", { name: "Accounts [[ACCOUNTS]]" });
+      const links = accounts.getByRole("link");
+      expect(await links.count()).toBeGreaterThanOrEqual(1);
+      await expect(accounts).toContainText("listed:");
+      await expect(accounts).toContainText("more");
+      for (const name of await links.allTextContents()) expect(name).not.toMatch(/^r[1-9A-HJ-NP-Za-km-z]{5}…[1-9A-HJ-NP-Za-km-z]{4}$/);
+      // ... and the currencies: a link to the token page for the one with an issuer.
+      const currencies = card.getByRole("group", { name: "Currencies [[CURRENCIES]]" });
+      await expect(currencies.getByRole("link", { name: "USD", exact: true })).toHaveAttribute("href", /^\/xrpl\/token\/USD\.r/);
+
+      // Between the identity and the agreement tiles.
+      const [identity, box, tiles] = await Promise.all([
+        main.getByRole("region", { name: "Validator", exact: true }).boundingBox(),
+        card.boundingBox(),
+        main.getByRole("region", { name: "Agreement", exact: true }).boundingBox(),
+      ]);
+      expect(identity!.y + identity!.height).toBeLessThanOrEqual(box!.y);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(tiles!.y);
+    });
+
+    test("is Xahau's on Xahau: its own file", async ({ page }) => {
+      const full = tomlFullKey("xahau");
+      needs(full !== null, "Xahau validator whose toml D8 has read in full");
+      await page.goto(`/xahau/validators/${full!.key}`);
+      await hydrated(page);
+      const card = page.getByRole("main").getByRole("region", { name: `From ${full!.domain}'s toml` });
+      await expect(card.getByRole("link", { name: /^View toml/ })).toHaveAttribute("href", `https://${full!.domain}/.well-known/xahau.toml`);
+      await expect(card.getByText(`${full!.domain}'s xahau.toml includes this master key.`)).toBeVisible();
+    });
+
+    test("draws no card on a page of older validations", async ({ page }) => {
+      const key = await withHistory(page);
+      await page.goto(`/xrpl/validators/${key}`);
+      await hydrated(page);
+      await expect(page.getByRole("table", { name: "Recent validations" })).toBeVisible();
+      // The live page of this validator has its card where the fixtures have read its file; a real stack may not have.
+      if (!LIVE) await expect(page.getByRole("main").getByRole("region", { name: /'s toml$/ })).toBeVisible();
+
+      await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" }).click();
+      await page.waitForURL((url) => url.pathname === `/xrpl/validators/${key}` && url.searchParams.has("marker"));
+      await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
+      await expect(page.getByRole("main").getByRole("region", { name: /'s toml$/ })).toHaveCount(0);
+      await expect(page.getByText("View toml")).toHaveCount(0);
+    });
+  });
+
+  // The longest texts the data API keeps (E13 ruling C8, E11's I1: a defect no test saw): a server in the longest-named country, a 100-character principal, a 32-character network, a
+  // 200-character host and a 40-digit code. No page scrolls sideways, and no cell, fact or list is wider than its box.
+  for (const width of [375, 1280]) {
+    test.describe(`the longest texts at ${width} px`, () => {
+      test.use({ viewport: { width, height: 900 }, colorScheme: "light" });
+
+      /** What is wider than its box in `scope`: a cell of a table, a fact of the toml card, a list of it. (The other cards' tables scroll inside their own boxes, as they always did.) */
+      const overflowing = (page: Page, scope: string) =>
+        page.evaluate(
+          (within) =>
+            Array.from(
+              document.querySelectorAll<HTMLElement>(
+                [`${within} [role="cell"]`, `${within} [role="columnheader"]`, `${within} .validator__value`, `${within} .validator__sub`, `${within} .validator__checks li`, `${within} .validator__tomlitems`].join(", "),
+              ),
+            )
+              .filter((element) => element.scrollWidth > element.clientWidth)
+              .map((element) => `${element.className || element.getAttribute("role")} ${element.scrollWidth} > ${element.clientWidth}: ${element.textContent?.slice(0, 50)}`),
+          scope,
+        );
+      const sideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+
+      test("the toml card of a validator that says everything at the length D8 keeps", async ({ page }) => {
+        const long = tomlLongKey("xrpl");
+        needs(long !== null, "validator whose toml says everything at its longest (the fixtures' toml-long)");
+        await page.goto(`/xrpl/validators/${long!.key}`);
+        await hydrated(page);
+        await expect(page.getByRole("main").getByRole("region", { name: `From ${long!.domain}'s toml` })).toBeVisible();
+        await expect(page.getByText("LongPrincipalName", { exact: false })).toBeVisible();
+        expect(await overflowing(page, ".validator__toml")).toEqual([]);
+        expect(await sideways(page)).toBeLessThanOrEqual(0);
+      });
+
+      test("the list of a country with the longest name", async ({ page }) => {
+        const long = tomlLongKey("xrpl");
+        needs(long !== null, "validator whose toml says everything at its longest (the fixtures' toml-long)");
+        await page.goto("/xrpl/validators?scope=all&country=GS");
+        await hydrated(page);
+        await expect(rowsOf(validatorsTable(page)).first()).toBeVisible();
+        await expect(placesOf(page).first()).toContainText("South Georgia");
+        await expect(mapCard(page).locator(".vmapcard__chosen strong")).toContainText("South Georgia");
+        expect(await overflowing(page, "main")).toEqual([]);
+        expect(await sideways(page)).toBeLessThanOrEqual(0);
+      });
+    });
+  }
+});
+
+test.describe("with VALIDATORS_MAP off", () => {
+  test.skip(VALIDATORS_OFF || !VALIDATORS_MAP_OFF, "VALIDATORS_MAP is on in the Worker under test: the map and the card are checked above");
+
+  test("the list has no countries card, no Country select and no place under a row", async ({ page }) => {
+    await page.goto("/xrpl/validators");
+    await hydrated(page);
+    await expect(rowsOf(validatorsTable(page)).first()).toBeVisible();
+    await expect(mapCard(page)).toHaveCount(0);
+    await expect(page.getByRole("main").getByText("Where validators are", { exact: true })).toHaveCount(0);
+    await expect(filters(page).getByLabel("Country", { exact: true })).toHaveCount(0);
+    await expect(filters(page).getByLabel("Votes yes for")).toBeVisible();
+    await expect(placesOf(page)).toHaveCount(0);
+  });
+
+  test("a country is an unknown parameter: ?country=DE is a redirect to the list without it", async ({ page }) => {
+    const response = await page.goto("/xrpl/validators?scope=all&country=DE");
+    expect(response!.request().redirectedFrom()?.url()).toMatch(/\/xrpl\/validators\?scope=all&country=DE$/);
+    expect(new URL(page.url()).search).toBe("?scope=all");
+    await hydrated(page);
+    await expect(mapCard(page)).toHaveCount(0);
+  });
+
+  test("a verified validator's page has no toml card and keeps the accounts line", async ({ page }) => {
+    const full = tomlFullKey("xrpl");
+    needs(full !== null, "validator whose toml D8 has read in full (the fixtures' toml-full)");
+    await page.goto(`/xrpl/validators/${full!.key}`);
+    await hydrated(page);
+    const main = page.getByRole("main");
+    await expect(main.getByRole("region", { name: "Validator", exact: true })).toBeVisible();
+    await expect(main.getByRole("region", { name: /toml$/ })).toHaveCount(0);
+    await expect(main.getByText("View toml")).toHaveCount(0);
+    const line = main.locator(".validator__fact", { has: page.getByText(`Accounts ${full!.domain} lists`, { exact: true }) });
+    await expect(line.getByRole("link").first()).toBeVisible();
   });
 });
 

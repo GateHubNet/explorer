@@ -27,7 +27,7 @@ import { drawnBy, type NamedPage, namedPagesOn, objectNamedPages, tokenNamedPage
 import { type ObjectCase, objectCase, recordedDelegateSet, removedBy } from "./object-pages";
 import { expect, hashWords, hydrated, seriousViolations, test, WCAG_TAGS } from "./support";
 import { holdersMarker, listOf, tokenCase, transfersMarker } from "./token-pages";
-import { listedAmendment, listedValidator, needs, SKIP_OFF, VALIDATORS_OFF, withHistory } from "./validators-pages";
+import { listedAmendment, listedValidator, needs, SKIP_OFF, tomlFullKey, VALIDATORS_MAP_OFF, VALIDATORS_OFF, withHistory } from "./validators-pages";
 
 // Spec 12: axe (WCAG 2.2 AA: wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa) reports no serious or critical violation on the home,
 // ledger, transaction (a payment, and a swap through an AMM pool), account, network, markets, market pair, AMM list, AMM pool and 404 pages and
@@ -719,6 +719,21 @@ const checkEveryTable = async (page: Page) => {
   await expect(page.locator(".chart__table").first()).toBeVisible();
 };
 
+/** The toml card of a validator whose file D8 has read: its region is named by the domain. */
+const tomlCardReady = async (page: Page) => {
+  await validatorReady(page);
+  await expect(page.getByRole("main").getByRole("region", { name: /'s toml$/ })).toBeVisible();
+};
+/** The countries card of the list, with its map and its table. */
+const mapReady = async (page: Page) => {
+  await validatorsListReady(page);
+  await expect(page.getByRole("table", { name: "Validators by country", exact: true })).toBeVisible();
+};
+const tomlFullPage = (net: "xrpl" | "xahau") => async () => {
+  const full = tomlFullKey(net);
+  return full === null ? null : `/${net}/validators/${full.key}`;
+};
+
 const VERIFIED_VALIDATOR = async (page: Page) => (await listedValidator(page, "verified")).href;
 const MAJORITY_AMENDMENT = async (page: Page) => (await listedAmendment(page, "majority"))?.href ?? null;
 
@@ -731,6 +746,17 @@ const VALIDATORS_MAIN: ValidatorsPageUnderTest[] = [
 
 const VALIDATORS_MORE: ValidatorsPageUnderTest[] = [
   { name: "Xahau validators", path: "/xahau/validators", ready: validatorsListReady },
+  // E13: the countries card (the list's, which is drawn on /xrpl/validators and /xahau/validators above whenever VALIDATORS_MAP is on), a country's view, and the toml card of a validator
+  // whose file D8 has read in full (the fixtures' toml-full, so none against a real stack). With the switch off none of them is there.
+  ...(VALIDATORS_MAP_OFF
+    ? []
+    : [
+        { name: "validators, a country", path: "/xrpl/validators?country=DE", ready: mapReady },
+        { name: "validators, all, unknown location", path: "/xrpl/validators?scope=all&country=unknown", ready: mapReady },
+        { name: "Xahau validators, a country", path: "/xahau/validators?country=DE", ready: mapReady },
+        { name: "a validator with a toml card", path: tomlFullPage("xrpl"), ready: tomlCardReady },
+        { name: "a Xahau validator with a toml card", path: tomlFullPage("xahau"), ready: tomlCardReady },
+      ]),
   {
     name: "validators, all, a search with no match",
     path: "/xrpl/validators?scope=all&q=no-such-validator",
