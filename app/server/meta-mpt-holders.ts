@@ -13,7 +13,8 @@ import type { MptHoldersPageData, NoMptPageData } from "./mpt-view";
  * is kept for a minute, and its numbers move) and names the issuer by its short address.
  *
  * The first page is indexable, with a canonical URL on the origin of the request (`MptListMetaFacts.href`), Open Graph tags and a summary card, and no image: a ranking that is rebuilt every minute would
- * have its picture out of date at once, and the issuance's page has the image. A page behind a marker is `noindex, follow`, with the same title and no canonical URL or sharing tags.
+ * have its picture out of date at once, and the issuance's page has the image. A page behind a marker is `noindex, follow`, with the same title and no canonical URL or sharing tags. A page whose head is from
+ * the network (`MptListMetaFacts.noindex`: the index has no rows to list yet) is `noindex`, as the issuance's own page is, with the same title and description and no canonical URL or sharing tags.
  */
 export function mptHoldersMeta(data: Pick<MptHoldersPageData, "kind" | "meta"> | NoMptPageData, ctx: MetaContext): MetaDescriptor[] {
   const { network, origin } = ctx;
@@ -23,6 +24,8 @@ export function mptHoldersMeta(data: Pick<MptHoldersPageData, "kind" | "meta"> |
   const facts = data.meta;
   const title = `Holders of ${facts.code} · ${suffixOf(network)}`;
   const description = `Every account that holds ${facts.code}, an MPT issued by ${shortAddress(facts.issuer)} on ${network.name}, the largest balance first, with each holder's share and whether its balance is locked.`;
+  // A list whose head the index does not have yet (read from the network) is `noindex`, as the issuance's own page is: title, description and `noindex`, with no canonical URL or sharing tags.
+  if (facts.noindex) return [{ title }, { name: "description", content: description }, { name: "robots", content: "noindex" }];
   if (facts.more) return [{ title }, { name: "description", content: description }, { name: "robots", content: "noindex, follow" }];
   return sharing({ title, description, url: absolute(origin, facts.href) });
 }

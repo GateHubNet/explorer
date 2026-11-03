@@ -756,13 +756,15 @@ export function mptPage({ net, source, holders, transfers, names }: MptPageInput
 export const MPT_HOLDERS_PAGE = 50;
 export const MPT_TRANSFERS_PAGE = 20;
 
-/** What the tags of a list page read of it: the code the title names, the issuer, where the first page is (written here because the tags' module is a browser file), and whether this page is behind a marker. */
+/** What the tags of a list page read of it: the code the title names, the issuer, where the first page is (written here because the tags' module is a browser file), whether this page is behind a marker, and whether its head is from the network. */
 export interface MptListMetaFacts {
   /** The ticker, else the heading ("Old Gilt Note", "MPT 0000012A…3F09"): what "Holders of …" and "Transfers of …" name. */
   code: string;
   issuer: string;
   href: string;
   more: boolean;
+  /** The head is the network's, not the index's (the issuance's own page is `noindex` then, and a list the index has no rows for is not for an index to keep either). */
+  noindex: boolean;
 }
 
 /** What the two list pages have alike: the head (the first line links back to the issuance's page), the heading and the line under it, the way back, and the tags' facts. */
@@ -834,7 +836,7 @@ function listBase(net: MptNet, source: MptSource, names: NamesPart, view: MptLis
     source: `/v2/mpt/${head.id}/${kind}`,
     notices: source.origin === "node" ? [{ text: "Not in the index yet, shown from the network", tone: "info" }] : [],
     names,
-    meta: { code, issuer: head.issuer, href: kind === "holders" ? mptHoldersHref(net.id, head.id) : mptTransfersHref(net.id, head.id), more: view.marker !== undefined },
+    meta: { code, issuer: head.issuer, href: kind === "holders" ? mptHoldersHref(net.id, head.id) : mptTransfersHref(net.id, head.id), more: view.marker !== undefined, noindex: source.origin === "node" },
   };
 }
 

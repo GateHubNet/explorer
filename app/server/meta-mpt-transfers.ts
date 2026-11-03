@@ -13,7 +13,8 @@ import type { MptTransfersPageData, NoMptPageData } from "./mpt-view";
  * names the issuer by its short address.
  *
  * The first page is indexable, with a canonical URL on the origin of the request, Open Graph tags and a summary card, and no image. A page of older transfers behind a marker is `noindex, follow`, with the
- * same title and no canonical URL or sharing tags.
+ * same title and no canonical URL or sharing tags. A page whose head is from the network (`MptListMetaFacts.noindex`: the index has no rows to list yet) is `noindex`, as the issuance's own page is, with the
+ * same title and description and no canonical URL or sharing tags.
  */
 export function mptTransfersMeta(data: Pick<MptTransfersPageData, "kind" | "meta"> | NoMptPageData, ctx: MetaContext): MetaDescriptor[] {
   const { network, origin } = ctx;
@@ -23,6 +24,8 @@ export function mptTransfersMeta(data: Pick<MptTransfersPageData, "kind" | "meta
   const facts = data.meta;
   const title = `Transfers of ${facts.code} · ${suffixOf(network)}`;
   const description = `The transfers of ${facts.code}, an MPT issued by ${shortAddress(facts.issuer)} on ${network.name}, newest first: payments, clawbacks, locks and unlocks, and escrows.`;
+  // A list whose head the index does not have yet (read from the network) is `noindex`, as the issuance's own page is: title, description and `noindex`, with no canonical URL or sharing tags.
+  if (facts.noindex) return [{ title }, { name: "description", content: description }, { name: "robots", content: "noindex" }];
   if (facts.more) return [{ title }, { name: "description", content: description }, { name: "robots", content: "noindex, follow" }];
   return sharing({ title, description, url: absolute(origin, facts.href) });
 }

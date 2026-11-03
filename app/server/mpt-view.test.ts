@@ -1037,8 +1037,10 @@ describe("mptHoldersPage", () => {
   });
 
   it("writes the facts of the tags: the code, the issuer, the first page's path, and whether it is behind a marker", () => {
-    expect(build().meta).toEqual({ code: "HTF", issuer: PAGE_ISSUER, href: `/xrpl/mpt/${PAGE_ID}/holders`, more: false });
+    expect(build().meta).toEqual({ code: "HTF", issuer: PAGE_ISSUER, href: `/xrpl/mpt/${PAGE_ID}/holders`, more: false, noindex: false });
     expect(build({ view: { marker: "M2", back: [] } }).meta).toMatchObject({ href: `/xrpl/mpt/${PAGE_ID}/holders`, more: true });
+    // The whole-branch review's M2: a head read from the network is `noindex`, as the issuance's page is.
+    expect(build({ source: fromNode(), page: { state: "missing" } }).meta).toMatchObject({ noindex: true });
   });
 });
 
@@ -1076,8 +1078,9 @@ describe("mptTransfersPage", () => {
   it("is missing or failed on its own, writes the facts of the tags, and is noindex behind a marker", () => {
     expect(build({ page: { state: "missing" } }).transfers).toEqual({ state: "missing" });
     expect(build({ page: { state: "failed" } }).transfers).toEqual({ state: "failed" });
-    expect(build().meta).toEqual({ code: "HTF", issuer: PAGE_ISSUER, href: `/xrpl/mpt/${PAGE_ID}/transfers`, more: false });
+    expect(build().meta).toEqual({ code: "HTF", issuer: PAGE_ISSUER, href: `/xrpl/mpt/${PAGE_ID}/transfers`, more: false, noindex: false });
     expect(build({ view: { marker: "M2", back: [] } }).meta.more).toBe(true);
+    expect(build({ source: fromNode(), page: { state: "missing" } }).meta).toMatchObject({ noindex: true });
   });
 });
 

@@ -374,6 +374,9 @@ describe("the holders page", () => {
     expect(callsOf(mock)).toEqual([HOLDERS50(NODE_ONLY), ISSUANCE(NODE_ONLY), NODE(NODE_ONLY)].sort());
     expect(textOf(html)).toContain("Not in the index yet, shown from the network");
     expect(html.match(/Not in the index yet\./g)).toHaveLength(1);
+    // The head is the network's: the page is not for an index to keep, as the issuance's own page is not (the whole-branch review's M2), with no canonical URL.
+    expect(html).toContain('<meta name="robots" content="noindex"/>');
+    expect(html).not.toContain('rel="canonical"');
     expect(await storedAs(path)).toEqual(FROM_NETWORK);
   });
 
@@ -491,6 +494,8 @@ describe("the transfers page", () => {
     const { html } = await page(path);
     expect(callsOf(node)).toEqual([ISSUANCE(NODE_ONLY), NODE(NODE_ONLY), TRANSFERS20(NODE_ONLY)].sort());
     expect(textOf(html)).toContain("Not in the index yet, shown from the network");
+    expect(html).toContain('<meta name="robots" content="noindex"/>');
+    expect(html).not.toContain('rel="canonical"');
     expect(await storedAs(path)).toEqual(FROM_NETWORK);
   });
 

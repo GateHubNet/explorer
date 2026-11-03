@@ -385,6 +385,8 @@ Calls keep the classes of 2.1. No page polls, so no call asks for the failure ho
 
 Note (2026-11-03, E14 plan ruling 1): the MPT tab behind a marker is `minute`, E11's class for every view of `/{net}/tokens` (E11 §2.4 and §6), not `MARKER_PAGE_CLASS` as the row above says: the earlier spec wins and one route keeps one rule.
 
+Note (2026-11-03, E14 final fix wave, whole-branch review M2): a holders or transfers page whose head is read from the network (3.4: "as 3.2 step 3 for the head only") is `short`, TTL 60 s, as the issuance's own page is in that state, not the `minute` of the row above: the three pages of a node-only issuance, and its image, then refresh together. Such a page is also `noindex` (section 9: from the network `noindex`), with no canonical URL, Open Graph or card tags, since the only list it has is "Not in the index yet.". A page behind a marker keeps `MARKER_PAGE_CLASS`.
+
 ## 7. The switch `MPT`
 
 Appended last to `FEATURE_VARS` (`MPT`) and `FEATURE_NAME` (`mpt`), with `Env.MPT`, an entry in every block of `wrangler.jsonc` (top

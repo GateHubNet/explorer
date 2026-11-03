@@ -2308,7 +2308,7 @@ describe("mptMeta", () => {
 
 describe("the tags of the page that says MPT is not on Xahau", () => {
   const none = (kind: "mainnet" | "testnet" = "mainnet") => noMptPage({ id: "xahau", kind, other: "xrpl" }, "0".repeat(48));
-  const FACTS: MptListMetaFacts = { code: "HTF", issuer: "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq", href: "/xrpl/mpt/AB/holders", more: false };
+  const FACTS: MptListMetaFacts = { code: "HTF", issuer: "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq", href: "/xrpl/mpt/AB/holders", more: false, noindex: false };
 
   it.each([
     ["the issuance's page", (data: ReturnType<typeof none>, ctx: typeof XAHAU) => mptMeta(data, ctx)],
@@ -2335,7 +2335,7 @@ describe("mptHoldersMeta and mptTransfersMeta", () => {
   const ISSUER_ADDRESS = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
   const SHORT_ISSUER = shortAddress(ISSUER_ADDRESS);
   /** The facts of a list page as the view builder writes them (`MptHoldersPageData.meta`): HTF's first page of holders. */
-  const facts = (path: "holders" | "transfers", over: Partial<MptListMetaFacts> = {}): MptListMetaFacts => ({ code: "HTF", issuer: ISSUER_ADDRESS, href: `/xrpl/mpt/${ID}/${path}`, more: false, ...over });
+  const facts = (path: "holders" | "transfers", over: Partial<MptListMetaFacts> = {}): MptListMetaFacts => ({ code: "HTF", issuer: ISSUER_ADDRESS, href: `/xrpl/mpt/${ID}/${path}`, more: false, noindex: false, ...over });
 
   it("has the tags of the holders' first page: the ticker in the title, a description with no figure, the canonical URL on the origin, Open Graph, a summary card and no image", () => {
     const list = mptHoldersMeta({ kind: "mpt-holders", meta: facts("holders") }, XRPL);
@@ -2368,6 +2368,21 @@ describe("mptHoldersMeta and mptTransfersMeta", () => {
     ] as const) {
       expect(title(list), path).toBe(`${word} of HTF · XRPL · explorer`);
       expect(content(list, "robots"), path).toBe("noindex, follow");
+      expect(tags(list).some((tag) => tag.tagName === "link"), path).toBe(false);
+      expect(keys(list).sort(), path).toEqual(["description", "robots"]);
+    }
+  });
+
+  // The whole-branch review's M2: a list page whose head is from the network is no more for an index to keep than the issuance's own page, which is `noindex`.
+  it("is noindex, with the same title and description and no canonical URL or sharing tags, where the head is from the network", () => {
+    const fromNode = (path: "holders" | "transfers") => facts(path, { noindex: true });
+    for (const [list, first, path, word] of [
+      [mptHoldersMeta({ kind: "mpt-holders", meta: fromNode("holders") }, XRPL), mptHoldersMeta({ kind: "mpt-holders", meta: facts("holders") }, XRPL), "holders", "Holders"],
+      [mptTransfersMeta({ kind: "mpt-transfers", meta: fromNode("transfers") }, XRPL), mptTransfersMeta({ kind: "mpt-transfers", meta: facts("transfers") }, XRPL), "transfers", "Transfers"],
+    ] as const) {
+      expect(title(list), path).toBe(`${word} of HTF · XRPL · explorer`);
+      expect(content(list, "description"), path).toBe(content(first, "description"));
+      expect(content(list, "robots"), path).toBe("noindex");
       expect(tags(list).some((tag) => tag.tagName === "link"), path).toBe(false);
       expect(keys(list).sort(), path).toEqual(["description", "robots"]);
     }
