@@ -274,7 +274,7 @@ export function MptPage({ data }: { data: MptPageData }) {
   const shared = { onRetry: retry, retrying };
   return (
     <div className="tokens token-page mpt">
-      <Breadcrumbs items={[{ label: network.name, href: `/${network.id}` }, { label: "Tokens", href: `/${network.id}/tokens` }, { label: head.crumb }]} />
+      <Breadcrumbs items={[{ label: network.name, href: `/${network.id}` }, { label: "Tokens", href: `/${network.id}/tokens?kind=mpt` }, { label: head.crumb }]} />
       <HeaderCard net={network.id} data={data} />
       {data.notices.map((notice) => (
         <Notice key={notice.text} tone={notice.tone}>

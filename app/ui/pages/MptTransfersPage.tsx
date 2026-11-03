@@ -23,7 +23,7 @@ export function MptTransfersPage({ data }: { data: MptTransfersPageData }) {
   return (
     <div className="tokens token-page mpt">
       <Breadcrumbs
-        items={[{ label: network.name, href: `/${network.id}` }, { label: "Tokens", href: `/${network.id}/tokens` }, { label: head.crumb, href: data.back.href }, { label: "Transfers" }]}
+        items={[{ label: network.name, href: `/${network.id}` }, { label: "Tokens", href: `/${network.id}/tokens?kind=mpt` }, { label: head.crumb, href: data.back.href }, { label: "Transfers" }]}
       />
       <MptListHead data={data} />
       <Card title="Transfers" action={<span className="chart__source">{data.source}</span>} flush>

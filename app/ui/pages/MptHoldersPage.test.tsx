@@ -55,7 +55,8 @@ describe("MptHoldersPage: the head", () => {
     mount(build());
     const crumbs = within(screen.getByRole("navigation", { name: "Breadcrumb" }));
     expect(crumbs.getByRole("link", { name: "XRPL" }).getAttribute("href")).toBe("/xrpl");
-    expect(crumbs.getByRole("link", { name: "Tokens" }).getAttribute("href")).toBe("/xrpl/tokens");
+    // The MPT pages exist only where the MPT tab is a view, so the crumb leads there (the whole-branch review's M4), not to the issued list where no MPT is listed.
+    expect(crumbs.getByRole("link", { name: "Tokens" }).getAttribute("href")).toBe("/xrpl/tokens?kind=mpt");
     expect(crumbs.getByRole("link", { name: "HTF" }).getAttribute("href")).toBe(MPT_PATH);
     expect(crumbs.getByText("Holders").getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("navigation", { name: "Breadcrumb" }).textContent).toContain("XRPL/Tokens/HTF/Holders");

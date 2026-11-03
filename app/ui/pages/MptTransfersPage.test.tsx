@@ -48,6 +48,7 @@ describe("MptTransfersPage: the head", () => {
   it("has the breadcrumb, with the issuance as a link and Transfers as the current page", () => {
     mount(build());
     const crumbs = within(screen.getByRole("navigation", { name: "Breadcrumb" }));
+    expect(crumbs.getByRole("link", { name: "Tokens" }).getAttribute("href")).toBe("/xrpl/tokens?kind=mpt");
     expect(crumbs.getByRole("link", { name: "HTF" }).getAttribute("href")).toBe(MPT_PATH);
     expect(crumbs.getByText("Transfers").getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("navigation", { name: "Breadcrumb" }).textContent).toContain("XRPL/Tokens/HTF/Transfers");

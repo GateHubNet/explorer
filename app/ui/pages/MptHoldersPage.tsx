@@ -23,7 +23,7 @@ export function MptHoldersPage({ data }: { data: MptHoldersPageData }) {
   return (
     <div className="tokens token-page mpt">
       <Breadcrumbs
-        items={[{ label: network.name, href: `/${network.id}` }, { label: "Tokens", href: `/${network.id}/tokens` }, { label: head.crumb, href: data.back.href }, { label: "Holders" }]}
+        items={[{ label: network.name, href: `/${network.id}` }, { label: "Tokens", href: `/${network.id}/tokens?kind=mpt` }, { label: head.crumb, href: data.back.href }, { label: "Holders" }]}
       />
       <MptListHead data={data} />
       <Card title="Holders" action={<span className="chart__source">{data.source}</span>} flush>

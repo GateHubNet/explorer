@@ -136,7 +136,7 @@ test.describe("an issuance of the index", () => {
     expect(await head(page)).toMatchObject({ canonical: `${origin}${HTF_PATH}`, robots: null, ogImage: `${origin}/og/xrpl/mpt/${HTF}.png` });
 
     const crumbs = page.getByRole("navigation", { name: "Breadcrumb" });
-    await expect(crumbs.getByRole("link", { name: "Tokens" })).toHaveAttribute("href", "/xrpl/tokens");
+    await expect(crumbs.getByRole("link", { name: "Tokens" })).toHaveAttribute("href", "/xrpl/tokens?kind=mpt");
     await expect(crumbs.locator('[aria-current="page"]')).toHaveText(ticker);
     const header = page.locator("section.token-page__card");
     await expect(header.locator(".token-page__code")).toHaveText(ticker);
