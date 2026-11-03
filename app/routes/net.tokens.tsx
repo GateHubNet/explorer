@@ -1,3 +1,4 @@
+import { mptIssuerOf } from "../domain/mpt-id";
 import { queryOf } from "../domain/query-of";
 import { mptAvailableOf, parseTokensParams, TOKEN_SEARCH_MAX, tokensHref, tokensQuery } from "../domain/token-params";
 import { clientsFor } from "../server/clients";
@@ -80,7 +81,9 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
   // A marker past the last token has nothing behind it: that page does not exist either.
   if (view.marker !== undefined && answer.tokens.length === 0) throw cached({ notFound: MORE_NOT_FOUND }, "short", { status: 404 });
 
-  const { part: names } = await loadNames(api, collectAddresses(answer.tokens.map((token) => token.issuer)), ctx);
+  // The tab draws the issuer its issuance ID holds, not D9's `issuer` field (`mptTokensTab`), so those are the addresses to name.
+  const issuers = answer.tokens.map((token) => ("mpt_issuance_id" in token ? mptIssuerOf(token.mpt_issuance_id) : token.issuer));
+  const { part: names } = await loadNames(api, collectAddresses(issuers), ctx);
   return cached(tokensPage({ net, params: view, mptAvailable, answer, names }), "minute");
 }
 

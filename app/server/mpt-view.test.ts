@@ -1161,6 +1161,13 @@ describe("mptTokensTab", () => {
     });
   });
 
+  // The whole-branch review's M3: the issuer next to an issuance is the one in its ID, as every MPT title has it; D9's `issuer` field is not drawn, and one bad row is not a refused tab.
+  it("draws the issuer the issuance ID holds, whatever the row's issuer says", () => {
+    const other = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+    expect(other).not.toBe(MPT_SAMPLE_ISSUER);
+    expect(row({ issuer: other })).toMatchObject({ key: MPT_SAMPLE_ID, issuer: MPT_SAMPLE_ISSUER, href: `/xrpl/mpt/${MPT_SAMPLE_ID}` });
+  });
+
   it("keeps the rank of the whole ranking with its thousands grouped, and the figures from the row's own scale", () => {
     expect(row({ rank: 1284 }).rank).toBe("1,284");
     expect(row({ asset_scale: 0, outstanding_amount: "1", maximum_amount: "2" })).toMatchObject({ outstanding: "1", max: "2" });

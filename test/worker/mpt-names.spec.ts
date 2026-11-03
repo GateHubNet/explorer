@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { mptIssuerOf } from "../../app/domain/mpt-id";
 import { collectAddresses } from "../../app/server/names-collect";
 import holders50 from "../fixtures/http/xrpl/data-api/mpt/03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80/holders@limit=50.json";
 import transfers20 from "../fixtures/http/xrpl/data-api/mpt/03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80/transfers@descending=true&limit=20.json";
@@ -8,6 +9,7 @@ import transfers8 from "../fixtures/http/xrpl/data-api/mpt/03F907F270631F5CC5E1A
 import htfIssuance from "../fixtures/http/xrpl/data-api/mpt/03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80.json";
 import tabList from "../fixtures/http/xrpl/data-api/tokens@kind=mpt&limit=20.json";
 import tabSecond from "../fixtures/http/xrpl/data-api/tokens@kind=mpt&limit=20&marker=WyJtcHQiLDUsInJMbnc4YmlEa1FSWDZ3akw3ZUwxRDNpTnlSMWY1WmdxSkQiLCIwNTY1MzNGQkQxMzQzOTBEQjAzRjhEMkI1MEE2MjJDOUM5MDYzNjk3OTIwRDIwNjIiXQ.json";
+import tabHtf from "../fixtures/http/xrpl/data-api/tokens@kind=mpt&limit=20&q=HTF.json";
 import { MPT_FIXTURE_IDS } from "../support/mpt-case-rules";
 import {
   answerNamesAfterTheirEnd,
@@ -233,6 +235,22 @@ describe("the names call of the MPT tab", () => {
     expect(part.state).toBe("ok");
     expect(Object.keys(part.map)).toEqual(namesCalls(mock).flat());
     expect(Object.keys(part.map)).toHaveLength(1);
+  });
+
+  // The whole-branch review's M3: the tab draws the issuer the issuance ID holds, so that is the address whose name is asked for, not D9's `issuer` field of a row that disagrees.
+  it("asks the names of the issuer each issuance ID holds, and links that one, where a row's issuer is another", async () => {
+    const path = `${TAB}&q=HTF`;
+    await forgetStored(path);
+    const [first] = tabHtf.tokens;
+    const other = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+    const held = mptIssuerOf(first!.mpt_issuance_id);
+    expect(other).not.toBe(held);
+    const mock = upstream("xrpl", { "GET /v2/tokens?kind=mpt&limit=20&q=HTF": { ...tabHtf, tokens: [{ ...first, issuer: other }] }, "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const { html } = await page(path);
+
+    expect(namesCalls(mock)).toEqual(inCalls(collectAddresses(held)));
+    expect(linkedAccounts(html, "xrpl")).toContain(held);
+    expect(linkedAccounts(html, "xrpl")).not.toContain(other);
   });
 
   it("makes no call for a page with no row to draw", async () => {

@@ -24,7 +24,7 @@ import {
   superscript,
   transferFeeText,
 } from "../domain/mpt";
-import { isMptIssuanceId } from "../domain/mpt-id";
+import { isMptIssuanceId, mptIssuerOf } from "../domain/mpt-id";
 import { mptLink } from "../domain/mpt-link";
 import { mptHoldersHref, mptTransfersHref } from "../domain/mpt-params";
 import { trailPaging, type Paging } from "../domain/paging";
@@ -957,7 +957,10 @@ function compactUnits(units: string, scale: number): string {
   return scaled === null ? `${compactNumber(units)} units` : compactNumber(scaled);
 }
 
-/** A row of the table: the ticker as every page reads it (`tickerText`: 16 code points, a blank one is none), the name cut to 128 as D9 cuts it. */
+/**
+ * A row of the table: the ticker as every page reads it (`tickerText`: 16 code points, a blank one is none), the name cut to 128 as D9 cuts it, and the issuer the issuance ID holds, as every MPT title
+ * has it (`mptIssuerOf`, never D9's `issuer` field): the row and the page it links never disagree about who issued the token.
+ */
 function tabRowOf(net: TokensNet, row: MptTokenRow): MptRowView {
   const id = row.mpt_issuance_id.toUpperCase();
   const ticker = tickerText(row.ticker);
@@ -971,7 +974,7 @@ function tabRowOf(net: TokensNet, row: MptTokenRow): MptRowView {
     id,
     shortId: shortMptId(id),
     href: mptLink(net.id, id, net.features),
-    issuer: row.issuer,
+    issuer: mptIssuerOf(id),
     holders: counted(row.holders),
     outstanding: compactUnits(row.outstanding_amount, row.asset_scale),
     max: row.maximum_amount === undefined ? null : compactUnits(row.maximum_amount, row.asset_scale),
