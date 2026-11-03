@@ -7,6 +7,7 @@
 import type { AnalyticsUnit } from "../domain/analytics-params";
 import { apiAssetText, type Asset } from "../domain/asset";
 import type { CandleApiInterval } from "../domain/market-params";
+import { isMptIssuanceId } from "../domain/mpt-id";
 import type { ValidatorScope } from "../domain/validators-params";
 import { checkDaysPage, checkGovernancePage, checkLiquidityPage, checkLiveVolume, checkPool, checkPoolsPage, checkSwapsPage } from "./amm-shape";
 import {
@@ -682,8 +683,6 @@ type MptTokensQuery = { kind: "mpt"; limit: number; q?: string; marker?: string 
 
 /** How many issuances one lookup may ask for: D9's limit. */
 export const MPT_LOOKUP_MAX = 100;
-/** An issuance ID, in either case: D9 upper-cases the IDs of a lookup and answers each as it has it, so the client does that first (and `checkMptLookup` compares the upper-case text). */
-const MPT_LOOKUP_ID = /^[0-9A-Fa-f]{48}$/;
 
 /** Query parameters; `undefined` and `false` are left out (every flag of the API is off unless it says `true`). */
 type Query = Record<string, string | number | boolean | undefined>;
@@ -1202,7 +1201,8 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
       get<MptHoldersPage>(PATHS.mptHolders, { issuanceId: id }, { limit: q.limit, marker: q.marker || undefined }, nftListClass(q, "minute"), { finish: checkMptHoldersPage }),
     mptTransfers: (id, q) => get<MptTransfersPage>(PATHS.mptTransfers, { issuanceId: id }, listQuery(q), nftListClass(q, "minute"), { finish: checkMptTransfersPage }),
     mptLookup: async (ids) => {
-      const bad = ids.find((id) => !MPT_LOOKUP_ID.test(id));
+      // An ID in either case: D9 upper-cases the IDs of a lookup and answers each as it has it, so the client does that first (and `checkMptLookup` compares the upper-case text).
+      const bad = ids.find((id) => !isMptIssuanceId(id));
       if (bad !== undefined) throw new RangeError(`a lookup of MPT issuances takes IDs of 48 hex digits, not ${JSON.stringify(bad)}`);
       const asked = [...new Set(ids.map((id) => id.toUpperCase()))].sort();
       if (asked.length < 1 || asked.length > MPT_LOOKUP_MAX) throw new RangeError(`a lookup of MPT issuances takes 1 to ${MPT_LOOKUP_MAX} distinct IDs, not ${asked.length}`);

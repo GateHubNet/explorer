@@ -14,6 +14,7 @@ import { accountsIn, type Segment } from "../domain/describe";
 import { mptSegment, mptWords } from "../domain/describe/helpers";
 import { dropsToNative, formatAmount, formatCurrency } from "../domain/format";
 import type { NamesPart } from "../domain/names";
+import { isMptIssuanceId } from "../domain/mpt-id";
 import { OBJECT_KINDS, type ObjectKind } from "../domain/object-link";
 import { OBJECT_NOUNS } from "../domain/object-nouns";
 import { channelStatus, checkStatus, escrowStatus } from "../domain/object-status";
@@ -81,7 +82,7 @@ function amountOf(raw: unknown, native: Native): ObjectAmount | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
   const { value, currency, issuer, mpt_issuance_id: mpt } = raw as Record<string, unknown>;
   if (!isText(value)) return undefined;
-  if (isText(mpt)) return /^[0-9a-fA-F]{48}$/.test(mpt) ? mptAmount(mpt, value) : undefined;
+  if (isText(mpt)) return isMptIssuanceId(mpt) ? mptAmount(mpt, value) : undefined;
   return isText(currency) && isText(issuer) ? { currency, issuer, value } : undefined;
 }
 
