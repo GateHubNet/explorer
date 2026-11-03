@@ -783,7 +783,7 @@ describe("mptCard", () => {
     expect(cardOf(indexed({ name: "x".repeat(41) })).note).toBe(`${"x".repeat(39)}… · 18.2M HTF outstanding · 3,412 holders`);
   });
 
-  // Task 12's tab strips the bidi controls of the issuer's text, and so does the card: an image cannot show what a control character does to the text around it safely.
+  // One rule for the issuer's text (the whole-branch review's I1): the tab, the pages, the tags and the card read it without its bidi controls.
   it("draws the issuer's ticker and name without their bidi controls, as the tab does, and a ticker of nothing else as none", () => {
     const hostile = cardOf(indexed({ ticker: "H\u202ETF", name: "Harbor\u2066line\u200F Fund" }));
     expect(hostile.headline).toEqual({ text: "HTF", mono: true });
@@ -801,6 +801,14 @@ describe("mptCard", () => {
     const blank = cardOf(indexed({ ticker: "   ", metadata: undefined }));
     expect(blank.headline.text).toBe(SHORT_ID);
     expect(blank.note).toContain("18.2M units outstanding");
+  });
+
+  // The whole-branch review's M1: above asset scale 19 the amount is the ledger's integers, not the token's, so the card counts it in units whatever the ticker is.
+  it("counts the amount in units above scale 19, and keeps the ticker as the headline", () => {
+    const card = cardOf(indexed({ asset_scale: 25, outstanding_amount: "1820451120" }));
+    expect(card.headline).toEqual({ text: "HTF", mono: true });
+    expect(card.note).toBe("Harborline Treasury Fund · 1.82B units outstanding · 3,412 holders");
+    expect(cardOf(indexed({ asset_scale: 19, outstanding_amount: "1820451120" })).note).toContain("HTF outstanding");
   });
 
   it("has a card with no status and no end to the footer", () => {

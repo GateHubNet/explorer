@@ -369,6 +369,30 @@ describe("mptPage: the six figures", () => {
     expect(tile(big, "Max amount").value).toBe("5,000,000,000");
   });
 
+  // The whole-branch review's M1: above scale 19 the page shows the ledger's integers, which are not the token's amounts (1.82×10⁻¹⁶ HTF at scale 25), so every label of an amount says "units". The
+  // lines that name the token, its heading, its crumb and its name stay the ticker.
+  it("labels an amount above scale 19 'units' and not by the ticker, in the lines, the description, the card and the list summary", () => {
+    const big = indexed({ asset_scale: 25, outstanding_amount: "1820451120", maximum_amount: "5000000000", escrowed_amount: "1200" });
+    expect(mptHead(big)).toMatchObject({ crumb: "HTF", heading: "Harborline Treasury Fund", ticker: "HTF", tickerOrUnits: "HTF", amountWord: "units", scale: null });
+    expect(tilesOf(big).map((one) => [one.label, one.value, one.line])).toEqual([
+      ["Outstanding", "1,820,451,120", "units held by holders, 36.4% of the max amount"],
+      ["Max amount", "5,000,000,000", "units, fixed when the issuance was created"],
+      ["Locked", "124,000,000", "units in 1 holder balance the issuer has locked; 1,200 units in escrow"],
+      ["Holders", "3,412", "accounts holding HTF"],
+      ["Transfer fee", "0.10%", "charged when holders send HTF to each other"],
+      ["Asset scale", "25", "Amounts are shown as the ledger's integer units."],
+    ]);
+    const facts = mptFacts(XRPL, big, NO_NAMES);
+    expect(facts.description).toBe(`MPT issued by ${PAGE_ISSUER.slice(0, 6)}…${PAGE_ISSUER.slice(-4)}: 1,820,451,120 units outstanding, 3,412 holders · XRPL`);
+    expect(facts.card.outstanding).toBe("1.82B units");
+    expect(facts.title).toBe("HTF · Harborline Treasury Fund · MPT");
+    const holders = mptHoldersPage({ net: XRPL, source: big, page: { ...OK, value: holdersPage([holderOf(A(1), "612000000")]) }, view: { back: [] }, names: NO_NAMES });
+    expect(holders).toMatchObject({ title: "Holders of HTF", summary: "3,412 accounts hold 1,820,451,120 units", head: { amountWord: "units" } });
+    expect(mptTransfersPage({ net: XRPL, source: indexed({ asset_scale: 25 }), page: { ...OK, value: transfersPage([]) }, view: { back: [] }, names: NO_NAMES }).summary).toBe("3,412 accounts hold 1,820,451,120 units");
+    // The scales the page applies keep the ticker.
+    expect(tilesOf(indexed({ asset_scale: 19 }))[0]!.line).toBe("HTF held by holders, 36.4% of the max amount");
+  });
+
   it("says 'units' where the issuance has no ticker, in every line", () => {
     const source = indexed({ ticker: undefined, name: undefined, metadata: undefined, metadata_hex: undefined, metadata_conforms: undefined, escrowed_amount: "100" });
     expect(tilesOf(source).map((one) => one.line)).toEqual([
@@ -484,6 +508,7 @@ describe("mptHead", () => {
       issuer: PAGE_ISSUER,
       id: PAGE_ID,
       tickerOrUnits: "HTF",
+      amountWord: "HTF",
       scale: 2,
     });
   });
@@ -491,7 +516,7 @@ describe("mptHead", () => {
   it("falls back from the name to the ticker, and from the ticker to 'MPT' and the ID's start and end", () => {
     expect(mptHead(indexed({ name: undefined, metadata: undefined })).heading).toBe("HTF");
     const bare = mptHead(indexed({ ticker: undefined, name: undefined, metadata: undefined }));
-    expect(bare).toMatchObject({ crumb: "MPT", letter: "?", heading: `MPT ${PAGE_ID.slice(0, 8)}…${PAGE_ID.slice(-4)}`, fromMetadata: false, tickerOrUnits: "units" });
+    expect(bare).toMatchObject({ crumb: "MPT", letter: "?", heading: `MPT ${PAGE_ID.slice(0, 8)}…${PAGE_ID.slice(-4)}`, fromMetadata: false, tickerOrUnits: "units", amountWord: "units" });
     expect(bare).not.toHaveProperty("ticker");
     expect(bare).not.toHaveProperty("name");
     // A name alone is the heading; the circle has no letter.
@@ -527,7 +552,7 @@ describe("mptHead", () => {
   });
 
   it("is the ID's start and end from the network, with the entry's scale and no ticker", () => {
-    expect(mptHead(fromNode({ AssetScale: 3 }))).toEqual({ crumb: "MPT", letter: "?", heading: `MPT ${PAGE_ID.slice(0, 8)}…${PAGE_ID.slice(-4)}`, fromMetadata: false, issuer: PAGE_ISSUER, id: PAGE_ID, tickerOrUnits: "units", scale: 3 });
+    expect(mptHead(fromNode({ AssetScale: 3 }))).toEqual({ crumb: "MPT", letter: "?", heading: `MPT ${PAGE_ID.slice(0, 8)}…${PAGE_ID.slice(-4)}`, fromMetadata: false, issuer: PAGE_ISSUER, id: PAGE_ID, tickerOrUnits: "units", amountWord: "units", scale: 3 });
     expect(mptHead({ origin: "node", node: entryOf(), ledgerIndex: 1, id: PAGE_ID.toLowerCase() }).id).toBe(PAGE_ID);
   });
 });

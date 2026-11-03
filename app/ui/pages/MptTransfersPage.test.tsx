@@ -81,6 +81,14 @@ describe("MptTransfersPage: the transfers", () => {
     expect(within(transfers).getByText(`/v2/mpt/${MPT_SAMPLE_ID}/transfers`)).toBeTruthy();
   });
 
+  // The whole-branch review's M1: above asset scale 19 the amounts are the ledger's integers, so the column says "units".
+  it("writes 'units' in the amount column above asset scale 19", () => {
+    mount(build({ source: indexed({ asset_scale: 25 }) }));
+    const table = within(card("Transfers")).getByRole("table", { name: "Transfers" });
+    expect(texts(within(table).getAllByRole("columnheader"))).toEqual(["Time (UTC)", "Kind", "From", "To", "Amount (units)", "Transaction"]);
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Transfers of HTF");
+  });
+
   it("has the board's footnote with the issuer by its name", () => {
     const names: NamesPart = { state: "ok", map: { [MPT_SAMPLE_ISSUER]: { name: { text: "Harborline", kind: "verified" }, domain: "harborline.example", labels: [] } } };
     mount(build({ names }), { names: names.map });

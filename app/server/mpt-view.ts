@@ -219,8 +219,10 @@ export interface MptHead {
   issuer: string;
   /** The issuance ID, in capitals. */
   id: string;
-  /** The ticker, else "units": what the lines write where the board writes HTF. */
+  /** The ticker, else "units": what the lines write where the board writes HTF, when they name the token. */
   tickerOrUnits: string;
+  /** The word an amount is written with (a tile's line, a column header, the description, the card): `tickerOrUnits`, and "units" above scale 19, where the amounts are the ledger's integers and not the token's. */
+  amountWord: string;
   /** The asset scale the amounts are scaled by; `null` above 19, where the pages show the units as they are. */
   scale: number | null;
 }
@@ -232,11 +234,12 @@ const idOf = (source: MptSource): string => (source.origin === "index" ? source.
 export function mptHead(source: MptSource): MptHead {
   const id = idOf(source);
   if (source.origin === "node") {
-    return { crumb: "MPT", letter: "?", heading: `MPT ${shortMptId(id)}`, fromMetadata: false, issuer: source.node.Issuer, id, tickerOrUnits: "units", scale: scaleOf(source.node.AssetScale ?? 0) };
+    return { crumb: "MPT", letter: "?", heading: `MPT ${shortMptId(id)}`, fromMetadata: false, issuer: source.node.Issuer, id, tickerOrUnits: "units", amountWord: "units", scale: scaleOf(source.node.AssetScale ?? 0) };
   }
   const { issuance } = source.answer;
   const ticker = tickerText(issuance.ticker ?? issuance.metadata?.ticker);
   const name = cutText(issuance.name ?? issuance.metadata?.name, MPT_NAME_MAX);
+  const scale = scaleOf(issuance.asset_scale);
   return {
     crumb: ticker ?? "MPT",
     letter: ticker === undefined ? "?" : (Array.from(ticker)[0] ?? "?"),
@@ -247,7 +250,8 @@ export function mptHead(source: MptSource): MptHead {
     issuer: issuance.issuer,
     id,
     tickerOrUnits: ticker ?? "units",
-    scale: scaleOf(issuance.asset_scale),
+    amountWord: scale === null ? "units" : (ticker ?? "units"),
+    scale,
   };
 }
 
@@ -327,15 +331,16 @@ export interface MptTile {
 
 const isPositive = (units: string): boolean => new BigNumber(units).gt(0);
 
-/** The six figures in the board's order, with the lines of spec 3.1. `T` is the ticker, else "units". */
+/** The six figures in the board's order, with the lines of spec 3.1. `T` is the ticker, else "units", where a line names the token; `U` is the word of an amount, "units" too above scale 19. */
 function tilesOf(f: Figures, head: MptHead, from: MptSource["origin"]): MptTile[] {
   const T = head.tickerOrUnits;
+  const U = head.amountWord;
   const text = (units: string) => unitsText(units, head.scale);
   const fromNode = from === "node";
 
   // Outstanding: of the max amount when there is one.
   const percent = f.max === null ? DASH : percentText(f.outstanding, f.max, 1);
-  const outstandingLine = percent === DASH ? `${T} held by holders; no max amount is set` : `${T} held by holders, ${percent} of the max amount`;
+  const outstandingLine = percent === DASH ? `${U} held by holders; no max amount is set` : `${U} held by holders, ${percent} of the max amount`;
 
   // Locked: what the issuer has locked, then what is in escrow.
   let locked: { value: string; line: string };
@@ -344,11 +349,11 @@ function tilesOf(f: Figures, head: MptHead, from: MptSource["origin"]): MptTile[
     // The issuance entry does not say which holders are locked: only the issuer's own switches can be told.
     locked = f.flags.can_lock ? { value: DASH, line: "not in the index yet" } : { value: "0", line: `The issuer cannot lock ${T}` };
   } else if (f.lockedHolders !== null && f.lockedHolders > 0) {
-    locked = { value: text(f.locked ?? "0"), line: `${T} in ${counted(f.lockedHolders)} holder ${f.lockedHolders === 1 ? "balance" : "balances"} the issuer has locked` };
+    locked = { value: text(f.locked ?? "0"), line: `${U} in ${counted(f.lockedHolders)} holder ${f.lockedHolders === 1 ? "balance" : "balances"} the issuer has locked` };
   } else {
     locked = { value: text(f.locked ?? "0"), line: f.flags.can_lock ? "Nothing is locked" : `The issuer cannot lock ${T}` };
   }
-  if (isPositive(f.escrowed)) locked.line += `; ${text(f.escrowed)} ${T} in escrow`;
+  if (isPositive(f.escrowed)) locked.line += `; ${text(f.escrowed)} ${U} in escrow`;
 
   const scaleLine =
     head.scale === null
@@ -359,7 +364,7 @@ function tilesOf(f: Figures, head: MptHead, from: MptSource["origin"]): MptTile[
 
   return [
     { label: "Outstanding", value: text(f.outstanding), line: outstandingLine },
-    { label: "Max amount", value: f.max === null ? "Not set" : text(f.max), line: f.max === null ? "Up to the ledger's limit" : `${T}, fixed when the issuance was created` },
+    { label: "Max amount", value: f.max === null ? "Not set" : text(f.max), line: f.max === null ? "Up to the ledger's limit" : `${U}, fixed when the issuance was created` },
     { label: "Locked", ...locked },
     fromNode || f.holders === null
       ? { label: "Holders", value: DASH, line: "not in the index yet" }
@@ -671,7 +676,7 @@ export interface MptFacts {
 export function mptFacts(net: Pick<NetworkInfo, "id" | "name">, source: MptSource, names: NamesPart): MptFacts {
   const head = mptHead(source);
   const f = figuresOf(source);
-  const T = head.tickerOrUnits;
+  const U = head.amountWord;
   const named = head.name;
   const parts = [head.ticker, named].filter((part): part is string => part !== undefined);
   const issuer = shownIssuer(head.issuer, names.map);
@@ -683,13 +688,13 @@ export function mptFacts(net: Pick<NetworkInfo, "id" | "name">, source: MptSourc
     href: mptPath(net.id, head.id),
     id: head.id,
     title: parts.length === 0 ? `MPT ${shortMptId(head.id)}` : `${parts.join(" · ")} · MPT`,
-    description: `MPT issued by ${issuer}: ${outstanding} ${T} outstanding${holders} · ${net.name}`,
+    description: `MPT issued by ${issuer}: ${outstanding} ${U} outstanding${holders} · ${net.name}`,
     noindex: source.origin === "node",
     card: {
       headline: head.ticker ?? shortMptId(head.id),
       ...(named === undefined ? {} : { name: named }),
       issuer,
-      outstanding: `${compactNumber(scaled ?? f.outstanding)} ${T}`,
+      outstanding: `${compactNumber(scaled ?? f.outstanding)} ${U}`,
       ...(f.holders === null ? {} : { holders: f.holders }),
       ...(created === undefined ? {} : { created }),
     },
@@ -814,11 +819,11 @@ export type MptListView = { marker?: string; back: readonly string[] };
 function listBase(net: MptNet, source: MptSource, names: NamesPart, view: MptListView, kind: "holders" | "transfers"): MptListPageBase {
   const head = mptHead(source);
   const f = figuresOf(source);
-  const T = head.tickerOrUnits;
+  const U = head.amountWord;
   const code = head.ticker ?? head.heading;
   const outstanding = unitsText(f.outstanding, head.scale);
   const summary =
-    f.holders === null ? `${outstanding} ${T} outstanding` : `${counted(f.holders)} ${f.holders === 1 ? "account holds" : "accounts hold"} ${outstanding} ${T}`;
+    f.holders === null ? `${outstanding} ${U} outstanding` : `${counted(f.holders)} ${f.holders === 1 ? "account holds" : "accounts hold"} ${outstanding} ${U}`;
   return {
     network: networkInfoOf(net),
     origin: source.origin,

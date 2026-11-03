@@ -98,6 +98,15 @@ describe("MptHoldersPage: the holders", () => {
     expect(within(holders).getByText(`/v2/mpt/${MPT_SAMPLE_ID}/holders`)).toBeTruthy();
   });
 
+  // The whole-branch review's M1: above asset scale 19 the balances are the ledger's integers, so the column and the line under the heading say "units", while the heading keeps the ticker.
+  it("writes 'units' in the balance column and under the heading above asset scale 19", () => {
+    mount(build({ source: indexed({ asset_scale: 25 }) }));
+    const table = within(card("Holders")).getByRole("table", { name: "Holders" });
+    expect(texts(within(table).getAllByRole("columnheader"))).toEqual(["#", "Holder", "Balance (units)", "Share of outstanding", "Balance state"]);
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Holders of HTF");
+    expect(screen.getByText("3,412 accounts hold 1,820,451,120 units")).toBeTruthy();
+  });
+
   it("has no rank column behind a marker, and the rest of the columns", () => {
     mount(build({ view: { marker: "M2", back: [] } }), { at: `${PATH}?marker=M2` });
     const table = within(card("Holders")).getByRole("table", { name: "Holders" });

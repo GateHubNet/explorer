@@ -38,7 +38,7 @@ export const MPT_TRANSFERS_WIDTH = 120 + 100 + 190 + 190 + 150 + 150 + 5 * 16 + 
  * The columns of the holders' table: a rank (left out when no row has one: a page behind a marker), the holder, the balance in the token's units with what of it is in escrow under it, the
  * share of the outstanding amount (its text first, the decorative meter after it: the share is read once) and the balance's state. The balance of a row is `amount` and `escrowed_amount` together.
  */
-export function mptHolderColumns(net: NetworkInfo["id"], head: Pick<MptHead, "tickerOrUnits">, { ranked }: { ranked: boolean }): Column<MptHolderRow>[] {
+export function mptHolderColumns(net: NetworkInfo["id"], head: Pick<MptHead, "amountWord">, { ranked }: { ranked: boolean }): Column<MptHolderRow>[] {
   const columns: Column<MptHolderRow>[] = [
     {
       id: "holder",
@@ -48,7 +48,7 @@ export function mptHolderColumns(net: NetworkInfo["id"], head: Pick<MptHead, "ti
     },
     {
       id: "balance",
-      header: `Balance (${head.tickerOrUnits})`,
+      header: `Balance (${head.amountWord})`,
       width: "minmax(170px, 1fr)",
       align: "end",
       cell: (row) => (
@@ -78,14 +78,14 @@ export function mptHolderColumns(net: NetworkInfo["id"], head: Pick<MptHead, "ti
 }
 
 /** The columns of the transfers' table: when (UTC), the kind, from, to ("every holder" for a lock or an unlock of all of them), the amount (a lock's muted) and the transaction. */
-export function mptTransferColumns(net: NetworkInfo["id"], head: Pick<MptHead, "tickerOrUnits">): Column<MptTransferRow>[] {
+export function mptTransferColumns(net: NetworkInfo["id"], head: Pick<MptHead, "amountWord">): Column<MptTransferRow>[] {
   const party = (address: string | null) => (address === null ? <span className="faint">—</span> : <AccountLink net={net} address={address} />);
   return [
     { id: "time", header: "Time (UTC)", width: "120px", cell: (row) => <WhenText time={row.time} /> },
     { id: "kind", header: "Kind", width: "100px", cell: (row) => <span>{row.kind}</span> },
     { id: "from", header: "From", width: "minmax(190px, 1.3fr)", cell: (row) => party(row.from) },
     { id: "to", header: "To", width: "minmax(190px, 1.3fr)", cell: (row) => (row.everyHolder ? <span className="muted">every holder</span> : party(row.to)) },
-    { id: "amount", header: `Amount (${head.tickerOrUnits})`, width: "minmax(150px, 1fr)", align: "end", cell: (row) => <span className={cx("mono num", row.muted && "muted")}>{row.amount}</span> },
+    { id: "amount", header: `Amount (${head.amountWord})`, width: "minmax(150px, 1fr)", align: "end", cell: (row) => <span className={cx("mono num", row.muted && "muted")}>{row.amount}</span> },
     { id: "tx", header: "Transaction", width: "150px", cell: (row) => <HashLink net={net} kind="tx" hash={row.hash} /> },
   ];
 }
