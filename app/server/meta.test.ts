@@ -791,6 +791,7 @@ describe("imageUrl", () => {
     expect(imageUrl("https://explorer.test", "xahau", "ledger", "26540187")).toBe("https://explorer.test/og/xahau/ledger/26540187.png");
     expect(imageUrl("https://explorer.test", "xrpl", "validator", SAMPLE_KEYS[0])).toBe(`https://explorer.test/og/xrpl/validator/${SAMPLE_KEYS[0]}.png`);
     expect(imageUrl("https://explorer.test", "xahau", "nft", URI_TOKEN_ID)).toBe(`https://explorer.test/og/xahau/nft/${URI_TOKEN_ID}.png`);
+    expect(imageUrl("https://explorer.test", "xrpl", "mpt", "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8")).toBe("https://explorer.test/og/xrpl/mpt/0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8.png");
   });
 });
 
@@ -2247,11 +2248,24 @@ describe("mptMeta", () => {
     expect(content(list, "og:url")).toBe(`https://explorer.test/xrpl/mpt/${ID}`);
     expect(content(list, "og:type")).toBe("website");
     expect(content(list, "twitter:title")).toBe("HTF · Harborline Treasury Fund · MPT · XRPL · explorer");
-    // The link-preview image is Task 14's: until it exists no tag points at it.
-    expect(content(list, "twitter:card")).toBe("summary");
-    expect(keys(list)).not.toContain("og:image");
+    // The link-preview image (spec 9, :394): the issuance's own, with a large card.
+    expect(content(list, "og:image")).toBe(`https://explorer.test/og/xrpl/mpt/${ID}.png`);
+    expect(content(list, "twitter:image")).toBe(`https://explorer.test/og/xrpl/mpt/${ID}.png`);
+    expect(content(list, "og:image:width")).toBe("1200");
+    expect(content(list, "og:image:height")).toBe("630");
+    expect(content(list, "twitter:card")).toBe("summary_large_image");
     expect(keys(list)).not.toContain("robots");
   });
+
+  it("says in words what the image shows: the name (else the ticker or the ID's start and end), an MPT issued by the issuer, the network", () => {
+    const named: NamesPart = { state: "ok", map: { [ISSUER_ADDRESS]: { name: { text: "Harborline", kind: "verified" }, labels: [] } satisfies NameView } };
+    expect(content(mptMeta({ kind: "mpt", facts: mptFacts(NET, indexed(), named) }, XRPL), "og:image:alt")).toBe("Harborline Treasury Fund, an MPT issued by Harborline on XRPL");
+    expect(content(mptMeta({ kind: "mpt", facts: mptFacts(NET, indexed({ name: undefined }), NO_NAMES) }, XRPL), "og:image:alt")).toBe(`HTF, an MPT issued by ${SHORT_ISSUER} on XRPL`);
+    const bare = mptMeta({ kind: "mpt", facts: mptFacts(NET, indexed({ ticker: undefined, name: undefined }), NO_NAMES) }, XRPL);
+    expect(content(bare, "og:image:alt")).toBe(`0000012A…${ID.slice(-4)}, an MPT issued by ${SHORT_ISSUER} on XRPL`);
+    expect(content(bare, "twitter:image:alt")).toBe(content(bare, "og:image:alt"));
+  });
+
 
   it("names the issuer by its display name in the description", () => {
     const named: NamesPart = { state: "ok", map: { [ISSUER_ADDRESS]: { name: { text: "Harborline", kind: "verified" }, labels: [] } satisfies NameView } };
@@ -2280,6 +2294,8 @@ describe("mptMeta", () => {
     expect(title(list)).toBe("HTF · Harborline Treasury Fund · MPT · XRPL Testnet · explorer");
     expect(content(list, "description")).toMatch(/ · XRPL Testnet$/);
     expect(link(list, "canonical")).toBe(`https://explorer.example/xrpl/mpt/${ID}`);
+    expect(content(list, "og:image")).toBe(`https://explorer.example/og/xrpl/mpt/${ID}.png`);
+    expect(content(list, "og:image:alt")).toMatch(/ on XRPL Testnet$/);
   });
 
   it("holds the issuer's text only in the content of a tag: a ticker that closes a quote stays one string", () => {

@@ -2,6 +2,8 @@ import { env, exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { decodeNodePublic, encodeAccountID } from "ripple-address-codec";
 
+import { shortAddress } from "../../app/domain/format";
+import { mptIdOf } from "../../app/domain/mpt-id";
 import { linkTextOf, vouchedByOf } from "../../app/domain/names";
 import * as render from "../../app/og/render";
 import { loader as ogLoader } from "../../app/routes/og.$net.$kind.$id[.png]";
@@ -11,19 +13,22 @@ import { cacheGeneration, createLoadContext, type Env } from "../../app/server/e
 import xrplAmm from "../fixtures/http/xrpl/data-api/network/amendments/AMM.json";
 import { SAMPLE_KEYS } from "../support/d1-samples";
 import { recordingMark } from "../support/degraded-mark";
+import { MPT_FIXTURE_IDS } from "../support/mpt-case-rules";
+import { MPT_SAMPLE_ID, MPT_SAMPLE_ISSUER, MPT_SAMPLE_SECOND_ID, mptIssuanceSample, mptSample } from "../support/mpt-samples";
 import { failingNames, namesCalls, viewOf, watchNamesLog, withoutNames } from "../support/names";
 import { nftCase } from "../support/nft-cases";
 import { expectDegraded } from "../support/nft-pages";
 import { nftAnswerSample, nftSample } from "../support/nft-samples";
 import { decodePng, hex, pngSize } from "../support/png";
 import { pageClient } from "../support/pages";
+import { cold } from "../support/subrequest-miss";
 import { tokenCase } from "../support/token-cases";
 import { tokenDetailSample, tokenSample } from "../support/token-samples";
 import { dataApiError, mockUpstream, nodeError, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
 import { amendmentCall, validatorCall } from "../support/validators-calls";
 import { amendmentCase, fixtureValidator, validatorCase } from "../support/validators-cases";
 
-// The link-preview images, `/og/{net}/{tx|ledger|account|validator|amendment|amm|nft|token}/{id}.png` (spec 2, 9; validators spec 8; AMM spec 5.2; NFT spec 10; token pages spec 7.2), on the real Worker against the
+// The link-preview images, `/og/{net}/{tx|ledger|account|validator|amendment|amm|nft|token|mpt}/{id}.png` (spec 2, 9; validators spec 8; AMM spec 5.2; NFT spec 10; token pages spec 7.2; E14 spec 9), on the real Worker against the
 // recorded answers of the data API and the nodes (test/fixtures/http/), and the generated D1 and AMM answers for validators, amendments and pools. The image is drawn by workers-og (Satori and resvg-wasm) with the bundled Geist fonts;
 // its layout is tested in app/og/card.test.ts, here it is the answers: what is a PNG of 1200 × 630, in which cache class, from which
 // upstream, and what is a 404 or a 503.
@@ -115,6 +120,15 @@ const madeUp = (n: number): TokenAsset & { path: string } => {
   const issuer = encodeAccountID(new Uint8Array(20).fill(0x70 + n));
   return { currency, issuer, path: `${currency}.${issuer}` };
 };
+
+// The MPT issuances of the fixtures (test/fixtures/http/xrpl/data-api/mpt/, node/ledger_entry/): what the image reads of one is the page's call `GET /v2/mpt/{ID}` and, where the index says not found, the node's
+// `ledger_entry`; never its holders, its transfers or the names. A test of a failure, or of a card whose facts the fixtures do not have, takes an ID made up for it (`mptOf`: no recording has it) or one of the
+// sample's, with the index's answer given as an override. Each test takes an issuance of its own (what the data API's client keeps stays for the rest of the file), and takes the subrequest entries away (`cold`).
+const { htf: MPT_HTF, escrow: MPT_ESCROW, noMetadata: MPT_BARE, nodeOnly: MPT_NODE_ONLY, nowhere: MPT_NOWHERE, nonConforming: MPT_HOSTILE, lockedAll: MPT_LOCKED, destroyed: MPT_DESTROYED } = MPT_FIXTURE_IDS;
+const mptCall = (id: string) => `GET /v2/mpt/${id}`;
+const mptNodeCall = (id: string) => `node ledger_entry ledger_index=validated&mpt_issuance=${id}`;
+/** An issuance ID that no recording has, one to a test: the sample issuer's issuance number `5000 + n`. */
+const mptOf = (n: number) => mptIdOf(5000 + n, MPT_SAMPLE_ISSUER);
 
 /** A valid address that no recording has: 20 bytes of `n`. */
 const account = (n: number) => encodeAccountID(new Uint8Array(20).fill(n));
@@ -659,6 +673,81 @@ describe("when an upstream fails for a token", () => {
   });
 });
 
+describe("when an upstream fails for an MPT", () => {
+  let drawing: MockInstance<typeof render.renderCard>;
+  let errors: MockInstance<typeof console.error>;
+  beforeEach(() => {
+    cold();
+    drawing = vi.spyOn(render, "renderCard");
+    errors = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("answers 503 with Retry-After when the index fails for the issuance, draws nothing, asks no node, stores nothing, and tells what happened", async () => {
+    const id = mptOf(1);
+    const path = `/og/xrpl/mpt/${id}.png`;
+    mock = mockUpstream("xrpl", { [mptCall(id)]: () => dataApiError(503, "unavailable") });
+    const { response } = await image(path);
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBeTruthy();
+    expect(response.headers.get("Content-Type")).not.toBe("image/png");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
+    expect(statusesOf(mock, mptCall(id))).toEqual([503]);
+    expect(keys(mock)).toEqual([`xrpl ${mptCall(id)}`]);
+    expect(drawing).not.toHaveBeenCalled();
+    expect(await isStored(path)).toBe(false);
+    const logged = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes("an MPT's link-preview image could not read the issuance"));
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toContain(path);
+  });
+
+  it.each([
+    [2, "the data API is limiting us", () => dataApiError(429, "slow down", { "Retry-After": "7" })],
+    [3, "the data API refuses an ID the route has checked (a 400 is its fault, not a missing image)", () => dataApiError(400, "invalid mpt_issuance_id")],
+    [4, "the data API is one without D9 (Cannot GET)", (id: string) => dataApiError(404, `Cannot GET /v2/mpt/${id}`)],
+    [5, "the data API answers something that is no issuance", () => new Response("<html></html>", { status: 200, headers: { "Content-Type": "text/html" } })],
+    // A 200 for another issuance than the one asked for: the client refuses it (`checkMptIssuance` pins the ID), so the card is never of the wrong issuance.
+    [6, "the data API answers for another issuance", () => mptSample({ issuance: mptIssuanceSample({ mpt_issuance_id: MPT_SAMPLE_SECOND_ID }) })],
+  ] as Array<[number, string, (id: string) => Response | object]>)("answers 503 when %s, never a 404, asks no node and stores nothing", async (n, _what, answer) => {
+    const id = mptOf(n);
+    const path = `/og/xrpl/mpt/${id}.png`;
+    mock = mockUpstream("xrpl", { [mptCall(id)]: answer(id) as Response });
+    const { response } = await image(path);
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBeTruthy();
+    expect(response.headers.get("Content-Type")).not.toBe("image/png");
+    expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+    expect(drawing).not.toHaveBeenCalled();
+    expect(await isStored(path)).toBe(false);
+  });
+
+  it("answers 503 when the index has no answer and the node fails: it cannot tell, so it is no 404", async () => {
+    const id = mptOf(7);
+    const path = `/og/xrpl/mpt/${id}.png`;
+    mock = mockUpstream("xrpl", { [mptNodeCall(id)]: nodeError("noNetwork") });
+    const { response } = await image(path);
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBeTruthy();
+    expect(keys(mock).sort()).toEqual([`xrpl ${mptCall(id)}`, `xrpl ${mptNodeCall(id)}`].sort());
+    expect(drawing).not.toHaveBeenCalled();
+    expect(await isStored(path)).toBe(false);
+  });
+
+  it("asks again the next time: a failure is not remembered", async () => {
+    const id = mptOf(8);
+    const path = `/og/xrpl/mpt/${id}.png`;
+    mock = mockUpstream("xrpl", { [mptCall(id)]: () => dataApiError(500, "boom") });
+    expect((await image(path)).response.status).toBe(503);
+    expect((await image(path)).response.status).toBe(503);
+    expect(statusesOf(mock, mptCall(id))).toEqual([500, 500]);
+  });
+});
+
 // A card the renderer cannot draw is an outage of this answer, not a missing image: the same 503 as a failing upstream.
 describe("when the card cannot be drawn", () => {
   it("answers 503 with Retry-After, stores nothing, and logs what happened", async () => {
@@ -804,6 +893,8 @@ describe("a query string", () => {
     ["an AMM pool that is not an address", "/og/xrpl/amm/nope.png"],
     ["an NFT", `/og/xrpl/nft/${NFT_FEATURED.id}.png`],
     ["an NFT that is not an id", "/og/xrpl/nft/nope.png"],
+    ["an MPT", `/og/xrpl/mpt/${MPT_HTF}.png`],
+    ["an MPT that is not an ID", "/og/xrpl/mpt/nope.png"],
     ["an id that is not one", "/og/xrpl/tx/ABC123.png"],
     ["a network that does not exist", "/og/bitcoin/tx/ABC123.png"],
   ])("on the image of %s is a 302 to the bare path, class immutable, with no call and nothing drawn", async (_what, bare) => {
@@ -892,6 +983,13 @@ describe("an id that is not one", () => {
     ["the native currency with an issuer, which is no token's code", `/og/xrpl/token/XRP.${TOKEN_RLUSD.issuer}.png`],
     ["an AMM pool's LP token, whose page is the pool's", `/og/xrpl/token/${TOKEN_LP.path}.png`],
     ["the native currency with an issuer, spelled with a plus", `/og/xrpl/token/xrp+${TOKEN_RLUSD.issuer}.png`],
+    ["an MPT ID of 47 hex digits", `/og/xrpl/mpt/${MPT_HTF.slice(1)}.png`],
+    ["an MPT ID of 49 hex digits", `/og/xrpl/mpt/${MPT_HTF}A.png`],
+    ["an MPT ID with a non-hex letter", `/og/xrpl/mpt/G${MPT_HTF.slice(1)}.png`],
+    ["an MPT ID with a 0x prefix", `/og/xrpl/mpt/0x${MPT_HTF}.png`],
+    ["a transaction hash in place of an MPT ID", `/og/xrpl/mpt/${PAYMENT}.png`],
+    ["an MPT ID on Xahau, which has no MPT", `/og/xahau/mpt/${MPT_HTF}.png`],
+    ["an MPT ID on Xahau in lower case, which is no redirect there", `/og/xahau/mpt/${MPT_HTF.toLowerCase()}.png`],
   ])("is a 404 of class short without asking anyone: %s", async (_what, path) => {
     mock = mockUpstream("xrpl");
     const { response } = await image(path);
@@ -2132,5 +2230,179 @@ describe("a token", () => {
     expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
     expect(mock.requests).toEqual([]);
     expect(drawing).not.toHaveBeenCalled();
+  });
+});
+
+describe("an MPT", () => {
+  let drawing: MockInstance<typeof render.renderCard>;
+  beforeEach(() => {
+    cold();
+    drawing = vi.spyOn(render, "renderCard");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+  const cardOf = () => drawing.mock.calls[0]![0];
+
+  it("is a PNG of 1200 × 630, class slow, from the index alone: the issuance's own call, never the node, the holders, the transfers or the names; the card is the page's own facts", async () => {
+    const path = `/og/xrpl/mpt/${MPT_HTF}.png`;
+    mock = mockUpstream("xrpl");
+    const first = await image(path);
+
+    expectPng(first);
+    expect(first.response.headers.get("Cache-Control")).toBe("max-age=300");
+    expect(first.response.headers.get("X-Robots-Tag")).toBe("noindex");
+    expect(first.response.headers.get("X-Cache")).toBe("MISS");
+    expect(await storedAs(path)).toEqual(SLOW);
+    expect(keys(mock)).toEqual([`xrpl ${mptCall(MPT_HTF)}`]);
+
+    // The ticker as the big line, the issuer (no names call: its short address), the issuance's name and its figures, the day it was created.
+    expect(drawing).toHaveBeenCalledTimes(1);
+    expect(cardOf()).toEqual({
+      network: "xrpl",
+      networkLabel: "XRPL mainnet",
+      kind: "MPT",
+      headline: { text: "XAU", mono: true },
+      parties: [shortAddress("rBEERdzDHqDyYmfw2jqzyMNBZu31yzfg6q")],
+      note: "Tokenized Gold (XAU) · 61.2M XAU outstanding · 63 holders",
+      footer: [{ text: "Created 6 Oct 2025" }],
+    });
+    expect(hex((await decodePng(first.bytes)).pixel(600, 4))).toBe("#0A6CF1");
+
+    // The same card again from the edge cache: nothing drawn, nothing asked.
+    const again = await image(path);
+    expect(again.response.headers.get("X-Cache")).toBe("HIT");
+    expect(again.bytes).toEqual(first.bytes);
+    expect(drawing).toHaveBeenCalledTimes(1);
+    expect(mock.requests.length).toBe(1);
+  });
+
+  it("is the card of an issuance the index has no creation time of: the network in the footer", async () => {
+    mock = mockUpstream("xrpl");
+    const answer = await image(`/og/xrpl/mpt/${MPT_ESCROW}.png`);
+
+    expectPng(answer);
+    expect(cardOf()).toMatchObject({
+      kind: "MPT",
+      headline: { text: "HTF", mono: true },
+      note: "Harborline Treasury Fund · 18.2M HTF outstanding · 8 holders",
+      footer: [{ text: "MPT on XRPL" }],
+    });
+  });
+
+  it("is headed by the start and end of the ID, and counts in units, for an issuance with no metadata", async () => {
+    mock = mockUpstream("xrpl");
+    const answer = await image(`/og/xrpl/mpt/${MPT_BARE}.png`);
+
+    expectPng(answer);
+    expect(cardOf()).toMatchObject({ headline: { text: `${MPT_BARE.slice(0, 8)}…${MPT_BARE.slice(-4)}`, mono: true }, note: "150K units outstanding · 4 holders" });
+  });
+
+  it("is drawn for a destroyed issuance, with the figures the index still has", async () => {
+    mock = mockUpstream("xrpl");
+    const answer = await image(`/og/xrpl/mpt/${MPT_DESTROYED}.png`);
+
+    expectPng(answer);
+    expect(cardOf()).toMatchObject({ headline: { text: "OLDG", mono: true }, note: "Old Gilt Note · 0 OLDG outstanding · 0 holders" });
+  });
+
+  it("is class short for 60 s for an issuance only the node has: the index's not found, then the node's entry, with no holders and no creation", async () => {
+    const path = `/og/xrpl/mpt/${MPT_NODE_ONLY}.png`;
+    mock = mockUpstream("xrpl");
+    const answer = await image(path);
+
+    expectPng(answer);
+    expect(await storedAs(path)).toEqual(FROM_NODE);
+    expect(keys(mock).sort()).toEqual([`xrpl ${mptCall(MPT_NODE_ONLY)}`, `xrpl ${mptNodeCall(MPT_NODE_ONLY)}`].sort());
+    expect(cardOf()).toMatchObject({
+      kind: "MPT",
+      headline: { text: `${MPT_NODE_ONLY.slice(0, 8)}…${MPT_NODE_ONLY.slice(-4)}`, mono: true },
+      note: expect.stringMatching(/^[\d.,]+[KMBT]? units outstanding$/),
+      footer: [{ text: "MPT on XRPL" }],
+    });
+  });
+
+  it("is a 404 of class short, drawn nothing, when neither the index nor the node has the issuance", async () => {
+    const path = `/og/xrpl/mpt/${MPT_NOWHERE}.png`;
+    mock = mockUpstream("xrpl");
+    const { response } = await image(path);
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Content-Type")).not.toBe("image/png");
+    expect(response.headers.get("Cache-Control")).toBe("max-age=0");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
+    expect(keys(mock).sort()).toEqual([`xrpl ${mptCall(MPT_NOWHERE)}`, `xrpl ${mptNodeCall(MPT_NOWHERE)}`].sort());
+    expect(drawing).not.toHaveBeenCalled();
+    expect(await storedAs(path)).toEqual(SHORT);
+  });
+
+  it("is a 404 of class short with no call on Xahau, whatever the ID: MPT is not there", async () => {
+    mock = mockUpstream("xahau");
+    for (const id of [MPT_HTF, MPT_HTF.toLowerCase()]) {
+      const path = `/og/xahau/mpt/${id}.png`;
+      const { response } = await image(path);
+      expect(response.status, id).toBe(404);
+      expect(response.headers.get("Content-Type"), id).not.toBe("image/png");
+      expect(await storedAs(path), id).toEqual(SHORT);
+    }
+    expect(mock.requests).toEqual([]);
+    expect(drawing).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["in lower case", MPT_HTF.toLowerCase()],
+    ["in mixed case", `${MPT_HTF.slice(0, 24)}${MPT_HTF.slice(24).toLowerCase()}`],
+  ])("redirects an ID %s to the canonical image, for good, without asking anyone or drawing", async (_what, id) => {
+    mock = mockUpstream("xrpl");
+    const path = `/og/xrpl/mpt/${id}.png`;
+    const response = await get(path);
+    await response.arrayBuffer();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`/og/xrpl/mpt/${MPT_HTF}.png`);
+    expect(mock.requests).toEqual([]);
+    expect(drawing).not.toHaveBeenCalled();
+    expect(await storedAs(path)).toEqual(IMMUTABLE);
+  });
+
+  it("is followed from the lower-case ID to the image", async () => {
+    mock = mockUpstream("xrpl");
+    // The issuance no earlier test has asked for, so that the image is drawn here and the call is seen.
+    const redirect = await get(`/og/xrpl/mpt/${MPT_LOCKED.toLowerCase()}.png`);
+    await redirect.arrayBuffer();
+    expect(redirect.headers.get("Location")).toBe(`/og/xrpl/mpt/${MPT_LOCKED}.png`);
+    expectPng(await image(redirect.headers.get("Location")!));
+    expect(keys(mock)).toEqual([`xrpl ${mptCall(MPT_LOCKED)}`]);
+    expect(cardOf()).toMatchObject({ headline: { text: "LKD", mono: true } });
+  });
+
+  it("is a different card for a different issuance", async () => {
+    mock = mockUpstream("xrpl");
+    const gold = await image(`/og/xrpl/mpt/${MPT_HTF}.png`);
+    const fund = await image(`/og/xrpl/mpt/${MPT_ESCROW}.png`);
+    expect(fund.bytes).not.toEqual(gold.bytes);
+  });
+
+  it("is drawn for a name of 128 characters: cut to what a line holds, the figures kept whole", async () => {
+    mock = mockUpstream("xrpl");
+    const answer = await image(`/og/xrpl/mpt/${MPT_HOSTILE}.png`);
+
+    expectPng(answer);
+    const card = cardOf();
+    expect(card.headline).toEqual({ text: "mixd", mono: true });
+    // The fixture's name is "Nx" and 126 "w": 39 characters and the ellipsis, then the figures (8,999.999997 is 9,000 compact).
+    expect(card.note).toBe(`Nx${"w".repeat(37)}… · 9,000 mixd outstanding · 6 holders`);
+  });
+
+  it("is drawn for a ticker and a name that hold emoji, a script Geist lacks and bidi controls, and more than a card has room for: never a 503 that a visitor would meet on every try", async () => {
+    const name = `🔥 火 ${"Long name ".repeat(30)}`;
+    mock = mockUpstream("xrpl", { [mptCall(MPT_SAMPLE_ID)]: mptSample({ issuance: mptIssuanceSample({ ticker: "🔥火\u202E", name, metadata: undefined }) }) });
+    const answer = await image(`/og/xrpl/mpt/${MPT_SAMPLE_ID}.png`);
+
+    expectPng(answer);
+    const card = cardOf();
+    // The bidi control is gone from the big line, as the tab's; the name is cut to 39 characters (the space at their end dropped) and the ellipsis.
+    expect(card.headline).toEqual({ text: "🔥火", mono: true });
+    expect(card.note).toBe(`${Array.from(name).slice(0, 39).join("").trimEnd()}… · 18.2M 🔥火 outstanding · 3,412 holders`);
   });
 });

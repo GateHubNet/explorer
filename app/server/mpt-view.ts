@@ -629,12 +629,18 @@ function transfersCard(net: MptNet, loaded: Loaded<MptTransfersPage>, head: MptH
 export interface MptFacts {
   /** The canonical path of the page, written here because the tags' module is a browser file and may not import `domain/mpt.ts` (bignumber.js): `/xrpl/mpt/0000012A…`. */
   href: string;
+  /** The issuance ID in capitals: the last piece of that path, and of the link-preview image's (`/og/{net}/mpt/{ID}.png`, which the tags' module writes with `imageUrl`). */
+  id: string;
   /** The title before its end ("· XRPL · explorer"): "XAU · Tokenized Gold (XAU) · MPT", and without a ticker or a name "MPT 0000012A…3F09". */
   title: string;
   /** "MPT issued by Harborline: 18,204,511.20 HTF outstanding, 3,412 holders · XRPL". */
   description: string;
   /** From the network the page is not for an index to keep. */
   noindex: boolean;
+  /**
+   * What the link-preview image says, without the bidi controls of the issuer's ticker and name (an image cannot show what a control character does to the text around it safely; the tab strips them
+   * too, `unmarked`): a ticker or a name of nothing else is none, as everywhere. The tags' title and description are the issuer's text as it is.
+   */
   card: {
     /** The ticker, else the ID's start and end. */
     headline: string;
@@ -656,6 +662,8 @@ export function mptFacts(net: Pick<NetworkInfo, "id" | "name">, source: MptSourc
   const T = head.tickerOrUnits;
   const named = head.name;
   const parts = [head.ticker, named].filter((part): part is string => part !== undefined);
+  const cardTicker = unmarked(head.ticker);
+  const cardName = unmarked(named);
   const issuer = shownIssuer(head.issuer, names.map);
   const outstanding = unitsText(f.outstanding, head.scale);
   const holders = f.holders === null ? "" : `, ${f.holders === 1 ? "1 holder" : `${counted(f.holders)} holders`}`;
@@ -663,14 +671,15 @@ export function mptFacts(net: Pick<NetworkInfo, "id" | "name">, source: MptSourc
   const created = source.origin === "index" && source.answer.issuance.created_time !== undefined ? unixOf(source.answer.issuance.created_time) : undefined;
   return {
     href: mptPath(net.id, head.id),
+    id: head.id,
     title: parts.length === 0 ? `MPT ${shortMptId(head.id)}` : `${parts.join(" · ")} · MPT`,
     description: `MPT issued by ${issuer}: ${outstanding} ${T} outstanding${holders} · ${net.name}`,
     noindex: source.origin === "node",
     card: {
-      headline: head.ticker ?? shortMptId(head.id),
-      ...(named === undefined ? {} : { name: named }),
+      headline: cardTicker ?? shortMptId(head.id),
+      ...(cardName === undefined ? {} : { name: cardName }),
       issuer,
-      outstanding: `${compactNumber(scaled ?? f.outstanding)} ${T}`,
+      outstanding: `${compactNumber(scaled ?? f.outstanding)} ${cardTicker ?? "units"}`,
       ...(f.holders === null ? {} : { holders: f.holders }),
       ...(created === undefined ? {} : { created }),
     },
@@ -925,7 +934,7 @@ export interface MptRowView {
   transfers: string;
 }
 
-/** The issuer's text as the tab draws it: without the bidi controls that would turn the words around it, and none when nothing visible is left. */
+/** The issuer's text as the tab and the link-preview card draw it: without the bidi controls that would turn the words around it, and none when nothing visible is left. */
 function unmarked(text: string | undefined): string | undefined {
   const plain = text === undefined ? "" : withoutBidiControls(text);
   return plain.trim() === "" ? undefined : plain;

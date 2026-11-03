@@ -4,11 +4,12 @@ import type { LoaderFunctionArgs } from "react-router";
 
 import { amendmentSegment, parseAmendmentRef } from "../domain/amendment-ref";
 import { dropsToNative } from "../domain/format";
+import { NO_NAMES } from "../domain/names";
 import { parseTokenPath } from "../domain/token-params";
 import { parseValidatorKey } from "../domain/validator-key";
 import { renderCard } from "../og/render";
 import type { CardData } from "../og/types";
-import { accountCard, amendmentCard, ledgerCard, nftCard, nftCardFacts, poolCard, tokenCard, transactionCard, transactionFacts, validatorCard } from "../server/card-data";
+import { accountCard, amendmentCard, ledgerCard, mptCard, nftCard, nftCardFacts, poolCard, tokenCard, transactionCard, transactionFacts, validatorCard } from "../server/card-data";
 import { VALIDATORS_CALL_TTL_SECONDS, type CacheClass } from "../server/cache-class";
 import { activationOf } from "../server/account-view";
 import { ammPoolFacts, createdOf } from "../server/amm-view";
@@ -18,6 +19,8 @@ import { cacheClassHeaders } from "../server/edge-cache";
 import { getEnv } from "../server/env";
 import { ledgerPage, sourceFromIndex, sourceFromNode, type LedgerSource } from "../server/ledger-view";
 import { logProblem } from "../server/logging";
+import { checkMptRequest, loadMptSource } from "../server/mpt-route";
+import { mptFacts, type MptSource } from "../server/mpt-view";
 import { loadNames } from "../server/names-load";
 import { isNetworkId, networkOf, type Network } from "../server/networks";
 import { settleNft } from "../server/nft-read";
@@ -26,8 +29,8 @@ import { tokenFacts } from "../server/token-view";
 import { txFromIndex, txFromNode, type TransactionSource } from "../server/transaction-view";
 import { isMissingRoute, isNotFound, UpstreamError } from "../server/upstream";
 
-// `/og/{net}/{tx|ledger|account|validator|amendment|amm|nft|token}/{id}.png` (spec 2, 4, 9; validators spec 8; AMM spec 5.2; NFT spec 10; token pages spec 7.2): the link-preview image of a
-// transaction, a ledger, an account, a validator, an amendment, an AMM pool, an NFT or an issued token, 1200 × 630, drawn on the first request and kept by the edge. A resource route at the top
+// `/og/{net}/{tx|ledger|account|validator|amendment|amm|nft|token|mpt}/{id}.png` (spec 2, 4, 9; validators spec 8; AMM spec 5.2; NFT spec 10; token pages spec 7.2; E14 spec 9): the link-preview image of a
+// transaction, a ledger, an account, a validator, an amendment, an AMM pool, an NFT, an issued token or an MPT, 1200 × 630, drawn on the first request and kept by the edge. A resource route at the top
 // level: no layout, no HTML.
 //
 // - A URL with a query string is a 302 to the bare path (class `immutable`), before anything else: no call, nothing drawn, and no
@@ -65,6 +68,12 @@ import { isMissingRoute, isNotFound, UpstreamError } from "../server/upstream";
 //   currency, an LP token (its page is its pool's) and anything that names no token are 404s of class `short`, as is the whole kind while `TOKENS` is off, all before any call. Its card holds
 //   its holders and its supply, so it is class `slow`. The index's own `token not found` is the 404 (class `short`); every other failure, a 400 and a `Cannot GET` (an API without D6) included, is a
 //   503 that is never stored.
+// - An MPT (E14 spec 9) is checked as its page is (`checkMptRequest`, the order of spec 1.3, before any call): `MPT` off, a network without MPT (Xahau and Xahau Testnet: a plain 404 here, not the page that says
+//   so) and an ID that is not 48 hex digits are 404s of class `short`; an ID in another case is a 302 (`immutable`) to the upper-case image. It is drawn from the page's own reads, the issuance alone (`loadMptSource`:
+//   the index's `GET /v2/mpt/{ID}` and, where the index says not found, the node's `ledger_entry`; never its holders, its transfers or the names, so the issuer is its short address), and its card is made of the
+//   facts the page's tags are (`mptFacts`). Class `slow` (its card holds its outstanding amount and holders, so it is kept for an hour, as an account's is); one only the node has is `short` for 60 s, like the page,
+//   so that the index's version takes over. Neither having the issuance is the 404 (class `short`); every other failure of the index, a 400 and a `Cannot GET` (an API without D9) included, or of the node while
+//   the index has none, is a 503 that is never stored.
 // - A "not found" (the API's and the node's) is a 404 of class `short`. A failure of an upstream that leaves the question open, and a
 //   card the renderer cannot draw, is a 503 with `Retry-After` that is never stored; the Worker's entry answers it with a stored copy
 //   of the image if there is one, however old. A 400 of the data API for an id the route has checked is such a failure too (the API's
@@ -173,6 +182,8 @@ export async function loader({ params, request, context }: LoaderFunctionArgs) {
       return nftImage(context, network, id, request);
     case "token":
       return tokenImage(context, network, id, request);
+    case "mpt":
+      return mptImage(context, network, id, request);
     default:
       return notFound();
   }
@@ -400,4 +411,30 @@ async function tokenImage(context: LoaderFunctionArgs["context"], network: Netwo
     return indexOnlyFailure(err);
   }
   return image(tokenCard(tokenFacts(network, answer.token, false), network), request, "slow");
+}
+
+// ---- An MPT --------------------------------------------------------------------------------------------------------------------------
+
+async function mptImage(context: LoaderFunctionArgs["context"], network: Network, id: string, request: Request) {
+  // The page's own checks, in its order and before any call: off, a network without MPT and an ID that is not 48 hex digits are one 404 (the page that says MPT is not on Xahau is the page's, not the image's);
+  // an ID in another case is a 302 to the upper-case image.
+  const checked = checkMptRequest(network, id, network.features);
+  if (checked.kind === "case") return permanent(`/og/${network.id}/mpt/${id.toUpperCase()}.png`);
+  if (checked.kind !== "ok") return notFound();
+
+  const { api, node } = clientsFor(context, network);
+  let source: MptSource | null;
+  try {
+    source = await loadMptSource(api, node, checked.id);
+  } catch (err) {
+    // The index's own `not found` was the node's question; what is left leaves the question open (a 400 and a `Cannot GET` included), so it is a 503, never stored.
+    logProblem("an MPT's link-preview image could not read the issuance", err, request);
+    return apiFailure(err);
+  }
+  if (source === null) return notFound();
+
+  // No names call: an image is the issuance alone, and its issuer is the short address (`NO_NAMES`).
+  const card = mptCard(mptFacts(network, source, NO_NAMES), network);
+  // From the network until the index has it, as the page is.
+  return source.origin === "node" ? image(card, request, "short", FROM_NODE_TTL) : image(card, request, "slow");
 }

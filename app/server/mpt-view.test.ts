@@ -826,6 +826,36 @@ describe("mptPage: the tags' and the card's facts", () => {
   });
 });
 
+describe("mptFacts: the card's text (Task 14)", () => {
+  const SHORT_ID = `${PAGE_ID.slice(0, 8)}…${PAGE_ID.slice(-4)}`;
+
+  it("names the issuance's ID in capitals, for the tags' module that writes the link-preview image's path from it", () => {
+    expect(mptFacts(XRPL, indexed(), NO_NAMES).id).toBe(PAGE_ID);
+    expect(mptFacts(XRPL, fromNode(), NO_NAMES).id).toBe(PAGE_ID);
+    expect(mptFacts(XRPL, { origin: "node", node: entryOf(), ledgerIndex: 1, id: PAGE_ID.toLowerCase() }, NO_NAMES).id).toBe(PAGE_ID);
+  });
+
+  // Task 12's tab strips the bidi controls of the issuer's ticker and name; the card does too, in the facts it is made of, since an image cannot show their effect on the text around them safely.
+  // The page's head and tags are not touched (the whole-branch review's question: one rule, or why two).
+  it("gives the card the ticker and the name without their bidi controls, and leaves the tags' title and description as the issuer wrote them", () => {
+    const facts = mptFacts(XRPL, indexed({ ticker: "H\u202ETF", name: "Harbor\u2066line\u200F Fund", metadata: undefined }), NO_NAMES);
+    expect(facts.card).toMatchObject({ headline: "HTF", name: "Harborline Fund", outstanding: "18.2M HTF" });
+    expect(facts.title).toBe("H\u202ETF · Harbor\u2066line\u200F Fund · MPT");
+    expect(facts.description).toContain("18,204,511.20 H\u202ETF outstanding");
+  });
+
+  it("reads a ticker or a name of controls alone as none: the ID's start and end, units, and no name", () => {
+    const { card } = mptFacts(XRPL, indexed({ ticker: "\u202E\u202C", name: "\u2066\u2069", metadata: undefined }), NO_NAMES);
+    expect(card).toEqual({ headline: SHORT_ID, issuer: `${PAGE_ISSUER.slice(0, 6)}…${PAGE_ISSUER.slice(-4)}`, outstanding: "18.2M units", holders: 3412, created: Date.parse("2025-10-09T08:30:00Z") / 1000 });
+  });
+
+  it("reads the ticker as the head does for the card too: 16 code points, and a blank one is none", () => {
+    expect(mptFacts(XRPL, indexed({ ticker: "ABCDEFGHIJKLMNOPQRST", metadata: undefined }), NO_NAMES).card).toMatchObject({ headline: "ABCDEFGHIJKLMNOP", outstanding: "18.2M ABCDEFGHIJKLMNOP" });
+    expect(mptFacts(XRPL, indexed({ ticker: "😀".repeat(20), metadata: undefined }), NO_NAMES).card.headline).toBe("😀".repeat(16));
+    expect(mptFacts(XRPL, indexed({ ticker: "   ", metadata: undefined }), NO_NAMES).card).toMatchObject({ headline: SHORT_ID, outstanding: "18.2M units" });
+  });
+});
+
 describe("mptPage", () => {
   it("names the network, the origin, the caption of the cards and passes the names on", () => {
     const data = page({ names: named() });

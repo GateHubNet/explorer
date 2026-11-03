@@ -191,3 +191,34 @@ describe("the search with MPT off", () => {
     expect(await storedAs(path)).toEqual({ cls: "short", ttl: 30 });
   });
 });
+
+// E14 spec 1.3 and 9: the link-preview image of an MPT is one of the MPT routes, so while `MPT` is off it is a 404 of class `short` before any call whatever the ID is — in capitals, in lower case (no redirect: the switch is
+// checked first), on Xahau, and for text that is no ID — and a query string is still the 302 to the bare path every image has (it is read before anything).
+describe("the MPT image with MPT off", () => {
+  it.each([
+    ["an ID in capitals", "xrpl", MPT_FIXTURE_IDS.htf],
+    ["an ID in lower case", "xrpl", MPT_FIXTURE_IDS.htf.toLowerCase()],
+    ["text that is no ID", "xrpl", "xyz"],
+    ["an ID on Xahau", "xahau", MPT_FIXTURE_IDS.htf],
+  ] as const)("answers %s with a 404 of class short, no image and no request", async (_what, net, id) => {
+    mock = mockUpstream(net);
+    const path = `/og/${net}/mpt/${id}.png`;
+    const response = await get(path);
+    await response.arrayBuffer();
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Content-Type")).not.toBe("image/png");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs(path)).toEqual({ cls: "short", ttl: 30 });
+  });
+
+  it("sends a query string to the bare path as it does with the switch on, and asks no one", async () => {
+    mock = mockUpstream("xrpl");
+    const response = await get(`/og/xrpl/mpt/${MPT_FIXTURE_IDS.htf}.png?a=1`);
+    await response.arrayBuffer();
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`/og/xrpl/mpt/${MPT_FIXTURE_IDS.htf}.png`);
+    expect(mock.requests).toEqual([]);
+  });
+});
