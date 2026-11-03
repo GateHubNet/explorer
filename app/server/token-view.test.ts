@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ammLiveVolumeSample, ammPoolAccount, ammPoolSample, ammPoolsSample, AMM_POOL } from "../../test/support/amm-samples";
+import { mptCoverageSample, mptTokenRowSample, mptTokensSample, MPT_SAMPLE_ID } from "../../test/support/mpt-samples";
 import {
   HOLDERS_MARKER,
   holdersSample,
@@ -22,7 +23,7 @@ import {
 import { NAMES_OFF, NO_NAMES, type NamesPart, type NameView } from "../domain/names";
 import { parseTokensParams, type TokensParams } from "../domain/token-params";
 import { NO_FEATURES } from "../ui/features";
-import type { AmmPool, AmmVolumeRow, Page, TokenDetail, TokensResponse } from "./api-types";
+import type { AmmPool, AmmVolumeRow, MptTokensPage, Page, TokenDetail, TokensResponse } from "./api-types";
 import type { Loaded } from "./account-view";
 import type { AccountInfo } from "./node-rpc";
 import {
@@ -296,6 +297,7 @@ describe("tokensPage: the search form", () => {
       error: null,
       label: "Code, name or issuer",
       placeholder: "RLUSD, Ripple or rMxCK…",
+      before: [],
       hidden: [],
     });
     expect(listed().search.q).toBe("");
@@ -382,18 +384,152 @@ describe("tokensPage: the coverage", () => {
 
 describe("tokensPage: the facts of the tags", () => {
   it("are the default view's with no search, no all and no marker", () => {
-    expect(listed().meta).toEqual({ all: false, more: false, error: false });
+    expect(listed().meta).toEqual({ kind: "issued", all: false, more: false, error: false });
   });
 
   it("name the search (without its bidi controls), all and the marker", () => {
-    expect(listed("q=USD", pageOf(1, 12, { total: 12 })).meta).toEqual({ q: "USD", all: false, more: false, error: false });
+    expect(listed("q=USD", pageOf(1, 12, { total: 12 })).meta).toEqual({ kind: "issued", q: "USD", all: false, more: false, error: false });
     expect(listed("q=a%E2%80%AEb", pageOf(1, 12, { total: 12 })).meta.q).toBe("ab");
-    expect(listed("all=1").meta).toEqual({ all: true, more: false, error: false });
-    expect(listed("marker=M1").meta).toEqual({ all: false, more: true, error: false });
+    expect(listed("all=1").meta).toEqual({ kind: "issued", all: true, more: false, error: false });
+    expect(listed("marker=M1").meta).toEqual({ kind: "issued", all: false, more: true, error: false });
   });
 
   it("say the search was too long without repeating it", () => {
-    expect(listed(`q=${"x".repeat(65)}`, null).meta).toEqual({ all: false, more: false, error: true });
+    expect(listed(`q=${"x".repeat(65)}`, null).meta).toEqual({ kind: "issued", all: false, more: false, error: true });
+  });
+});
+
+// ---- The MPT tab (E14 spec 4, Task 12) ----------------------------------------------------------------------------------------------------------------------------------------------
+
+describe("tokensPage: the MPT tab", () => {
+  const MPT_NET: TokensNet = { ...XRPL, features: { ...FEATURES, mpt: true } };
+  /** The tab at `query` for `answer` (the sample unless one is given; `null` is the search that was too long). */
+  const tab = (query = "kind=mpt", answer: MptTokensPage | null = mptTokensSample(), over: Partial<TokensInput> = {}) =>
+    tokensPage({ net: MPT_NET, params: parseTokensParams(new URLSearchParams(query), { mptAvailable: true }), mptAvailable: true, answer, names: NO_NAMES, ...over });
+  /** A page of the list: `count` rows from `first`, of `total` issuances. */
+  const rowsFrom = (first: number, count: number, over: Partial<MptTokensPage> = {}) =>
+    mptTokensSample({ total: 214, count, tokens: Array.from({ length: count }, (_, at) => mptTokenRowSample({ rank: first + at })), ...over });
+
+  it("is the MPT kind: the issued body is none, and the data is the tab's (intro, tiles, source, table)", () => {
+    const page = tab();
+    expect(page.tokenKind).toBe("mpt");
+    expect(page.issued).toBeNull();
+    expect(page.mpt).not.toBeNull();
+    expect(page.intro).toBe("Tokens on XRPL, ranked by holders. Tickers and names come from each issuance's metadata.");
+    expect(page.source).toBe("/v2/tokens?kind=mpt");
+    expect(page.tiles.map((tile) => tile.label)).toEqual(["MPT issuances", "Holders", "Transfers, 24 h"]);
+    expect(page.mpt!.rows).toHaveLength(1);
+    expect(page.network).toMatchObject({ id: "xrpl", name: "XRPL" });
+  });
+
+  it("draws both tabs as links, MPT current", () => {
+    expect(tab().tabs).toEqual([
+      { label: "Issued tokens", href: "/xrpl/tokens", current: false },
+      { label: "MPT", href: "/xrpl/tokens?kind=mpt", current: true },
+    ]);
+  });
+
+  it("has the board's search words, and kind=mpt as a hidden field BEFORE the field, so that Search writes the canonical query (kind, then q) and costs no redirect", () => {
+    expect(tab("kind=mpt&q=HTF").search).toEqual({
+      action: "/xrpl/tokens",
+      q: "HTF",
+      error: null,
+      label: "Ticker, name, issuer or issuance ID",
+      placeholder: "Ticker, name, issuer or issuance ID",
+      before: [{ name: "kind", value: "mpt" }],
+      hidden: [],
+    });
+    // The issued list's form has nothing before its field and keeps all=1 after it.
+    expect(listed("all=1").search).toMatchObject({ before: [], hidden: [{ name: "all", value: "1" }] });
+  });
+
+  it("has no Show all, and no all=1 field: `all` is the issued list's alone", () => {
+    expect(tab("kind=mpt&all=1").showAll).toBeNull();
+    expect(tab("kind=mpt&all=1").search.hidden).toEqual([]);
+    expect(tab("kind=mpt", rowsFrom(1, 20, { total_below: 5 })).showAll).toBeNull();
+  });
+
+  it("pages by trailPaging with the kind kept: More tokens leads to the next marker, Previous back along the trail, and a search stays in both", () => {
+    expect(tab("kind=mpt", rowsFrom(1, 20, { marker: "M2" })).pager).toEqual({
+      newerHref: null,
+      olderHref: "/xrpl/tokens?kind=mpt&marker=M2",
+      labels: { newer: "Previous", older: "More tokens" },
+    });
+    const second = tab("kind=mpt&marker=M2&back=M1", rowsFrom(21, 20, { marker: "M3" })).pager;
+    expect(second).toMatchObject({ newerHref: "/xrpl/tokens?kind=mpt&marker=M1", olderHref: "/xrpl/tokens?kind=mpt&marker=M3&back=M2.M1" });
+    expect(tab("kind=mpt&q=fund&marker=M2", rowsFrom(21, 5, { marker: "M3", total: 25 })).pager).toMatchObject({
+      newerHref: "/xrpl/tokens?kind=mpt&q=fund",
+      olderHref: "/xrpl/tokens?kind=mpt&q=fund&marker=M3&back=M2",
+    });
+    // The last page has no next.
+    expect(tab("kind=mpt&marker=M3&back=M2.M1", rowsFrom(41, 5, { marker: undefined, total: 45 })).pager.olderHref).toBeNull();
+  });
+
+  it("has the pieces of the MPT body: the rows, the note, the footnote and the empty text", () => {
+    const { mpt } = tab("kind=mpt", rowsFrom(21, 2));
+    expect(mpt!.rows.map((row) => row.rank)).toEqual(["21", "22"]);
+    expect(mpt!.note).toEqual({ text: "Showing 21–22 of 214 issuances" });
+    expect(mpt!.footnote).toMatch(/^Flags: Transfer, holders can send it to each other/);
+    expect(mpt!.empty).toBeNull();
+    expect(tab("kind=mpt&q=zzz", mptTokensSample({ total: 0, count: 0, tokens: [] })).mpt).toMatchObject({ rows: [], empty: "No MPTs match “zzz”.", note: { text: "0 matches" } });
+  });
+
+  it("repeats a search without its bidi controls in the empty text", () => {
+    expect(tab("kind=mpt&q=a%E2%80%AEb", mptTokensSample({ total: 0, count: 0, tokens: [] })).mpt!.empty).toBe("No MPTs match “ab”.");
+  });
+
+  it("links a row to its issuance page and has the issuer's address for the table to name", () => {
+    expect(tab().mpt!.rows[0]).toMatchObject({ href: `/xrpl/mpt/${MPT_SAMPLE_ID}`, key: MPT_SAMPLE_ID });
+  });
+
+  it("draws D9's coverage note when it is not complete, in the words 'issuances'", () => {
+    expect(tab().coverage).toBeNull();
+    expect(tab("kind=mpt", mptTokensSample({ coverage: mptCoverageSample({ complete: false }) })).coverage).toMatchObject({ before: "Covers ledger ", after: " onwards: earlier issuances are not in the index yet." });
+  });
+
+  it("is a page of dashes, a form and no table for an answer D9 has no totals for (C19): no note and no pager", () => {
+    const fresh = tab("kind=mpt", mptTokensSample({ totals: undefined, total: undefined, marker: undefined, count: 0, tokens: [] }));
+    expect(fresh.tiles.map((tile) => tile.value)).toEqual(["—", "—", "—"]);
+    expect(fresh.mpt).toMatchObject({ rows: [], empty: "No MPTs in the index yet.", note: null });
+    expect(fresh.pager).toEqual({ newerHref: null, olderHref: null, labels: { newer: "Previous", older: "More tokens" } });
+  });
+
+  it("answers a search of more than 64 characters with its message, no table and no pager, and keeps what was typed", () => {
+    const q = "x".repeat(65);
+    const page = tab(`kind=mpt&q=${q}`, null);
+    expect(page.search).toMatchObject({ q, error: "Search for at most 64 characters", before: [{ name: "kind", value: "mpt" }] });
+    expect(page.mpt).toBeNull();
+    expect(page.issued).toBeNull();
+    expect(page.coverage).toBeNull();
+    expect(page.pager).toMatchObject({ newerHref: null, olderHref: null });
+    expect(page.tiles.map((tile) => tile.value)).toEqual(["—", "—", "—"]);
+    expect(page.tokenKind).toBe("mpt");
+    expect(page.meta).toEqual({ kind: "mpt", all: false, more: false, error: true });
+  });
+
+  it("writes the facts of the tags: the kind, the search without its bidi controls, the marker", () => {
+    expect(tab().meta).toEqual({ kind: "mpt", all: false, more: false, error: false });
+    expect(tab("kind=mpt&q=HTF").meta).toEqual({ kind: "mpt", q: "HTF", all: false, more: false, error: false });
+    expect(tab("kind=mpt&q=a%E2%80%AEb").meta.q).toBe("ab");
+    expect(tab("kind=mpt&marker=M2&back=M1", rowsFrom(21, 20)).meta).toEqual({ kind: "mpt", all: false, more: true, error: false });
+  });
+
+  it("is the sandbox's and Xahau Testnet's own names", () => {
+    expect(tab("kind=mpt", mptTokensSample(), { net: { ...MPT_NET, name: "XRPL Testnet", kind: "testnet" } }).intro).toBe(
+      "Tokens on XRPL Testnet, ranked by holders. Tickers and names come from each issuance's metadata.",
+    );
+    expect(tab().tiles[0]!.sub).toBe("on XRPL, with any number of holders");
+  });
+
+  it("refuses an answer of the other kind: a loader that asked for one kind and drew the other has a bug to show", () => {
+    expect(() => tab("kind=mpt", tokensSample() as unknown as MptTokensPage)).toThrow(/issued list.*mpt view/);
+    expect(() => listed("", mptTokensSample() as unknown as TokensResponse)).toThrow(/mpt list.*issued view/);
+  });
+
+  it("leaves the issued list as it was: no kind in its pager and its source", () => {
+    expect(listed("", pageOf(1, 20)).pager.olderHref).toBe(`/xrpl/tokens?marker=${TOKENS_MARKER}`);
+    expect(listed().source).toBe("/v2/tokens?kind=issued&min_holders=10");
+    expect(listed().mpt).toBeNull();
   });
 });
 

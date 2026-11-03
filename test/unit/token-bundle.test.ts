@@ -19,10 +19,11 @@ const read = (path: string) => readFileSync(new URL(path, appDir), "utf8");
 const SERVER_ONLY = [/\/server\//, /\/describe(\/|$)/, /\/parse(\/|$)/, /\/asset$/, /\/token-params$/, /\/market-pair$/, /ripple-/];
 const serverOnly = (from: string) => SERVER_ONLY.some((pattern) => pattern.test(from));
 
-/** The files of the pages the token pages are made of: the list's page and its table, the token's page, the holders' page, and the parts they share. */
+/** The files of the pages the token pages are made of: the list's page and its tables (the issued tokens' and, E14's, the MPT tab's), the token's page, the holders' page, and the parts they share. */
 const PAGE_FILES = [
   "ui/pages/TokensPage.tsx",
   "ui/pages/IssuedTable.tsx",
+  "ui/pages/MptTable.tsx",
   "ui/pages/TokenPage.tsx",
   "ui/pages/token-parts.tsx",
   "ui/pages/holder-columns.tsx",
@@ -78,10 +79,12 @@ describe("the files of the token pages that run in the browser", () => {
     expect(closure.filter((path) => path.startsWith("ui/charts/") && !/\/(Meter|cells|geometry)\.tsx?$/.test(path))).toEqual([]);
   });
 
-  it("walks the files the list draws with: the kit's table, pager, kind tabs, coverage note, account link and coin", () => {
+  it("walks the files the list draws with: the kit's table, pager, kind tabs, coverage note, account link, coin and pill, and both tables", () => {
     expect(staticClosure(appDir, "ui/pages/TokensPage.tsx")).toEqual(
       expect.arrayContaining([
         "ui/pages/IssuedTable.tsx",
+        "ui/pages/MptTable.tsx",
+        "ui/components/Pill.tsx",
         "ui/pages/token-parts.tsx",
         "ui/components/DataTable.tsx",
         "ui/components/Pager.tsx",
@@ -91,9 +94,12 @@ describe("the files of the token pages that run in the browser", () => {
         "ui/components/PairCoins.tsx",
       ]),
     );
+    // The MPT tab's table draws the words the view builder wrote (its pills carry their labels and titles): the list does not carry the MPT words or BigNumber's scaling for it (E14 spec 4).
+    const list = staticClosure(appDir, "ui/pages/TokensPage.tsx");
+    for (const file of ["domain/mpt.ts", "domain/mpt-params.ts", "domain/mpt-link.ts", "domain/mpt-id.ts", "server/mpt-view.ts"]) expect(list, file).not.toContain(file);
     // And it sees the Worker's code where a file does load it: the view builder reaches the token links, the asset module and the server.
     const builder = staticClosure(appDir, "server/token-view.ts");
-    expect(workerFiles(builder, LEAVES)).toEqual(expect.arrayContaining(["domain/asset.ts", "domain/token-params.ts", "server/token-view.ts", "server/coverage.ts"]));
+    expect(workerFiles(builder, LEAVES)).toEqual(expect.arrayContaining(["domain/asset.ts", "domain/token-params.ts", "server/token-view.ts", "server/coverage.ts", "server/mpt-view.ts"]));
   });
 
   it("walks the files the token page draws with: the kit's tables, tiles, meter, links to another site and copy button, and nothing of the plot", () => {

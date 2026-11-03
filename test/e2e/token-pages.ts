@@ -6,7 +6,7 @@
 
 import { readdirSync, readFileSync } from "node:fs";
 
-import type { TokenAnswer, TokenDetail, TokenHoldersResponse, TokensResponse, TokenTransfersResponse } from "../../app/server/api-types";
+import type { MptTokensPage, TokenAnswer, TokenDetail, TokenHoldersResponse, TokensResponse, TokenTransfersResponse } from "../../app/server/api-types";
 import {
   isTokenSource,
   resolveHoldersMarker,
@@ -83,6 +83,15 @@ export function transfersMarker(net: Net): TokenMarkerResult {
 export function listOf(net: Net, { q, all = false }: { q?: string; all?: boolean } = {}): TokensResponse {
   const name = `tokens@kind=issued&limit=20${all ? "" : "&min_holders=10"}${q === undefined ? "" : `&q=${q}`}.json`;
   return JSON.parse(readFileSync(new URL(`${net}/data-api/${name}`, ROOT), "utf8")) as TokensResponse;
+}
+
+/**
+ * The MPT tab's answer the fixtures hold for a view (E14 spec 4; D9's list, `tokens@kind=mpt&limit=20[&marker=M][&q=Q].json`, the query written sorted by name): its 20 issuances, its totals and the marker of
+ * the next page. `q` is a search, `marker` a page behind one. The first page is `mptListOf(net)`.
+ */
+export function mptListOf(net: Net, { q, marker }: { q?: string; marker?: string } = {}): MptTokensPage {
+  const name = `tokens@kind=mpt&limit=20${marker === undefined ? "" : `&marker=${marker}`}${q === undefined ? "" : `&q=${q}`}.json`;
+  return JSON.parse(readFileSync(new URL(`${net}/data-api/${name}`, ROOT), "utf8")) as MptTokensPage;
 }
 
 /** The detail the fixtures hold of a token (`tokens/<CUR>.<issuer>.json`), by the case or, for a token the case rules do not name, by its currency and issuer. */

@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import { loadTx } from "../../test/support/ledgers";
 import { MPT_FIXTURE_IDS, MPT_RECORDED } from "../../test/support/mpt-case-rules";
-import { XRPL } from "../../test/support/object-view-world";
+import { mptCoverageSample, mptFlagsSample, mptTokenRowSample, mptTokensSample, MPT_SAMPLE_ID, MPT_SAMPLE_ISSUER } from "../../test/support/mpt-samples";
+import { env as WORLD_ENV, XRPL } from "../../test/support/object-view-world";
+import { MPT_FLAGS_LEGEND } from "../domain/mpt";
 import { mptIdOf, mptIssuerOf } from "../domain/mpt-id";
 import { NO_NAMES, type NamesPart, type NameView } from "../domain/names";
 import type { MptFlags, MptHolder, MptHoldersPage, MptIssuance, MptIssuanceAnswer, MptSummary, MptTransfer, MptTransfersPage, NodeMptIssuance } from "./api-types";
@@ -15,6 +17,7 @@ import {
   mptHolderRows,
   mptHoldersPage,
   mptPage,
+  mptTokensTab,
   mptTransferRows,
   mptTransfersPage,
   noMptPage,
@@ -26,6 +29,7 @@ import {
   type MptPageData,
   type MptSource,
 } from "./mpt-view";
+import { networkOf } from "./networks";
 import { transactionPage } from "./transaction-view";
 
 const ISSUER = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
@@ -991,5 +995,184 @@ describe("noMptPage", () => {
     const data = noMptPage({ id: "xahau", kind: "testnet", other: "xrpl" }, PAGE_ID);
     expect(data.network.name).toBe("Xahau Testnet");
     expect(data.other).toMatchObject({ id: "xrpl", name: "XRPL Testnet" });
+  });
+});
+
+// ---- The MPT tab of the token list (E14 spec 4, Task 12) -------------------------------------------------------------------------------------------------------------------------------
+
+describe("mptTokensTab", () => {
+  const TESTNET = networkOf("xrpl", { ...WORLD_ENV, ENVIRONMENT: "sandbox" });
+  const tab = (answer = mptTokensSample(), o: { q?: string } = {}) => mptTokensTab(answer, { net: XRPL, ...o });
+  const row = (over: Parameters<typeof mptTokenRowSample>[0] = {}, o: { q?: string } = {}) => tab(mptTokensSample({ tokens: [mptTokenRowSample(over)] }), o).mpt!.rows[0]!;
+
+  it("writes the intro, the source line and the search's words, on the network's own name", () => {
+    const { intro, source, search } = tab();
+    expect(intro).toBe("Tokens on XRPL, ranked by holders. Tickers and names come from each issuance's metadata.");
+    expect(source).toBe("/v2/tokens?kind=mpt");
+    expect(search).toEqual({ label: "Ticker, name, issuer or issuance ID", placeholder: "Ticker, name, issuer or issuance ID" });
+    expect(mptTokensTab(mptTokensSample(), { net: TESTNET }).intro).toBe("Tokens on XRPL Testnet, ranked by holders. Tickers and names come from each issuance's metadata.");
+  });
+
+  it("has the three tiles of the totals, with the board's lines", () => {
+    expect(tab().tiles).toEqual([
+      { label: "MPT issuances", value: "214", sub: "on XRPL, with any number of holders" },
+      { label: "Holders", value: "9,862", sub: "accounts holding at least one MPT" },
+      { label: "Transfers, 24 h", value: "2,415", sub: "MPT payments between accounts" },
+    ]);
+    expect(mptTokensTab(mptTokensSample(), { net: TESTNET }).tiles[0]!.sub).toBe("on XRPL Testnet, with any number of holders");
+  });
+
+  it("draws a dash for each tile when D9 has no totals yet (C19), under the same labels and lines", () => {
+    const fresh = tab(mptTokensSample({ totals: undefined, total: undefined, count: 0, tokens: [] }));
+    expect(fresh.tiles.map((tile) => [tile.label, tile.value])).toEqual([
+      ["MPT issuances", "—"],
+      ["Holders", "—"],
+      ["Transfers, 24 h", "—"],
+    ]);
+    expect(fresh.tiles[1]!.sub).toBe("accounts holding at least one MPT");
+  });
+
+  it("is a row of the table: the rank, the ticker and the name, the link, the issuer, and the figures, the amounts scaled and compact", () => {
+    expect(row()).toEqual({
+      key: MPT_SAMPLE_ID,
+      rank: "1",
+      letter: "H",
+      ticker: "HTF",
+      name: "Harborline Treasury Fund",
+      id: MPT_SAMPLE_ID,
+      shortId: `${MPT_SAMPLE_ID.slice(0, 8)}…${MPT_SAMPLE_ID.slice(-4)}`,
+      href: `/xrpl/mpt/${MPT_SAMPLE_ID}`,
+      issuer: MPT_SAMPLE_ISSUER,
+      holders: "3,412",
+      // 1820451120 units at scale 2 are 18,204,511.20; the maximum 5000000000 units are 50,000,000.00.
+      outstanding: "18.2M",
+      max: "50M",
+      flags: [
+        { label: "Transfer", title: "Holders can send it to each other" },
+        { label: "Trade", title: "The issuer allows it on the DEX. MPT trading isn't enabled on XRPL yet." },
+        { label: "Lock", title: "The issuer can lock balances" },
+        { label: "Clawback", title: "The issuer can take it back" },
+        { label: "Auth", title: "Holders need the issuer's approval" },
+      ],
+      transfers: "412",
+    });
+  });
+
+  it("keeps the rank of the whole ranking with its thousands grouped, and the figures from the row's own scale", () => {
+    expect(row({ rank: 1284 }).rank).toBe("1,284");
+    expect(row({ asset_scale: 0, outstanding_amount: "1", maximum_amount: "2" })).toMatchObject({ outstanding: "1", max: "2" });
+    // 15 at scale 15 is 0.000000000000015: three significant digits.
+    expect(row({ asset_scale: 15, outstanding_amount: "15" }).outstanding).toBe("0.000000000000015");
+    expect(row({ asset_scale: 19, outstanding_amount: "12345" }).outstanding).toBe("0.00000000000000123");
+    expect(row({ asset_scale: 4, outstanding_amount: "0" }).outstanding).toBe("0");
+  });
+
+  it("shows the units, unscaled and compact with the word 'units', for an asset scale above 19", () => {
+    const wide = row({ asset_scale: 20, outstanding_amount: "123456789012", maximum_amount: "9000000000000" });
+    expect(wide.outstanding).toBe("123B units");
+    expect(wide.max).toBe("9T units");
+    expect(row({ asset_scale: 255, outstanding_amount: "7", maximum_amount: undefined })).toMatchObject({ outstanding: "7 units", max: null });
+  });
+
+  it("says 'not set' (a null max) where the issuance has no maximum, and has no pills for flags it does not have", () => {
+    const bare = row({ maximum_amount: undefined, flags: mptFlagsSample({ can_lock: false, require_auth: false, can_trade: false, can_transfer: false, can_clawback: false }) });
+    expect(bare.max).toBeNull();
+    expect(bare.flags).toEqual([]);
+  });
+
+  it("writes the pills in the board's order whatever the order of the keys, and never one for 'locked'", () => {
+    const all = row({ flags: { locked: true, require_auth: true, can_escrow: true, can_clawback: true, can_lock: true, can_trade: true, can_transfer: true } });
+    expect(all.flags.map((flag) => flag.label)).toEqual(["Transfer", "Trade", "Lock", "Clawback", "Escrow", "Auth"]);
+    expect(row({ flags: mptFlagsSample({ locked: true, can_lock: false, require_auth: false, can_trade: false, can_clawback: false }) }).flags.map((flag) => flag.label)).toEqual(["Transfer"]);
+  });
+
+  it("is the no-metadata cell without a ticker: '?' for the coin, the short ID and the full one, and no name", () => {
+    const none = row({ ticker: undefined, name: undefined, mpt_issuance_id: MPT_FIXTURE_IDS.noMetadata });
+    expect(none).toMatchObject({ letter: "?", id: MPT_FIXTURE_IDS.noMetadata, shortId: `${MPT_FIXTURE_IDS.noMetadata.slice(0, 8)}…${MPT_FIXTURE_IDS.noMetadata.slice(-4)}` });
+    expect(none.ticker).toBeUndefined();
+    expect(none.name).toBeUndefined();
+    // A name with no ticker reads as the board does: the cell is the no-metadata one (the ticker decides).
+    expect(row({ ticker: undefined, name: "Only a name" }).ticker).toBeUndefined();
+  });
+
+  it("reads a ticker as every page does: cut to 16 code points (an astral character whole), a blank one is none, and the name is cut to 128", () => {
+    expect(row({ ticker: "ABCDEFGHIJKLMNOPQRST" })).toMatchObject({ ticker: "ABCDEFGHIJKLMNOP", letter: "A" });
+    expect(row({ ticker: `${"😀".repeat(17)}` }).ticker).toBe("😀".repeat(16));
+    expect(row({ ticker: "😀X" }).letter).toBe("😀");
+    const blank = row({ ticker: "   ", name: "Name" });
+    expect(blank.ticker).toBeUndefined();
+    expect(blank.letter).toBe("?");
+    expect(row({ name: "n".repeat(300) }).name).toBe("n".repeat(128));
+    expect(row({ name: "  " }).name).toBeUndefined();
+  });
+
+  it("takes the bidi controls out of the issuer's text, as the issued list does for a toml name, and keeps the markup as text", () => {
+    const hostile = row({ ticker: "A\u202EB", name: "x\u2066y</td><b>" });
+    expect(hostile.ticker).toBe("AB");
+    expect(hostile.name).toBe("xy</td><b>");
+    expect(row({ ticker: "\u202E\u202E", name: undefined }).ticker).toBeUndefined();
+  });
+
+  it("links by mptLink: the ID in capitals, and no link while the switch is off", () => {
+    expect(row({ mpt_issuance_id: MPT_SAMPLE_ID.toLowerCase() }).href).toBe(`/xrpl/mpt/${MPT_SAMPLE_ID}`);
+    const off = mptTokensTab(mptTokensSample(), { net: { ...XRPL, features: { ...XRPL.features, mpt: false } } });
+    expect(off.mpt!.rows[0]!.href).toBeNull();
+  });
+
+  it("keeps nothing the issuer wrote out of anything but the ticker and name (the link is made of the ID alone)", () => {
+    const hostile = row({ ticker: '"><script>x</script>', name: "javascript:alert(1)" });
+    expect(hostile.href).toBe(`/xrpl/mpt/${MPT_SAMPLE_ID}`);
+    expect(hostile.key).toBe(MPT_SAMPLE_ID);
+    expect(hostile.id).toBe(MPT_SAMPLE_ID);
+  });
+
+  it("says where the page stands in the ranking, from the first and last rank and the total", () => {
+    const page = mptTokensSample({ total: 214, count: 2, tokens: [mptTokenRowSample({ rank: 21 }), mptTokenRowSample({ rank: 22, mpt_issuance_id: MPT_FIXTURE_IDS.noMetadata })] });
+    expect(tab(page).mpt!.note).toEqual({ text: "Showing 21–22 of 214 issuances" });
+    expect(tab(mptTokensSample({ total: 1284, tokens: [mptTokenRowSample({ rank: 1001 })] })).mpt!.note).toEqual({ text: "Showing 1,001–1,001 of 1,284 issuances" });
+  });
+
+  it("counts the matches of a search from the total: '1 match', 'N matches', '0 matches'", () => {
+    expect(tab(mptTokensSample({ total: 1 }), { q: "HTF" }).mpt!.note).toEqual({ text: "1 match" });
+    expect(tab(mptTokensSample({ total: 12 }), { q: "fund" }).mpt!.note).toEqual({ text: "12 matches" });
+    expect(tab(mptTokensSample({ total: 1284, tokens: [mptTokenRowSample()] }), { q: "a" }).mpt!.note).toEqual({ text: "1,284 matches" });
+    expect(tab(mptTokensSample({ total: 0, count: 0, tokens: [] }), { q: "zzz" }).mpt!.note).toEqual({ text: "0 matches" });
+  });
+
+  it("has no note without a total (C19), and none for an empty page that is no search", () => {
+    expect(tab(mptTokensSample({ total: undefined })).mpt!.note).toBeNull();
+    expect(tab(mptTokensSample({ total: undefined }), { q: "HTF" }).mpt!.note).toBeNull();
+    expect(tab(mptTokensSample({ total: 0, count: 0, tokens: [] })).mpt!.note).toBeNull();
+  });
+
+  it("says what an empty table says: no MPT matches the search, or the index has none", () => {
+    const none = mptTokensSample({ total: 0, count: 0, tokens: [] });
+    expect(tab(none, { q: "zzz" }).mpt).toMatchObject({ rows: [], empty: "No MPTs match “zzz”." });
+    expect(tab(none).mpt!.empty).toBe("No MPTs in the index yet.");
+    expect(tab(mptTokensSample({ totals: undefined, total: undefined, count: 0, tokens: [] })).mpt!.empty).toBe("No MPTs in the index yet.");
+    expect(tab().mpt!.empty).toBeNull();
+  });
+
+  it("has the board's flags legend as the footnote", () => {
+    expect(tab().mpt!.footnote).toBe(MPT_FLAGS_LEGEND);
+  });
+
+  it("is E8's coverage note for the answer's coverage, in the words 'issuances', and none when it is complete", () => {
+    expect(tab().coverage).toBeNull();
+    expect(tab(mptTokensSample({ coverage: mptCoverageSample({ complete: false, from_ledger_index: 99226369 }) })).coverage).toEqual({
+      before: "Covers ledger ",
+      ledger: 99226369,
+      after: " onwards: earlier issuances are not in the index yet.",
+    });
+    expect(tab(mptTokensSample({ coverage: { complete: false } })).coverage).toEqual({ before: "The index does not hold this history yet.", ledger: null, after: "" });
+  });
+
+  it("is the tab without a list when the search was too long to ask (no answer): dashes, no table, no note", () => {
+    const tooLong = mptTokensTab(null, { net: XRPL });
+    expect(tooLong.mpt).toBeNull();
+    expect(tooLong.coverage).toBeNull();
+    expect(tooLong.tiles.map((tile) => tile.value)).toEqual(["—", "—", "—"]);
+    expect(tooLong.intro).toBe("Tokens on XRPL, ranked by holders. Tickers and names come from each issuance's metadata.");
+    expect(tooLong.source).toBe("/v2/tokens?kind=mpt");
   });
 });

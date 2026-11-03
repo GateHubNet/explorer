@@ -1152,6 +1152,29 @@ describe("the MPT pages", () => {
   });
 
   it("is defined in pages.css alone: the components sheet has none of the page's classes", () => {
-    expect(componentsCss).not.toMatch(/\.mpt__|\.mptflags/);
+    expect(componentsCss).not.toMatch(/\.mpt__|\.mptflags|\.mpttab/);
+  });
+
+  // The MPT tab of the token list (spec 4; ruling C17): the Token cell holds the issuer's ticker (16 code points) and name (128, the fixtures' `nonConforming` one is 128 letters with no space), which break at
+  // the edge of the cell instead of painting over the Issuer column. Unlike a toml name (`.tokens__name`, clipped by an ellipsis on one line) they wrap: the rule is the cell's own, and does not lean on the
+  // inherited `overflow-wrap` of the table (`.tokens__table`), which a later edit of the list could drop.
+  it.each([".mpttab__code", ".mpttab__name"])("breaks the issuer's text in the MPT tab's %s at the edge of its cell, and does not clip it on one line", (selector) => {
+    const declarations = rule(pagesCss, selector);
+    expect(declarations["overflow-wrap"]).toBe("anywhere");
+    expect(declarations["white-space"]).toBeUndefined();
+    expect(declarations["text-overflow"]).toBeUndefined();
+    expect(declarations.overflow).toBeUndefined();
+  });
+
+  it("keeps the tab's table the list's own (`.tokens__table`: wrapping anywhere, a link of 24 px at least), and wraps the pills of the Flags column", () => {
+    expect(rule(pagesCss, ".tokens__table")["overflow-wrap"]).toBe("anywhere");
+    expect(rule(pagesCss, ".mpttab__flags")).toMatchObject({ display: "flex", "flex-wrap": "wrap", gap: "4px" });
+  });
+
+  it("styles the tab's name, ID and code in the list's own sizes: the name 12.5 px in the muted colour, the short ID 11.5 px in the faint one, the ticker in semi-bold", () => {
+    expect(rule(pagesCss, ".mpttab__name")).toMatchObject({ color: "var(--muted)", "font-size": "12.5px" });
+    expect(rule(pagesCss, ".mpttab__id")).toMatchObject({ color: "var(--faint)", "font-size": "11.5px" });
+    expect(rule(pagesCss, ".mpttab__code")["font-weight"]).toBe("600");
+    expect(rule(pagesCss, ".tokens__name")).toMatchObject({ color: "var(--muted)", "font-size": "12.5px" });
   });
 });

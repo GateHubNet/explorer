@@ -55,3 +55,30 @@ describe("an MPT issuance in the sandbox", () => {
     expect(mock.requests).toEqual([]);
   });
 });
+
+// E14 spec 4 and ruling C26: the MPT tab of the token list says XRPL Testnet in the sandbox, in the intro, the first tile, the tags and the breadcrumb; Xahau Testnet has no such tab, and its `?kind=mpt` is a
+// redirect to the issued list.
+describe("the MPT tab in the sandbox", () => {
+  it("/xrpl/tokens?kind=mpt: the intro, the tile, the title, the description and the breadcrumb name XRPL Testnet", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page("/xrpl/tokens?kind=mpt");
+    const text = textOf(html);
+
+    expect(tagsOf(html)).toEqual({ title: "MPTs · XRPL Testnet · explorer", description: "MPT issuances on XRPL Testnet, ranked by holders." });
+    expect(text).toContain("Tokens on XRPL Testnet, ranked by holders. Tickers and names come from each issuance's metadata.");
+    expect(text).toContain("on XRPL Testnet, with any number of holders");
+    expect(text).toContain("XRPL Testnet / Tokens");
+    expect(text).not.toContain("XRP Ledger");
+    expect(text).not.toContain("mainnet");
+  });
+
+  it("/xahau/tokens?kind=mpt: Xahau Testnet has no MPT, so the address is a redirect to its issued list, with no call", async () => {
+    mock = mockUpstream("xahau");
+    const response = await get("/xahau/tokens?kind=mpt");
+    await response.text();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe("/xahau/tokens");
+    expect(mock.requests).toEqual([]);
+  });
+});

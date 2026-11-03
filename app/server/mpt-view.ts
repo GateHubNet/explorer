@@ -2,25 +2,42 @@
 // the loader asks the data API once (`loadMptLookup`, mpt-load.ts) and `resolveMpt` fills each amount's scaled `value` and its `ticker`. Pure, Worker-only: the page receives the filled data and
 // never an issuance; an MPT amount that is not filled is drawn in units, which is why `resolveMpt` says whether any was left (`unresolved`) and the transaction page is then not kept for a year.
 //
-// The second half of the file is the MPT page's own view (E14 spec 3, Task 9): `mptPage` and the pieces the holders' and the transfers' pages share.
+// The second half of the file is the MPT page's own view (E14 spec 3, Task 9): `mptPage` and the pieces the holders' and the transfers' pages share. The last part is the MPT tab of the token list
+// (E14 spec 4, Task 12): `mptTokensTab`, which `tokensPage` (token-view.ts) calls for `kind=mpt`.
 
 import BigNumber from "bignumber.js";
 
 import { decodeHex } from "../domain/describe/helpers";
 import { compactNumber, formatAmount } from "../domain/format";
-import { ASSET_CLASS_WORDS, MAX_SCALE, MPT_FLAG_WORDS, MPT_KIND_WORDS, mptPath, percentText, safeLink, scaleUnits, shortMptId, superscript, transferFeeText } from "../domain/mpt";
+import {
+  ASSET_CLASS_WORDS,
+  MAX_SCALE,
+  MPT_FLAG_PILLS,
+  MPT_FLAG_WORDS,
+  MPT_FLAGS_LEGEND,
+  MPT_KIND_WORDS,
+  mptPath,
+  percentText,
+  safeLink,
+  scaleUnits,
+  shortMptId,
+  superscript,
+  transferFeeText,
+} from "../domain/mpt";
 import { isMptIssuanceId } from "../domain/mpt-id";
+import { mptLink } from "../domain/mpt-link";
 import { mptHoldersHref, mptTransfersHref } from "../domain/mpt-params";
 import { trailPaging, type Paging } from "../domain/paging";
-import { shownIssuer, type NamesPart } from "../domain/names";
+import { shownIssuer, withoutBidiControls, type NamesPart } from "../domain/names";
 import type { MeterData } from "../ui/charts/types";
 import { findNetwork, type NetworkBrief, type NetworkInfo } from "../ui/networks";
 import type { Loaded } from "./account-view";
-import type { MptFlags, MptHoldersPage, MptIssuanceAnswer, MptSummary, MptTransfersPage, NodeMptIssuance } from "./api-types";
+import type { MptFlags, MptHoldersPage, MptIssuanceAnswer, MptSummary, MptTokenRow, MptTokensPage, MptTransfersPage, NodeMptIssuance } from "./api-types";
 import { coverageNote, type CoverageNoteText } from "./coverage";
 import { MPT_LOOKUP_MAX } from "./data-api";
 import { networkInfoOf } from "./network-route";
 import type { NetworkId } from "./networks";
+import type { TokensNet, TokensPageData } from "./token-view";
 import { unixOf } from "./validator-facts";
 
 export { MPT_LOOKUP_MAX };
@@ -874,4 +891,121 @@ export interface NoMptPageData {
 /** The data of `NoMptPage` for a request on a network without MPT. */
 export function noMptPage(net: { id: NetworkId; kind: NetworkInfo["kind"]; other: NetworkId }, id: string): NoMptPageData {
   return { kind: "no-mpt", network: findNetwork(net.id, net.kind), other: findNetwork(net.other, net.kind), id };
+}
+
+// ---- The MPT tab of the token list (E14 spec 4) -----------------------------------------------------------------------------------------------------------------------------------------------
+
+/**
+ * A row of the tab's table. Every field is text ready to show but `href`, which is `mptLink`'s (null while `MPT` is off: text, no link). The ticker and the name are the issuer's, cut as D9 cuts
+ * them and without bidi controls (as the issued list's toml name is); they are text, and nothing of them reaches an attribute. The pills carry their titles, so that the table imports nothing of
+ * `domain/mpt.ts`.
+ */
+export interface MptRowView {
+  /** The issuance ID, in capitals: the row's own key. */
+  key: string;
+  /** The place in the whole ranking, whatever the page, with its thousands grouped. */
+  rank: string;
+  /** The token circle: the ticker's first letter, else "?". */
+  letter: string;
+  /** Without a ticker the cell is the no-metadata one ("No metadata", `shortId`, the ID in full as its title), whatever the name. */
+  ticker?: string;
+  name?: string;
+  /** The issuance ID in full, and as a label (`0000012A…3F09`). */
+  id: string;
+  shortId: string;
+  href: string | null;
+  issuer: string;
+  holders: string;
+  /** Scaled and compact (`18.2M`); the units as they are, compact, with "units" for an asset scale above 19. */
+  outstanding: string;
+  /** As the outstanding amount, or null where the issuance sets no maximum ("not set"). */
+  max: string | null;
+  /** The abilities it has, in the board's order, each with its title; none when it has none. */
+  flags: Array<{ label: string; title: string }>;
+  transfers: string;
+}
+
+/** The issuer's text as the tab draws it: without the bidi controls that would turn the words around it, and none when nothing visible is left. */
+function unmarked(text: string | undefined): string | undefined {
+  const plain = text === undefined ? "" : withoutBidiControls(text);
+  return plain.trim() === "" ? undefined : plain;
+}
+
+/** `units` scaled by `scale` and compact (`compactNumber`), or, for a scale the pages do not apply, the units as they are, compact, with "units". */
+function compactUnits(units: string, scale: number): string {
+  const scaled = scaleUnits(units, scale);
+  return scaled === null ? `${compactNumber(units)} units` : compactNumber(scaled);
+}
+
+/** A row of the table: the ticker as every page reads it (`tickerText`: 16 code points, a blank one is none), the name cut to 128 as D9 cuts it. */
+function tabRowOf(net: TokensNet, row: MptTokenRow): MptRowView {
+  const id = row.mpt_issuance_id.toUpperCase();
+  const ticker = unmarked(tickerText(row.ticker));
+  const name = unmarked(cutText(row.name, MPT_NAME_MAX));
+  return {
+    key: id,
+    rank: counted(row.rank),
+    letter: ticker === undefined ? "?" : (Array.from(ticker)[0] ?? "?"),
+    ...(ticker === undefined ? {} : { ticker }),
+    ...(name === undefined ? {} : { name }),
+    id,
+    shortId: shortMptId(id),
+    href: mptLink(net.id, id, net.features),
+    issuer: row.issuer,
+    holders: counted(row.holders),
+    outstanding: compactUnits(row.outstanding_amount, row.asset_scale),
+    max: row.maximum_amount === undefined ? null : compactUnits(row.maximum_amount, row.asset_scale),
+    flags: MPT_FLAG_PILLS.filter(({ key }) => row.flags[key]).map(({ label, title }) => ({ label, title })),
+    transfers: counted(row.transfers_24h),
+  };
+}
+
+/** The three tiles of the totals (spec 4). A total D9 does not have (before its first generation) is a dash; the lines under them are words only. */
+function tabTilesOf(net: TokensNet, totals: MptTokensPage["totals"]): TokensPageData["tiles"] {
+  return [
+    { label: "MPT issuances", value: totals === undefined ? DASH : counted(totals.issuances), sub: `on ${net.name}, with any number of holders` },
+    { label: "Holders", value: totals === undefined ? DASH : counted(totals.holders), sub: "accounts holding at least one MPT" },
+    { label: "Transfers, 24 h", value: totals === undefined ? DASH : counted(totals.transfers_24h), sub: "MPT payments between accounts" },
+  ];
+}
+
+/**
+ * The note under the table: the matches of a search ("1 match", "12 matches"), or where the page stands in the ranking ("Showing 21–40 of 214 issuances"). `null` without a total (D9 leaves it
+ * out before its first generation: no note, no pager), and for an empty page that is no search (the table says it is empty).
+ */
+function tabNoteOf(answer: MptTokensPage, q: string | undefined): { text: string } | null {
+  const { total, tokens } = answer;
+  if (total === undefined) return null;
+  if (q !== undefined) return { text: `${counted(total)} ${total === 1 ? "match" : "matches"}` };
+  const first = tokens[0];
+  const last = tokens.at(-1);
+  if (first === undefined || last === undefined) return null;
+  return { text: `Showing ${counted(first.rank)}–${counted(last.rank)} of ${counted(total)} issuances` };
+}
+
+/**
+ * What the MPT tab gives `TokensPage` (spec 4), for `kind=mpt`: the intro, the three tiles of the totals, the table's rows with its note, empty text and footnote, the coverage note (E8's, "issuances")
+ * and the source line, with the search's label and placeholder. `answer` is D9's list; `null` is a search too long to ask, which has the head, the dashes and the form, and no table. `q` is the
+ * search as the page repeats it (without bidi controls; none when it was too long). Pure; the links are written here and the table draws what it is given.
+ */
+export function mptTokensTab(
+  answer: MptTokensPage | null,
+  { net, q }: { net: TokensNet; q?: string },
+): Pick<TokensPageData, "intro" | "tiles" | "coverage" | "source" | "mpt"> & { search: Pick<TokensPageData["search"], "label" | "placeholder"> } {
+  return {
+    intro: `Tokens on ${net.name}, ranked by holders. Tickers and names come from each issuance's metadata.`,
+    source: "/v2/tokens?kind=mpt",
+    tiles: tabTilesOf(net, answer?.totals),
+    search: { label: "Ticker, name, issuer or issuance ID", placeholder: "Ticker, name, issuer or issuance ID" },
+    coverage: answer === null ? null : coverageNote(answer.coverage, "issuances"),
+    mpt:
+      answer === null
+        ? null
+        : {
+            rows: answer.tokens.map((row) => tabRowOf(net, row)),
+            empty: answer.tokens.length === 0 ? (q === undefined ? "No MPTs in the index yet." : `No MPTs match “${q}”.`) : null,
+            note: tabNoteOf(answer, q),
+            footnote: MPT_FLAGS_LEGEND,
+          },
+  };
 }

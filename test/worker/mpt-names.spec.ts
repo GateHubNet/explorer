@@ -6,9 +6,12 @@ import transfers20 from "../fixtures/http/xrpl/data-api/mpt/03F907F270631F5CC5E1
 import holders10 from "../fixtures/http/xrpl/data-api/mpt/03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80/holders@limit=10.json";
 import transfers8 from "../fixtures/http/xrpl/data-api/mpt/03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80/transfers@descending=true&limit=8.json";
 import htfIssuance from "../fixtures/http/xrpl/data-api/mpt/03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80.json";
+import tabList from "../fixtures/http/xrpl/data-api/tokens@kind=mpt&limit=20.json";
+import tabSecond from "../fixtures/http/xrpl/data-api/tokens@kind=mpt&limit=20&marker=WyJtcHQiLDUsInJMbnc4YmlEa1FSWDZ3akw3ZUwxRDNpTnlSMWY1WmdxSkQiLCIwNTY1MzNGQkQxMzQzOTBEQjAzRjhEMkI1MEE2MjJDOUM5MDYzNjk3OTIwRDIwNjIiXQ.json";
 import { MPT_FIXTURE_IDS } from "../support/mpt-case-rules";
 import {
   answerNamesAfterTheirEnd,
+  dataUrlOf,
   expectAccountsDrawn,
   expectAddressesOnly,
   expectLinkedAccountsNamed,
@@ -16,6 +19,7 @@ import {
   inCalls,
   linkedAccounts,
   namesCalls,
+  namesPartOf,
   namesSpec,
   namesStatuses,
   sorted,
@@ -180,6 +184,89 @@ describe("the names call of the transfers' page", () => {
     const html = await response.text();
 
     await expectDegraded(T(lockedAll), response);
+    expect(html).not.toContain("acct__name");
+    expect(expectAddressesOnly(html, "xrpl")).toBeGreaterThan(0);
+    expect(logged()).toBe(1);
+  });
+});
+
+// ---- The MPT tab of the token list (E14 spec 4; ruling C25) -------------------------------------------------------------------------------------------------------------------------------
+
+describe("the names call of the MPT tab", () => {
+  const TAB = "/xrpl/tokens?kind=mpt";
+  /** The issuers of the rows of an answer, once each and sorted: what the loader asks the names of. */
+  const issuersOf = (answer: { tokens: Array<{ issuer: string }> }) => collectAddresses(answer.tokens.map((token) => token.issuer));
+
+  it("is one, after the list call, for the issuers of the rows sorted, and the table draws each by the name it was given", async () => {
+    await forgetStored(TAB);
+    const mock = upstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const { html } = await page(TAB);
+
+    const issuers = issuersOf(tabList);
+    expect(issuers.length).toBeGreaterThan(10);
+    expect(namesCalls(mock)).toEqual(inCalls(issuers));
+    expect(namesStatuses(mock)).toEqual([200]);
+    // The list call and the names call: nothing else, the names last.
+    expect(withoutNames(mock.requests)).toHaveLength(1);
+    expect(mock.requests.at(-1)!.url).toContain("/v2/account_names");
+    // Every account the page links is asked for, and every account asked for is linked.
+    expect([...namesCalls(mock).flat()].sort()).toEqual(sorted(linkedAccounts(html, "xrpl")));
+    expectLinkedAccountsNamed(mock, html, "xrpl");
+  });
+
+  it("names a page behind a marker from its own rows", async () => {
+    const path = `${TAB}&marker=${tabList.marker}`;
+    await forgetStored(path);
+    const mock = upstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const { html } = await page(path);
+
+    expect(namesCalls(mock)).toEqual(inCalls(issuersOf(tabSecond)));
+    expect([...namesCalls(mock).flat()].sort()).toEqual(sorted(linkedAccounts(html, "xrpl")));
+    expectLinkedAccountsNamed(mock, html, "xrpl");
+  });
+
+  it("carries the names the call gave in the page's data, for the browser", async () => {
+    const mock = upstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const body = await (await get(dataUrlOf("/xrpl/tokens.data?kind=mpt&q=HTF", "routes/net.tokens"))).text();
+    const part = namesPartOf(body, "routes/net.tokens");
+
+    expect(part.state).toBe("ok");
+    expect(Object.keys(part.map)).toEqual(namesCalls(mock).flat());
+    expect(Object.keys(part.map)).toHaveLength(1);
+  });
+
+  it("makes no call for a page with no row to draw", async () => {
+    const mock = upstream("xrpl");
+    const body = await (await get(dataUrlOf("/xrpl/tokens.data?kind=mpt&q=zzz", "routes/net.tokens"))).text();
+
+    expect(namesCalls(mock)).toEqual([]);
+    expect(namesPartOf(body, "routes/net.tokens")).toEqual({ state: "ok", map: {} });
+  });
+
+  it("shows the short addresses, serves the page and does not store it, and logs it once, when the call fails", async () => {
+    const logged = watchNamesLog();
+    const mock = upstream("xrpl", failingNames());
+    await forgetStored(TAB);
+    const response = await get(TAB);
+    const html = await response.text();
+
+    await expectDegraded(TAB, response);
+    expect(namesStatuses(mock)).toEqual([503]);
+    expect(expectAddressesOnly(html, "xrpl")).toBeGreaterThan(10);
+    expect(html).not.toContain("acct__name");
+    expect(logged()).toBe(1);
+  });
+
+  it("does the same when the call never answers", async () => {
+    const logged = watchNamesLog();
+    const mock = upstream("xrpl", { "GET /v2/account_names": () => new Promise<Response>(() => {}) });
+    const path = `${TAB}&q=HTF`;
+    await forgetStored(path);
+    const response = await get(path);
+    const html = await response.text();
+
+    await expectDegraded(path, response);
+    expect(namesCalls(mock)).toHaveLength(1);
     expect(html).not.toContain("acct__name");
     expect(expectAddressesOnly(html, "xrpl")).toBeGreaterThan(0);
     expect(logged()).toBe(1);

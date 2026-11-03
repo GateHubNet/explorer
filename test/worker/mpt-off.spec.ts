@@ -13,7 +13,7 @@ import { mockUpstream, type UpstreamMock } from "../support/upstream";
 
 // The MPT amounts of the pages with every switch "off" (the `worker-off` project, README "Switches"), as production has them until the owner turns `MPT` on (E14 spec 7): the pages draw what they drew
 // before E14 — an MPT amount in units and the start of its issuance's ID, with no link to a page that is not there — and make no lookup (spec 2.4). The `worker` project's cases, with the switch on,
-// are transaction-mpt.spec.ts, account-mpt.spec.ts and their likes. Later tasks add the MPT and tab pages here.
+// are transaction-mpt.spec.ts, account-mpt.spec.ts and their likes. The token list's MPT tab with `MPT` off is not here: this project has `TOKENS` off too, so `/xrpl/tokens` is a 404 of its own (tokens-off.spec.ts); the redirect of `?kind=mpt` and the tab's "soon" are tokens.spec.ts's, with a load context whose `TOKENS` is on.
 
 const { get, page, storedAs } = pageClient("198.18.116");
 

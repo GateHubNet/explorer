@@ -5401,6 +5401,32 @@ a.markets__pair:hover .markets__name {
   white-space: nowrap;
 }
 
+/* The MPT tab's Token cell (E14 spec 4, below the issued list's rules it reuses: the link, the coin, the column of names). The ticker (16 code points) and the name (128) are the issuer's own text, and a
+   run of them has no space to break at: unlike a toml name, which the list clips with an ellipsis, they wrap at the edge of the cell (`overflow-wrap: anywhere`, pinned in test/unit/pages-css.test.ts;
+   the fixtures' `nonConforming` issuance has a name of 128 letters). The ID of an issuance with no metadata is the start and end of 48 hex digits, which fits the track. */
+.mpttab__code {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.mpttab__name {
+  color: var(--muted);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.mpttab__id {
+  color: var(--faint);
+  font-size: 11.5px;
+}
+
+/* The Flags column: the pills side by side, and onto a second line where the track is short. */
+.mpttab__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 .tokens__foot {
   align-items: flex-start;
 }

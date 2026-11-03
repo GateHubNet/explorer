@@ -1304,7 +1304,7 @@ describe("tokensMeta", () => {
   const DESCRIPTION = "Issued tokens on the XRP Ledger, ranked by holders: supply, price, 24-hour volume and whether each issuer's toml lists it.";
   const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
   /** The facts of a view as the view builder writes them (`TokensPageData.meta`): the first page, no search. */
-  const facts = (more: Partial<TokensMetaFacts> = {}): TokensMetaFacts => ({ all: false, more: false, error: false, ...more });
+  const facts = (more: Partial<TokensMetaFacts> = {}): TokensMetaFacts => ({ kind: "issued", all: false, more: false, error: false, ...more });
 
   it("has the tags of the default view: a canonical URL on the origin, Open Graph, a summary card and no image", () => {
     const list = tokensMeta(facts(), XRPL);
@@ -1366,6 +1366,67 @@ describe("tokensMeta", () => {
 
   it("puts no figure of the data in the description: the page is stored for a minute", () => {
     expect(content(tokensMeta(facts(), XRPL), "description")?.replace("24-hour", "")).not.toMatch(/\d/);
+  });
+
+  // E14 spec 4 and ruling C29(d): the MPT tab is a view of the same page. Its first page is indexable with a canonical URL that holds the kind; a search or a page behind a marker is E11's
+  // `noindex, follow`; the title says MPTs, and the description is the one sentence of the ruling.
+  describe("the MPT tab", () => {
+    const MPT_DESCRIPTION = "MPT issuances on the XRP Ledger, ranked by holders.";
+    const mpt = (more: Partial<TokensMetaFacts> = {}) => facts({ kind: "mpt", ...more });
+
+    it("has the tags of the first page: MPTs, a canonical URL that holds kind=mpt, Open Graph, a summary card and no image", () => {
+      const list = tokensMeta(mpt(), XRPL);
+      expect(title(list)).toBe("MPTs · XRPL · explorer");
+      expect(content(list, "description")).toBe(MPT_DESCRIPTION);
+      expect(link(list, "canonical")).toBe("https://explorer.test/xrpl/tokens?kind=mpt");
+      expect(content(list, "og:title")).toBe("MPTs · XRPL · explorer");
+      expect(content(list, "og:description")).toBe(MPT_DESCRIPTION);
+      expect(content(list, "og:url")).toBe("https://explorer.test/xrpl/tokens?kind=mpt");
+      expect(content(list, "twitter:card")).toBe("summary");
+      expect(keys(list)).not.toContain("og:image");
+      expect(keys(list)).not.toContain("twitter:image");
+      expect(keys(list)).not.toContain("robots");
+    });
+
+    it("is the path and query the page's own links write", () => {
+      expect(link(tokensMeta(mpt(), XRPL), "canonical")).toBe(`https://explorer.test${tokensHref("xrpl", { kind: "mpt" })}`);
+      expect(link(tokensMeta(mpt(), XRPL_TESTNET), "canonical")).toBe(`https://explorer.test${tokensHref("xrpl", { kind: "mpt" })}`);
+    });
+
+    it("names the network of the sandbox, in the title and in the description", () => {
+      const list = tokensMeta(mpt(), XRPL_TESTNET);
+      expect(title(list)).toBe("MPTs · XRPL Testnet · explorer");
+      expect(content(list, "description")).toBe("MPT issuances on XRPL Testnet, ranked by holders.");
+    });
+
+    it("is on the request's origin", () => {
+      expect(link(tokensMeta(mpt(), { ...XRPL, origin: "https://explorer.example" }), "canonical")).toBe("https://explorer.example/xrpl/tokens?kind=mpt");
+    });
+
+    it.each([
+      ["a search", mpt({ q: "HTF" }), "MPTs matching “HTF” · XRPL · explorer"],
+      ["a marker", mpt({ more: true }), "More MPTs · XRPL · explorer"],
+      ["a marker and a search", mpt({ more: true, q: "HTF" }), "More MPTs matching “HTF” · XRPL · explorer"],
+      ["a search that was too long", mpt({ error: true }), "MPTs · XRPL · explorer"],
+    ] satisfies Array<[string, TokensMetaFacts, string]>)("is noindex, follow, with no canonical URL and no Open Graph or card tags, with %s", (_name, view, expected) => {
+      const list = tokensMeta(view, XRPL);
+      expect(title(list)).toBe(expected);
+      expect(content(list, "description")).toBe(MPT_DESCRIPTION);
+      expect(content(list, "robots")).toBe("noindex, follow");
+      expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+      expect(keys(list).sort()).toEqual(["description", "robots"]);
+    });
+
+    it("puts no figure of the data in the description, and never says 'tokens' or 'issued' of MPTs", () => {
+      const description = content(tokensMeta(mpt(), XRPL), "description")!;
+      expect(description).not.toMatch(/\d/);
+      expect(description).not.toMatch(/issued|toml/);
+    });
+
+    it("leaves the issued list's tags as they were beside it", () => {
+      expect(link(tokensMeta(facts(), XRPL), "canonical")).toBe("https://explorer.test/xrpl/tokens");
+      expect(title(tokensMeta(facts({ q: "MPT" }), XRPL))).toBe("Tokens matching “MPT” · XRPL · explorer");
+    });
   });
 });
 

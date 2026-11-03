@@ -4,7 +4,7 @@ import { featuresOff } from "../../scripts/e2e-env";
 import { count, LIVE, XRPL_ACCOUNT } from "./fixtures";
 import { expectAccountsDrawn, namedPagesOn, tokenNamedPages } from "./names-pages";
 import { expect, hydrated, test } from "./support";
-import { detailOf, holdersOf, listOf, tokenCase, transfersMarker, transfersOf } from "./token-pages";
+import { detailOf, holdersOf, listOf, mptListOf, tokenCase, transfersMarker, transfersOf } from "./token-pages";
 
 // The token pages (`/{net}/tokens`, `/{net}/token/{token}`, `/{net}/token/{token}/holders`, README "Tokens") in a browser, on both networks and with and without JavaScript: the header's item,
 // the list (its pages, a search through the form, the tokens of fewer than 10 holders, Show all and Hide), a token's page (the toml in each of its states, the issuer's settings, the markets
@@ -15,6 +15,8 @@ import { detailOf, holdersOf, listOf, tokenCase, transfersMarker, transfersOf } 
 // server to change an answer (a holders call that fails) is tokens-live.spec.ts's. Where `E2E_FEATURES_OFF` lists `TOKENS` the pages are not found, and the off-case is checked instead.
 
 const TOKENS_OFF = featuresOff(process.env).has("TOKENS");
+// The MPT tab is a link while `MPT` is on (E14 spec 4) and E11's disabled "soon" control where the Worker under test has it off (a sandbox or production before D9 is deployed there).
+const MPT_OFF = featuresOff(process.env).has("MPT");
 
 test.skip(LIVE, "the pages are drawn from the generated token fixtures (test/e2e/token-pages.ts), which a real stack does not hold");
 
@@ -164,11 +166,16 @@ test.describe("the list", () => {
     await expect(tile(page, "Totals", "Holders").locator(".stat__value")).toHaveText(count(totals!.holders!));
     await expect(page.getByText(`Showing 1–20 of ${count(first.total!)} tokens with 10 or more holders`)).toBeVisible();
 
-    // The tabs: Issued tokens is the view, and MPT says why it cannot be chosen yet.
+    // The tabs: Issued tokens is the view; MPT is a link to the other kind while MPT is on ("the MPT tab", below), and says why it cannot be chosen yet while it is off.
     const tabs = page.getByRole("group", { name: "Kind of token" });
     await expect(tabs.getByRole("link", { name: "Issued tokens" })).toHaveAttribute("aria-current", "true");
-    await expect(tabs.getByRole("link", { name: /MPT/ })).toHaveCount(0);
-    await expect(tabs.locator(".netswitch__item.is-disabled")).toHaveText(/^MPT\s*soon$/);
+    if (MPT_OFF) {
+      await expect(tabs.getByRole("link", { name: /MPT/ })).toHaveCount(0);
+      await expect(tabs.locator(".netswitch__item.is-disabled")).toHaveText(/^MPT\s*soon$/);
+    } else {
+      await expect(tabs.getByRole("link", { name: "MPT" })).toHaveAttribute("href", "/xrpl/tokens?kind=mpt");
+      await expect(tabs.locator(".netswitch__item.is-disabled")).toHaveCount(0);
+    }
 
     // The coverage is not complete in the fixtures, so the note says from which ledger the trust lines are in the index.
     await expect(page.getByRole("note").filter({ hasText: "earlier trust lines are not in the index yet" })).toContainText(`#${count(first.coverage.from_ledger_index!)}`);
@@ -307,6 +314,84 @@ test.describe("the list", () => {
     await page.waitForURL(`**/xrpl/token/${LIONS.path}`);
     await expect(page).toHaveTitle(/^LIONS by rGHtf1…AuzS · XRPL · explorer$/);
     expect(await sameDocument(page)).toBe(true);
+  });
+});
+
+test.describe("the MPT tab", () => {
+  test.skip(TOKENS_OFF || MPT_OFF, "TOKENS or MPT is off in the Worker under test: the tab is the 'soon' control (checked above)");
+
+  test("is a link from the issued list to the kind's first page in the same document: its totals, 20 issuances, the flags and the way to the next page", async ({ page, baseURL }) => {
+    const first = mptListOf("xrpl");
+    expect(first.tokens, "the fixtures' first page of MPTs").toHaveLength(20);
+    expect(first.marker, "and a second page").toBeDefined();
+
+    await page.goto("/xrpl/tokens");
+    await hydrated(page);
+    await markDocument(page);
+    await page.getByRole("group", { name: "Kind of token" }).getByRole("link", { name: "MPT" }).click();
+    await page.waitForURL((url) => url.pathname === "/xrpl/tokens" && url.search === "?kind=mpt");
+    await expect(page).toHaveTitle("MPTs · XRPL · explorer");
+    await expect(rowsOf(page, "MPTs")).toHaveCount(first.tokens.length);
+    await expect(page.getByRole("group", { name: "Kind of token" }).getByRole("link", { name: "MPT" })).toHaveAttribute("aria-current", "true");
+    await expect(tile(page, "Totals", "MPT issuances").locator(".stat__value")).toHaveText(count(first.totals!.issuances));
+    await expect(tile(page, "Totals", "Holders").locator(".stat__value")).toHaveText(count(first.totals!.holders));
+    await expect(tile(page, "Totals", "Transfers, 24 h").locator(".stat__value")).toHaveText(count(first.totals!.transfers_24h));
+    await expect(page.getByText(`Showing 1–20 of ${count(first.total!)} issuances`)).toBeVisible();
+    await expect(page.getByText("/v2/tokens?kind=mpt", { exact: true })).toBeVisible();
+    // The first page is indexable with the canonical URL that holds the kind.
+    const origin = new URL(baseURL!).origin;
+    expect(await head(page)).toEqual({ canonical: `${origin}/xrpl/tokens?kind=mpt`, robots: null, ogImage: null, title: "MPTs · XRPL · explorer" });
+    // A row is a link to the issuance's page, and its issuer a link to the account.
+    await expect(tableOf(page, "MPTs").locator(`a[href="/xrpl/mpt/${first.tokens[0]!.mpt_issuance_id}"]`)).toHaveCount(1);
+    await expect(tableOf(page, "MPTs").locator(`a[href="/xrpl/account/${first.tokens[0]!.issuer}"]`)).toHaveCount(1);
+
+    // More tokens leads to the next page, which is kept from a search engine; Previous comes back.
+    await pagination(page).getByRole("link", { name: "More tokens" }).click();
+    await page.waitForURL((url) => url.searchParams.has("marker"));
+    await expect(rowsOf(page, "MPTs")).toHaveCount(mptListOf("xrpl", { marker: first.marker }).tokens.length);
+    await expect.poll(async () => (await head(page)).robots).toBe("noindex, follow");
+    await pagination(page).getByRole("link", { name: "Previous" }).click();
+    await page.waitForURL((url) => url.search === "?kind=mpt");
+    await expect(rowsOf(page, "MPTs")).toHaveCount(first.tokens.length);
+    expect(await sameDocument(page)).toBe(true);
+  });
+
+  test("a search through the form keeps the kind: the canonical URL, one row for HTF, its match and the coverage the answer has", async ({ page }) => {
+    const found = mptListOf("xrpl", { q: "HTF" });
+    expect(found.tokens, "the fixtures' search for HTF").toHaveLength(1);
+
+    await page.goto("/xrpl/tokens?kind=mpt");
+    await hydrated(page);
+    await markDocument(page);
+    await page.getByRole("searchbox", { name: "Ticker, name, issuer or issuance ID" }).fill("HTF");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await page.waitForURL((url) => url.pathname === "/xrpl/tokens" && url.search === "?kind=mpt&q=HTF");
+    await expect(page).toHaveTitle("MPTs matching “HTF” · XRPL · explorer");
+    await expect(rowsOf(page, "MPTs")).toHaveCount(1);
+    await expect(rowsOf(page, "MPTs").first()).toContainText("HTF");
+    await expect(page.getByText("1 match", { exact: true })).toBeVisible();
+    expect(await head(page)).toMatchObject({ canonical: null, robots: "noindex, follow" });
+    if (!found.coverage.complete) await expect(page.getByRole("note").filter({ hasText: "earlier issuances are not in the index yet" })).toContainText(`#${count(found.coverage.from_ledger_index!)}`);
+    expect(await sameDocument(page)).toBe(true);
+
+    // A search that finds nothing says so.
+    await page.getByRole("searchbox", { name: "Ticker, name, issuer or issuance ID" }).fill("zzz");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await page.waitForURL((url) => url.search === "?kind=mpt&q=zzz");
+    await expect(page.getByText("No MPTs match “zzz”.")).toBeVisible();
+    await expect(rowsOf(page, "MPTs")).toHaveCount(0);
+  });
+
+  test("an issuance's row leads to its page, and Xahau's address for the kind goes back to its issued list", async ({ page }) => {
+    const first = mptListOf("xrpl").tokens[0]!;
+    await page.goto("/xrpl/tokens?kind=mpt");
+    await hydrated(page);
+    await tableOf(page, "MPTs").locator(`a[href="/xrpl/mpt/${first.mpt_issuance_id}"]`).click();
+    await page.waitForURL((url) => url.pathname === `/xrpl/mpt/${first.mpt_issuance_id}`);
+
+    await page.goto("/xahau/tokens?kind=mpt");
+    await page.waitForURL((url) => url.pathname === "/xahau/tokens" && url.search === "");
+    await expect(heading(page)).toHaveText("Tokens");
   });
 });
 
@@ -652,6 +737,32 @@ test.describe("without JavaScript", () => {
     // A token's code is a link, too.
     await tableOf(page, "Issued tokens").locator(`a[href="${RLUSD_PATH}"]`).click();
     await page.waitForURL(`**${RLUSD_PATH}`);
+  });
+
+  test("the MPT tab's form is a GET form that writes the canonical query (kind, then q) with no redirect, and its pager and the tab are links", async ({ contextFor }) => {
+    test.skip(MPT_OFF, "MPT is off in the Worker under test: the tab is the 'soon' control");
+    const context = await contextFor({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    await page.goto("/xrpl/tokens");
+    await page.getByRole("group", { name: "Kind of token" }).getByRole("link", { name: "MPT" }).click();
+    await page.waitForURL((url) => url.search === "?kind=mpt");
+    await expect(rowsOf(page, "MPTs")).toHaveCount(20);
+
+    // The form's hidden `kind` comes before the field, so the browser's own query is the canonical one: the request that answers the page is not a redirect.
+    const answered = page.waitForResponse((response) => response.url().includes("/xrpl/tokens?") && response.request().resourceType() === "document");
+    await page.getByRole("searchbox", { name: "Ticker, name, issuer or issuance ID" }).fill("HTF");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    const response = await answered;
+    expect(response.url()).toMatch(/\/xrpl\/tokens\?kind=mpt&q=HTF$/);
+    expect(response.status()).toBe(200);
+    await expect(rowsOf(page, "MPTs")).toHaveCount(1);
+
+    await page.goto("/xrpl/tokens?kind=mpt");
+    await pagination(page).getByRole("link", { name: "More tokens" }).click();
+    await page.waitForURL((url) => url.searchParams.get("kind") === "mpt" && url.searchParams.has("marker"));
+    await expect(rowsOf(page, "MPTs")).toHaveCount(mptListOf("xrpl", { marker: mptListOf("xrpl").marker }).tokens.length);
+    await pagination(page).getByRole("link", { name: "Previous" }).click();
+    await page.waitForURL((url) => url.search === "?kind=mpt");
   });
 
   test("a token's page and its holders: every card is the server's, the links and the pagers work", async ({ contextFor }) => {
