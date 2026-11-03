@@ -9,7 +9,7 @@ import { markDegraded } from "../server/env";
 import { notFound, upstreamOutage } from "../server/loader-errors";
 import { logProblem } from "../server/logging";
 import { metaContext } from "../server/meta";
-import { mptMeta, noMptMeta } from "../server/meta-mpt";
+import { mptMeta } from "../server/meta-mpt";
 import { checkMptRequest, loadMptSource } from "../server/mpt-route";
 import { mptPage, noMptPage } from "../server/mpt-view";
 import { collectAddresses, loadNames } from "../server/names-load";
@@ -123,7 +123,7 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
 export function meta({ loaderData, matches, params }: Route.MetaArgs) {
   const ctx = metaContext(params.net, matches);
   if (!loaderData || !ctx) return [];
-  return loaderData.kind === "no-mpt" ? noMptMeta(loaderData, ctx) : mptMeta(loaderData.facts, ctx);
+  return mptMeta(loaderData, ctx);
 }
 
 export default function Mpt({ loaderData }: Route.ComponentProps) {
