@@ -256,6 +256,17 @@ describe("the MPT amounts of a transaction page", () => {
     expect(filled.fee).toBe(draft.fee);
   });
 
+  // The whole-branch review's I1: an issuer's ticker of U+202E and "DSU" turned the rest of the sentence's paragraph, the destination address among it. The ticker is read without its bidi controls where
+  // `resolveMpt` fills it, so the sentence, the summary (the description of the page) and the rest of the page's data hold none.
+  it("keeps the destination of a payment's sentence in reading order when the issuer's ticker holds a bidi override", () => {
+    const draft = mptPage("payment_transfer_fee");
+    const { page: filled } = withMpt(draft, answer(summary(MPT_FEE_PAYMENT_ISSUANCE, { ticker: "‮DSU" })));
+    expect(filled.sentence).toContainEqual(expect.objectContaining({ t: "mpt", units: "1000000", value: "1.000000", ticker: "DSU" }));
+    expect(filled.summary).toBe(draft.summary.replace("1,000,000 units of MPT 0598F6E0…", "1.000000 DSU"));
+    expect(filled.summary).toMatch(/1\.000000 DSU to /);
+    expect(JSON.stringify([filled.sentence, filled.summary, filled.changes, filled.objects])).not.toMatch(/[؜‎‏‪-‮⁦-⁩]/);
+  });
+
   it("keeps the class only when every ID was answered with a scale", () => {
     const draft = mptPage("payment_transfer_fee");
     const scaled = withMpt(draft, answer(summary(MPT_FEE_PAYMENT_ISSUANCE)));

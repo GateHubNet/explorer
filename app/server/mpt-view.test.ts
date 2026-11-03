@@ -163,6 +163,15 @@ describe("resolveMpt", () => {
     expect(resolveMpt({ t: "mpt", id: HTF, issuer: ISSUER }, ok(summary(HTF, { ticker: "A".repeat(16) }))).view).toMatchObject({ ticker: "A".repeat(16) });
   });
 
+  // The whole-branch review's I1: an override (U+202E) in a ticker turns everything after it in the paragraph it is drawn in, the destination address of a payment's sentence among it. The ticker is read
+  // without its bidi controls, before the cut, so that a control does not use up the length either.
+  it("takes the bidi controls out of a ticker before the cut to 16 code points, and treats a ticker of controls alone as none", () => {
+    const amount = { t: "mpt", id: HTF, issuer: ISSUER, units: "100" };
+    expect(resolveMpt(amount, ok(summary(HTF, { ticker: "‮DSU" }))).view).toMatchObject({ ticker: "DSU", value: "1.00" });
+    expect(resolveMpt(amount, ok(summary(HTF, { ticker: `‮⁦‏${"A".repeat(16)}` }))).view).toMatchObject({ ticker: "A".repeat(16) });
+    expect(resolveMpt(amount, ok(summary(HTF, { ticker: "‮‬؜" }))).view).not.toHaveProperty("ticker");
+  });
+
   it("gives a reference (no units) its ticker alone", () => {
     expect(resolveMpt({ t: "mpt", id: HTF, issuer: ISSUER }, ok(HTF_SUMMARY)).view).toEqual({ t: "mpt", id: HTF, issuer: ISSUER, ticker: "HTF" });
     const touched = { change: "modified", type: "MPToken", index: "AB", account: ISSUER, mpt: HTF };
@@ -500,6 +509,18 @@ describe("mptHead", () => {
     expect(mptHead(indexed({ name: "x".repeat(300), metadata: undefined })).heading).toBe("x".repeat(128));
   });
 
+  // The whole-branch review's I1: the head is read without the issuer's bidi controls, so the heading, the crumb, the title, the description and every line that writes the ticker are in reading order.
+  it("reads the ticker and the name without their bidi controls: the heading, the title, the description and the lines that write the ticker", () => {
+    const source = indexed({ ticker: "‮DSU", name: "⁧Harbor⁩ Fund", metadata: undefined });
+    expect(mptHead(source)).toMatchObject({ crumb: "DSU", letter: "D", heading: "Harbor Fund", ticker: "DSU", name: "Harbor Fund", tickerOrUnits: "DSU" });
+    const facts = mptFacts(XRPL, source, NO_NAMES);
+    expect(facts.title).toBe("DSU · Harbor Fund · MPT");
+    expect(facts.description).toBe(`MPT issued by ${PAGE_ISSUER.slice(0, 6)}…${PAGE_ISSUER.slice(-4)}: 18,204,511.20 DSU outstanding, 3,412 holders · XRPL`);
+    expect(tile(source, "Outstanding").line).toBe("DSU held by holders, 36.4% of the max amount");
+    // Nowhere in what the page draws: its data holds no bidi control.
+    expect(JSON.stringify(page({ source }))).not.toMatch(/[؜‎‏‪-‮⁦-⁩]/);
+  });
+
   it("has no scale to apply above 19", () => {
     expect(mptHead(indexed({ asset_scale: 19 })).scale).toBe(19);
     expect(mptHead(indexed({ asset_scale: 20 })).scale).toBeNull();
@@ -562,6 +583,31 @@ describe("mptPage: the metadata card", () => {
     if (view.state !== "decoded") throw new Error("not decoded");
     expect(view.rows.map((row) => row.title)).toEqual([undefined, "social", undefined]);
     expect(view.rows[0]!.href).toBe("https://a.example/x");
+  });
+
+  // The whole-branch review's I1: the issuer's text rows are read without bidi controls, as its ticker and name are. The raw hex, in the `<details>`, keeps the bytes; a link is made of what the issuer
+  // wrote, which `safeLink` checks.
+  it("takes the bidi controls out of the text rows, the uri titles and their link text, the additional info and the raw text, and keeps the hex as it is", () => {
+    const RLO = "‮";
+    const view = metadataOf({
+      metadata_hex: `${RLO}AB`,
+      metadata: {
+        desc: `A ${RLO}fund.`,
+        asset_class: `fu${RLO}nd`,
+        issuer_name: `Harbor${RLO}line`,
+        icon: `https://harborline.example/${RLO}icon.png`,
+        uris: [{ uri: `https://harborline.example/${RLO}fund`, category: "website", title: `${RLO}Fund` }],
+        additional_info: `see ${RLO}this`,
+      },
+    });
+    if (view.state !== "decoded") throw new Error("not decoded");
+    expect(view.rows.map((row) => row.text)).toEqual(["A fund.", "https://harborline.example/icon.png", "fund", "Harborline", "Fund · harborline.example/fund", "see this"]);
+    expect(view.hex).toBe(`${RLO}AB`);
+    const json = metadataOf({ metadata: { additional_info: { note: `a${RLO}b` } } });
+    if (json.state !== "decoded") throw new Error("not decoded");
+    expect(json.rows[0]!.text).toBe(JSON.stringify({ note: "ab" }, null, 2));
+    const hex = Array.from(new TextEncoder().encode(`https://harborline.example/${RLO}meta.json`), (byte) => byte.toString(16).padStart(2, "0")).join("").toUpperCase();
+    expect(metadataOf({ metadata: undefined, metadata_hex: hex, metadata_conforms: false })).toMatchObject({ state: "raw", text: "https://harborline.example/meta.json", hex });
   });
 
   it("writes the icon as text when it is not a safe link", () => {
@@ -835,13 +881,12 @@ describe("mptFacts: the card's text (Task 14)", () => {
     expect(mptFacts(XRPL, { origin: "node", node: entryOf(), ledgerIndex: 1, id: PAGE_ID.toLowerCase() }, NO_NAMES).id).toBe(PAGE_ID);
   });
 
-  // Task 12's tab strips the bidi controls of the issuer's ticker and name; the card does too, in the facts it is made of, since an image cannot show their effect on the text around them safely.
-  // The page's head and tags are not touched (the whole-branch review's question: one rule, or why two).
-  it("gives the card the ticker and the name without their bidi controls, and leaves the tags' title and description as the issuer wrote them", () => {
+  // The whole-branch review's I1, one rule for the issuer's text: the tab, the card, the tags and the pages read the ticker and the name without the bidi controls that would turn the words around them.
+  it("gives the card, the title and the description the ticker and the name without their bidi controls", () => {
     const facts = mptFacts(XRPL, indexed({ ticker: "H\u202ETF", name: "Harbor\u2066line\u200F Fund", metadata: undefined }), NO_NAMES);
     expect(facts.card).toMatchObject({ headline: "HTF", name: "Harborline Fund", outstanding: "18.2M HTF" });
-    expect(facts.title).toBe("H\u202ETF · Harbor\u2066line\u200F Fund · MPT");
-    expect(facts.description).toContain("18,204,511.20 H\u202ETF outstanding");
+    expect(facts.title).toBe("HTF · Harborline Fund · MPT");
+    expect(facts.description).toContain("18,204,511.20 HTF outstanding");
   });
 
   it("reads a ticker or a name of controls alone as none: the ID's start and end, units, and no name", () => {

@@ -111,13 +111,11 @@ function summaryOf(lookup: MptLookupResult, id: string): MptSummary | undefined 
 export const MPT_TICKER_MAX = 16;
 
 /**
- * The ticker a page draws: the issuer's text cut to `MPT_TICKER_MAX` code points as D9 cuts it (`cutText` does not split a character outside the BMP), and none when nothing visible is left. D9 leaves
- * out an empty ticker but keeps a blank one, which would draw an amount like "25,000.00 " with a link nobody can see.
+ * The ticker a page draws: the issuer's text without its bidi controls, cut to `MPT_TICKER_MAX` code points as D9 cuts it (`cutText` does not split a character outside the BMP), and none when nothing
+ * visible is left. D9 leaves out an empty ticker but keeps a blank one, which would draw an amount like "25,000.00 " with a link nobody can see.
  */
 export function tickerText(raw: string | undefined): string | undefined {
-  if (raw === undefined) return undefined;
-  const cut = raw.length <= MPT_TICKER_MAX ? raw : Array.from(raw).slice(0, MPT_TICKER_MAX).join("");
-  return cut.trim() === "" ? undefined : cut;
+  return cutText(raw, MPT_TICKER_MAX);
 }
 
 /** `fields` that are defined, merged into a copy of `target`: a ticker the issuance has none of, and a value above the largest scale, are left out. */
@@ -187,10 +185,15 @@ export type MptSource = { origin: "index"; answer: MptIssuanceAnswer } | { origi
 /** The longest name D9 stores, in code points (`MPT_NAME_MAX` at the pin). */
 const MPT_NAME_MAX = 128;
 
-/** `raw` cut to `max` code points as D9 cuts it, and none when nothing visible is left. */
+/**
+ * The one rule for the issuer's ticker and name, on every page: `raw` without its bidi controls (`withoutBidiControls`, as E9's names and E11's toml names are read: they would turn the words around the
+ * text, in a sentence, a `<title>` or a description), then cut to `max` code points as D9 cuts it (the controls do not use up the length), and none when nothing visible is left. The raw hex of the
+ * metadata keeps the bytes.
+ */
 function cutText(raw: string | undefined, max: number): string | undefined {
   if (raw === undefined) return undefined;
-  const cut = raw.length <= max ? raw : Array.from(raw).slice(0, max).join("");
+  const plain = withoutBidiControls(raw);
+  const cut = plain.length <= max ? plain : Array.from(plain).slice(0, max).join("");
   return cut.trim() === "" ? undefined : cut;
 }
 
@@ -421,8 +424,11 @@ const TEXT_KEYS = ["ticker", "name", "desc", "icon", "asset_class", "asset_subcl
 
 const bytesOf = (hex: string): number => Math.floor(hex.length / 2);
 
-/** `value` cut to `max` code points. */
-const cut = (value: string, max: number): string => (value.length <= max ? value : Array.from(value).slice(0, max).join(""));
+/** `value` without its bidi controls (the one rule for issuer text, see `cutText`), cut to `max` code points. */
+const cut = (value: string, max: number): string => {
+  const plain = withoutBidiControls(value);
+  return plain.length <= max ? plain : Array.from(plain).slice(0, max).join("");
+};
 
 /** The row of `additional_info`: an object (or a list) as indented JSON in a code block, cut; a string as text; a number or a boolean as text. */
 function additionalInfoRow(value: unknown): MptMetadataRow | null {
@@ -432,30 +438,39 @@ function additionalInfoRow(value: unknown): MptMetadataRow | null {
   return { key: "additional_info", text: cut(JSON.stringify(value, null, 2), ADDITIONAL_INFO_MAX), code: true };
 }
 
+/** Hex as the UTF-8 text it holds, without its bidi controls; `null` when it is not text. The hex itself, beside it, keeps the bytes. */
+const decodedText = (hex: string): string | null => {
+  const text = decodeHex(hex);
+  return text === undefined ? null : withoutBidiControls(text);
+};
+
 /** What the issuer wrote, as the card draws it. From the index it is the decoded metadata (long keys, lenient); from the node it is hex, and its text when that reads as UTF-8 text. */
 function metadataOf(source: MptSource): MptMetadataView {
   if (source.origin === "node") {
     const hex = source.node.MPTokenMetadata;
-    return hex === undefined || hex === "" ? { state: "none" } : { state: "raw", text: decodeHex(hex) ?? null, hex, bytes: bytesOf(hex), fromNode: true };
+    return hex === undefined || hex === "" ? { state: "none" } : { state: "raw", text: decodedText(hex), hex, bytes: bytesOf(hex), fromNode: true };
   }
   const { metadata, metadata_hex: hex = "", metadata_conforms: conforms } = source.answer.issuance;
-  if (metadata === undefined) return hex === "" ? { state: "none" } : { state: "raw", text: decodeHex(hex) ?? null, hex, bytes: bytesOf(hex), fromNode: false };
+  if (metadata === undefined) return hex === "" ? { state: "none" } : { state: "raw", text: decodedText(hex), hex, bytes: bytesOf(hex), fromNode: false };
 
   const rows: MptMetadataRow[] = [];
   for (const key of TEXT_KEYS) {
     const value = metadata[key];
     if (typeof value !== "string") continue;
-    if (key === "asset_class") rows.push({ key, text: ASSET_CLASS_WORDS[value] ?? value });
+    // The text is read without its bidi controls; the link is made of what the issuer wrote, which `safeLink` checks.
+    const text = withoutBidiControls(value);
+    if (key === "asset_class") rows.push({ key, text: ASSET_CLASS_WORDS[text] ?? text });
     else if (key === "icon") {
       const href = safeLink(value);
-      rows.push(href === null ? { key, text: value } : { key, text: value, href });
-    } else rows.push({ key, text: value });
+      rows.push(href === null ? { key, text } : { key, text, href });
+    } else rows.push({ key, text });
   }
   for (const entry of metadata.uris ?? []) {
     const href = safeLink(entry.uri);
-    // "{title} · {host/path}": the link as the issuer wrote it, without its scheme.
-    const where = href === null ? entry.uri : entry.uri.replace(/^https:\/\//, "");
-    const text = entry.title === undefined || entry.title === "" ? where : `${entry.title} · ${where}`;
+    // "{title} · {host/path}": the link as the issuer wrote it, without its scheme and without bidi controls, which would turn the host that the link shows.
+    const where = withoutBidiControls(href === null ? entry.uri : entry.uri.replace(/^https:\/\//, ""));
+    const title = entry.title === undefined ? "" : withoutBidiControls(entry.title);
+    const text = title === "" ? where : `${title} · ${where}`;
     const category = entry.category?.toLowerCase();
     rows.push({ key: "uris", text, ...(href === null ? {} : { href }), ...(href !== null && category !== undefined && URI_CATEGORIES.has(category) ? { title: category } : {}) });
   }
@@ -637,10 +652,7 @@ export interface MptFacts {
   description: string;
   /** From the network the page is not for an index to keep. */
   noindex: boolean;
-  /**
-   * What the link-preview image says, without the bidi controls of the issuer's ticker and name (an image cannot show what a control character does to the text around it safely; the tab strips them
-   * too, `unmarked`): a ticker or a name of nothing else is none, as everywhere. The tags' title and description are the issuer's text as it is.
-   */
+  /** What the link-preview image says: the ticker and the name as every page reads them (`tickerText`, `cutText`: without bidi controls, a ticker or a name of nothing else is none). */
   card: {
     /** The ticker, else the ID's start and end. */
     headline: string;
@@ -662,8 +674,6 @@ export function mptFacts(net: Pick<NetworkInfo, "id" | "name">, source: MptSourc
   const T = head.tickerOrUnits;
   const named = head.name;
   const parts = [head.ticker, named].filter((part): part is string => part !== undefined);
-  const cardTicker = unmarked(head.ticker);
-  const cardName = unmarked(named);
   const issuer = shownIssuer(head.issuer, names.map);
   const outstanding = unitsText(f.outstanding, head.scale);
   const holders = f.holders === null ? "" : `, ${f.holders === 1 ? "1 holder" : `${counted(f.holders)} holders`}`;
@@ -676,10 +686,10 @@ export function mptFacts(net: Pick<NetworkInfo, "id" | "name">, source: MptSourc
     description: `MPT issued by ${issuer}: ${outstanding} ${T} outstanding${holders} · ${net.name}`,
     noindex: source.origin === "node",
     card: {
-      headline: cardTicker ?? shortMptId(head.id),
-      ...(cardName === undefined ? {} : { name: cardName }),
+      headline: head.ticker ?? shortMptId(head.id),
+      ...(named === undefined ? {} : { name: named }),
       issuer,
-      outstanding: `${compactNumber(scaled ?? f.outstanding)} ${cardTicker ?? "units"}`,
+      outstanding: `${compactNumber(scaled ?? f.outstanding)} ${T}`,
       ...(f.holders === null ? {} : { holders: f.holders }),
       ...(created === undefined ? {} : { created }),
     },
@@ -934,12 +944,6 @@ export interface MptRowView {
   transfers: string;
 }
 
-/** The issuer's text as the tab and the link-preview card draw it: without the bidi controls that would turn the words around it, and none when nothing visible is left. */
-function unmarked(text: string | undefined): string | undefined {
-  const plain = text === undefined ? "" : withoutBidiControls(text);
-  return plain.trim() === "" ? undefined : plain;
-}
-
 /** `units` scaled by `scale` and compact (`compactNumber`), or, for a scale the pages do not apply, the units as they are, compact, with "units". */
 function compactUnits(units: string, scale: number): string {
   const scaled = scaleUnits(units, scale);
@@ -949,8 +953,8 @@ function compactUnits(units: string, scale: number): string {
 /** A row of the table: the ticker as every page reads it (`tickerText`: 16 code points, a blank one is none), the name cut to 128 as D9 cuts it. */
 function tabRowOf(net: TokensNet, row: MptTokenRow): MptRowView {
   const id = row.mpt_issuance_id.toUpperCase();
-  const ticker = unmarked(tickerText(row.ticker));
-  const name = unmarked(cutText(row.name, MPT_NAME_MAX));
+  const ticker = tickerText(row.ticker);
+  const name = cutText(row.name, MPT_NAME_MAX);
   return {
     key: id,
     rank: counted(row.rank),
