@@ -50,8 +50,10 @@ import { nftMeta } from "./meta-nft";
 import { nftCollectionMeta } from "./meta-nft-collection";
 import { nftSalesMeta } from "./meta-nft-sales";
 import { nftsMeta } from "./meta-nfts";
-import { mptMeta, noMptMeta } from "./meta-mpt";
-import { mptFacts, noMptPage, type MptSource } from "./mpt-view";
+import { mptMeta } from "./meta-mpt";
+import { mptHoldersMeta } from "./meta-mpt-holders";
+import { mptTransfersMeta } from "./meta-mpt-transfers";
+import { mptFacts, noMptPage, type MptListMetaFacts, type MptSource } from "./mpt-view";
 import { tokenMeta } from "./meta-token";
 import { tokenHoldersMeta } from "./meta-token-holders";
 import { supplyMeta } from "./meta-supply";
@@ -2174,7 +2176,7 @@ describe("mptMeta", () => {
   const SHORT_ISSUER = shortAddress(ISSUER_ADDRESS);
 
   it("has the tags of an indexed issuance: the ticker and the name in the title, the figures in the description, the canonical URL on the origin, Open Graph and a summary card", () => {
-    const list = mptMeta(mptFacts(NET, indexed(), NO_NAMES), XRPL);
+    const list = mptMeta({ kind: "mpt", facts: mptFacts(NET, indexed(), NO_NAMES) }, XRPL);
     expect(title(list)).toBe("HTF · Harborline Treasury Fund · MPT · XRPL · explorer");
     const description = `MPT issued by ${SHORT_ISSUER}: 18,204,511.20 HTF outstanding, 3,412 holders · XRPL`;
     expect(content(list, "description")).toBe(description);
@@ -2192,18 +2194,18 @@ describe("mptMeta", () => {
 
   it("names the issuer by its display name in the description", () => {
     const named: NamesPart = { state: "ok", map: { [ISSUER_ADDRESS]: { name: { text: "Harborline", kind: "verified" }, labels: [] } satisfies NameView } };
-    const list = mptMeta(mptFacts(NET, indexed(), named), XRPL);
+    const list = mptMeta({ kind: "mpt", facts: mptFacts(NET, indexed(), named) }, XRPL);
     expect(content(list, "description")).toBe("MPT issued by Harborline: 18,204,511.20 HTF outstanding, 3,412 holders · XRPL");
   });
 
   it("is headed by the ID's start and end where the issuance has no ticker or name", () => {
-    const list = mptMeta(mptFacts(NET, indexed({ ticker: undefined, name: undefined }), NO_NAMES), XRPL);
+    const list = mptMeta({ kind: "mpt", facts: mptFacts(NET, indexed({ ticker: undefined, name: undefined }), NO_NAMES) }, XRPL);
     expect(title(list)).toBe(`MPT 0000012A…${ID.slice(-4)} · XRPL · explorer`);
     expect(content(list, "description")).toContain("units outstanding");
   });
 
   it("is noindex from the network: title, description and robots, with no canonical URL, Open Graph or card", () => {
-    const list = mptMeta(mptFacts(NET, fromNode, NO_NAMES), XRPL);
+    const list = mptMeta({ kind: "mpt", facts: mptFacts(NET, fromNode, NO_NAMES) }, XRPL);
     expect(title(list)).toBe(`MPT 0000012A…${ID.slice(-4)} · XRPL · explorer`);
     expect(content(list, "robots")).toBe("noindex");
     expect(content(list, "description")).toBe(`MPT issued by ${SHORT_ISSUER}: 18,204,511.20 units outstanding · XRPL`);
@@ -2213,7 +2215,7 @@ describe("mptMeta", () => {
 
   it("has the sandbox's names, and the origin of the request", () => {
     const facts = mptFacts({ id: "xrpl", name: "XRPL Testnet" }, indexed(), NO_NAMES);
-    const list = mptMeta(facts, { ...XRPL_TESTNET, origin: "https://explorer.example" });
+    const list = mptMeta({ kind: "mpt", facts }, { ...XRPL_TESTNET, origin: "https://explorer.example" });
     expect(title(list)).toBe("HTF · Harborline Treasury Fund · MPT · XRPL Testnet · explorer");
     expect(content(list, "description")).toMatch(/ · XRPL Testnet$/);
     expect(link(list, "canonical")).toBe(`https://explorer.example/xrpl/mpt/${ID}`);
@@ -2221,20 +2223,91 @@ describe("mptMeta", () => {
 
   it("holds the issuer's text only in the content of a tag: a ticker that closes a quote stays one string", () => {
     const hostile = '"><script>alert(1)</script>';
-    const list = mptMeta(mptFacts(NET, indexed({ ticker: undefined, name: hostile }), NO_NAMES), XRPL);
+    const list = mptMeta({ kind: "mpt", facts: mptFacts(NET, indexed({ ticker: undefined, name: hostile }), NO_NAMES) }, XRPL);
     expect(title(list)).toBe(`${hostile} · MPT · XRPL · explorer`);
     expect(tags(list).every((tag) => Object.values(tag).every((value) => typeof value === "string"))).toBe(true);
   });
 });
 
-describe("noMptMeta", () => {
-  it("is titled for the network and noindex, with nothing else", () => {
-    const data = noMptPage({ id: "xahau", kind: "mainnet", other: "xrpl" }, "0".repeat(48));
-    const list = noMptMeta(data, XAHAU);
+describe("the tags of the page that says MPT is not on Xahau", () => {
+  const none = (kind: "mainnet" | "testnet" = "mainnet") => noMptPage({ id: "xahau", kind, other: "xrpl" }, "0".repeat(48));
+  const FACTS: MptListMetaFacts = { code: "HTF", issuer: "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq", href: "/xrpl/mpt/AB/holders", more: false };
+
+  it.each([
+    ["the issuance's page", (data: ReturnType<typeof none>, ctx: typeof XAHAU) => mptMeta(data, ctx)],
+    ["the holders' page", (data: ReturnType<typeof none>, ctx: typeof XAHAU) => mptHoldersMeta(data, ctx)],
+    ["the transfers' page", (data: ReturnType<typeof none>, ctx: typeof XAHAU) => mptTransfersMeta(data, ctx)],
+  ])("is titled for the network and noindex on %s, with nothing else", (_page, build) => {
+    const list = build(none(), XAHAU);
     expect(tags(list).find((tag) => "title" in tag)?.title).toBe("MPT isn't enabled on Xahau · Xahau · explorer");
     expect(content(list, "robots")).toBe("noindex");
     expect(keys(list)).toEqual(["robots"]);
-    const sandbox = noMptMeta(noMptPage({ id: "xahau", kind: "testnet", other: "xrpl" }, "0".repeat(48)), XAHAU_TESTNET);
+    const sandbox = build(none("testnet"), XAHAU_TESTNET);
     expect(tags(sandbox).find((tag) => "title" in tag)?.title).toBe("MPT isn't enabled on Xahau Testnet · Xahau Testnet · explorer");
+  });
+
+  it("is told from a page of facts by the kind of the data, and the facts are not read from the other", () => {
+    expect(mptHoldersMeta({ kind: "mpt-holders", meta: FACTS }, XRPL).some((tag) => "title" in tag)).toBe(true);
+    expect(keys(mptTransfersMeta({ kind: "mpt-transfers", meta: FACTS }, XRPL))).toContain("og:title");
+  });
+});
+
+describe("mptHoldersMeta and mptTransfersMeta", () => {
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  const ID = "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8";
+  const ISSUER_ADDRESS = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
+  const SHORT_ISSUER = shortAddress(ISSUER_ADDRESS);
+  /** The facts of a list page as the view builder writes them (`MptHoldersPageData.meta`): HTF's first page of holders. */
+  const facts = (path: "holders" | "transfers", over: Partial<MptListMetaFacts> = {}): MptListMetaFacts => ({ code: "HTF", issuer: ISSUER_ADDRESS, href: `/xrpl/mpt/${ID}/${path}`, more: false, ...over });
+
+  it("has the tags of the holders' first page: the ticker in the title, a description with no figure, the canonical URL on the origin, Open Graph, a summary card and no image", () => {
+    const list = mptHoldersMeta({ kind: "mpt-holders", meta: facts("holders") }, XRPL);
+    expect(title(list)).toBe("Holders of HTF · XRPL · explorer");
+    const description = `Every account that holds HTF, an MPT issued by ${SHORT_ISSUER} on XRPL, the largest balance first, with each holder's share and whether its balance is locked.`;
+    expect(content(list, "description")).toBe(description);
+    expect(content(list, "og:description")).toBe(description);
+    expect(link(list, "canonical")).toBe(`https://explorer.test/xrpl/mpt/${ID}/holders`);
+    expect(content(list, "og:url")).toBe(`https://explorer.test/xrpl/mpt/${ID}/holders`);
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("robots");
+    expect(content(list, "description")).not.toMatch(/\d{3}/);
+  });
+
+  it("has the tags of the transfers' first page, the same way", () => {
+    const list = mptTransfersMeta({ kind: "mpt-transfers", meta: facts("transfers") }, XRPL);
+    expect(title(list)).toBe("Transfers of HTF · XRPL · explorer");
+    expect(content(list, "description")).toBe(`The transfers of HTF, an MPT issued by ${SHORT_ISSUER} on XRPL, newest first: payments, clawbacks, locks and unlocks, and escrows.`);
+    expect(link(list, "canonical")).toBe(`https://explorer.test/xrpl/mpt/${ID}/transfers`);
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+  });
+
+  it("is noindex, follow behind a marker, with the same title, no canonical URL and no Open Graph or card tags", () => {
+    const behind = (path: "holders" | "transfers") => facts(path, { more: true });
+    for (const [list, path, word] of [
+      [mptHoldersMeta({ kind: "mpt-holders", meta: behind("holders") }, XRPL), "holders", "Holders"],
+      [mptTransfersMeta({ kind: "mpt-transfers", meta: behind("transfers") }, XRPL), "transfers", "Transfers"],
+    ] as const) {
+      expect(title(list), path).toBe(`${word} of HTF · XRPL · explorer`);
+      expect(content(list, "robots"), path).toBe("noindex, follow");
+      expect(tags(list).some((tag) => tag.tagName === "link"), path).toBe(false);
+      expect(keys(list).sort(), path).toEqual(["description", "robots"]);
+    }
+  });
+
+  it("names the sandbox's networks and is on the request's origin", () => {
+    const testnet = mptHoldersMeta({ kind: "mpt-holders", meta: facts("holders") }, { ...XRPL_TESTNET, origin: "https://explorer.example" });
+    expect(title(testnet)).toBe("Holders of HTF · XRPL Testnet · explorer");
+    expect(content(testnet, "description")).toContain("on XRPL Testnet,");
+    expect(link(testnet, "canonical")).toBe(`https://explorer.example/xrpl/mpt/${ID}/holders`);
+    expect(title(mptTransfersMeta({ kind: "mpt-transfers", meta: facts("transfers") }, XRPL_TESTNET))).toBe("Transfers of HTF · XRPL Testnet · explorer");
+  });
+
+  it("holds the issuer's words only as the content of a tag: a code that closes a quote stays one string", () => {
+    const hostile = '"><script>alert(1)</script>';
+    const list = mptHoldersMeta({ kind: "mpt-holders", meta: facts("holders", { code: hostile }) }, XRPL);
+    expect(title(list)).toBe(`Holders of ${hostile} · XRPL · explorer`);
+    expect(tags(list).every((tag) => Object.values(tag).every((value) => typeof value === "string"))).toBe(true);
   });
 });

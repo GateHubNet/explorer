@@ -143,11 +143,11 @@ export function tableRows(html: string, label: string): string[][] {
 }
 
 /**
- * The rows of the Pairs table (its `role="row"` elements, the header first) as arrays of cell texts. A cell of this table holds a `div` (the
- * AMM share's meter), so a row is cut at the next row and the table at the card's foot, not at a `</div>` (`tableRows`, above).
+ * The rows of the table named `label` (its `role="row"` elements, the header first) as arrays of cell texts, for a table whose cells hold a `div` (a meter: the holders' share), so that a row is
+ * cut at the next row and the table at the card's foot, not at a `</div>` (`tableRows`, above). `pairRows` is it for the Pairs table.
  */
-export function pairRows(html: string): string[][] {
-  const start = html.indexOf('role="table" aria-label="Pairs"');
+export function gridRows(html: string, label: string): string[][] {
+  const start = html.indexOf(`role="table" aria-label="${label}"`);
   if (start < 0) return [];
   const end = html.indexOf('class="card__foot', start);
   const table = html.slice(start, end < 0 ? undefined : end);
@@ -162,3 +162,6 @@ export function pairRows(html: string): string[][] {
         .map((chunk) => textOf(chunk.slice(chunk.indexOf(">") + 1).replace(/<span\s[^>]*$/, ""))),
     );
 }
+
+/** The rows of the Pairs table (see `gridRows`). */
+export const pairRows = (html: string): string[][] => gridRows(html, "Pairs");

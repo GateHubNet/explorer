@@ -21,11 +21,19 @@ const read = (path: string) => readFileSync(new URL(path, appDir), "utf8");
 const SERVER_ONLY = [/\/server\//, /\/describe(\/|$)/, /\/parse(\/|$)/, /\/mpt-id$/, /ripple-/];
 const serverOnly = (from: string) => SERVER_ONLY.some((pattern) => pattern.test(from));
 
-/** The files of the MPT pages: the page, the page for a network without MPT, the tables they share, and the flags card. */
-const PAGE_FILES = ["ui/pages/MptPage.tsx", "ui/pages/NoMptPage.tsx", "ui/pages/mpt-columns.tsx", "ui/components/MptFlags.tsx"];
+/** The files of the MPT pages: the issuance's page, its holders' and its transfers', the page for a network without MPT, the tables and the head they share, and the flags card. */
+const PAGE_FILES = [
+  "ui/pages/MptPage.tsx",
+  "ui/pages/MptHoldersPage.tsx",
+  "ui/pages/MptTransfersPage.tsx",
+  "ui/pages/NoMptPage.tsx",
+  "ui/pages/mpt-columns.tsx",
+  "ui/pages/mpt-parts.tsx",
+  "ui/components/MptFlags.tsx",
+];
 
 /** The tags' builders, which the browser runs as the routes' `meta`. They are files of app/server that import nothing of it but `./meta`. */
-const META_FILES = ["server/meta-mpt.ts"];
+const META_FILES = ["server/meta-mpt.ts", "server/meta-mpt-holders.ts", "server/meta-mpt-transfers.ts"];
 
 /** What a file the browser loads may reach of the Worker's own files: the marker alphabet (`server/marker.ts`, an import-free leaf, which `parseTrail` reads markers with). */
 const LEAVES = ["server/marker.ts"];
@@ -90,6 +98,18 @@ describe("the files of the MPT pages that run in the browser", () => {
         "ui/components/PairCoins.tsx",
       ]),
     );
+    // The holders' page and the transfers' draw the head and the tables, and neither draws the other's, the flags card, the metadata or the figures.
+    const holders = staticClosure(appDir, "ui/pages/MptHoldersPage.tsx");
+    const transfers = staticClosure(appDir, "ui/pages/MptTransfersPage.tsx");
+    expect(holders).toEqual(expect.arrayContaining(["ui/pages/mpt-columns.tsx", "ui/pages/mpt-parts.tsx", "ui/charts/Meter.tsx", "ui/components/Pager.tsx", "ui/components/CoverageNote.tsx", "ui/components/AccountLink.tsx", "ui/components/SectionError.tsx"]));
+    expect(transfers).toEqual(expect.arrayContaining(["ui/pages/mpt-columns.tsx", "ui/pages/mpt-parts.tsx", "ui/components/Pager.tsx", "ui/components/CoverageNote.tsx", "ui/components/AccountLink.tsx", "ui/components/SectionError.tsx"]));
+    for (const closure of [holders, transfers]) {
+      expect(closure).not.toContain("ui/pages/MptPage.tsx");
+      expect(closure).not.toContain("ui/components/MptFlags.tsx");
+      expect(closure).not.toContain("ui/components/DetailList.tsx");
+      expect(closure).not.toContain("ui/components/StatTile.tsx");
+    }
+    expect(staticClosure(appDir, "ui/pages/MptPage.tsx")).not.toContain("ui/pages/mpt-parts.tsx");
     // The page for a network without MPT draws none of that.
     const none = staticClosure(appDir, "ui/pages/NoMptPage.tsx");
     expect(none).not.toContain("ui/pages/mpt-columns.tsx");

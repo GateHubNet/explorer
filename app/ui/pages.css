@@ -5709,6 +5709,22 @@ a.markets__pair:hover .markets__name {
    has besides them. Everything the issuer wrote (the name, the ticker, the metadata, a link's words) is free text with no spaces to break at, so each place that shows it breaks it at the
    edge of its cell (`overflow-wrap: anywhere`, pinned in test/unit/pages-css.test.ts). */
 
+/* The first line of the holders' and the transfers' pages: the issuance as a link back to its page, among its tags. */
+.mpt__headline {
+  min-width: 0;
+  margin: 0;
+}
+
+.mpt__headlink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* The issuance ID in full, in mono, with the button that copies it. */
 .mpt__id {
   display: flex;

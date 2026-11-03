@@ -42,11 +42,11 @@ function listHref(path: string, p: { marker?: string; back?: readonly string[] }
 }
 
 /** The link to an issuance's holders: `/xrpl/mpt/0000012A…/holders`, then `?marker=M3&back=M2.M1` behind a marker. */
-export function mptHoldersHref(net: NetworkId, id: string, p: { marker?: string; back?: string[] } = {}): string {
+export function mptHoldersHref(net: NetworkId, id: string, p: { marker?: string; back?: readonly string[] } = {}): string {
   return listHref(mptPath(net, id, "holders"), p);
 }
 
 /** The link to an issuance's transfers: `/xrpl/mpt/0000012A…/transfers`, then `?marker=M3&back=M2.M1` behind a marker. */
-export function mptTransfersHref(net: NetworkId, id: string, p: { marker?: string; back?: string[] } = {}): string {
+export function mptTransfersHref(net: NetworkId, id: string, p: { marker?: string; back?: readonly string[] } = {}): string {
   return listHref(mptPath(net, id, "transfers"), p);
 }

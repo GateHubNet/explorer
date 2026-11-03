@@ -13,8 +13,10 @@ import {
   mptFacts,
   mptHead,
   mptHolderRows,
+  mptHoldersPage,
   mptPage,
   mptTransferRows,
+  mptTransfersPage,
   noMptPage,
   nodeFlags,
   resolveMpt,
@@ -844,6 +846,134 @@ describe("mptPage", () => {
     const view = data.metadata;
     if (view.state !== "decoded") throw new Error("not decoded");
     expect(view.rows.filter((row) => row.href !== undefined || row.title !== undefined)).toEqual([]);
+  });
+});
+
+// ---- The holders' and the transfers' pages (Task 11) ----------------------------------------------------------------------------------------------------------------------------------
+
+describe("mptHoldersPage", () => {
+  const holders = holdersPage([holderOf(A(1), "612000000"), holderOf(A(2), "100000", { escrowed_amount: "1200", locked: true })]);
+  const build = (over: Partial<Parameters<typeof mptHoldersPage>[0]> = {}) => mptHoldersPage({ net: XRPL, source: indexed(), page: { ...OK, value: holders }, view: { back: [] }, names: NO_NAMES, ...over });
+
+  it("is the head, the heading, what is held, the way back and the call it is made from", () => {
+    const data = build();
+    expect(data).toMatchObject({
+      kind: "mpt-holders",
+      origin: "index",
+      network: { id: "xrpl", name: "XRPL" },
+      title: "Holders of HTF",
+      summary: "3,412 accounts hold 18,204,511.20 HTF",
+      back: { href: `/xrpl/mpt/${PAGE_ID}`, label: "Back to HTF" },
+      source: `/v2/mpt/${PAGE_ID}/holders`,
+      notices: [],
+    });
+    expect(data.head).toEqual(mptHead(indexed()));
+    expect(data.names).toBe(NO_NAMES);
+  });
+
+  it("says 1 account holds, and without the count where the head is from the network", () => {
+    expect(build({ source: indexed({ holders: 1 }) }).summary).toBe("1 account holds 18,204,511.20 HTF");
+    const node = build({ source: fromNode({ AssetScale: 2, OutstandingAmount: "1820451120" }) });
+    expect(node.summary).toBe("18,204,511.20 units outstanding");
+    expect(node.notices).toEqual([{ text: "Not in the index yet, shown from the network", tone: "info" }]);
+    expect(node.origin).toBe("node");
+  });
+
+  it("names the page by the ticker, else by the heading", () => {
+    expect(build().title).toBe("Holders of HTF");
+    expect(build({ source: indexed({ ticker: undefined, metadata: undefined }) }).title).toBe("Holders of Harborline Treasury Fund");
+    expect(build({ source: indexed({ ticker: undefined, name: undefined, metadata: undefined }) }).title).toBe(`Holders of MPT ${PAGE_ID.slice(0, 8)}…${PAGE_ID.slice(-4)}`);
+  });
+
+  it("has the rows of the first page ranked from 1, with the balance, the escrow under it, the share and whether it is locked", () => {
+    const { holders: list } = build();
+    if (list.state !== "ok") throw new Error("not ok");
+    expect(list.ranked).toBe(true);
+    expect(list.rows.map((row) => [row.rank, row.balance, row.escrow, row.share, row.locked])).toEqual([
+      [1, "6,120,000.00", null, "33.62%", false],
+      [2, "1,012.00", "incl. 12.00 in escrow", "<0.01%", true],
+    ]);
+    expect(list.empty).toBeNull();
+    expect(list.coverage).toBeNull();
+    expect(list.notes).toEqual([]);
+  });
+
+  it("has no rank behind a marker: the API gives none and the trail does not tell the place", () => {
+    const { holders: list } = build({ view: { marker: "M2", back: ["M1"] } });
+    if (list.state !== "ok") throw new Error("not ok");
+    expect(list.ranked).toBe(false);
+    expect(list.rows.map((row) => row.rank)).toEqual([null, null]);
+  });
+
+  it("links Newer and Older by the trail: the first page has no Newer, the next page's marker is Older's, and Newer goes back along the trail", () => {
+    const first = build({ page: { ...OK, value: holdersPage([holderOf(A(1), "5")], { marker: "M2" }) } }).holders;
+    if (first.state !== "ok") throw new Error("not ok");
+    expect(first.pager).toEqual({ newerHref: null, olderHref: `/xrpl/mpt/${PAGE_ID}/holders?marker=M2` });
+    const third = build({ view: { marker: "M3", back: ["M2", "M1"] }, page: { ...OK, value: holdersPage([holderOf(A(1), "5")], { marker: "M4" }) } }).holders;
+    if (third.state !== "ok") throw new Error("not ok");
+    expect(third.pager).toEqual({ newerHref: `/xrpl/mpt/${PAGE_ID}/holders?marker=M2&back=M1`, olderHref: `/xrpl/mpt/${PAGE_ID}/holders?marker=M4&back=M3.M2.M1` });
+    const second = build({ view: { marker: "M2", back: [] }, page: { ...OK, value: holdersPage([holderOf(A(1), "5")]) } }).holders;
+    if (second.state !== "ok") throw new Error("not ok");
+    expect(second.pager).toEqual({ newerHref: `/xrpl/mpt/${PAGE_ID}/holders`, olderHref: null });
+  });
+
+  it("has the coverage note and the line after it while the index is incomplete, and says nobody holds the token", () => {
+    const { holders: list } = build({ page: { ...OK, value: holdersPage([], { coverage: INCOMPLETE }) } });
+    if (list.state !== "ok") throw new Error("not ok");
+    expect(list.coverage).toEqual({ before: "Covers ledger ", ledger: 99226369, after: " onwards: earlier holders are not in the index yet." });
+    expect(list.notes).toEqual(["A holder whose balance has not changed since is not listed yet."]);
+    expect(list.empty).toBe("Nobody holds HTF yet in the index.");
+    expect((build({ page: { ...OK, value: holdersPage([]) } }).holders as { empty: string }).empty).toBe("Nobody holds HTF.");
+  });
+
+  it("is missing or failed on its own, with the head whole", () => {
+    expect(build({ page: { state: "missing" } }).holders).toEqual({ state: "missing" });
+    expect(build({ page: { state: "failed" } }).holders).toEqual({ state: "failed" });
+    expect(build({ page: { state: "failed" } }).title).toBe("Holders of HTF");
+  });
+
+  it("writes the facts of the tags: the code, the issuer, the first page's path, and whether it is behind a marker", () => {
+    expect(build().meta).toEqual({ code: "HTF", issuer: PAGE_ISSUER, href: `/xrpl/mpt/${PAGE_ID}/holders`, more: false });
+    expect(build({ view: { marker: "M2", back: [] } }).meta).toMatchObject({ href: `/xrpl/mpt/${PAGE_ID}/holders`, more: true });
+  });
+});
+
+describe("mptTransfersPage", () => {
+  const transfers = transfersPage([transferOf(), transferOf({ kind: "lock", destination: undefined })], { marker: "M2" });
+  const build = (over: Partial<Parameters<typeof mptTransfersPage>[0]> = {}) => mptTransfersPage({ net: XRPL, source: indexed(), page: { ...OK, value: transfers }, view: { back: [] }, names: NO_NAMES, ...over });
+
+  it("is the head, the heading, the way back and the call it is made from", () => {
+    expect(build()).toMatchObject({
+      kind: "mpt-transfers",
+      title: "Transfers of HTF",
+      summary: "3,412 accounts hold 18,204,511.20 HTF",
+      back: { href: `/xrpl/mpt/${PAGE_ID}`, label: "Back to HTF" },
+      source: `/v2/mpt/${PAGE_ID}/transfers`,
+    });
+  });
+
+  it("has the rows of the MPT page's card, the footnote with the issuer's name, the coverage note, and Older with the call's marker", () => {
+    const { transfers: list } = build({ names: named("Harborline"), page: { ...OK, value: { ...transfers, coverage: INCOMPLETE } } });
+    if (list.state !== "ok") throw new Error("not ok");
+    expect(list.rows.map((row) => [row.kind, row.everyHolder, row.muted])).toEqual([["Transfer", false, false], ["Lock", true, true]]);
+    expect(list.footnote.startsWith("Newest first. A transfer from Harborline issues new HTF.")).toBe(true);
+    expect(list.note).toEqual({ before: "Covers ledger ", ledger: 99226369, after: " onwards: earlier transfers are not in the index yet." });
+    expect(list.pager).toEqual({ newerHref: null, olderHref: `/xrpl/mpt/${PAGE_ID}/transfers?marker=M2` });
+    expect(list.empty).toBeNull();
+  });
+
+  it("links Newer along the trail behind a marker, and says there is no transfer", () => {
+    const { transfers: list } = build({ view: { marker: "M2", back: ["M1"] }, page: { ...OK, value: transfersPage([], { coverage: COMPLETE }) } });
+    if (list.state !== "ok") throw new Error("not ok");
+    expect(list.pager).toEqual({ newerHref: `/xrpl/mpt/${PAGE_ID}/transfers?marker=M1`, olderHref: null });
+    expect(list.empty).toBe("No transfers of HTF in the index.");
+  });
+
+  it("is missing or failed on its own, writes the facts of the tags, and is noindex behind a marker", () => {
+    expect(build({ page: { state: "missing" } }).transfers).toEqual({ state: "missing" });
+    expect(build({ page: { state: "failed" } }).transfers).toEqual({ state: "failed" });
+    expect(build().meta).toEqual({ code: "HTF", issuer: PAGE_ISSUER, href: `/xrpl/mpt/${PAGE_ID}/transfers`, more: false });
+    expect(build({ view: { marker: "M2", back: [] } }).meta.more).toBe(true);
   });
 });
 

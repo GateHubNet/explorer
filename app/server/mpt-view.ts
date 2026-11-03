@@ -11,6 +11,7 @@ import { compactNumber, formatAmount } from "../domain/format";
 import { ASSET_CLASS_WORDS, MAX_SCALE, MPT_FLAG_WORDS, MPT_KIND_WORDS, mptPath, percentText, safeLink, scaleUnits, shortMptId, superscript, transferFeeText } from "../domain/mpt";
 import { isMptIssuanceId } from "../domain/mpt-id";
 import { mptHoldersHref, mptTransfersHref } from "../domain/mpt-params";
+import { trailPaging, type Paging } from "../domain/paging";
 import { shownIssuer, type NamesPart } from "../domain/names";
 import type { MeterData } from "../ui/charts/types";
 import { findNetwork, type NetworkBrief, type NetworkInfo } from "../ui/networks";
@@ -705,6 +706,156 @@ export function mptPage({ net, source, holders, transfers, names }: MptPageInput
     transfers: transfersCard(net, transfers, head, names),
     facts: mptFacts(net, source, names),
     names,
+  };
+}
+
+// ---- The holders' and the transfers' pages (E14 spec 3.4, Task 11) ----------------------------------------------------------------------------------------------------------------------
+
+/** The rows of a page of holders and of a page of transfers (spec 1.2: 50 holders, 20 transfers). */
+export const MPT_HOLDERS_PAGE = 50;
+export const MPT_TRANSFERS_PAGE = 20;
+
+/** What the tags of a list page read of it: the code the title names, the issuer, where the first page is (written here because the tags' module is a browser file), and whether this page is behind a marker. */
+export interface MptListMetaFacts {
+  /** The ticker, else the heading ("Old Gilt Note", "MPT 0000012A…3F09"): what "Holders of …" and "Transfers of …" name. */
+  code: string;
+  issuer: string;
+  href: string;
+  more: boolean;
+}
+
+/** What the two list pages have alike: the head (the first line links back to the issuance's page), the heading and the line under it, the way back, and the tags' facts. */
+export interface MptListPageBase {
+  network: NetworkInfo;
+  origin: MptSource["origin"];
+  head: MptHead;
+  /** The `<h1>`: "Holders of HTF" or "Transfers of HTF". */
+  title: string;
+  /** The line under it: how many accounts hold how much, or what is outstanding. */
+  summary: string;
+  /** The way back to the issuance's page. */
+  back: { href: string; label: string };
+  /** The caption of the list's card: the call it is made from. */
+  source: string;
+  notices: MptNotice[];
+  names: NamesPart;
+  meta: MptListMetaFacts;
+}
+
+/** The pager of a list, the coverage note and what it says under it. */
+export interface MptHoldersListBody {
+  rows: MptHolderRow[];
+  /** Whether the rows have a rank: the first page does, a page behind a marker does not (the API gives none, and the trail does not tell the place). */
+  ranked: boolean;
+  empty: string | null;
+  coverage: CoverageNoteText | null;
+  notes: string[];
+  pager: Paging;
+}
+
+export interface MptHoldersPageData extends MptListPageBase {
+  kind: "mpt-holders";
+  holders: MptCard<MptHoldersListBody>;
+}
+
+export interface MptTransfersListBody {
+  rows: MptTransferRow[];
+  empty: string | null;
+  footnote: string;
+  note: CoverageNoteText | null;
+  pager: Paging;
+}
+
+export interface MptTransfersPageData extends MptListPageBase {
+  kind: "mpt-transfers";
+  transfers: MptCard<MptTransfersListBody>;
+}
+
+/** The trail a list page was reached with (`parseMptListParams`): the marker it has and the markers of the pages before it. */
+export type MptListView = { marker?: string; back: readonly string[] };
+
+/** The head, the heading and the tags' facts the two list pages share. */
+function listBase(net: MptNet, source: MptSource, names: NamesPart, view: MptListView, kind: "holders" | "transfers"): MptListPageBase {
+  const head = mptHead(source);
+  const f = figuresOf(source);
+  const T = head.tickerOrUnits;
+  const code = head.ticker ?? head.heading;
+  const outstanding = unitsText(f.outstanding, head.scale);
+  const summary =
+    f.holders === null ? `${outstanding} ${T} outstanding` : `${counted(f.holders)} ${f.holders === 1 ? "account holds" : "accounts hold"} ${outstanding} ${T}`;
+  return {
+    network: networkInfoOf(net),
+    origin: source.origin,
+    head,
+    title: `${kind === "holders" ? "Holders" : "Transfers"} of ${code}`,
+    summary,
+    back: { href: mptPath(net.id, head.id), label: `Back to ${code}` },
+    source: `/v2/mpt/${head.id}/${kind}`,
+    notices: source.origin === "node" ? [{ text: "Not in the index yet, shown from the network", tone: "info" }] : [],
+    names,
+    meta: { code, issuer: head.issuer, href: kind === "holders" ? mptHoldersHref(net.id, head.id) : mptTransfersHref(net.id, head.id), more: view.marker !== undefined },
+  };
+}
+
+/** What `mptHoldersPage` is made of: the network, the issuance (for the head and the scale), the page of holders, the trail it was reached with, and the names. */
+export interface MptHoldersPageInput {
+  net: MptNet;
+  source: MptSource;
+  page: Loaded<MptHoldersPage>;
+  view: MptListView;
+  names: NamesPart;
+}
+
+/**
+ * The page data of `/{net}/mpt/{ID}/holders` (spec 3.4): the head, 50 holders with their shares of the outstanding amount, Newer and Older by the trail, and the coverage note. The list stands
+ * or fails on its own: a page the index has no rows for (a 404) is `missing` and one that failed is `failed`, and the head stands in both. The ranks are the place in the whole ranking only on
+ * the first page; behind a marker there are none.
+ */
+export function mptHoldersPage({ net, source, page, view, names }: MptHoldersPageInput): MptHoldersPageData {
+  const base = listBase(net, source, names, view, "holders");
+  if (page.state !== "ok") return { kind: "mpt-holders", ...base, holders: { state: page.state } };
+  const f = figuresOf(source);
+  const rows = mptHolderRows(page.value, { head: base.head, outstanding: f.outstanding }, view.marker === undefined ? 1 : null);
+  const coverage = coverageNote(page.value.coverage, "holders");
+  return {
+    kind: "mpt-holders",
+    ...base,
+    holders: {
+      state: "ok",
+      rows,
+      ranked: view.marker === undefined,
+      empty: rows.length === 0 ? noHoldersLine(base.head.tickerOrUnits, page.value.coverage.complete) : null,
+      coverage,
+      notes: coverage === null ? [] : [HOLDERS_NOT_LISTED],
+      pager: trailPaging({ marker: view.marker, back: view.back, next: page.value.marker }, (to) => mptHoldersHref(net.id, base.head.id, to)),
+    },
+  };
+}
+
+export interface MptTransfersPageInput {
+  net: MptNet;
+  source: MptSource;
+  page: Loaded<MptTransfersPage>;
+  view: MptListView;
+  names: NamesPart;
+}
+
+/** The page data of `/{net}/mpt/{ID}/transfers` (spec 3.4): the head, 20 transfers newest first with the footnote of the MPT page's card, Newer and Older by the trail, and the coverage note. */
+export function mptTransfersPage({ net, source, page, view, names }: MptTransfersPageInput): MptTransfersPageData {
+  const base = listBase(net, source, names, view, "transfers");
+  if (page.state !== "ok") return { kind: "mpt-transfers", ...base, transfers: { state: page.state } };
+  const rows = mptTransferRows(page.value, base.head);
+  return {
+    kind: "mpt-transfers",
+    ...base,
+    transfers: {
+      state: "ok",
+      rows,
+      empty: rows.length === 0 ? `No transfers of ${base.head.tickerOrUnits} in the index.` : null,
+      footnote: transfersFootnote(base.head, names),
+      note: coverageNote(page.value.coverage, "transfers"),
+      pager: trailPaging({ marker: view.marker, back: view.back, next: page.value.marker }, (to) => mptTransfersHref(net.id, base.head.id, to)),
+    },
   };
 }
 

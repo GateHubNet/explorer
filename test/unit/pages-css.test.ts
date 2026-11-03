@@ -1144,6 +1144,13 @@ describe("the MPT pages", () => {
     expect(phone.test(pagesCss)).toBe(true);
   });
 
+  // The holders' and the transfers' pages start with the issuance as a line that leads back to its page: the name is the link, in a line of tags, so it is told by more than its colour (WCAG 1.4.1)
+  // and is a 44 px target on touch.
+  it("underlines the link back to the issuance in the head of the list pages, as a 44 px target, and breaks its text at the edge of the card", () => {
+    expect(rule(pagesCss, ".mpt__headlink")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px", display: "inline-flex", "align-items": "center", "min-height": "44px", "overflow-wrap": "anywhere" });
+    expect(rule(pagesCss, ".mpt__headline")).toMatchObject({ margin: "0", "min-width": "0" });
+  });
+
   it("is defined in pages.css alone: the components sheet has none of the page's classes", () => {
     expect(componentsCss).not.toMatch(/\.mpt__|\.mptflags/);
   });

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { collectAddresses } from "../../app/server/names-collect";
+import holders50 from "../fixtures/http/xrpl/data-api/mpt/03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80/holders@limit=50.json";
+import transfers20 from "../fixtures/http/xrpl/data-api/mpt/03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80/transfers@descending=true&limit=20.json";
 import holders10 from "../fixtures/http/xrpl/data-api/mpt/03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80/holders@limit=10.json";
 import transfers8 from "../fixtures/http/xrpl/data-api/mpt/03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80/transfers@descending=true&limit=8.json";
 import htfIssuance from "../fixtures/http/xrpl/data-api/mpt/03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80.json";
@@ -116,6 +118,70 @@ describe("when the names call fails or is late", () => {
     expect(namesCalls(mock)).toEqual(inCalls(EXPECTED));
     expect(html).not.toContain("acct__name");
     expect(expectAddressesOnly(withoutButton(html), "xrpl")).toBeGreaterThan(3);
+    expect(logged()).toBe(1);
+  });
+});
+
+// ---- The holders' and the transfers' pages ---------------------------------------------------------------------------------------------------------------------------------------
+
+const H = (id: string) => `${P(id)}/holders`;
+const T = (id: string) => `${P(id)}/transfers`;
+
+describe("the names call of the holders' page", () => {
+  /** What the loader asks the names of: the issuer and the 50 holders of the page. */
+  const expected = collectAddresses(htfIssuance.issuance.issuer, holders50.holders.map((holder) => holder.holder));
+
+  it("is one, after the two calls of the page, for the issuer and the holders sorted, and the page draws each by the name it was given", async () => {
+    await forgetStored(H(HTF));
+    const mock = upstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const { html } = await page(H(HTF));
+
+    expect(expected.length).toBeGreaterThan(30);
+    expect(namesCalls(mock)).toEqual(inCalls(expected));
+    expect(withoutNames(mock.requests)).toHaveLength(2);
+    expect([...namesCalls(mock).flat()].sort()).toEqual(sorted(linkedAccounts(html, "xrpl")));
+    expectLinkedAccountsNamed(mock, html, "xrpl");
+  });
+
+  it("shows the short addresses, serves the page and does not store it, and logs it once, when the call fails", async () => {
+    const logged = watchNamesLog();
+    const mock = upstream("xrpl", failingNames());
+    await forgetStored(H(escrow));
+    const response = await get(H(escrow));
+    const html = await response.text();
+
+    await expectDegraded(H(escrow), response);
+    expect(namesStatuses(mock)).toEqual([503]);
+    expect(expectAddressesOnly(html, "xrpl")).toBeGreaterThan(0);
+    expect(logged()).toBe(1);
+  });
+});
+
+describe("the names call of the transfers' page", () => {
+  const expected = collectAddresses(htfIssuance.issuance.issuer, transfers20.transfers.map((transfer) => [transfer.source, transfer.destination]));
+
+  it("is one, after the two calls of the page, for the issuer and the parties sorted, and the page draws each by the name it was given", async () => {
+    await forgetStored(T(HTF));
+    const mock = upstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const { html } = await page(T(HTF));
+
+    expect(expected.length).toBeGreaterThan(10);
+    expect(namesCalls(mock)).toEqual(inCalls(expected));
+    expect(withoutNames(mock.requests)).toHaveLength(2);
+    expect([...namesCalls(mock).flat()].sort()).toEqual(sorted(linkedAccounts(html, "xrpl")));
+    expectLinkedAccountsNamed(mock, html, "xrpl");
+  });
+
+  it("does the same when the call never answers", async () => {
+    const logged = watchNamesLog();
+    upstream("xrpl", { "GET /v2/account_names": () => new Promise<Response>(() => {}) });
+    await forgetStored(T(lockedAll));
+    const response = await get(T(lockedAll));
+    const html = await response.text();
+
+    await expectDegraded(T(lockedAll), response);
+    expect(html).not.toContain("acct__name");
+    expect(expectAddressesOnly(html, "xrpl")).toBeGreaterThan(0);
     expect(logged()).toBe(1);
   });
 });

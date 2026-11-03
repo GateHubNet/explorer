@@ -140,17 +140,19 @@ describe("the account's Transactions and Payments tabs with MPT off", () => {
 });
 
 // E14 spec 1.3 and 7: while `MPT` is off every route of the MPT pages is the 404 of "the MPT pages", of class `short`, before any call and whatever the ID is (the switch is the first check): the page,
-// on either network, in any case, and for text that is no ID at all.
-describe("the MPT page with MPT off", () => {
-  it.each([
-    ["an ID in capitals", "xrpl", MPT_FIXTURE_IDS.htf],
-    ["an ID in lower case", "xrpl", MPT_FIXTURE_IDS.htf.toLowerCase()],
-    ["text that is no ID", "xrpl", "xyz"],
-    ["an ID on Xahau", "xahau", MPT_FIXTURE_IDS.htf],
-    ["an ID on Xahau in lower case", "xahau", MPT_FIXTURE_IDS.htf.toLowerCase()],
-  ] as const)("answers %s with the 404 of the MPT pages, class short, and makes no request", async (_what, net, id) => {
+// its holders' and its transfers', on either network, in any case, and for text that is no ID at all.
+describe("the MPT pages with MPT off", () => {
+  it.each(
+    ["", "/holders", "/transfers"].flatMap((tail) => [
+      [`an ID in capitals${tail}`, "xrpl", MPT_FIXTURE_IDS.htf, tail],
+      [`an ID in lower case${tail}`, "xrpl", MPT_FIXTURE_IDS.htf.toLowerCase(), tail],
+      [`text that is no ID${tail}`, "xrpl", "xyz", tail],
+      [`an ID on Xahau${tail}`, "xahau", MPT_FIXTURE_IDS.htf, tail],
+      [`an ID on Xahau in lower case${tail}`, "xahau", MPT_FIXTURE_IDS.htf.toLowerCase(), tail],
+    ]) as Array<[string, "xrpl" | "xahau", string, string]>,
+  )("answers %s with the 404 of the MPT pages, class short, and makes no request", async (_what, net, id, tail) => {
     mock = mockUpstream(net);
-    const path = `/${net}/mpt/${id}`;
+    const path = `/${net}/mpt/${id}${tail}`;
     const response = await get(path);
     const html = await response.text();
 
@@ -161,11 +163,13 @@ describe("the MPT page with MPT off", () => {
     expect(await storedAs(path)).toEqual({ cls: "short", ttl: 30 });
   });
 
-  it("does not redirect a made-up query or a lower case ID: the switch is checked first", async () => {
+  it("does not redirect a made-up query, a bad marker or a lower case ID: the switch is checked first", async () => {
     mock = mockUpstream("xrpl");
-    const response = await get(`/xrpl/mpt/${MPT_FIXTURE_IDS.htf.toLowerCase()}?x=1`);
-    await response.text();
-    expect(response.status).toBe(404);
+    for (const path of [`/xrpl/mpt/${MPT_FIXTURE_IDS.htf.toLowerCase()}?x=1`, `/xrpl/mpt/${MPT_FIXTURE_IDS.htf}/holders?marker=***`, `/xrpl/mpt/${MPT_FIXTURE_IDS.htf.toLowerCase()}/transfers?marker=`]) {
+      const response = await get(path);
+      await response.text();
+      expect(response.status, path).toBe(404);
+    }
     expect(mock.requests).toEqual([]);
   });
 });

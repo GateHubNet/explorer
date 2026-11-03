@@ -77,6 +77,8 @@ describe("the pages the other switches gate", () => {
     ["the holders of a token", "xrpl", `/xrpl/token/RLUSD.${RLUSD_ISSUER}/holders`, "linked"],
     ["the holders of a Xahau token", "xahau", `/xahau/token/EVR.${EVR_ISSUER}/holders`, "linked"],
     ["an MPT", "xrpl", `/xrpl/mpt/${MPT}`, "short"],
+    ["the holders of an MPT", "xrpl", `/xrpl/mpt/${MPT}/holders`, "short"],
+    ["the transfers of an MPT", "xrpl", `/xrpl/mpt/${MPT}/transfers`, "short"],
   ] as const)("draws %s by addresses, with the page there, and asks for no name and no toml", async (_, net, path, says) => {
     const mock = upstream(net);
     const { response, html } = await serve(path);
