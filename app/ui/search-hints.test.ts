@@ -7,6 +7,7 @@ import { hintsFor } from "./search-hints";
 
 const ADDRESS = "rGz1sPmwvkaRyZido3CQB3ziVd9dwQ4Y6x";
 const HASH = "67F91E110D4E3E6C2E6DA3D42EDFB36D9860D024406F58A12CDDF09B65057C31";
+const MPT_ID = "03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80";
 
 describe("hintsFor", () => {
   it("sends a ledger index straight to the ledger", () => {
@@ -80,6 +81,24 @@ describe("hintsFor", () => {
         expect(hintsFor(classify(input), "xrpl", features)).toEqual(hintsFor(classify(input), "xrpl"));
       }
     }
+  });
+
+  // E14 spec 8: an MPT issuance ID is a hint only while `MPT` is on (the box passes the layout's `Features`), and its link is the page itself on either network: Xahau's says MPT is not there.
+  it("sends 48 hex digits straight to the issuance's page, in upper case, as 'MPT issuance ID', while MPT is on", () => {
+    expect(hintsFor(classify(MPT_ID.toLowerCase()), "xrpl", { ...NO_FEATURES, mpt: true })).toEqual([{ kind: "MPT issuance ID", detail: MPT_ID, href: `/xrpl/mpt/${MPT_ID}` }]);
+    expect(hintsFor(classify(MPT_ID), "xahau", { ...NO_FEATURES, mpt: true })).toEqual([{ kind: "MPT issuance ID", detail: MPT_ID, href: `/xahau/mpt/${MPT_ID}` }]);
+  });
+
+  it("offers nothing for 48 hex digits while MPT is off, whether the switches say so or are not given: as it always did", () => {
+    for (const net of ["xrpl", "xahau"] as const) {
+      for (const opts of [undefined, { nfts: true, ledgerObjects: true }, { ...NO_FEATURES, mpt: false }, { ...NO_FEATURES, nfts: true, ledgerObjects: true }]) {
+        expect(hintsFor(classify(MPT_ID), net, opts), `${net} ${JSON.stringify(opts)}`).toEqual([]);
+      }
+    }
+  });
+
+  it("changes nothing for a hash with MPT on: the words of a 64-digit input are the hash nouns', whatever the switch", () => {
+    expect(hintsFor(classify(HASH), "xrpl", { ...NO_FEATURES, mpt: true })[0]).toMatchObject({ kind: "Transaction or ledger", href: `/xrpl/search?q=${HASH}` });
   });
 
   it("offers nothing for what is none of those", () => {

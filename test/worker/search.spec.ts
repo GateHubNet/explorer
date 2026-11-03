@@ -1219,6 +1219,100 @@ describe("a token (E11 spec 5.3)", () => {
   });
 });
 
+// E14 spec 8: 48 hex digits, in either case and with no `0x`, are an MPT issuance ID, whatever the network is. With `MPT` on it is a 302 to the issuance's page, class `short`, with no call (on Xahau to the page that
+// says MPT is not there); while `MPT` is off it is what it was (mpt-off.spec.ts for a project with every switch off, and the loader below for `TOKENS` on beside it).
+describe("an MPT issuance ID (E14 spec 8)", () => {
+  const ID = "03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80";
+
+  it.each([
+    ["xrpl", "in capitals", ID],
+    ["xrpl", "in lower case", ID.toLowerCase()],
+    ["xrpl", "in mixed case", `${ID.slice(0, 20)}${ID.slice(20).toLowerCase()}`],
+    ["xrpl", "with spaces around it", `  ${ID.toLowerCase()}\n`],
+    ["xahau", "in lower case", ID.toLowerCase()],
+  ] as const)("redirects 48 hex digits on %s %s to the issuance's page in capitals, class short, without asking anyone", async (net, _what, q) => {
+    mock = mockUpstream(net);
+    const path = `/${net}/search?q=${encodeURIComponent(q)}`;
+    const response = await get(path);
+    await response.text();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`/${net}/mpt/${ID}`);
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs(path)).toEqual({ cls: "short", ttl: 30 });
+  });
+
+  it("redirects in the `.data` response a client-side navigation reads", async () => {
+    mock = mockUpstream("xrpl");
+    const response = await get(`/xrpl/search.data?q=${ID.toLowerCase()}`);
+    const body = await response.text();
+
+    expect(response.status).toBe(202);
+    expect(body).toContain(`/xrpl/mpt/${ID}`);
+    expect(body).toContain("SingleFetchRedirect");
+    expect(mock.requests).toEqual([]);
+  });
+
+  it.each([
+    ["47 digits", ID.slice(1)],
+    ["49 digits", `${ID}A`],
+    ["a 0x prefix", `0x${ID}`],
+    ["a digit that is not hex", `G${ID.slice(1)}`],
+  ])("leaves %s as it was: the help page, with no redirect and no call", async (_what, q) => {
+    mock = mockUpstream("xrpl");
+    const { response, html } = await page(search(q));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Location")).toBeNull();
+    expect(textOf(html)).toContain("No match");
+    expect(anchors(html).filter((a) => a.attrs.includes("/mpt/"))).toEqual([]);
+    expect(mock.requests).toEqual([]);
+  });
+
+  it("says in the help text that it takes an MPT issuance ID, on either network", async () => {
+    for (const net of ["xrpl", "xahau"] as const) {
+      mock = mockUpstream(net);
+      const { html } = await page(`/${net}/search?q=hello`);
+      expect(textOf(html), net).toContain("An MPT issuance ID (48 hex digits)");
+      mock.restore();
+      mock = undefined;
+    }
+  });
+
+  // `worker-off` has `TOKENS` off with the rest, so the case of `MPT` off beside `TOKENS` on is the loader with a load context of its own (tokens.spec.ts does the same): 48 hex digits go
+  // the way a text that `classify` found nothing in has always gone, here the help text with E11's offer of the list of tokens, and the help text does not name the issuance ID.
+  describe("with MPT off and TOKENS on (the route's loader, with a load context of its own)", () => {
+    const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
+
+    async function searched(net: "xrpl" | "xahau", q: string, mpt: "on" | "off") {
+      return await loader({
+        request: new Request(`https://explorer.test/${net}/search?q=${q}`),
+        params: { net },
+        context: createLoadContext({ ...(env as unknown as Env), TOKENS: "on", MPT: mpt }, ctx),
+      } as never);
+    }
+
+    it.each(["xrpl", "xahau"] as const)("answers 48 hex digits on %s with the help page and the offer of the tokens, not a redirect", async (net) => {
+      mock = mockUpstream(net);
+      const off = await searched(net, ID.toLowerCase(), "off");
+
+      expect(off).not.toBeInstanceOf(Response);
+      expect((off as { data: unknown }).data).toEqual({
+        kind: "help",
+        query: ID.toLowerCase(),
+        tokens: { href: `/${net}/tokens?q=${ID.toLowerCase()}`, label: `Look for “${ID.toLowerCase()}” among tokens →` },
+      });
+      expect(mock.requests).toEqual([]);
+
+      const on = await searched(net, ID.toLowerCase(), "on");
+      expect(on).toBeInstanceOf(Response);
+      expect((on as Response).status).toBe(302);
+      expect((on as Response).headers.get("Location")).toBe(`/${net}/mpt/${ID}`);
+      expect(mock.requests).toEqual([]);
+    });
+  });
+});
+
 describe("the route", () => {
   it("sets a title that names the search and the network", async () => {
     mock = mockUpstream("xrpl");

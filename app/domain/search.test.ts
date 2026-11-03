@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { classify } from "./search";
 
 const HASH = "4BC50C9B0D8515D3EAAE1E74B29A95804346C491EE1A95BF25E4AAB854A6A651";
+// An MPT issuance ID: 48 hex digits (the sequence as 4 bytes, then the issuer's 20-byte AccountID).
+const MPT_ID = "03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80";
 // A valid classic address, its X-address with the tag 104882, and the same address with no tag.
 const ADDRESS = "rGz1sPmwvkaRyZido3CQB3ziVd9dwQ4Y6x";
 const X_ADDRESS_WITH_TAG = "XVMgJSRJAMekfCw3mHHsRUbqYqWuZ2qXW7DhMWWpGmjhqyr";
@@ -92,6 +94,39 @@ describe("classify: hash", () => {
     expect(classify(`${HASH}A`)).toEqual({ kind: "none" });
     expect(classify(`G${HASH.slice(1)}`)).toEqual({ kind: "none" });
     expect(classify(`0x0x${HASH}`)).toEqual({ kind: "none" });
+  });
+});
+
+describe("classify: an MPT issuance ID", () => {
+  it("reads exactly 48 hex digits as an issuance ID, in upper case, whatever case they were typed in", () => {
+    expect(classify(MPT_ID)).toEqual({ kind: "mpt", id: MPT_ID });
+    expect(classify(MPT_ID.toLowerCase())).toEqual({ kind: "mpt", id: MPT_ID });
+    expect(classify(`${MPT_ID.slice(0, 20)}${MPT_ID.slice(20).toLowerCase()}`)).toEqual({ kind: "mpt", id: MPT_ID });
+  });
+
+  it("trims the input", () => {
+    expect(classify(`  ${MPT_ID.toLowerCase()}\n`)).toEqual({ kind: "mpt", id: MPT_ID });
+  });
+
+  it("is an issuance ID even when all 48 digits are decimal, as 64 decimal digits are a hash and not a ledger index", () => {
+    const digits = "123456789012345678901234567890123456789012345678";
+    expect(digits).toHaveLength(48);
+    expect(classify(digits)).toEqual({ kind: "mpt", id: digits });
+  });
+
+  it("finds nothing in 47 or 49 digits, a 0x prefix or a non-hex digit: as before", () => {
+    expect(classify(MPT_ID.slice(1))).toEqual({ kind: "none" });
+    expect(classify(`${MPT_ID}A`)).toEqual({ kind: "none" });
+    expect(classify(`0x${MPT_ID}`)).toEqual({ kind: "none" });
+    expect(classify(`G${MPT_ID.slice(1)}`)).toEqual({ kind: "none" });
+    expect(classify(`${MPT_ID.slice(0, 24)} ${MPT_ID.slice(24)}`)).toEqual({ kind: "none" });
+  });
+
+  it("leaves a 64-digit hash a hash, and the shorter shapes what they were", () => {
+    expect(classify(HASH)).toEqual({ kind: "hash", hash: HASH });
+    expect(classify(`0x${HASH}`)).toEqual({ kind: "hash", hash: HASH });
+    expect(classify("C66B4E2C000C0000")).toMatchObject({ kind: "ctid" });
+    expect(classify("107695660")).toEqual({ kind: "ledger-index", index: 107695660 });
   });
 });
 

@@ -173,3 +173,21 @@ describe("the MPT pages with MPT off", () => {
     expect(mock.requests).toEqual([]);
   });
 });
+
+// E14 spec 8: with `MPT` off, 48 hex digits are what they were before E14 — no issuance ID, no redirect, no hint in the help text: the help page, a 200 of class `short` that asks nobody. (This project has `TOKENS`
+// off too, so there is no offer of the list of tokens; search.spec.ts runs the loader with `TOKENS` on beside it.)
+describe("the search with MPT off", () => {
+  it.each(["xrpl", "xahau"] as const)("answers 48 hex digits on %s with the help page, class short, no redirect and no request", async (net) => {
+    mock = mockUpstream(net);
+    const path = `/${net}/search?q=${MPT_FIXTURE_IDS.htf.toLowerCase()}`;
+    const { response, html } = await page(path);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Location")).toBeNull();
+    expect(textOf(html)).toContain("No match");
+    expect(textOf(html)).not.toContain("MPT issuance ID");
+    expect(anchors(html).filter((a) => /href="[^"]*\/mpt\//.test(a.attrs))).toEqual([]);
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs(path)).toEqual({ cls: "short", ttl: 30 });
+  });
+});

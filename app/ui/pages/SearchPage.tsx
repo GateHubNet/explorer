@@ -7,7 +7,7 @@ import { SearchChoicePage } from "./SearchChoicePage";
 
 /** What the search box takes, for a visitor who typed something it does not know (the wording of the box's own hint). */
 function SearchHelp() {
-  const { nfts, ledgerObjects, tokens } = useFeatures();
+  const { nfts, ledgerObjects, mpt, tokens } = useFeatures();
   return (
     <>
       <p>You can search for:</p>
@@ -16,6 +16,7 @@ function SearchHelp() {
         <li>A transaction or ledger hash: 64 hexadecimal characters</li>
         {nfts && <li>An NFT or URIToken id: 64 hexadecimal characters</li>}
         {ledgerObjects && <li>An escrow, check or payment channel id: 64 hexadecimal characters</li>}
+        {mpt && <li>An MPT issuance ID (48 hex digits)</li>}
         {tokens && <li>A token: its code and issuer</li>}
         <li>A ledger index, such as 107695660</li>
         <li>A CTID: C followed by 15 hexadecimal characters</li>
