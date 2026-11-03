@@ -759,6 +759,13 @@ describe("the classes of the ledger object pages' components (Task 5)", () => {
     expect(rule(componentsCss, ".mptlink")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px" });
   });
 
+  // E14 (review of Tasks 7 and 8, I1): the ticker is the issuer's own text, and nothing on the explorer's path caps it. The reference breaks at the edge of its cell, in a sentence (`.mptlink`) and in the
+  // balance changes' currency column (`.cur--mpt`, a 130 px track), instead of painting over the Change cell beside it.
+  it("breaks a ticker that is no word at the edge of its cell, in running words and in the balance changes' currency column", () => {
+    expect(rule(componentsCss, ".mptlink")["overflow-wrap"]).toBe("anywhere");
+    expect(rule(pagesCss, ".cur--mpt")["overflow-wrap"]).toBe("anywhere");
+  });
+
   // E14: an MPT's currency in the balance changes has the issuance's link and the issuer's under it, and a flow step's MPT amount links under the account's link: each is a target of at least
   // 24 px (WCAG 2.5.8), and the amount stands clear of the 44 px target of the account link above it.
   it("makes the links of an MPT's currency cell and of a flow step's MPT amount targets of at least 24 px, the amount clear of the account link", () => {

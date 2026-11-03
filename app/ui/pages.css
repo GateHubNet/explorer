@@ -549,6 +549,11 @@ a.example:hover {
   font-size: 12px;
 }
 
+/* An MPT's currency cell names the issuance by its ticker, which is the issuer's own text: it breaks at the edge of the cell (a 130 px track), not over the Change cell beside it. */
+.cur--mpt {
+  overflow-wrap: anywhere;
+}
+
 /* An MPT's currency cell has two links, one over the other (the issuance's and the issuer's): each is a target of at least 24 px (WCAG 2.5.8), as the Tokens card's and the pool's lines are. */
 .cur--mpt a {
   display: inline-flex;
