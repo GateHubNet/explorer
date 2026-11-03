@@ -249,13 +249,16 @@ describe("MptPage: the metadata", () => {
     expect(metadata.querySelector("summary")!.textContent).toBe("Raw metadata, as hex (5 bytes)");
   });
 
+  // The whole-branch review's M6: the ticker is the issuer's text too. It reaches the crumb, the tag, the coin, the tiles, the flags, the footnotes and the column headers, so it is hostile here as well
+  // (cut to 16 code points it is `"><img src=x one`).
   it("puts no metadata text in an attribute but a safe href", () => {
     const hostile = `"><img src=x onerror=alert(1)>`;
     const script = "javascript:alert(1)";
+    const ticker = Array.from(hostile).slice(0, 16).join("");
     const { container } = mount(
       build({
         source: indexed({
-          ticker: undefined,
+          ticker: hostile,
           name: hostile,
           metadata: {
             name: hostile,
@@ -283,9 +286,12 @@ describe("MptPage: the metadata", () => {
     }
     const external = [...container.querySelectorAll<HTMLAnchorElement>("a[href]")].map((link) => link.getAttribute("href")!).filter((href) => /^[a-z]+:/i.test(href));
     expect(external).toEqual(["https://good.example/x"]);
-    // And it is all there as text.
+    // And it is all there as text, the ticker as the pages cut it.
+    expect(ticker).toBe(`"><img src=x one`);
     expect(container.textContent).toContain(hostile);
     expect(container.textContent).toContain(script);
+    expect(container.querySelector(".tag")!.textContent).toBe(ticker);
+    expect(container.textContent).toContain(`Balance (${ticker})`);
   });
 
   it("leaves a long unbroken name, description and link words whole in the page: the stylesheet breaks them", () => {

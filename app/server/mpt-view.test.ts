@@ -952,12 +952,26 @@ describe("mptPage", () => {
     expect(data.holders).toMatchObject({ state: "ok", total: null, rows: [{ balance: "6,120,000.00", share: "33.62%" }] });
   });
 
+  // The whole-branch review's M6: the ticker is the issuer's text too (cut to 16 code points it is `"><img src=x one`); the only strings the page data puts in an attribute are its hrefs, and none holds it.
   it("holds nothing the issuer wrote in a field the page puts in an attribute but the hrefs", () => {
     const hostile = '"><img src=x onerror=alert(1)>';
-    const data = page({ source: indexed({ ticker: undefined, name: hostile, metadata: { icon: hostile, uris: [{ uri: "javascript:alert(1)", title: hostile, category: hostile }] } }) });
+    const data = page({ source: indexed({ ticker: hostile, name: hostile, metadata: { icon: hostile, uris: [{ uri: "javascript:alert(1)", title: hostile, category: hostile }] } }) });
     const view = data.metadata;
     if (view.state !== "decoded") throw new Error("not decoded");
     expect(view.rows.filter((row) => row.href !== undefined || row.title !== undefined)).toEqual([]);
+    expect(data.head.ticker).toBe('"><img src=x one');
+    const hrefs: string[] = [];
+    const walk = (value: unknown): void => {
+      if (Array.isArray(value)) value.forEach(walk);
+      else if (typeof value === "object" && value !== null)
+        for (const [key, inner] of Object.entries(value)) {
+          if (/href$/i.test(key) && typeof inner === "string") hrefs.push(inner);
+          walk(inner);
+        }
+    };
+    walk(data);
+    expect(hrefs).not.toEqual([]);
+    for (const href of hrefs) expect(href).not.toMatch(/img|onerror|alert|"/);
   });
 });
 

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import htfIssuance from "../fixtures/http/xrpl/data-api/mpt/03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80.json";
 import holdersFirst from "../fixtures/http/xrpl/data-api/mpt/03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80/holders@limit=10.json";
 import holdersFirst50 from "../fixtures/http/xrpl/data-api/mpt/03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80/holders@limit=50.json";
 import transfersFirst20 from "../fixtures/http/xrpl/data-api/mpt/03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80/transfers@descending=true&limit=20.json";
@@ -173,6 +174,43 @@ describe("a page the index has", () => {
     expect(linksTo(html, "All 63 holders →")).toEqual([`${path}/holders`]);
     expect(linksTo(html, "Older →")).toEqual([`${path}/transfers?marker=${transfersFirst.marker}`]);
     expect(holdersFirst.holders).toHaveLength(10);
+  });
+
+  // The whole-branch review's M6: the ticker and the name are the issuer's own text, cut to 16 and to 128 code points and unchecked beyond that. These close a quote, a tag and a script (the ticker is 16
+  // code points exactly) and reach the page in the heading, the crumb, the tiles, the tags and the hydration data: text in each, never an element, an attribute or the end of a script.
+  it("holds an issuer's ticker and name that are markup as text in the page and the tags, and as data in the hydration script", async () => {
+    const path = P(HTF);
+    const ticker = '"></script><u x>';
+    const name = '"></script><img src=x onerror=alert(1)>';
+    const escaped = (text: string) => text.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    expect(Array.from(ticker)).toHaveLength(16);
+    await forgetStored(path);
+    upstream("xrpl", { [ISSUANCE(HTF)]: { ...htfIssuance, issuance: { ...htfIssuance.issuance, ticker, name } } });
+    const { html } = await page(path);
+    await forgetStored(path);
+
+    // Never an element or the end of a script of its own: the document holds the characters only where they are escaped.
+    expect(html).not.toContain("<u x>");
+    expect(html).not.toContain("<img src=x");
+    expect(html).not.toContain("</script><u");
+    expect(html).not.toContain("</script><img");
+    expect(html).not.toContain(`content="${ticker}`);
+    expect(html).toContain(`<title>${escaped(ticker)} · ${escaped(name)} · MPT · XRPL · explorer</title>`);
+    expect(elementText(html, "token-page__title")).toBe(escaped(name));
+    // The tags: the title, the preview's title and the description hold it inside their `content`, escaped.
+    for (const tag of ['property="og:title"', 'name="twitter:title"']) {
+      const found = new RegExp(`<meta ${tag} content="([^"]*)"`).exec(html);
+      expect(found, tag).not.toBeNull();
+      expect(found![1], tag).toBe(`${escaped(ticker)} · ${escaped(name)} · MPT · XRPL · explorer`);
+    }
+    const description = /<meta name="description" content="([^"]*)"/.exec(html);
+    expect(description).not.toBeNull();
+    expect(description![1]).toContain(`${escaped(ticker)} outstanding`);
+    // The hydration data carries it as data: React Router writes `<` and `>` as \u003c and \u003e inside a script, so that it closes neither the string nor the script, and the page's scripts hold no
+    // `<` at all (a `</script>` or an `<img` would be one).
+    const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((match) => match[1]!);
+    expect(scripts.filter((body) => body.includes("\\u003c/script\\u003e\\u003cimg src=x"))).toHaveLength(1);
+    expect(scripts.filter((body) => body.includes("<"))).toEqual([]);
   });
 
   it("is a case of every kind of metadata and flag the fixtures hold, each page 200 and one call to each", async () => {
