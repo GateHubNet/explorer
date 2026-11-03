@@ -39,6 +39,8 @@ The product choices of this spec and its departures from the boards. Each is bui
 | 16 | `MPT` goes on in an environment once D9 is deployed there and its `syncer_mpt_state_lag_ledgers` is near 0, before the reprocess has made the coverage complete. | The coverage notes say what is missing (E8 decision 17). |
 | 17 | **Consistency pass:** `MptAmount` is E10's minimal component (issuance ID and integer value, raw), which E14 extends with the scale, the ticker and the link; the 48-hex search is an extension of E8's search sequence. | E10 is built first and shows MPT escrows; one search sequence for the program. |
 
+Note (2026-11-03, E14 plan ruling C12, for the owner): "one call per page" is one call per stream on an account's live first page: the header's lookup, over the objects, and the list's, in the names chain with what is left of its 4.5 s; a page behind a marker and the Objects tab make one.
+
 ## Context
 
 **What the explorer shows of MPTs today.** `parse/types.ts` says MPT amounts are not modelled: `parseAmount` returns nothing for
@@ -135,6 +137,8 @@ with the marker of its 8-row call (a marker is a key, whatever the page size), a
 `entryNotFound` is `not_found`, `invalidParams` is `bad_request`. The paths go into `PENDING_PATHS` until `pnpm api:sync` brings D9's
 `openapi.yaml`, then into `PATHS`.
 
+Note (2026-11-03, E14 plan ruling 4): Task 1 synced D9's description first (`api/openapi.yaml` at `c9a2fc0`, the commit that holds D9's Task 14), so the MPT paths went straight into `PATHS` and no `PENDING_PATHS` entry was made.
+
 ### 2.2 Types (`app/server/api-types.ts`, by hand from D9 §7)
 
 `MptFlags` (`locked, can_lock, require_auth, can_escrow, can_trade, can_transfer, can_clawback`), `MptMetadata` (`ticker?, name?,
@@ -151,6 +155,8 @@ the ID asked), `checkMptTokens` (E11 calls it for `kind=mpt`). They use E8's `ch
 upper-case hex digits (they go into paths); amounts are integer text (`/^\d{1,19}$/`); `asset_scale` a whole number 0–19 (the ledger
 allows 0–255; above 19 is shown unscaled, section 5.1); `transfer_fee` 0–50000; addresses are classic addresses; a holders or
 transfers page belongs to the issuance asked for only by its URL (the rows carry no ID). A failed check is kind `server`.
+
+Note (2026-11-03, E14 plan ruling 2): the check on `asset_scale` accepts a whole number from 0 to 255, the ledger's range, not 0 to 19: a check that refused 20 and above would turn the page that this section and 5.1 say shows such an amount unscaled into a 503. `scaleUnits` itself scales only 0 to 19 and answers `null` for the rest.
 
 ### 2.4 Names and amounts on every page
 
@@ -183,6 +189,8 @@ transfers page belongs to the issuance asked for only by its URL (the rows carry
 | Transfer fee | `transferFeeText` ("0.10%", "None") | "charged when holders send HTF to each other" / "holders pay no fee to send HTF" |
 | Asset scale | `asset_scale` | "Amounts are integers scaled by 10⁻²: 1 HTF is 100 on the ledger." / scale 0: "Amounts are whole numbers: 1 HTF is 1 on the ledger." |
 
+Note (2026-11-03, E14 plan ruling C29(c)): for an `asset_scale` above 19, which is shown unscaled, the Asset scale tile's line reads "Amounts are shown as the ledger's integer units." The words "1 HTF is 100" read "1 units is 100" for an issuance with no ticker ("HTF" stands for "units" there, as everywhere on the page); the board's sentence is kept as written.
+
 - **Flags card** (`MptFlags`): the intro of decision 3; six rows, the board's order and words (Can lock, Require auth, Can escrow, Can
   trade, Can transfer, Can clawback), each "Yes" or "No" with its line, the ticker in place of HTF; the `locked` flag is the Notice above,
   not a row. Source caption `/v2/mpt/{issuanceId}`.
@@ -194,11 +202,15 @@ transfers page belongs to the issuance asked for only by its URL (the rows carry
   2,000 characters; a string as text). When `metadata_conforms` is false: "This metadata doesn't follow XLS-89, so some of it may be
   missing here." Then the `<details>` "Raw metadata, as hex (N bytes)" with the hex. No metadata: "The issuer wrote no metadata." Hex that
   did not decode: "The metadata isn't JSON." with its text when `decodeHex` (describe helpers' rule) reads it, then the hex.
+
+  Note (2026-11-03, E14 Tasks 9 to 11): a `uris` entry's category is the link's `title` only when it is one of XLS-89's four words (`website`, `social`, `docs`, `other`, written by the page); any other category, which is the issuer's own text, is not put in an attribute (global constraint: nothing of the metadata reaches an attribute but an `href` that `safeLink` accepted). A ticker is cut to 16 code points and a blank one is none, as D9 stores it (`tickerText`), and a metadata `name` heading is cut to 128; a ticker with no space breaks at the edge of its cell (`overflow-wrap: anywhere`).
 - **Top holders** (`DataTable`, 10 rows, `mptHolders(id, { limit: 10 })`): #, Holder (`AccountLink`), Balance (HTF) (`amount +
   escrowed_amount` scaled; "incl. 12.00 in escrow" under it when escrowed), Share of outstanding (the kit's `InlineBar` and the percent,
   two decimals), Balance state (a "Locked" pill with the board's title, else "Can move"). Under it: "The top 10 hold 61.25% of the
   outstanding HTF." and "All 3,412 holders →"; the `CoverageNote` (`coverageNote(coverage, "holders")`, then, as E11 does for trust
   lines, "A holder whose balance has not changed since is not listed yet.").
+
+  Note (2026-11-03, E14 plan ruling C18): `InlineBar` has no form for a column of shares (E11's identical column, on a token's holders, is the kit's `Meter`), so the share is the percent in text first and then the kit's `Meter`, small and decorative (`aria-hidden`): the share is read once. `test/unit/mpt-bundle.test.ts` allows the `Meter` among the pages' imports; the cost is about 400 bytes on each of the three pages.
 - **Recent transfers** (`DataTable`, 8 rows, `mptTransfers(id, { descending: true, limit: 8 })`): Time (UTC), Kind (decision 9), From,
   To, Amount (HTF), Transaction (`HashLink`). A lock or unlock of every balance has To "every holder"; a lock's amount is muted (the
   board's colour). Under it: the board's footnote with the issuer's display name, "Older →", and the `CoverageNote` (words "transfers").
@@ -238,6 +250,8 @@ holders table of 3.1 with 50 rows, Newer and Older, the coverage note. `MptTrans
 rows, Newer and Older, the note. Each calls `mpt(id)` (for the scale, ticker and outstanding; `minute`, shared with the MPT page's
 entry) beside its list. `mpt` 404 → the page reads the node as 3.2 step 3 for the head only. First page `minute`; behind a marker
 `MARKER_PAGE_CLASS`, `noindex, follow`, no canonical.
+
+Note (2026-11-03, E14 Tasks 9 to 11): D9 gives a holder no rank, and the trail cannot tell the place of a copied link, so the ranks of the holders are their place in the whole ranking on the first page only; a page behind a marker has no `#` column. A marker that is empty (`?marker=`) is a 404 of class `short` before the redirect (plan ruling C23, as E11's M6), and the transfers' time is kept in Unix seconds and formatted by the page.
 
 ### 3.5 Both networks and the sandbox
 
@@ -280,6 +294,8 @@ data and the body by kind. E14 fills the seam:
   - **Coverage:** E11's notice from the answer's `coverage` (E8's `coverageNote`, words "issuances").
   - **Source caption** `/v2/tokens?kind=mpt`.
 
+  Note (2026-11-03, E14 Task 12 and plan rulings C19 and C29(d)): the tab's description is "MPT issuances on {longName}, ranked by holders."; an answer with no `totals` or no `total` (D9 before its first generation) gives every tile a dash, "No MPTs in the index yet.", and no note or pager, not a 503; an issuance with a name and no ticker reads "No metadata" in the Token cell (the ticker decides, as on the board); `all` is dropped for `kind=mpt` only; the Token cell wraps (`overflow-wrap: anywhere`) where the issued list clips with an ellipsis, since a ticker and a name have no space to break at; and the ticker and name are stripped of bidi controls here and in the image card, not on the MPT page (one rule for issuer text, or the reason for two, is for the whole-branch review).
+
 ## 5. MPT amounts elsewhere
 
 ### 5.1 The model
@@ -308,6 +324,8 @@ data and the body by kind. E14 fills the seam:
 - The issuer of an ID is decoded in the Worker (`mptIssuerOf(id)` in `describe/helpers.ts`, with `ripple-address-codec`, which
   `describe/` already reaches); `app/domain/mpt.ts` stays free of the codec.
 
+- Note (2026-11-03, E14 plan ruling C9, from D9's own dated note at the pin): the balance before an `MPToken` node is the listed `PreviousFields.MPTAmount`, else 0 when the transaction succeeded and credits this holder (a Payment's `Destination`, an `EscrowFinish`'s destination, an `EscrowCancel`'s owner), else the final value; a `CreatedNode` starts from 0, a field that is gone reads 0, and an issuance's `OutstandingAmount` is read only when listed. Without it a lock, which only sets `LockedAmount`, would read as a +45,000,000 credit.
+
 ### 5.3 Describe handlers (`describe/mpt.ts`, `mptHandlers`; and `payment.ts`)
 
 Each through `verb`, so a failure reads "tried to …". `{mpt}` is a reference segment, `{amount}` an MPT amount segment, `{account}` an
@@ -324,6 +342,8 @@ account segment.
 
 The flow of an MPT payment is sender → destination with the MPT amounts; the clawback's is holder → issuer. `headlineAmount` and
 `rowSentence` (`describe/row.ts`) take MPT amounts, so the account's Transactions tab and the home page's list show them.
+
+Note (2026-11-03, E14 plan rulings C10 and C29(a)): D9's JSON mode drops `meta.mpt_issuance_id`, so the ID of a create is read from the created `MPTokenIssuance` node, `mptIdOf(NewFields.Sequence, NewFields.Issuer)`; a create that failed made no node and says "tried to create an MPT". An `MPTokenIssuanceSet` with neither `tfMPTLock` nor `tfMPTUnlock` says "changed the MPT {mpt}" as written, though D9's findings read four such on mainnet that changed nothing. An MPT `Clawback`'s sentence uses `Amount` as written; a partial clawback may take less, and the page does not say so. With no ticker the reference reads "the MPT MPT 0000012A…" (5.1's reference inside 5.3's "the MPT {mpt}"), in every list row, description and card; the home and ledger pages never have a ticker.
 
 ### 5.4 Pages
 
@@ -362,6 +382,8 @@ The flow of an MPT payment is sender → destination with the MPT amounts; the c
 
 Calls keep the classes of 2.1. No page polls, so no call asks for the failure hold.
 
+Note (2026-11-03, E14 plan ruling 1): the MPT tab behind a marker is `minute`, E11's class for every view of `/{net}/tokens` (E11 §2.4 and §6), not `MARKER_PAGE_CLASS` as the row above says: the earlier spec wins and one route keeps one rule.
+
 ## 7. The switch `MPT`
 
 Appended last to `FEATURE_VARS` (`MPT`) and `FEATURE_NAME` (`mpt`), with `Env.MPT`, an entry in every block of `wrangler.jsonc` (top
@@ -399,6 +421,8 @@ issuance ID (48 hex digits)". The header's placeholder stays as E8 left it ("Add
   when known. Validation and the lower-case 302 as for the page; while off, on Xahau or for a bad ID a 404 `short`, no call; `issuance not
   found` and not on the node a 404 `short`; from the network `short` 60 s; a failure a 503, not stored.
 
+Note (2026-11-03, E14 Tasks 13 and 14 and plan ruling C29(b)): the card has no line for the name, so the name leads the note line ("{name} · 18.2M HTF outstanding · 3,412 holders", cut to 40 characters, the figures whole) and the issuer is the `parties` line, in its short address, since the image makes no names call; the facts the tags and the card read (`MptFacts`) carry the ID the image's path is written from. A transaction's card stays in units, with no lookup (the page's description says "Payment of 25,000.00 HTF from … to …" because its flow is resolved).
+
 ## 10. Accessibility
 
 Tables have captions (visually hidden where the card's heading says it); the share meter is `aria-hidden` beside its percent in text;
@@ -424,9 +448,12 @@ rules where the recordings say something):
 | `data-api/mpt/<ID>/holders@limit=10.json`, `@limit=50[&marker=<M>].json` | the holders, two pages for the first issuance |
 | `data-api/mpt/<ID>/transfers@descending=true&limit=8.json`, `@descending=true&limit=20[&marker=<M>].json` | every kind, a lock of every balance, two pages |
 | `data-api/mpt@ids=<…>.json` | the lookups of the recorded transaction pages and the active account, one with a bare ID |
+
 | `data-api/tokens@kind=mpt&limit=20[&marker=<M>].json`, `@kind=mpt&limit=20&q=HTF.json`, `@kind=mpt&limit=20&q=zzz.json` | the MPT tab: two pages, a match, none; coverage incomplete on one |
 | `node/ledger_entry/mpt_issuance_<ID>.json` | an issuance the index 404s (the node fallback); one `entryNotFound` |
 | `data-api/accounts/<active>/payments@…`, `node/account_objects/<active>.json` (by hand) | MPT payment rows; two `MPToken` entries and one `MPTokenIssuance` |
+
+Note (2026-11-03, E14 plan ruling C5): the files of this row are one table, `data-api/mpt_lookup.json`, from which the upstream mock composes `GET /v2/mpt?ids=` as it composes `account_names`: D9's three 400s (no `ids`, more than 100, an ID that is not one), one entry for each ID in the order asked, an ID that is not in the table answered bare, and Xahau all bare (a file name of 255 bytes would not hold the key). `test/fixtures/PROVENANCE.md` and `test/unit/mpt-fixtures.test.ts` describe it.
 
 Xahau needs no file: its MPT routes are not called. `pnpm fixtures:check` covers the generator; `test/unit/mpt-fixtures.test.ts` counts
 the rows and checks the files against `mpt-shape.ts`.
@@ -448,6 +475,8 @@ the rows and checks the files against `mpt-shape.ts`.
   metadata with its links and raw hex, holders, transfers, the links to the two pages and their paging), the node fallback page, the Xahau
   page, the MPT tab (search, pager, flags, the disabled tab on Xahau), a transaction with an MPT payment (scaled amount, its link), the
   account's Tokens card; axe on each, both themes, phone width.
+
+Note (2026-11-03, E14 Task 15): the tab's search, pager and Xahau control, and its form with scripts off, are `test/e2e/tokens.spec.ts`'s (Task 12); `test/e2e/mpt.spec.ts` adds the tab's pills, its longest row and the search by an issuance ID. The issuance's "Older →" is checked at its link: the fixtures hold the transfers' pages of 20 and not one behind the marker of the 8, so the page it leads to is the not-found page of that page of transfers (a real marker is the same for any size of page). An issuance with a name of 128 letters, a description of 200, a title of 100 and a link that is not one (`nonConforming`) is opened at 375 and 1280 px, in the light theme, for no sideways scroll and no text past its card (plan ruling C17).
 - **Bundle:** `mpt`, `mpt-holders` and `mpt-transfers` are lookup pages (150,000 bytes gzip with the manifest, rows added to `PAGES` in
   `scripts/bundle-budget.ts`); they draw no chart (the kit's `InlineBar` only). `test/unit/mpt-bundle.test.ts` holds the pages to no
   runtime import from `app/server`, `app/domain/describe`, `app/domain/parse` or `ripple-*`. The transaction and account pages gain
@@ -465,6 +494,8 @@ transaction page" (MPT amounts, the class rule), "The account page" (Tokens card
 1. E14 merges with `MPT` "off" in the sandbox and production; the parse and describe changes go live with it (section 7).
 2. Per environment, once D9 serves there (decision 16): `MPT` "on" for that block of `wrangler.jsonc`, a deploy. The coverage notes show
    until D9's reprocess from MPTokensV1's enable ledger is done.
+
+Note (2026-11-03, E14 plan ruling C30, for the owner): D9's live comparison of its MPT figures with the network covered 16 ledgers, not the roughly 300 its plan asked for; 77 values agreed and none differed. Whether that is enough is the owner's to decide before production's block goes "on"; nothing is built differently for it. `TOKENS` must be "on" in the same block (the pre-deploy guard refuses otherwise). The README's "MPT pages" has the steps as a table ("Turning it on").
 
 ## Dependencies
 
