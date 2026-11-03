@@ -4,6 +4,7 @@ import { shortAddress } from "../../app/domain/format";
 import { NAMED_PAGE_TTL_SECONDS } from "../../app/server/cache-class";
 import xrplTransactions from "../fixtures/http/xrpl/data-api/transactions@descending=true&limit=8.json";
 import mintTransaction from "../fixtures/http/xrpl/data-api/transactions/4D9BB2A0B0289D36A995B10AB17D5BE9B19E961B777AFDE29D84CC59384E74F6.json";
+import mptLookupTable from "../fixtures/http/xrpl/data-api/mpt_lookup.json";
 import { namesSpec } from "../support/names";
 import { expectDegraded, forgetStored, keysOf } from "../support/nft-pages";
 import { MPT_FEE_PAYMENT_ISSUANCE, MPT_FIXTURE_IDS, MPT_LOCKED_HOLDING, MPT_MINT_ISSUANCE, MPT_RECORDED } from "../support/mpt-case-rules";
@@ -178,5 +179,42 @@ describe("the home page", () => {
     expect(tableRows(html, "Latest transactions").slice(1).map((cells) => cells[3])).toContain("1 units of MPT 064E273A…");
     expect(linksOf(html)).toContainEqual(["064E273A…", `/xrpl/mpt/${MPT_MINT_ISSUANCE}`]);
     expect(lookupsOf(mock)).toEqual([]);
+  });
+});
+
+// Review of Tasks 7 and 8, M5: the ticker is the issuer's own text and unchecked beyond D9's cut to 16 code points (`tickerText`). This one is 16 code points that close a quote, a tag and a script: it reaches the
+// page in four places, the sentence and the table (React text), the hydration data (a script) and the description (an attribute), and must be text in each. (Component tests prove the first two on their own;
+// nothing but the Worker joins the loader's output, the document and the tags.)
+describe("an issuer's ticker that is markup", () => {
+  const HOSTILE = '"></script><u x>';
+  const ESCAPED = "&quot;&gt;&lt;/script&gt;&lt;u x&gt;";
+
+  it("is text in the sentence, the tables and the tags, and data in the hydration script: it closes no attribute, tag or script", async () => {
+    const path = `/xrpl/tx/${FEE_PAYMENT}`;
+    await forgetStored(path);
+    const known = { ...(mptLookupTable as Record<string, object>)[MPT_FEE_PAYMENT_ISSUANCE]!, ticker: HOSTILE };
+    const mock = upstream("xrpl", { [LOOKUP(MPT_FEE_PAYMENT_ISSUANCE)]: { count: 1, issuances: [known] } });
+    const { html } = await page(path);
+    await forgetStored(path);
+
+    expect(lookupsOf(mock)).toEqual([LOOKUP(MPT_FEE_PAYMENT_ISSUANCE)]);
+    // Never an element or a script's end of its own: the document holds the ticker's characters only where they are escaped.
+    expect(html).not.toContain("<u x>");
+    expect(html).not.toContain("</script><u");
+    expect(html).not.toContain(`content="${HOSTILE}`);
+    // The sentence and the table say it, as text: the escaped form is what the document holds.
+    expect(elementText(html, "summary__sentence")).toContain(`sent 1.000000 ${ESCAPED} to `);
+    expect(html.slice(html.indexOf("Balance changes"))).toContain(ESCAPED);
+    // The tags: the description in the head and the previews hold it inside their `content`, escaped.
+    for (const name of ['name="description"', 'property="og:description"', 'name="twitter:description"']) {
+      const tag = new RegExp(`<meta ${name} content="([^"]*)"`).exec(html);
+      expect(tag, name).not.toBeNull();
+      expect(tag![1], name).toContain(`Payment of 1.000000 ${ESCAPED} from `);
+    }
+    // The hydration data carries it as data: React Router writes its `<` and `>` as \u003c and \u003e inside a script, so that it closes neither the string nor the script. The scripts are the page's
+    // own (a ticker with `</script>` unescaped would end one early), and the ticker is in the data whole.
+    const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((match) => match[1]!);
+    expect(scripts.filter((body) => body.includes("\\u003c/script\\u003e\\u003cu x\\u003e"))).toHaveLength(1);
+    expect(scripts.filter((body) => body.includes("<"))).toEqual([]);
   });
 });
