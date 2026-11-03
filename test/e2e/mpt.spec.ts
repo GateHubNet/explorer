@@ -251,7 +251,7 @@ test.describe("an issuance of the index", () => {
     await expect(page.getByRole("link", { name: `All ${issuance.holders} holders →` })).toHaveAttribute("href", `${HTF_PATH}/holders`);
   });
 
-  test("lists its eight latest transfers with their kinds in words, a lock's amount muted, and Older → on the page of the next ones", async ({ page }) => {
+  test("lists its eight latest transfers with their kinds in words, a lock's amount muted, and Older → leads to the page of the next ones", async ({ page }) => {
     const latest = transfersOf(HTF, { limit: 8 });
     expect(latest.transfers, "the fixtures' latest eight").toHaveLength(8);
     expect(latest.marker, "and a page behind them").toBeDefined();
@@ -273,7 +273,21 @@ test.describe("an issuance of the index", () => {
     expect(lock, "a lock among the eight").toBeGreaterThanOrEqual(0);
     await expect(cellsOf(rows.nth(lock)).nth(4).locator(".muted")).toHaveCount(1);
     await expect(page.getByText(/^Newest first\. A transfer from .+ issues new .+\. A clawback takes .+ back\. A lock stops a balance from moving; its amount is the balance locked\.$/)).toBeVisible();
-    await expect(page.getByRole("link", { name: "Older →" })).toHaveAttribute("href", `${HTF_PATH}/transfers?marker=${latest.marker!}`);
+    const older = page.getByRole("link", { name: "Older →" });
+    await expect(older).toHaveAttribute("href", `${HTF_PATH}/transfers?marker=${latest.marker!}`);
+
+    // And it is followed (the whole-branch review's M7): the transfers' page behind the marker of the eight, whose first row is the ninth transfer. D9's marker is a key, so it serves a page of twenty as it
+    // served the eight; the fixtures hold that page (rows 9 to 28, scripts/mpt-fixtures.ts).
+    const behind = transfersOf(HTF, { limit: 20, marker: latest.marker });
+    expect(behind.transfers[0]!.tx_hash, "the ninth transfer").toBe(transfersOf(HTF, { limit: 20 }).transfers[8]!.tx_hash);
+    await hydrated(page);
+    await older.click();
+    await page.waitForURL((url) => url.pathname === `${HTF_PATH}/transfers` && url.searchParams.get("marker") === latest.marker);
+    await expect(heading(page)).toHaveText(`Transfers of ${ticker}`);
+    const behindRows = rowsOf(page, "Transfers");
+    await expect(behindRows).toHaveCount(behind.transfers.length);
+    await expect(cellsOf(behindRows.nth(0)).nth(5).locator("a")).toHaveAttribute("href", `/xrpl/tx/${behind.transfers[0]!.tx_hash}`);
+    await expect(cellsOf(behindRows.nth(0)).nth(0)).toHaveText(when(behind.transfers[0]!.executed_time));
   });
 });
 
@@ -335,8 +349,8 @@ test.describe("the holders' and the transfers' pages", () => {
 
   test("its transfers, 20 to a page: Older and Newer page through in one document, and a page behind a marker is kept from a search engine", async ({ page, baseURL }) => {
     expect(newest.transfers, "the fixtures' first page of transfers").toHaveLength(20);
-    // The issuance's page leads here with the marker of its own call of eight (a marker is a key, whatever the size of the page); the fixtures hold the pages of twenty only, so the way in is checked at its link (above)
-    // and the page from its own address.
+    // The issuance's page leads here with the marker of its own call of eight (a marker is a key, whatever the size of the page); the way in is followed on the issuance's page (above), and the page from its
+    // own address here.
     await page.goto(`${HTF_PATH}/transfers`);
     await hydrated(page);
     await markDocument(page);

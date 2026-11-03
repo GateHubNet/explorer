@@ -177,8 +177,8 @@ describe("every fixture file", () => {
     // pools files are the AMM generator's, in its budget above.
     expect(bytes(files.filter(isTokenGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isTokenGenerated))).toBeLessThan(0.3 * 1024 * 1024);
-    // The MPT pages' files (scripts/mpt-fixtures.ts, a row to a line, D9's key orders: 70 files of 222,477 bytes, about 0.21 MiB; the nine recorded transactions' 27 files (83,659) and the hashes of their nine
-    // ledgers (63,039) are most of it; the eight issuances' answers, holders and transfers (28 files, 54,217), the lookup table (7,041), the MPT tab's four lists (12,353) and the node's entry (2,168) are the rest) are
+    // The MPT pages' files (scripts/mpt-fixtures.ts, a row to a line, D9's key orders: 71 files of 228,936 bytes, about 0.22 MiB; the nine recorded transactions' 27 files (83,659) and the hashes of their nine
+    // ledgers (63,039) are most of it; the eight issuances' answers, holders and transfers (29 files, 60,676), the lookup table (7,041), the MPT tab's four lists (12,353) and the node's entry (2,168) are the rest) are
     // reviewed as their generator too (C3), with a budget of their own, left out of the recorded files' above: at most 0.4 MiB, which a later file raises with its data, never above.
     expect(bytes(files.filter(isMptGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isMptGenerated))).toBeLessThan(0.4 * 1024 * 1024);

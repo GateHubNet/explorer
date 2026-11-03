@@ -351,6 +351,19 @@ describe("the issuances", () => {
     }
   });
 
+  // The whole-branch review's M7: the issuance's "Older →" is the marker of the card's eight, and the page of twenty behind it is a file (rows 9 to 28, the last of the 28), so the e2e can follow the link.
+  it("htf: the page of 20 behind the marker of the card's 8 is the transfers 9 to 28, with none behind it", () => {
+    const rows = transfersOf(ID.htf);
+    const card = apiFile(`/v2/mpt/${ID.htf}/transfers`, "descending=true&limit=8") as MptTransfersPage;
+    expect(JSON.parse(Buffer.from(card.marker!, "base64url").toString("utf8"))).toEqual([rows[7]!.ledger_index, rows[7]!.tx_index]);
+    const behind = apiFile(`/v2/mpt/${ID.htf}/transfers`, `descending=true&limit=20&marker=${card.marker}`) as MptTransfersPage;
+    expect(checkMptTransfersPage(behind)).toBe(behind);
+    expect(behind.transfers).toEqual(rows.slice(8));
+    expect(behind.count).toBe(20);
+    expect(behind.marker).toBeUndefined();
+    expect(inOrder(behind, ORDERS.transfers)).toBe(true);
+  });
+
   it("htf is the only one with more than a first page: every other has its holders and transfers whole in the card's", () => {
     for (const key of OTHER_THAN_HTF) {
       const holders = apiFile(`/v2/mpt/${ID[key]}/holders`, "limit=10") as MptHoldersPage;

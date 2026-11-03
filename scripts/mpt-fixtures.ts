@@ -799,6 +799,19 @@ function answers(): MptAnswers {
         }
       }
     }
+    // The issuance's "Older →" is the marker of the card's last transfer (the 8th), and leads to the transfers' page of 20 behind it: rows 9 to 28. D9's marker is a key (ledger and transaction index), so it
+    // serves any size of page; the file lets the e2e follow the link instead of asserting it.
+    if (world.key === "htf") {
+      const [cardSize, listSize] = MPT_PAGES.transfers;
+      const behind = world.transfers.slice(cardSize, cardSize + listSize);
+      put(`/v2/mpt/${world.id}/transfers`, `descending=true&limit=${listSize}&marker=${transferMarker(world.transfers[cardSize - 1]!)}`, {
+        result: "success",
+        coverage,
+        count: behind.length,
+        ...(cardSize + listSize < world.transfers.length && { marker: transferMarker(behind.at(-1)!) }),
+        transfers: behind,
+      });
+    }
   }
 
   // ---- What every lookup answers from, and the tab's list.
