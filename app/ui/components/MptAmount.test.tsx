@@ -89,6 +89,28 @@ describe("MptAmount", () => {
     });
   });
 
+  describe("signed, for a change", () => {
+    it("gives a gain a plus sign and the classes of Amount, and a loss its minus sign without amt--pos", () => {
+      const gain = render(<MptAmount id={ID} units="124000000" value="1240000.00" ticker="HTF" signed />).container;
+      expect(gain.textContent).toBe("+1,240,000.00 HTF");
+      expect([...gain.firstElementChild!.classList].sort()).toEqual(["amt", "amt--pos", "mono", "mptamount"]);
+      cleanup();
+      const loss = render(<MptAmount id={ID} units="-5" signed />).container;
+      expect(loss.textContent).toBe("−5 units of MPT 0000012A…");
+      expect([...loss.firstElementChild!.classList].sort()).toEqual(["amt", "mono", "mptamount"]);
+      cleanup();
+      const zero = render(<MptAmount id={ID} units="0" value="0.00" signed />).container;
+      expect(zero.textContent).toBe("0.00 units");
+      expect(zero.firstElementChild!.classList.contains("amt--pos")).toBe(false);
+    });
+
+    it("is unsigned by default: no amt classes, no plus", () => {
+      const { container } = render(<MptAmount id={ID} units="5" />);
+      expect(container.textContent).toBe("5 units of MPT 0000012A…");
+      expect(container.firstElementChild!.classList.contains("amt")).toBe(false);
+    });
+  });
+
   it("falls back to the raw words when there is a ticker and no value (a scale above 19): the units, as the ledger holds them", () => {
     const { container } = render(<MptAmount id={ID} units="2500000" ticker="HTF" />);
     expect(container.textContent).toBe("2,500,000 units of MPT 0000012A…");

@@ -9,6 +9,7 @@ import { Fragment, type ReactNode } from "react";
 
 import type { Segment } from "../../domain/describe";
 import { formatUtc, shortHash } from "../../domain/format";
+import { mptLink } from "../../domain/mpt-link";
 import type { ObjectKind } from "../../domain/object-link";
 import { OBJECT_NOUNS } from "../../domain/object-nouns";
 import { formatDateTime } from "../../domain/time-words";
@@ -34,7 +35,7 @@ import { Sentence } from "../components/Sentence";
 import { StatesStrip } from "../components/StatesStrip";
 import { AlertCircleIcon, ClockIcon, DashIcon, MinusCircleIcon } from "../components/status-icons";
 import { Timeline } from "../components/Timeline";
-import { useNetwork } from "../use-network";
+import { useFeatures, useNetwork } from "../use-network";
 
 /** The footnote of every object's history (spec 4.1). */
 const TIMELINE_FOOTNOTE = "Oldest first. Filled dots are transactions; dashed ones are what can still happen.";
@@ -120,12 +121,17 @@ export function ObjectStatus({
 }
 
 /**
- * An amount of an object as a page draws it, by what it is: an MPT as `MptAmount` (its raw units and the issuance), anything else as `Amount`, which has its issuer in a title. With `link`, the
+ * An amount of an object as a page draws it, by what it is: an MPT as `MptAmount` (scaled and with its ticker once the loader's lookup filled them, else its raw units and the issuance; a link to the
+ * issuance's page while `MPT` is on), anything else as `Amount`, which has its issuer in a title. With `link`, the
  * issuer of a token is also in the words "issued by", as an `AccountLink` (named, marked and collected for the names: the view's `detailAccounts` lists it); without it there is no link, where
  * the amount stands under something that has one already (the channel's deposit bar, whose Deposited row links its issuer).
  */
 export function AmountValue({ net, amount, link }: { net: NetworkId; amount: DisplayAmount; link: boolean }) {
-  if ("mpt" in amount) return <MptAmount id={amount.mpt.id} units={amount.mpt.units} />;
+  const features = useFeatures();
+  if ("mpt" in amount) {
+    const { id, units, value, ticker } = amount.mpt;
+    return <MptAmount id={id} units={units} value={value} ticker={ticker} href={mptLink(net, id, features)} />;
+  }
   return (
     <>
       <Amount value={amount.value} currency={amount.currency} issuer={amount.issuer} />

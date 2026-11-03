@@ -10,12 +10,16 @@ import BigNumber from "bignumber.js";
 
 import { accountHref, ACCOUNT_TABS, DELEGATIONS_LIMIT, DELEGATIONS_WORD, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
 import { accountsIn, delegateOf, describe, rowSentence, type Segment } from "../domain/describe";
+import { mptSegment } from "../domain/describe/helpers";
 import { dropsToNative, formatUtc } from "../domain/format";
 import { NO_NAMES, type NamesPart } from "../domain/names";
 import { collectionLabel, nftWords, type CollectionKey } from "../domain/nft-params";
 import { delegationHref, ledgerId, OBJECT_KINDS, objectHref } from "../domain/object-link";
+import { transferFeeText } from "../domain/mpt";
+import { isMptIssuanceId, mptIssuerOf } from "../domain/mpt-id";
 import { MAX_TRAIL, parseTrail, trailPaging, type Paging } from "../domain/paging";
 import { balanceChanges } from "../domain/parse";
+import { mptIdOfNode } from "../domain/parse/objects";
 import type { Native } from "../domain/parse/types";
 import { permissionCount } from "../domain/permission-chip";
 import { formatDate } from "../domain/time-words";
@@ -221,6 +225,8 @@ const OWNED_LABELS: ReadonlyArray<readonly [type: string, one: string, many: str
   ["NFTokenOffer", "NFT offer", "NFT offers"],
   ["URIToken", "URIToken", "URITokens"],
   ["Delegate", "delegation given", "delegations given"],
+  ["MPToken", "MPT holding", "MPT holdings"],
+  ["MPTokenIssuance", "MPT issuance", "MPT issuances"],
 ];
 
 /**
@@ -258,11 +264,61 @@ export interface Token {
 const BALANCES_DEFAULT_LIMIT = 200;
 
 /**
- * The trust lines of an account's balances, the native balance left out. A line's code leads to its token's page (`tokenLink`, spec 5.2): the token of the line's counterparty when the balance
- * is zero or above, and the token of this account when it is below zero (the account is then that line's issuer). An LP token keeps its pool line (`href` is `null`), and `link` carries the
- * network, the account and the switches that decide the rest.
+ * An MPT the account holds, a row of the Tokens card after the trust lines (E14 spec 5.4): the issuance's ID, its issuer (decoded from the ID), the units the account has, `MPTAmount` and
+ * `LockedAmount` (what it has in escrow) together, and whether the issuer locked its balance (`lsfMPTLocked`). `value` (the units scaled by the issuance's asset scale) and `ticker` are
+ * filled by the loader's lookup (`resolveMpt`).
  */
-export function tokensOf(balances: BalancesResponse, link: Pick<ObjectRowsContext, "net" | "address" | "features">): { items: Token[]; truncated: boolean } {
+export interface MptHolding {
+  /** The issuance's ID, in capitals. */
+  mpt: string;
+  issuer: string;
+  units: string;
+  locked: boolean;
+  value?: string;
+  ticker?: string;
+}
+
+/** `MPToken`'s flags: the issuer locked this holder's balance, and (with `lsfMPTRequireAuth`) authorized the holder. */
+const LSF_MPT_LOCKED = 0x00000001;
+const LSF_MPT_AUTHORIZED = 0x00000002;
+
+/** A flag of a ledger entry: set, unset, or nothing when `Flags` is no number. */
+const flagOf = (flags: unknown, mask: number): boolean | undefined => (typeof flags === "number" && Number.isSafeInteger(flags) ? (flags & mask) !== 0 : undefined);
+
+/** The units of an amount field of a node entry as digits: the ledger leaves a field at 0 out, so none is 0; `undefined` for a field that is not units. */
+function unitsOf(value: unknown): string | undefined {
+  if (value === undefined) return "0";
+  return typeof value === "string" && /^\d+$/.test(value) ? new BigNumber(value).toFixed() : undefined;
+}
+
+/**
+ * The MPTs an account holds, from its `MPToken` entries (the node's `account_objects`), in the order of the issuance IDs: what it has is `MPTAmount` and `LockedAmount` together, and it is
+ * locked when the issuer set `lsfMPTLocked`. An entry whose ID or amounts are not well formed (a node's text is not trusted) is left out.
+ */
+export function mptHoldingsOf(objects: readonly LedgerObject[]): MptHolding[] {
+  const holdings: MptHolding[] = [];
+  for (const entry of objects) {
+    if (entry.LedgerEntryType !== "MPToken" || !isMptIssuanceId(entry.MPTokenIssuanceID)) continue;
+    const held = unitsOf(entry.MPTAmount);
+    const escrowed = unitsOf(entry.LockedAmount);
+    if (held === undefined || escrowed === undefined) continue;
+    const mpt = entry.MPTokenIssuanceID.toUpperCase();
+    holdings.push({ mpt, issuer: mptIssuerOf(mpt), units: new BigNumber(held).plus(escrowed).toFixed(), locked: flagOf(entry.Flags, LSF_MPT_LOCKED) === true });
+  }
+  return holdings.sort((a, b) => (a.mpt < b.mpt ? -1 : a.mpt > b.mpt ? 1 : 0));
+}
+
+/**
+ * The trust lines of an account's balances, the native balance left out, and the MPTs it holds (`mptHoldingsOf` of its `objects`: none when the node's objects could not be read). A line's code
+ * leads to its token's page (`tokenLink`, spec 5.2): the token of the line's counterparty when the balance is zero or above, and the token of this account when it is below zero (the account is
+ * then that line's issuer). An LP token keeps its pool line (`href` is `null`), and `link` carries the network, the account and the switches that decide the rest. An MPT's row leads to its
+ * own page by `mptLink`, which the page reads from the switches.
+ */
+export function tokensOf(
+  balances: BalancesResponse,
+  link: Pick<ObjectRowsContext, "net" | "address" | "features">,
+  objects: readonly LedgerObject[] = [],
+): { items: Token[]; mpt: MptHolding[]; truncated: boolean } {
   const items = balances.balances
     .filter((balance) => balance.counterparty !== undefined)
     .map((balance): Token => {
@@ -276,7 +332,7 @@ export function tokensOf(balances: BalancesResponse, link: Pick<ObjectRowsContex
         href: lp ? null : tokenLink(link.net, { currency: balance.currency, issuer }, link.features),
       };
     });
-  return { items, truncated: balances.balances.length >= (balances.limit ?? BALANCES_DEFAULT_LIMIT) };
+  return { items, mpt: mptHoldingsOf(objects), truncated: balances.balances.length >= (balances.limit ?? BALANCES_DEFAULT_LIMIT) };
 }
 
 export interface LastActive {
@@ -311,7 +367,11 @@ export interface BalanceView {
   reserve: Reserve | null;
 }
 
-export type TokensView = { state: "ok"; items: Token[]; truncated: boolean } | { state: "failed" } | { state: "none" };
+/**
+ * The Tokens card: the trust lines of the index's balances and, after them, the MPTs the node's `account_objects` hold (`mpt`; none while the node's objects could not be read, which the page
+ * says on its own: "node account_objects failed"). With the balances failed the card is the error, and the holdings go with it.
+ */
+export type TokensView = { state: "ok"; items: Token[]; mpt: MptHolding[]; truncated: boolean } | { state: "failed" } | { state: "none" };
 
 export interface OwnedView {
   counts: OwnedCount[];
@@ -445,7 +505,7 @@ export function accountHeader(input: HeaderInput, { holdings }: { holdings: bool
   if (!deleted && state.state === "failed") problems.push("node server_state failed");
 
   let tokens: TokensView = { state: "none" };
-  if (!deleted && balances?.state === "ok" && link) tokens = { state: "ok", ...tokensOf(balances.value, link) };
+  if (!deleted && balances?.state === "ok" && link) tokens = { state: "ok", ...tokensOf(balances.value, link, objects?.state === "ok" ? objects.value.account_objects : []) };
   else if (!deleted && balances?.state === "failed") {
     tokens = { state: "failed" };
     problems.push("balances failed");
@@ -485,12 +545,11 @@ export interface RowAmount {
 
 const amountOf = (value: string, currency: string, issuer?: string): RowAmount => (issuer === undefined ? { value, currency } : { value, currency, issuer });
 
-/** What a transaction did to the account's balance: the change that says the most, and how many others there were. */
-export interface ChangeView {
-  value: string;
-  currency: string;
-  more: number;
-}
+/**
+ * What a transaction did to the account's balance: the change that says the most, and how many others there were. An MPT's change is `{ mpt, units, more }`: the issuance's ID and the signed
+ * integer units, with the scaled `value` and the `ticker` once the loader's lookup filled them (`resolveMpt` reads it as a carrier of an amount).
+ */
+export type ChangeView = { value: string; currency: string; more: number } | { mpt: string; units: string; value?: string; ticker?: string; more: number };
 
 export interface TxRow {
   hash: string;
@@ -537,7 +596,9 @@ function changeOf(tx: TxObject, address: string, native: Native): ChangeView | n
   const pool = meaningful.length > 0 ? meaningful : mine;
   const ordered = [...pool.filter(isNativeChange), ...pool.filter((change) => !isNativeChange(change))];
   const first = ordered[0];
-  return first ? { value: first.value, currency: first.currency, more: ordered.length - 1 } : null;
+  if (first === undefined) return null;
+  const more = ordered.length - 1;
+  return first.mpt === true ? { mpt: first.currency, units: first.value, more } : { value: first.value, currency: first.currency, more };
 }
 
 export function transactionRows(rows: readonly TxObject[], address: string, native: Native): TxRow[] {
@@ -556,13 +617,22 @@ export function transactionRows(rows: readonly TxObject[], address: string, nati
   });
 }
 
+/** An MPT payment's amount (a row of the data API with `mpt_issuance_id`): the issuance, its issuer, the signed integer units and, once the loader's lookup filled them, `value` and `ticker`. */
+export interface MptRowAmount {
+  mpt: string;
+  issuer: string;
+  units: string;
+  value?: string;
+  ticker?: string;
+}
+
 export interface PaymentRow {
   hash: string;
   time: number;
   direction: "sent" | "received";
   counterparty: string;
-  /** What the destination got, signed from the account's side. */
-  amount: RowAmount;
+  /** What the destination got, signed from the account's side: an MPT's as its units (`MptRowAmount`) when the row has an issuance ID. */
+  amount: RowAmount | MptRowAmount;
   tag: number | null;
 }
 
@@ -570,12 +640,15 @@ export function paymentRows(rows: readonly Payment[], address: string): PaymentR
   return rows.map((row) => {
     const sent = row.source === address;
     const delivered = row.delivered_amount ?? row.amount;
+    const signed = sent && !isZero(delivered) && !delivered.startsWith("-") ? `-${delivered}` : delivered;
+    // An MPT's row has its ID again in `mpt_issuance_id`; one whose ID is not well formed (a text the page cannot decode an issuer from) stays the currency row it was.
+    const id = isMptIssuanceId(row.mpt_issuance_id) ? row.mpt_issuance_id.toUpperCase() : undefined;
     return {
       hash: row.tx_hash,
       time: timeOf(row.executed_time),
       direction: sent ? "sent" : "received",
       counterparty: sent ? row.destination : row.source,
-      amount: amountOf(sent && !isZero(delivered) && !delivered.startsWith("-") ? `-${delivered}` : delivered, row.currency, row.issuer),
+      amount: id === undefined ? amountOf(signed, row.currency, row.issuer) : { mpt: id, issuer: mptIssuerOf(id), units: signed },
       tag: row.destination_tag ?? null,
     };
   });
@@ -701,6 +774,12 @@ function nftField(value: unknown): Segment | null {
 const LSF_SELL_NFTOKEN = 0x00000001;
 const sideField = (flags: unknown): Segment | null => (typeof flags === "number" && Number.isSafeInteger(flags) ? text((flags & LSF_SELL_NFTOKEN) === 0 ? "Buy" : "Sell") : null);
 
+/** A flag of an entry in words, "Yes" or "No"; none for a `Flags` that is no number. */
+const yesNo = (flags: unknown, mask: number): Segment | null => {
+  const set = flagOf(flags, mask);
+  return set === undefined ? null : text(set ? "Yes" : "No");
+};
+
 /** A URIToken's sell offer, when it has one: its `Amount`, and "only for" its `Destination` when it names one. An amount that is none (an MPT) is no offer. */
 function sellOfferField(entry: LedgerObject, native: Native): Segment[] | null {
   const amount = amountField(entry.Amount, native);
@@ -762,6 +841,35 @@ const OBJECT_FIELDS: Record<string, (entry: LedgerObject, ctx: ObjectRowsContext
     ["Signers", countField(e.SignerEntries)],
   ],
   DepositPreauth: (e) => [["Authorized", accountField(e.Authorize)]],
+  // An MPT the account holds (E14 spec 5.4): the issuance, its balance and what is in escrow as MPT amounts (scaled once the loader's lookup answers), and the issuer's flags on it in words.
+  MPToken: (e) => {
+    const id = isMptIssuanceId(e.MPTokenIssuanceID) ? e.MPTokenIssuanceID.toUpperCase() : undefined;
+    if (id === undefined) return [];
+    const held = unitsOf(e.MPTAmount);
+    const escrowed = unitsOf(e.LockedAmount);
+    return [
+      ["MPT", mptSegment(id)],
+      ["Balance", held === undefined ? null : mptSegment(id, held)],
+      ["In escrow", escrowed === undefined || !new BigNumber(escrowed).gt(0) ? null : mptSegment(id, escrowed)],
+      ["Locked", yesNo(e.Flags, LSF_MPT_LOCKED)],
+      ["Authorized", yesNo(e.Flags, LSF_MPT_AUTHORIZED)],
+    ];
+  },
+  // An MPT the account issued: what is outstanding (a field the ledger leaves out is 0), the most it may issue when it says, its asset scale and its transfer fee.
+  MPTokenIssuance: (e) => {
+    const id = mptIdOfNode({ type: "MPTokenIssuance", fields: e });
+    if (id === undefined) return [];
+    const outstanding = unitsOf(e.OutstandingAmount);
+    const most = e.MaximumAmount === undefined ? undefined : unitsOf(e.MaximumAmount);
+    const fee = e.TransferFee ?? 0;
+    return [
+      ["MPT", mptSegment(id)],
+      ["Outstanding", outstanding === undefined ? null : mptSegment(id, outstanding)],
+      ["Max amount", most === undefined ? null : mptSegment(id, most)],
+      ["Asset scale", numberField(e.AssetScale ?? 0)],
+      ["Transfer fee", typeof fee === "number" && Number.isInteger(fee) && fee >= 0 ? text(transferFeeText(fee)) : null],
+    ];
+  },
 };
 
 /**
@@ -995,12 +1103,13 @@ export function listAddresses(list: TabList): string[] {
 }
 
 /**
- * The accounts the header draws, in the order drawn: the address (the `<h1>`), the account that activated it, and the issuer of each token. An LP token's issuer is its AMM pool,
- * which the page links as the pool while `AMM_PAGES` is on (`TokenRow`), and as an account only while it is off.
+ * The accounts the header draws, in the order drawn: the address (the `<h1>`), the account that activated it, and the issuer of each token, then of each MPT it holds. An LP token's issuer is
+ * its AMM pool, which the page links as the pool while `AMM_PAGES` is on (`TokenRow`), and as an account only while it is off.
  */
 export function headerAccounts(address: string, header: Pick<AccountHeader, "activation" | "tokens">, features: Pick<Features, "ammPages">): string[] {
   const issuers = header.tokens.state === "ok" ? header.tokens.items.filter((token) => !(token.lp && features.ammPages)).map((token) => token.issuer) : [];
-  return [address, ...(header.activation === null ? [] : [header.activation.parent]), ...issuers];
+  const mptIssuers = header.tokens.state === "ok" ? header.tokens.mpt.map((holding) => holding.issuer) : [];
+  return [address, ...(header.activation === null ? [] : [header.activation.parent]), ...issuers, ...mptIssuers];
 }
 
 /**

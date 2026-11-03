@@ -4,12 +4,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { serverThenHydrated } from "../../../test/support/hydrate";
 import { checkAnswerSample, TOKEN_ISSUER } from "../../../test/support/object-samples";
 import { stateOf, XRPL } from "../../../test/support/object-view-world";
-import { LAYOUT_XRPL, mountPage, routedPage } from "../../../test/support/under-network";
+import { LAYOUT_XRPL, mountPage, NFTS_ON, routedPage } from "../../../test/support/under-network";
 import type { Segment } from "../../domain/describe";
 import { NO_NAMES } from "../../domain/names";
 import { formatDateTime } from "../../domain/time-words";
 import { checkPage } from "../../server/check-view";
 import type { DisplayAmount } from "../../server/ledger-object-view";
+import type { Features } from "../features";
 import { NamesProvider } from "../names";
 import { CheckPage } from "./CheckPage";
 import { AmountValue, ObjectStatus } from "./LedgerObjectFrame";
@@ -120,6 +121,31 @@ describe("AmountValue", () => {
       expect(container.querySelector("a")).toBeNull();
       cleanup();
     }
+  });
+});
+
+describe("AmountValue: an MPT after the loader's lookup", () => {
+  const ID = "0000012A95A7A415885FFF5E78A9B0A51C3EAF118ACD071A";
+  const scaled: DisplayAmount = { mpt: { id: ID, units: "250", value: "2.50", ticker: "HTF" } };
+  const draw = (amount: DisplayAmount, features: Features) => mountPage(<AmountValue net="xrpl" amount={amount} link />, "frame", { at: PATH, network: LAYOUT_XRPL, features }).container;
+
+  it("draws the scaled value and the ticker, the ticker a link to the issuance's page while MPT is on", () => {
+    const container = draw(scaled, { ...NFTS_ON, mpt: true });
+    expect(container.textContent).toBe("2.50 HTF");
+    expect(within(container).getByRole("link", { name: "HTF" }).getAttribute("href")).toBe(`/xrpl/mpt/${ID}`);
+    expect(container.querySelector(".mptamount")!.getAttribute("title")).toBe(`MPT ${ID}`);
+  });
+
+  it("draws the same words as text while MPT is off", () => {
+    const container = draw(scaled, { ...NFTS_ON, mpt: false });
+    expect(container.textContent).toBe("2.50 HTF");
+    expect(container.querySelector("a")).toBeNull();
+  });
+
+  it("links the ID of the units it could not scale, while MPT is on", () => {
+    const container = draw({ mpt: { id: ID, units: "250" } }, { ...NFTS_ON, mpt: true });
+    expect(container.textContent).toBe("250 units of MPT 0000012A…");
+    expect(within(container).getByRole("link", { name: "0000012A…" }).getAttribute("href")).toBe(`/xrpl/mpt/${ID}`);
   });
 });
 

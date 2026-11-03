@@ -69,20 +69,14 @@ function Delta({ value }: { value: string }) {
 }
 
 /**
- * A change of an MPT's balance: the sign, the scaled value and the ticker when the lookup gave them, else the units and the issuance's ID, as `MptAmount` draws them; a gain in the success
- * colour, as `Delta` has it. The link to the issuance is the row's currency's, not this cell's.
+ * A change of an MPT's balance (or the balance after it): the scaled value and the ticker when the lookup gave them, else the units and the issuance's ID, as `MptAmount` draws them; a
+ * change keeps its sign and a gain is in the success colour. The link to the issuance is the row's currency's, not this cell's.
  */
 function MptDelta({ change, balance }: { change: ChangeRow; balance?: "after" }) {
   const units = (balance === "after" ? change.after : change.value) ?? "";
   const value = balance === "after" ? change.scaledAfter : change.scaled;
-  const formatted = formatAmount(value ?? units);
-  const gain = balance === undefined && !formatted.startsWith("−") && /[1-9]/.test(formatted);
-  return (
-    <span className={cx("amt", gain && "amt--pos", balance && "muted")}>
-      {gain ? "+" : ""}
-      <MptAmount id={change.currency} units={units} issuer={change.issuer} value={value} ticker={change.ticker} />
-    </span>
-  );
+  const amount = <MptAmount id={change.currency} units={units} issuer={change.issuer} value={value} ticker={change.ticker} signed={balance === undefined} />;
+  return balance === "after" ? <span className="amt muted">{amount}</span> : amount;
 }
 
 /**
