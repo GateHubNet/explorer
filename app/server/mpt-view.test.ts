@@ -487,12 +487,20 @@ describe("mptPage: the notices", () => {
 
   it("says the issuer has locked every balance, with the ticker", () => {
     expect(page({ source: indexed({ flags: { ...FLAGS, locked: true } }) }).notices).toEqual([{ text: "The issuer has locked every HTF balance.", tone: "warning" }]);
-    expect(page({ source: indexed({ flags: { ...FLAGS, locked: true }, ticker: undefined, metadata: undefined }) }).notices).toEqual([{ text: "The issuer has locked every units balance.", tone: "warning" }]);
+    // Above scale 19 the amounts say "units", but the notice names the token: the ticker stays.
+    expect(page({ source: indexed({ flags: { ...FLAGS, locked: true }, asset_scale: 25 }) }).notices).toEqual([{ text: "The issuer has locked every HTF balance.", tone: "warning" }]);
+  });
+
+  // The whole-branch review's M5: with no ticker "HTF" read as "units" made "every units balance", which is not a sentence.
+  it("says the issuer has locked every balance, with no word for the token, where the issuance has no ticker", () => {
+    const text = "The issuer has locked every balance.";
+    expect(page({ source: indexed({ flags: { ...FLAGS, locked: true }, ticker: undefined, metadata: undefined }) }).notices).toEqual([{ text, tone: "warning" }]);
+    expect(page({ source: indexed({ flags: { ...FLAGS, locked: true }, ticker: "   ", metadata: undefined }) }).notices).toEqual([{ text, tone: "warning" }]);
   });
 
   it("says an issuance read from the network is not in the index yet, and keeps the others after it", () => {
     expect(page({ source: fromNode() }).notices).toEqual([{ text: "Not in the index yet, shown from the network", tone: "info" }]);
-    expect(page({ source: fromNode({ Flags: 0x01 }) }).notices.map((notice) => notice.text)).toEqual(["Not in the index yet, shown from the network", "The issuer has locked every units balance."]);
+    expect(page({ source: fromNode({ Flags: 0x01 }) }).notices.map((notice) => notice.text)).toEqual(["Not in the index yet, shown from the network", "The issuer has locked every balance."]);
   });
 });
 

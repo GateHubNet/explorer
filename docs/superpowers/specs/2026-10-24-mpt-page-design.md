@@ -178,6 +178,9 @@ Note (2026-11-03, E14 plan ruling 2): the check on `asset_scale` accepts a whole
   from the metadata, "· name and ticker from the issuance's metadata"; the "Issuer account" link; the Issuance ID in full (mono) with
   `CopyTextButton`; the source caption `/v2/mpt/{issuanceId}`. A destroyed issuance gets a `Notice`: "This issuance was destroyed in
   ledger #N." (`last_ledger`, linked). An issuance whose every balance is locked gets a `Notice`: "The issuer has locked every HTF balance."
+
+  Note (2026-11-03, E14 final fix wave, whole-branch review M5): with no ticker the notice reads "The issuer has locked every balance." ("HTF" read as "units" would make "every units balance", which is not a sentence); with a ticker it is "The issuer has locked every {ticker} balance." The notice names the token, so it keeps the ticker above an asset scale of 19 too.
+
 - **Figures** (six `StatTile`s, the board's order; HTF stands for the ticker, else "units"):
 
 | Tile | Value | Line |

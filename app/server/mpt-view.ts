@@ -390,14 +390,15 @@ export interface MptNotice {
   tone: "info" | "warning";
 }
 
-function noticesOf(source: MptSource, f: Figures, T: string): MptNotice[] {
+/** The notices above the figures. `ticker` is the issuance's, if it has one: with none the locked notice says "every balance" and not "every units balance". */
+function noticesOf(source: MptSource, f: Figures, ticker: string | undefined): MptNotice[] {
   const notices: MptNotice[] = [];
   if (source.origin === "node") notices.push({ text: "Not in the index yet, shown from the network", tone: "info" });
   if (source.origin === "index" && source.answer.issuance.destroyed) {
     const ledger = source.answer.issuance.last_ledger;
     notices.push({ text: `This issuance was destroyed in ledger #${formatAmount(String(ledger))}.`, ledger, tone: "warning" });
   }
-  if (f.flags.locked) notices.push({ text: `The issuer has locked every ${T} balance.`, tone: "warning" });
+  if (f.flags.locked) notices.push({ text: ticker === undefined ? "The issuer has locked every balance." : `The issuer has locked every ${ticker} balance.`, tone: "warning" });
   return notices;
 }
 
@@ -739,7 +740,7 @@ export function mptPage({ net, source, holders, transfers, names }: MptPageInput
     origin: source.origin,
     head,
     source: source.origin === "index" ? `/v2/mpt/${head.id}` : `ledger_entry · mpt_issuance · ledger #${formatAmount(String(source.ledgerIndex))}`,
-    notices: noticesOf(source, f, head.tickerOrUnits),
+    notices: noticesOf(source, f, head.ticker),
     tiles: tilesOf(f, head, source.origin),
     flags: flagsOf(f.flags, head.tickerOrUnits),
     metadata: metadataOf(source),
