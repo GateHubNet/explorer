@@ -74,6 +74,19 @@ function summaryOf(lookup: MptLookupResult, id: string): MptSummary | undefined 
   return entry !== undefined && "asset_scale" in entry ? entry : undefined;
 }
 
+/** The longest ticker D9 stores, in code points (`MPT_TICKER_MAX`, mpt-state.job.ts:483 at the pin). Nothing on the explorer's path checks a length (mpt-shape.ts takes any text), so a page cuts it again. */
+export const MPT_TICKER_MAX = 16;
+
+/**
+ * The ticker a page draws: the issuer's text cut to `MPT_TICKER_MAX` code points as D9 cuts it (`cutText` does not split a character outside the BMP), and none when nothing visible is left. D9 leaves
+ * out an empty ticker but keeps a blank one, which would draw an amount like "25,000.00 " with a link nobody can see.
+ */
+export function tickerText(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  const cut = raw.length <= MPT_TICKER_MAX ? raw : Array.from(raw).slice(0, MPT_TICKER_MAX).join("");
+  return cut.trim() === "" ? undefined : cut;
+}
+
 /** `fields` that are defined, merged into a copy of `target`: a ticker the issuance has none of, and a value above the largest scale, are left out. */
 const filled = (target: Plain, fields: Plain): Plain => ({ ...target, ...Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined)) });
 
@@ -103,7 +116,8 @@ export function resolveMpt<T>(view: T, lookup: MptLookupResult): { view: T; unre
       unresolved = true;
       return copy;
     }
-    const { asset_scale: scale, ticker } = summary;
+    const { asset_scale: scale } = summary;
+    const ticker = tickerText(summary.ticker);
     switch (carrier.form) {
       case "change":
         return filled(copy, {

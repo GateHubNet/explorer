@@ -121,6 +121,24 @@ describe("resolveMpt", () => {
     expect(view).toStrictEqual({ t: "mpt", id: HTF, issuer: ISSUER, units: "100", value: "1.00" });
   });
 
+  // Review of Tasks 7 and 8, M2: D9 omits an empty ticker but keeps a blank one (`cutText` does not trim), and the amount would read "25,000.00 " with a link nobody can see.
+  it.each([" ", "   ", "\t\n", " "])("treats the blank ticker %j as none: the amount is in units, with no empty link", (ticker) => {
+    const { view } = resolveMpt({ t: "mpt", id: HTF, issuer: ISSUER, units: "100" }, ok(summary(HTF, { ticker })));
+    expect(view).toStrictEqual({ t: "mpt", id: HTF, issuer: ISSUER, units: "100", value: "1.00" });
+    expect(resolveMpt({ account: ISSUER, currency: HTF, value: "5890", mpt: true }, ok(summary(HTF, { ticker }))).view).not.toHaveProperty("ticker");
+    expect(resolveMpt({ change: "modified", type: "MPToken", index: "AB", mpt: HTF }, ok(summary(HTF, { ticker }))).view).not.toHaveProperty("ticker");
+  });
+
+  // The cut is D9's (`MPT_TICKER_MAX`, `cutText` at the pin): 16 code points, so a character outside the BMP stays whole. The explorer's own path checks no length (mpt-shape.ts), so a longer text
+  // from an upstream that did not cut cannot reach a sentence, a description or a card.
+  it("cuts a ticker to 16 code points, as D9 does, and keeps a character outside the BMP whole", () => {
+    const long = "A".repeat(128);
+    expect(resolveMpt({ t: "mpt", id: HTF, issuer: ISSUER, units: "100" }, ok(summary(HTF, { ticker: long }))).view).toMatchObject({ ticker: "A".repeat(16) });
+    expect(resolveMpt({ t: "mpt", id: HTF, issuer: ISSUER }, ok(summary(HTF, { ticker: "😀".repeat(17) }))).view).toMatchObject({ ticker: "😀".repeat(16) });
+    expect(resolveMpt({ t: "mpt", id: HTF, issuer: ISSUER }, ok(summary(HTF, { ticker: "😀".repeat(16) }))).view).toMatchObject({ ticker: "😀".repeat(16) });
+    expect(resolveMpt({ t: "mpt", id: HTF, issuer: ISSUER }, ok(summary(HTF, { ticker: "A".repeat(16) }))).view).toMatchObject({ ticker: "A".repeat(16) });
+  });
+
   it("gives a reference (no units) its ticker alone", () => {
     expect(resolveMpt({ t: "mpt", id: HTF, issuer: ISSUER }, ok(HTF_SUMMARY)).view).toEqual({ t: "mpt", id: HTF, issuer: ISSUER, ticker: "HTF" });
     const touched = { change: "modified", type: "MPToken", index: "AB", account: ISSUER, mpt: HTF };
