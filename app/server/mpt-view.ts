@@ -1,11 +1,25 @@
 // The MPT amounts of a page, collected and resolved (E14 spec 2.4 and 5.1, Task 7): a page that shows an MPT amount outside an MPT answer collects the issuance IDs it draws (`mptAmountsOf`),
 // the loader asks the data API once (`loadMptLookup`, mpt-load.ts) and `resolveMpt` fills each amount's scaled `value` and its `ticker`. Pure, Worker-only: the page receives the filled data and
 // never an issuance; an MPT amount that is not filled is drawn in units, which is why `resolveMpt` says whether any was left (`unresolved`) and the transaction page is then not kept for a year.
+//
+// The second half of the file is the MPT page's own view (E14 spec 3, Task 9): `mptPage` and the pieces the holders' and the transfers' pages share.
 
+import BigNumber from "bignumber.js";
+
+import { decodeHex } from "../domain/describe/helpers";
+import { compactNumber, formatAmount } from "../domain/format";
+import { ASSET_CLASS_WORDS, MAX_SCALE, MPT_FLAG_WORDS, MPT_KIND_WORDS, percentText, safeLink, scaleUnits, shortMptId, superscript, transferFeeText } from "../domain/mpt";
 import { isMptIssuanceId } from "../domain/mpt-id";
-import { scaleUnits } from "../domain/mpt";
-import type { MptSummary } from "./api-types";
+import { mptHoldersHref, mptTransfersHref } from "../domain/mpt-params";
+import { shownIssuer, type NamesPart } from "../domain/names";
+import type { MeterData } from "../ui/charts/types";
+import type { NetworkInfo } from "../ui/networks";
+import type { Loaded } from "./account-view";
+import type { MptFlags, MptHoldersPage, MptIssuanceAnswer, MptSummary, MptTransfersPage, NodeMptIssuance } from "./api-types";
+import { coverageNote, type CoverageNoteText } from "./coverage";
 import { MPT_LOOKUP_MAX } from "./data-api";
+import { networkInfoOf } from "./network-route";
+import { unixOf } from "./validator-facts";
 
 export { MPT_LOOKUP_MAX };
 
@@ -136,4 +150,555 @@ export function resolveMpt<T>(view: T, lookup: MptLookupResult): { view: T; unre
 
   const resolved = resolve(view) as T;
   return { view: resolved, unresolved };
+}
+
+// ---- The MPT page (E14 spec 3, Task 9) ----------------------------------------------------------------------------------------------------------------------------------------------------
+//
+// `mptPage` builds what `MptPage` draws from an issuance (the index's answer, or the node's entry when the index has none), the first rows of its holders and of its transfers, and the names the loader
+// asked for. Pure, no I/O, no clock: every label, line and href is text in the data, and an amount is scaled only by `scaleUnits` (BigNumber), so no float reaches a label. What the issuer wrote
+// (ticker, name, metadata) is text, shown as React text; the only thing of it that reaches an attribute is the `href` of a link `safeLink` accepted, and the category of a link when it is one of
+// XLS-89's own four words. `mptHead`, `mptHolderRows`, `mptTransferRows` and `mptFacts` are exported for the holders' and the transfers' page (Task 11) and the link-preview card (Task 14).
+
+/** What the page reads of the network: its names (`networkInfoOf`), nothing of its URLs. */
+export type MptNet = NetworkInfo;
+
+/** Where an issuance was read from: the index (`GET /v2/mpt/{id}`), or, when the index has no answer, the node's `ledger_entry` at the ledger it was validated in. */
+export type MptSource = { origin: "index"; answer: MptIssuanceAnswer } | { origin: "node"; node: NodeMptIssuance; ledgerIndex: number; id: string };
+
+/** The longest name D9 stores, in code points (`MPT_NAME_MAX` at the pin). */
+const MPT_NAME_MAX = 128;
+
+/** `raw` cut to `max` code points as D9 cuts it, and none when nothing visible is left. */
+function cutText(raw: string | undefined, max: number): string | undefined {
+  if (raw === undefined) return undefined;
+  const cut = raw.length <= max ? raw : Array.from(raw).slice(0, max).join("");
+  return cut.trim() === "" ? undefined : cut;
+}
+
+const DASH = "—";
+/** A whole number with its thousands grouped. */
+const counted = (n: number): string => formatAmount(String(n));
+/** `units` as the page writes them: scaled with exactly the scale's decimals and grouped, or, for a scale the pages do not apply (`null`), the units as the ledger holds them, grouped. */
+const unitsText = (units: string, scale: number | null): string => formatAmount(scale === null ? units : (scaleUnits(units, scale) ?? units));
+
+/** What the head of an MPT page, and of its holders' and transfers' pages, says of the issuance. */
+export interface MptHead {
+  /** The last piece of the breadcrumb: the ticker, else "MPT". */
+  crumb: string;
+  /** The token circle: the ticker's first letter, else "?". */
+  letter: string;
+  /** The `<h1>`: the name, else the ticker, else "MPT 0000012A…3F09". */
+  heading: string;
+  ticker?: string;
+  /** The name the issuance's metadata gives it (cut to 128 code points, as D9 cuts it). */
+  name?: string;
+  /** The name or the ticker came from the issuance's metadata (the index decoded it): "· name and ticker from the issuance's metadata". */
+  fromMetadata: boolean;
+  issuer: string;
+  /** The issuance ID, in capitals. */
+  id: string;
+  /** The ticker, else "units": what the lines write where the board writes HTF. */
+  tickerOrUnits: string;
+  /** The asset scale the amounts are scaled by; `null` above 19, where the pages show the units as they are. */
+  scale: number | null;
+}
+
+/** The ID of the issuance a source is of, in capitals. */
+const idOf = (source: MptSource): string => (source.origin === "index" ? source.answer.issuance.mpt_issuance_id : source.id).toUpperCase();
+
+/** The head of an issuance's pages. From the node there is no name or ticker (the metadata is hex there), so the heading is the ID's start and end. */
+export function mptHead(source: MptSource): MptHead {
+  const id = idOf(source);
+  if (source.origin === "node") {
+    return { crumb: "MPT", letter: "?", heading: `MPT ${shortMptId(id)}`, fromMetadata: false, issuer: source.node.Issuer, id, tickerOrUnits: "units", scale: scaleOf(source.node.AssetScale ?? 0) };
+  }
+  const { issuance } = source.answer;
+  const ticker = tickerText(issuance.ticker ?? issuance.metadata?.ticker);
+  const name = cutText(issuance.name ?? issuance.metadata?.name, MPT_NAME_MAX);
+  return {
+    crumb: ticker ?? "MPT",
+    letter: ticker === undefined ? "?" : (Array.from(ticker)[0] ?? "?"),
+    heading: name ?? ticker ?? `MPT ${shortMptId(id)}`,
+    ...(ticker === undefined ? {} : { ticker }),
+    ...(name === undefined ? {} : { name }),
+    fromMetadata: ticker !== undefined || name !== undefined,
+    issuer: issuance.issuer,
+    id,
+    tickerOrUnits: ticker ?? "units",
+    scale: scaleOf(issuance.asset_scale),
+  };
+}
+
+/** The scale the pages apply: 0 to 19, else `null`. */
+const scaleOf = (scale: number): number | null => (scale <= MAX_SCALE ? scale : null);
+
+// ---- What the figures are -----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+/** The bits of an `MPTokenIssuance` entry's `Flags`: `lsfMPTLocked` and the abilities set at creation (rippled's `lsfMPTCan…`). */
+const NODE_FLAG_BITS: Readonly<Record<keyof MptFlags, number>> = {
+  locked: 0x01,
+  can_lock: 0x02,
+  require_auth: 0x04,
+  can_escrow: 0x08,
+  can_trade: 0x10,
+  can_transfer: 0x20,
+  can_clawback: 0x40,
+};
+
+/** An entry's `Flags` as the index names them. */
+export function nodeFlags(flags: number): MptFlags {
+  const has = (key: keyof MptFlags) => (flags & NODE_FLAG_BITS[key]) !== 0;
+  return { locked: has("locked"), can_lock: has("can_lock"), require_auth: has("require_auth"), can_escrow: has("can_escrow"), can_trade: has("can_trade"), can_transfer: has("can_transfer"), can_clawback: has("can_clawback") };
+}
+
+/** What the tiles and the lines read, the same from either source. `null` is what the source does not say. */
+interface Figures {
+  scale: number;
+  outstanding: string;
+  max: string | null;
+  /** What the issuer has locked of the holders' balances. */
+  locked: string | null;
+  lockedHolders: number | null;
+  /** What is in escrow. */
+  escrowed: string;
+  holders: number | null;
+  fee: number;
+  flags: MptFlags;
+}
+
+/** The figures of a source. The node leaves a field at its default out (FINDINGS (4)): an amount, the scale and the fee read 0. */
+function figuresOf(source: MptSource): Figures {
+  if (source.origin === "index") {
+    const i = source.answer.issuance;
+    return {
+      scale: i.asset_scale,
+      outstanding: i.outstanding_amount,
+      max: i.maximum_amount ?? null,
+      locked: i.locked_amount,
+      lockedHolders: i.locked_holders,
+      escrowed: i.escrowed_amount,
+      holders: i.holders,
+      fee: i.transfer_fee,
+      flags: i.flags,
+    };
+  }
+  const n = source.node;
+  return {
+    scale: n.AssetScale ?? 0,
+    outstanding: n.OutstandingAmount ?? "0",
+    max: n.MaximumAmount ?? null,
+    locked: null,
+    lockedHolders: null,
+    escrowed: n.LockedAmount ?? "0",
+    holders: null,
+    fee: n.TransferFee ?? 0,
+    flags: nodeFlags(n.Flags),
+  };
+}
+
+/** A figure of the board: its label, its value and the line under it. */
+export interface MptTile {
+  label: string;
+  value: string;
+  line: string;
+}
+
+const isPositive = (units: string): boolean => new BigNumber(units).gt(0);
+
+/** The six figures in the board's order, with the lines of spec 3.1. `T` is the ticker, else "units". */
+function tilesOf(f: Figures, head: MptHead, from: MptSource["origin"]): MptTile[] {
+  const T = head.tickerOrUnits;
+  const text = (units: string) => unitsText(units, head.scale);
+  const fromNode = from === "node";
+
+  // Outstanding: of the max amount when there is one.
+  const percent = f.max === null ? DASH : percentText(f.outstanding, f.max, 1);
+  const outstandingLine = percent === DASH ? `${T} held by holders; no max amount is set` : `${T} held by holders, ${percent} of the max amount`;
+
+  // Locked: what the issuer has locked, then what is in escrow.
+  let locked: { value: string; line: string };
+  if (f.flags.locked) locked = { value: text(fromNode ? f.outstanding : (f.locked ?? f.outstanding)), line: "Every balance is locked" };
+  else if (fromNode) {
+    // The issuance entry does not say which holders are locked: only the issuer's own switches can be told.
+    locked = f.flags.can_lock ? { value: DASH, line: "not in the index yet" } : { value: "0", line: `The issuer cannot lock ${T}` };
+  } else if (f.lockedHolders !== null && f.lockedHolders > 0) {
+    locked = { value: text(f.locked ?? "0"), line: `${T} in ${counted(f.lockedHolders)} holder ${f.lockedHolders === 1 ? "balance" : "balances"} the issuer has locked` };
+  } else {
+    locked = { value: text(f.locked ?? "0"), line: f.flags.can_lock ? "Nothing is locked" : `The issuer cannot lock ${T}` };
+  }
+  if (isPositive(f.escrowed)) locked.line += `; ${text(f.escrowed)} ${T} in escrow`;
+
+  const scaleLine =
+    head.scale === null
+      ? "Amounts are shown as the ledger's integer units."
+      : head.scale === 0
+        ? `Amounts are whole numbers: 1 ${T} is 1 on the ledger.`
+        : `Amounts are integers scaled by 10${superscript(-head.scale)}: 1 ${T} is ${formatAmount(new BigNumber(10).pow(head.scale).toFixed())} on the ledger.`;
+
+  return [
+    { label: "Outstanding", value: text(f.outstanding), line: outstandingLine },
+    { label: "Max amount", value: f.max === null ? "Not set" : text(f.max), line: f.max === null ? "Up to the ledger's limit" : `${T}, fixed when the issuance was created` },
+    { label: "Locked", ...locked },
+    fromNode || f.holders === null
+      ? { label: "Holders", value: DASH, line: "not in the index yet" }
+      : { label: "Holders", value: counted(f.holders), line: `accounts holding ${T}` },
+    { label: "Transfer fee", value: transferFeeText(f.fee), line: f.fee === 0 ? `holders pay no fee to send ${T}` : `charged when holders send ${T} to each other` },
+    { label: "Asset scale", value: String(f.scale), line: scaleLine },
+  ];
+}
+
+/** The Flags card: the intro of decision 3 and the six rows of `MPT_FLAG_WORDS`, each Yes or No with its line, the ticker (else "units") in place of `{T}`. */
+function flagsOf(flags: MptFlags, T: string): { intro: string; rows: { label: string; yes: boolean; line: string }[] } {
+  return {
+    intro: "What the issuer allows, as the issuance says now.",
+    // A function as the replacement: the ticker is the issuer's text, and `$&` in a string would mean something there.
+    rows: MPT_FLAG_WORDS.map((words) => ({ label: words.label, yes: flags[words.key], line: (flags[words.key] ? words.yes : words.no).replaceAll("{T}", () => T) })),
+  };
+}
+
+/** A notice above the figures: its sentence, and the ledger it names (the page links its `#N`). */
+export interface MptNotice {
+  text: string;
+  ledger?: number;
+}
+
+function noticesOf(source: MptSource, f: Figures, T: string): MptNotice[] {
+  const notices: MptNotice[] = [];
+  if (source.origin === "node") notices.push({ text: "Not in the index yet, shown from the network" });
+  if (source.origin === "index" && source.answer.issuance.destroyed) {
+    const ledger = source.answer.issuance.last_ledger;
+    notices.push({ text: `This issuance was destroyed in ledger #${formatAmount(String(ledger))}.`, ledger });
+  }
+  if (f.flags.locked) notices.push({ text: `The issuer has locked every ${T} balance.` });
+  return notices;
+}
+
+// ---- The metadata ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+/** A row of the decoded metadata: the key as XLS-89 writes it, the text, and, for a link `safeLink` accepted, its `href` and the category of the link when it is one of XLS-89's four words. */
+export interface MptMetadataRow {
+  key: string;
+  text: string;
+  href?: string;
+  title?: string;
+  /** The text is code (indented JSON): drawn in a `.code` block. */
+  code?: boolean;
+}
+
+export type MptMetadataView =
+  | { state: "decoded"; rows: MptMetadataRow[]; conforms: boolean; hex: string; bytes: number }
+  | { state: "none" }
+  | { state: "raw"; text: string | null; hex: string; bytes: number; fromNode: boolean };
+
+/** How many characters of `additional_info` as JSON a page shows. */
+export const ADDITIONAL_INFO_MAX = 2000;
+
+/** XLS-89's categories of a link: the only words of a link's category that become a `title`, so that nothing the issuer wrote reaches an attribute but a safe `href`. */
+const URI_CATEGORIES: ReadonlySet<string> = new Set(["website", "social", "docs", "other"]);
+
+/** The rows of XLS-89's text fields, in its order. */
+const TEXT_KEYS = ["ticker", "name", "desc", "icon", "asset_class", "asset_subclass", "issuer_name"] as const;
+
+const bytesOf = (hex: string): number => Math.floor(hex.length / 2);
+
+/** `value` cut to `max` code points. */
+const cut = (value: string, max: number): string => (value.length <= max ? value : Array.from(value).slice(0, max).join(""));
+
+/** The row of `additional_info`: an object (or a list) as indented JSON in a code block, cut; a string as text; a number or a boolean as text. */
+function additionalInfoRow(value: unknown): MptMetadataRow | null {
+  if (typeof value === "string") return { key: "additional_info", text: cut(value, ADDITIONAL_INFO_MAX) };
+  if (typeof value === "number" || typeof value === "boolean") return { key: "additional_info", text: String(value) };
+  if (typeof value !== "object" || value === null) return null;
+  return { key: "additional_info", text: cut(JSON.stringify(value, null, 2), ADDITIONAL_INFO_MAX), code: true };
+}
+
+/** What the issuer wrote, as the card draws it. From the index it is the decoded metadata (long keys, lenient); from the node it is hex, and its text when that reads as UTF-8 text. */
+function metadataOf(source: MptSource): MptMetadataView {
+  if (source.origin === "node") {
+    const hex = source.node.MPTokenMetadata;
+    return hex === undefined || hex === "" ? { state: "none" } : { state: "raw", text: decodeHex(hex) ?? null, hex, bytes: bytesOf(hex), fromNode: true };
+  }
+  const { metadata, metadata_hex: hex = "", metadata_conforms: conforms } = source.answer.issuance;
+  if (metadata === undefined) return hex === "" ? { state: "none" } : { state: "raw", text: decodeHex(hex) ?? null, hex, bytes: bytesOf(hex), fromNode: false };
+
+  const rows: MptMetadataRow[] = [];
+  for (const key of TEXT_KEYS) {
+    const value = metadata[key];
+    if (typeof value !== "string") continue;
+    if (key === "asset_class") rows.push({ key, text: ASSET_CLASS_WORDS[value] ?? value });
+    else if (key === "icon") {
+      const href = safeLink(value);
+      rows.push(href === null ? { key, text: value } : { key, text: value, href });
+    } else rows.push({ key, text: value });
+  }
+  for (const entry of metadata.uris ?? []) {
+    const href = safeLink(entry.uri);
+    // "{title} · {host/path}": the link as the issuer wrote it, without its scheme.
+    const where = href === null ? entry.uri : entry.uri.replace(/^https:\/\//, "");
+    const text = entry.title === undefined || entry.title === "" ? where : `${entry.title} · ${where}`;
+    const category = entry.category?.toLowerCase();
+    rows.push({ key: "uris", text, ...(href === null ? {} : { href }), ...(href !== null && category !== undefined && URI_CATEGORIES.has(category) ? { title: category } : {}) });
+  }
+  const info = metadata.additional_info === undefined ? null : additionalInfoRow(metadata.additional_info);
+  if (info !== null) rows.push(info);
+  return { state: "decoded", rows, conforms: conforms !== false, hex, bytes: bytesOf(hex) };
+}
+
+// ---- The holders and the transfers --------------------------------------------------------------------------------------------------------------------------------------------------
+
+/** A card of the page that stands or fails on its own: `missing` is the index having no rows for the issuance ("Not in the index yet."), `failed` a call that did not answer. */
+export type MptCard<T> = ({ state: "ok" } & T) | { state: "missing" } | { state: "failed" };
+
+/** A holder's row: the balance (`amount` and `escrowed_amount` together) scaled, what of it is in escrow, its share of the outstanding amount with the meter beside it, and whether the issuer locked it. */
+export interface MptHolderRow {
+  /** The place in the ranking; `null` where it is not known (a page behind a marker: the API gives no rank). */
+  rank: number | null;
+  holder: string;
+  /** The ledger's integer units of the balance, escrow included. */
+  units: string;
+  balance: string;
+  /** "incl. 12.00 in escrow", when some of the balance is. */
+  escrow: string | null;
+  /** The share of the outstanding amount, to two decimals: `33.62%`. */
+  share: string;
+  /** The share against the first row's balance, for the meter (decorative: the share is written beside it). */
+  meter: MeterData;
+  locked: boolean;
+}
+
+/** What a list of holders reads of the issuance. */
+export interface MptListContext {
+  head: MptHead;
+  /** The outstanding amount, in units. */
+  outstanding: string;
+}
+
+/**
+ * The rows of a page of holders, the largest balance first as D9 gives them. `rankFrom` is the rank of the first row (1 on the first page), or `null` where it is not known. A balance is `amount` and
+ * `escrowed_amount` together (BigNumber); the share is of the outstanding amount, from the exact integers.
+ */
+export function mptHolderRows(page: MptHoldersPage, { head, outstanding }: MptListContext, rankFrom: number | null): MptHolderRow[] {
+  const units = page.holders.map((row) => new BigNumber(row.amount).plus(row.escrowed_amount).toFixed());
+  const first = units[0] === undefined || units[0] === "0" ? "1" : units[0];
+  return page.holders.map((row, at): MptHolderRow => {
+    const share = percentText(units[at]!, outstanding, 2);
+    const escrowed = isPositive(row.escrowed_amount) ? unitsText(row.escrowed_amount, head.scale) : null;
+    return {
+      rank: rankFrom === null ? null : rankFrom + at,
+      holder: row.holder,
+      units: units[at]!,
+      balance: unitsText(units[at]!, head.scale),
+      escrow: escrowed === null ? null : `incl. ${escrowed} in escrow`,
+      share,
+      meter: { value: units[at]!, max: first, label: `${share} of the outstanding ${head.tickerOrUnits}` },
+      locked: row.locked,
+    };
+  });
+}
+
+/** "The top 3 hold 61.25% of the outstanding HTF.": the rows' balances summed over the outstanding amount, from two rows; none for fewer, or when there is nothing to share. */
+export function topLineOf(rows: readonly MptHolderRow[], { head, outstanding }: MptListContext): string | null {
+  if (rows.length < 2) return null;
+  const sum = rows.reduce((total, row) => total.plus(row.units), new BigNumber(0)).toFixed();
+  const percent = percentText(sum, outstanding, 2);
+  return percent === DASH ? null : `The top ${rows.length} hold ${percent} of the outstanding ${head.tickerOrUnits}.`;
+}
+
+/** What a holders table says when it has no row: "Nobody holds HTF.", and "yet in the index" while the index does not hold the whole history. */
+export function noHoldersLine(T: string, complete: boolean): string {
+  return complete ? `Nobody holds ${T}.` : `Nobody holds ${T} yet in the index.`;
+}
+
+/** The note a holders table has under it while the index is incomplete, after the coverage note. */
+export const HOLDERS_NOT_LISTED = "A holder whose balance has not changed since is not listed yet.";
+
+/** A transfer's row: when, what kind, between whom, how much, and the transaction. */
+export interface MptTransferRow {
+  /** Unix seconds, for the time cell. */
+  time: number;
+  /** Transfer, Clawback, Lock, Unlock, Escrow, Escrow finished or Escrow cancelled. */
+  kind: string;
+  from: string | null;
+  to: string | null;
+  /** A lock or an unlock with no destination is of every holder: the cell says "every holder". */
+  everyHolder: boolean;
+  amount: string;
+  /** A lock's amount is the balance locked, not a movement: muted. */
+  muted: boolean;
+  hash: string;
+}
+
+/** The rows of a page of transfers, newest first as D9 gives them. */
+export function mptTransferRows(page: MptTransfersPage, head: MptHead): MptTransferRow[] {
+  return page.transfers.map((row) => ({
+    time: unixOf(row.executed_time),
+    kind: MPT_KIND_WORDS[row.kind],
+    from: row.source ?? null,
+    to: row.destination ?? null,
+    everyHolder: (row.kind === "lock" || row.kind === "unlock") && row.destination === undefined,
+    amount: unitsText(row.amount, head.scale),
+    muted: row.kind === "lock",
+    hash: row.tx_hash,
+  }));
+}
+
+/** The footnote of a transfers table: the board's, with the issuer by its name when it has one. */
+export function transfersFootnote(head: MptHead, names: NamesPart): string {
+  const T = head.tickerOrUnits;
+  return `Newest first. A transfer from ${shownIssuer(head.issuer, names.map)} issues new ${T}. A clawback takes ${T} back. A lock stops a balance from moving; its amount is the balance locked.`;
+}
+
+export type MptHoldersCard = MptCard<{
+  rows: MptHolderRow[];
+  /** The outstanding amount scaled, as the tile writes it. */
+  outstanding: string;
+  topLine: string | null;
+  /** How many accounts hold the token (the issuance's own figure); `null` from the node. */
+  total: number | null;
+  allHref: string;
+  allLabel: string;
+  empty: string | null;
+  coverage: CoverageNoteText | null;
+  /** Said after the coverage note, while there is one. */
+  notes: string[];
+}>;
+
+export type MptTransfersCard = MptCard<{
+  rows: MptTransferRow[];
+  footnote: string;
+  olderHref: string | null;
+  empty: string | null;
+  note: CoverageNoteText | null;
+}>;
+
+function holdersCard(net: MptNet, loaded: Loaded<MptHoldersPage>, f: Figures, head: MptHead): MptHoldersCard {
+  if (loaded.state !== "ok") return { state: loaded.state };
+  const context = { head, outstanding: f.outstanding };
+  const rows = mptHolderRows(loaded.value, context, 1);
+  const coverage = coverageNote(loaded.value.coverage, "holders");
+  return {
+    state: "ok",
+    rows,
+    outstanding: unitsText(f.outstanding, head.scale),
+    topLine: topLineOf(rows, context),
+    total: f.holders,
+    allHref: mptHoldersHref(net.id, head.id),
+    allLabel: f.holders === null ? "All holders →" : `All ${counted(f.holders)} ${f.holders === 1 ? "holder" : "holders"} →`,
+    empty: rows.length === 0 ? noHoldersLine(head.tickerOrUnits, loaded.value.coverage.complete) : null,
+    coverage,
+    notes: coverage === null ? [] : [HOLDERS_NOT_LISTED],
+  };
+}
+
+function transfersCard(net: MptNet, loaded: Loaded<MptTransfersPage>, head: MptHead, names: NamesPart): MptTransfersCard {
+  if (loaded.state !== "ok") return { state: loaded.state };
+  const rows = mptTransferRows(loaded.value, head);
+  return {
+    state: "ok",
+    rows,
+    footnote: transfersFootnote(head, names),
+    olderHref: loaded.value.marker === undefined ? null : mptTransfersHref(net.id, head.id, { marker: loaded.value.marker }),
+    empty: rows.length === 0 ? `No transfers of ${head.tickerOrUnits} in the index.` : null,
+    note: coverageNote(loaded.value.coverage, "transfers"),
+  };
+}
+
+// ---- The tags and the card ------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+/** What the tags (`meta-mpt.ts`) and the link-preview card (`mptCard`, Task 14) read of the page. */
+export interface MptFacts {
+  /** The title before its end ("· XRPL · explorer"): "XAU · Tokenized Gold (XAU) · MPT", and without a ticker or a name "MPT 0000012A…3F09". */
+  title: string;
+  /** "MPT issued by Harborline: 18,204,511.20 HTF outstanding, 3,412 holders · XRPL". */
+  description: string;
+  /** From the network the page is not for an index to keep. */
+  noindex: boolean;
+  card: {
+    /** The ticker, else the ID's start and end. */
+    headline: string;
+    name?: string;
+    /** The issuer by its name when it has one, else its short address. */
+    issuer: string;
+    /** "18.2M HTF", compact. */
+    outstanding: string;
+    holders?: number;
+    /** Unix seconds, when the index knows when the issuance was created. */
+    created?: number;
+  };
+}
+
+/** The facts of an issuance's tags and card. */
+export function mptFacts(net: Pick<NetworkInfo, "name">, source: MptSource, names: NamesPart): MptFacts {
+  const head = mptHead(source);
+  const f = figuresOf(source);
+  const T = head.tickerOrUnits;
+  const named = head.name;
+  const parts = [head.ticker, named].filter((part): part is string => part !== undefined);
+  const issuer = shownIssuer(head.issuer, names.map);
+  const outstanding = unitsText(f.outstanding, head.scale);
+  const holders = f.holders === null ? "" : `, ${f.holders === 1 ? "1 holder" : `${counted(f.holders)} holders`}`;
+  const scaled = head.scale === null ? null : scaleUnits(f.outstanding, head.scale);
+  const created = source.origin === "index" && source.answer.issuance.created_time !== undefined ? unixOf(source.answer.issuance.created_time) : undefined;
+  return {
+    title: parts.length === 0 ? `MPT ${shortMptId(head.id)}` : `${parts.join(" · ")} · MPT`,
+    description: `MPT issued by ${issuer}: ${outstanding} ${T} outstanding${holders} · ${net.name}`,
+    noindex: source.origin === "node",
+    card: {
+      headline: head.ticker ?? shortMptId(head.id),
+      ...(named === undefined ? {} : { name: named }),
+      issuer,
+      outstanding: `${compactNumber(scaled ?? f.outstanding)} ${T}`,
+      ...(f.holders === null ? {} : { holders: f.holders }),
+      ...(created === undefined ? {} : { created }),
+    },
+  };
+}
+
+// ---- The page ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+export interface MptPageData {
+  kind: "mpt";
+  network: NetworkInfo;
+  origin: MptSource["origin"];
+  head: MptHead;
+  /** The caption of the cards: where the issuance was read from. */
+  source: string;
+  notices: MptNotice[];
+  tiles: MptTile[];
+  flags: { intro: string; rows: { label: string; yes: boolean; line: string }[] };
+  metadata: MptMetadataView;
+  holders: MptHoldersCard;
+  transfers: MptTransfersCard;
+  facts: MptFacts;
+  names: NamesPart;
+}
+
+/** What `mptPage` is made of: the network, the issuance, the first rows of its holders and of its transfers (each stands or fails on its own), and the names the loader asked for. */
+export interface MptPageInput {
+  net: MptNet;
+  source: MptSource;
+  holders: Loaded<MptHoldersPage>;
+  transfers: Loaded<MptTransfersPage>;
+  names: NamesPart;
+}
+
+/** The page data of `/{net}/mpt/{ID}` (spec 3.1, 3.3) from the issuance and its first rows. */
+export function mptPage({ net, source, holders, transfers, names }: MptPageInput): MptPageData {
+  const head = mptHead(source);
+  const f = figuresOf(source);
+  return {
+    kind: "mpt",
+    network: networkInfoOf(net),
+    origin: source.origin,
+    head,
+    source: source.origin === "index" ? `/v2/mpt/${head.id}` : `ledger_entry · mpt_issuance · ledger #${formatAmount(String(source.ledgerIndex))}`,
+    notices: noticesOf(source, f, head.tickerOrUnits),
+    tiles: tilesOf(f, head, source.origin),
+    flags: flagsOf(f.flags, head.tickerOrUnits),
+    metadata: metadataOf(source),
+    holders: holdersCard(net, holders, f, head),
+    transfers: transfersCard(net, transfers, head, names),
+    facts: mptFacts(net, source, names),
+    names,
+  };
 }
