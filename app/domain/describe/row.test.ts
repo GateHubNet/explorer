@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { loadManifest, loadTx } from "../../../test/support/ledgers";
+import { MPT_FEE_PAYMENT_ISSUANCE } from "../../../test/support/mpt-case-rules";
 import type { TxJson, TxMeta } from "../parse/types";
 import { describe as describeTx, headlineAmount, rowSentence } from "./index";
+import { mptSegment } from "./helpers";
 import type { Segment } from "./types";
 
 // What a table row shows of a transaction: the sentence of `describe()` without its subject (the Account column has
@@ -130,6 +132,60 @@ describe("rowSentence", () => {
       expect(failed.some((segment) => segment.t === "nft")).toBe(false);
       expect((failed[0] as { v: string }).v).toMatch(/^Tried to mint/);
     });
+  });
+});
+
+describe("an MPT payment's row", () => {
+  const mint = () => {
+    const { tx, meta } = loadTx("xrpl-mpt", loadManifest("xrpl-mpt").cases.payment_mint!.hash);
+    return { tx, meta };
+  };
+  const ID = "064E273A6D15D1F5614B4D4E3183F835BCD62E7F6FD9FFD8";
+  const ISSUER = "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR";
+  const HOLDER = "rMNysCkYEX9L3SrSPqavVVXYFT2v5CEVpo";
+
+  it("keeps the MPT amount as a segment of its own, the issuer left to its column: 'Issued {amount} to {account}'", () => {
+    const { tx, meta } = mint();
+    expect(rowSentence(describeTx(tx, meta, { native: "XRP" }))).toEqual<Segment[]>([
+      { t: "text", v: "Issued " },
+      mptSegment(ID, "1"),
+      { t: "text", v: " to " },
+      { t: "account", v: HOLDER },
+    ]);
+  });
+
+  it("says 'Tried to send' for a failure, with the amount it was for", () => {
+    const { tx, meta } = loadTx("xrpl-mpt", loadManifest("xrpl-mpt").cases.payment_failed!.hash);
+    const row = rowSentence(describeTx(tx, meta, { native: "XRP" }));
+    expect(row.slice(0, 3)).toEqual<Segment[]>([{ t: "text", v: "Tried to issue " }, mptSegment(ID, "10"), { t: "text", v: " to " }]);
+  });
+
+  it("has an MPT headline amount of the ID, its issuer and the units: what the payment delivered", () => {
+    const { tx, meta } = mint();
+    expect(headlineAmount(tx, meta, "XRP")).toEqual({ mpt: ID, issuer: ISSUER, units: "1" });
+    // From the ledger's own DeliveredAmount when the API's delivered_amount is not there, and from the Amount when the payment delivered nothing.
+    const { delivered_amount: _api, ...bare } = meta;
+    expect(headlineAmount(tx, { ...bare, DeliveredAmount: { mpt_issuance_id: ID, value: "7" } }, "XRP")).toEqual({ mpt: ID, issuer: ISSUER, units: "7" });
+    expect(headlineAmount(tx, bare, "XRP")).toEqual({ mpt: ID, issuer: ISSUER, units: "1" });
+    expect(headlineAmount(tx, { ...meta, TransactionResult: "tecNO_AUTH", delivered_amount: undefined }, "XRP")).toEqual({ mpt: ID, issuer: ISSUER, units: "1" });
+  });
+
+  it("reads DeliveredAmount when delivered_amount is the node's 'unavailable', as the sentence does, and ignores a delivered amount of another issuance than the Amount's", () => {
+    const { tx, meta } = loadTx("xrpl-mpt", loadManifest("xrpl-mpt").cases.payment_transfer_fee!.hash);
+    const FEE_ID = MPT_FEE_PAYMENT_ISSUANCE;
+    const issuer = "rERShrtUSEXkrwtTpugPV4v8E787vpx1kb";
+    expect(headlineAmount(tx, { ...meta, delivered_amount: "unavailable", DeliveredAmount: { mpt_issuance_id: FEE_ID, value: "400000" } }, "XRP")).toEqual({ mpt: FEE_ID, issuer, units: "400000" });
+    for (const field of ["delivered_amount", "DeliveredAmount"]) {
+      const other = { ...meta, delivered_amount: undefined, DeliveredAmount: undefined, [field]: { mpt_issuance_id: ID, value: "400000" } };
+      expect(headlineAmount(tx, other, "XRP"), field).toEqual({ mpt: FEE_ID, issuer, units: "1000000" });
+    }
+  });
+
+  it("has the Amount of a clawback of an MPT, and of an issued token's with the sender as its issuer, as the sentence shows it", () => {
+    const { tx, meta } = loadTx("xrpl-mpt", loadManifest("xrpl-mpt").cases.clawback_full!.hash);
+    expect(headlineAmount(tx, meta, "XRP")).toEqual({ mpt: ID, issuer: ISSUER, units: "1" });
+    const issued = loadTx("xrpl-mpt", loadManifest("xrpl-mpt").cases.clawback_issued!.hash);
+    expect(headlineAmount(issued.tx, issued.meta, "XRP")).toEqual({ value: "1", currency: "594F494E4B000000000000000000000000000000", issuer: "rYNKrtQaf3vUVWVK5sw9rJdPGDLbxZu89" });
   });
 });
 

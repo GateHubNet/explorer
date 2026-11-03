@@ -14,6 +14,11 @@ import type { AmmHop, BalanceChange, Native, TxJson, TxMeta } from "../parse/typ
  * shows the id shortened; a permission is what `permissionChip` makes of it (its name, its kind and the words that say what
  * it allows); an object's `v` is its final words ("escrow 57978925", "a check", an ID), which link to its page by `ref` (its
  * ID in capitals, or an escrow's owner and sequence) while LEDGER_OBJECTS is on (`objectHref`), and are text while it is off.
+ *
+ * An MPT's segment has the issuance's ID in capitals and its issuer (decoded from the ID): with `units`, the integer number of units of an
+ * amount, it is an amount of the MPT; without, a reference to the issuance. `value` (the units scaled by the issuance's asset scale, as plain
+ * decimal text) and `ticker` are filled in later, in the Worker, from the issuance's lookup (`resolveMpt`); until then, and when there is none,
+ * the page shows the units.
  */
 export type Segment =
   | { t: "text"; v: string }
@@ -22,10 +27,17 @@ export type Segment =
   | { t: "pool"; v: string; pair: string }
   | { t: "nft"; v: string; serial?: number }
   | { t: "permission"; name: string; kind: "transaction" | "granular" | "unknown"; words: string }
-  | { t: "object"; kind: ObjectKind; ref: ObjectRefParts; v: string };
+  | { t: "object"; kind: ObjectKind; ref: ObjectRefParts; v: string }
+  | { t: "mpt"; id: string; issuer: string; units?: string; value?: string; ticker?: string };
 
-/** An amount without the segment tag, as a flow step carries it. */
-export type FlowAmount = { value: string; currency: string; issuer?: string };
+/** An amount of a currency without the segment tag, as a flow step carries it: whole units, and the issuer of an issued currency. */
+export type CurrencyAmount = { value: string; currency: string; issuer?: string };
+
+/** An amount of an MPT without the segment tag: the issuance's ID, its issuer, the integer units; `value` and `ticker` as the segment has them. */
+export type MptFlowAmount = { mpt: string; issuer: string; units: string; value?: string; ticker?: string };
+
+/** An amount without the segment tag, as a flow step carries it: of a currency, or (told by `"mpt" in amount`) of an MPT. */
+export type FlowAmount = CurrencyAmount | MptFlowAmount;
 
 /** One stop of the money's way from the sender to the destination. */
 export type FlowStep = {

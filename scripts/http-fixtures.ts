@@ -38,6 +38,10 @@
 // The supply page's answers (D7's two routes: `data-api/network/supply.json`, `data-api/network/supply/minted@…`) are supply-fixtures.ts's: synthetic, with D7's examples' figures and the key orders of its
 // reference (`builtFixtureText`; PROVENANCE.md, "Synthetic supply"); `generate` joins them per network, after the validators'. That module imports nothing but types of this one.
 //
+// The MPT pages' answers (D9's routes: `data-api/mpt/…`, `data-api/mpt_lookup.json`, `data-api/tokens@kind=mpt…`, and the node's `ledger_entry` of an issuance) are mpt-fixtures.ts's: the nine MPT transactions D9 recorded
+// (`ledgers/xrpl-mpt/`, read through `readLedgerSet`: not among `SETS`, which would move 62 files under every market, pool and token test), served as every recorded transaction is, with the issuances made up around the
+// recorded creates, in D9's key orders (`builtFixtureText`); `generate` joins them for XRPL, and the names' files leave them out (PROVENANCE.md, "MPT answers"). That module reads nothing of this one while it loads.
+//
 // The display names' files (`data-api/account_names.json` and `data-api/toml/<domain>.json`) are names-fixtures.ts's: synthetic, over the addresses of every other file of
 // the network, generated or written by hand, so `generate` joins them last (PROVENANCE.md, "Synthetic names and tomls"). That module reads nothing of this one either.
 //
@@ -51,6 +55,7 @@ import { gunzipSync } from "node:zlib";
 import { DEFAULT_DEFINITIONS, encode, XrplDefinitions, type XrplDefinitionsBase } from "ripple-binary-codec";
 
 import type { AmmPool, FeeRow, LastValidated, Ledger, LedgerExpanded, LedgerValidations, LedgerWithHashes, Page, TxBinary, TxObject } from "../app/server/api-types";
+import { MPT_RECORDED } from "../test/support/mpt-case-rules";
 import { dataApiFile, nodeFile, type NetworkName } from "../test/support/upstream-core";
 import { ammFixtures } from "./amm-fixtures";
 import { ammInfoFixtures } from "./amm-info-fixtures";
@@ -58,6 +63,7 @@ import { ANALYTICS_ROW_LISTS, analyticsFixtures } from "./analytics-fixtures";
 import { marketFixtures } from "./market-fixtures";
 import { namesFixtures } from "./names-fixtures";
 import { networkFixtures } from "./network-fixtures";
+import { MPT_ROW_LISTS, mptFixtures, mptNodeFixtures, mptPaths } from "./mpt-fixtures";
 import { nftFixtures, nftLedgerEntryIds } from "./nft-fixtures";
 import { objectFixtures, objectPaths } from "./object-fixtures";
 import { SUPPLY_ROW_LISTS, supplyFixtures } from "./supply-fixtures";
@@ -207,6 +213,9 @@ export function dataApiTx(raw: RawLedger, tx: RawTx, withLedgerHash = false): Tx
   const meta: Record<string, unknown> = { ...metaData };
   // The API computes `delivered_amount` itself from the binary fields; the recorded one is the node's.
   delete meta.delivered_amount;
+  // The same goes for the `mpt_issuance_id` the node adds to the metadata of a successful `MPTokenIssuanceCreate`: the data API's JSON is the stored binary decoded again (`tx-object.ts`), which does not carry it,
+  // so a page must read the ID from the created `MPTokenIssuance` node (E14 ruling C10), and a fixture that kept the recorded key would hide that.
+  delete meta.mpt_issuance_id;
   if (tx.TransactionType === "Payment" && metaData.TransactionResult === "tesSUCCESS") {
     meta.delivered_amount = metaData.DeliveredAmount ?? tx.Amount;
   }
@@ -479,7 +488,8 @@ export function isNftGenerated(path: string): boolean {
  */
 export function isObjectGenerated(path: string): boolean {
   if (/^(xrpl|xahau)\/data-api\/(escrows|checks|payment_channels|ledger_objects)\//.test(path)) return true;
-  if (/^(xrpl|xahau)\/node\/ledger_entry\//.test(path)) return !isNftGenerated(path);
+  // `mpt_issuance_<ID>.json` is the MPT generator's (`isMptGenerated`).
+  if (/^(xrpl|xahau)\/node\/ledger_entry\//.test(path)) return !isNftGenerated(path) && !/\/mpt_issuance_/.test(path);
   if (/^(xrpl|xahau)\/data-api\/(transactions\/[0-9A-F]{64}(@binary=true)?|ledgers\/\d+@transactions=true)\.json$/.test(path)) return objectPaths().has(path);
   return false;
 }
@@ -490,7 +500,21 @@ export function isObjectGenerated(path: string): boolean {
  * (test/unit/http-fixtures.test.ts), and test/unit/token-fixtures.test.ts keeps this in step with the generator.
  */
 export function isTokenGenerated(path: string): boolean {
-  return /^(xrpl|xahau)\/data-api\/tokens[@/]/.test(path);
+  // `tokens@kind=mpt&…` is the MPT tab's (`isMptGenerated`).
+  return /^(xrpl|xahau)\/data-api\/tokens(@(?!kind=mpt&)|\/)/.test(path);
+}
+
+/**
+ * Paths (below test/fixtures/http/) of the MPT pages' files that mpt-fixtures.ts writes (E14): the issuances and their holders and transfers (`data-api/mpt/`), the lookup table (`data-api/mpt_lookup.json`), the MPT tab's
+ * lists (`data-api/tokens@kind=mpt&…`), the node's `ledger_entry` of an issuance (`node/ledger_entry/mpt_issuance_<ID>.json`), and the nine recorded transactions with their binary forms and the node's `tx`, and the lists of
+ * hashes of their ledgers, that it serves (C2). Reviewed in the generator, they have a size budget of their own (test/unit/http-fixtures.test.ts, left out of the recorded files' budget: C3), and
+ * test/unit/mpt-fixtures.test.ts keeps this in step with the generator. XRPL only.
+ */
+export function isMptGenerated(path: string): boolean {
+  if (/^xrpl\/data-api\/(mpt\/|mpt_lookup\.json$|tokens@kind=mpt&)/.test(path)) return true;
+  if (/^xrpl\/node\/ledger_entry\/mpt_issuance_[0-9A-F]{48}\.json$/.test(path)) return true;
+  if (/^xrpl\/(data-api\/(transactions\/[0-9A-F]{64}(@binary=true)?|ledgers\/\d+@transactions=true)|node\/tx\/[0-9A-F]{64})\.json$/.test(path)) return mptPaths().has(path);
+  return false;
 }
 
 /**
@@ -529,6 +553,9 @@ export function servedHashes(net: NetworkName, ledgers: readonly RawLedger[] = r
   return new Set([...manifestHashes(net), ...newestTransactions(ledgers).map(({ tx }) => tx.hash), ...accountListHashes(net)]);
 }
 
+/** The hashes of the recorded MPT transactions: mpt-fixtures.ts serves them, not `generate()`'s loop over `SETS`. */
+const MPT_HASHES: ReadonlySet<string> = new Set(Object.values(MPT_RECORDED).map(({ hash }) => hash));
+
 /** The hashes of the transactions the hand-written account lists name, so that every row can be opened. */
 function accountListHashes(net: NetworkName): string[] {
   const dir = new URL(`${net}/data-api/accounts/`, HTTP);
@@ -553,7 +580,8 @@ function accountListHashes(net: NetworkName): string[] {
       const body = JSON.parse(readFileSync(new URL(`${account}/${file}`, dir), "utf8")) as Record<string, Array<{ hash?: string; tx_hash?: string }> | undefined>;
       for (const row of [...(body.transactions ?? []), ...(body.payments ?? []), ...(body.exchanges ?? [])]) {
         const hash = row.hash ?? row.tx_hash;
-        if (hash) hashes.push(hash);
+        // The nine MPT transactions are served by mpt-fixtures.ts, from a recorded set that is not among `SETS`: a row of the active account's third page of payments names one of them (E14 ruling C6).
+        if (hash && !MPT_HASHES.has(hash)) hashes.push(hash);
       }
     }
   }
@@ -728,6 +756,23 @@ export function generate(): Map<string, string> {
     }
   }
 
+  // The MPT pages' answers (D9's routes and the nine recorded transactions, mpt-fixtures.ts): D9's key orders for the answers (`builtFixtureText`), the recorded layout for the transactions and the ledgers' lists
+  // (`fixtureText`), as every other recorded transaction is written. XRPL's alone.
+  for (const net of Object.keys(SETS) as NetworkName[]) {
+    for (const { path, query, value, sorted } of mptFixtures(net)) {
+      const file = dataApiFile(net, path, query);
+      if (file === undefined) throw new Error(`no file for ${path}?${query}`);
+      if (files.has(file)) throw new Error(`${file} is generated twice`);
+      files.set(file, sorted ? fixtureText(value) : builtFixtureText(value, MPT_ROW_LISTS));
+    }
+    for (const { method, params, value } of mptNodeFixtures(net)) {
+      const file = nodeFile(net, method, params);
+      if (file === undefined) throw new Error(`no file for the node's ${method}`);
+      if (files.has(file)) throw new Error(`${file} is generated twice`);
+      files.set(file, fixtureText(value));
+    }
+  }
+
   // The display names' files, last: each network's names are made over all of its other files, the generated ones above and the ones written by hand or recorded,
   // read from the disk (names-fixtures.ts writes them as D4 orders its keys, an entry to a line).
   let handWritten: string[] = [];
@@ -737,7 +782,8 @@ export function generate(): Map<string, string> {
     // No fixtures directory yet.
   }
   for (const net of Object.keys(SETS) as NetworkName[]) {
-    const ofNetwork = new Map([...files].filter(([path]) => path.startsWith(`${net}/`)));
+    // The MPT files are not sources of names: the nine transactions and the tab's lists would add 16 addresses, and the cap (500) would cut 5 issuers of the token list (E14 ruling C4).
+    const ofNetwork = new Map([...files].filter(([path]) => path.startsWith(`${net}/`) && !isMptGenerated(path)));
     for (const path of handWritten) if (path.startsWith(`${net}/`)) ofNetwork.set(path, readFileSync(new URL(path, HTTP), "utf8"));
     for (const [path, text] of namesFixtures(net, ofNetwork)) {
       if (files.has(path)) throw new Error(`${path} is generated twice`);

@@ -1,7 +1,8 @@
 import { Fragment } from "react";
 import { Link } from "react-router";
 
-import type { FlowStep } from "../../domain/describe";
+import type { FlowAmount, FlowStep } from "../../domain/describe";
+import { mptLink } from "../../domain/mpt-link";
 import { poolLink } from "../../domain/pool-link";
 import type { NetworkId } from "../../server/networks";
 import { cx } from "../cx";
@@ -9,9 +10,29 @@ import { useFeatures } from "../use-network";
 import { AccountLink } from "./AccountLink";
 import { Amount } from "./Amount";
 import { ArrowRightIcon } from "./icons";
+import { MptAmount } from "./MptAmount";
 
 /** An amount as a loss: the same value with a minus sign (a value that is one already stays so). */
 const loss = (value: string): string => (value.startsWith("-") ? value : `-${value}`);
+
+/**
+ * A step's amount: of a currency through `Amount`, `sign` (a minus for a loss, a plus for a gain, none for what a pool paid out) before an MPT's, which `MptAmount` draws (scaled and with its
+ * ticker once the lookup filled them, else the units and the ID of its issuance; a link to the issuance's page while `MPT` is on). An MPT's amount has the classes of `Amount`, `amt` and,
+ * for a gain, `amt--pos`, so a gain reads in the success colour whatever the asset is.
+ */
+function StepAmount({ net, amount, sign, className }: { net: NetworkId; amount: FlowAmount; sign?: "−" | "+"; className?: string }) {
+  const features = useFeatures();
+  if ("mpt" in amount) {
+    return (
+      <span className={cx("amt", sign === "+" && "amt--pos", className)}>
+        {sign}
+        <MptAmount id={amount.mpt} units={amount.units} issuer={amount.issuer} value={amount.value} ticker={amount.ticker} href={mptLink(net, amount.mpt, features)} />
+      </span>
+    );
+  }
+  if (sign === "−") return <Amount value={loss(amount.value)} currency={amount.currency} issuer={amount.issuer} className={className} />;
+  return <Amount signed={sign === "+"} value={amount.value} currency={amount.currency} issuer={amount.issuer} className={className} />;
+}
 
 /**
  * Where the money went, as boxes joined by arrows: the sender with what it gave up, the pools or offers on the way with what
@@ -38,11 +59,11 @@ export function Flow({ net, steps }: { net: NetworkId; steps: readonly FlowStep[
                 {step.role === "pool" && step.account !== "" && features.ammPages ? <Link to={poolLink(net, step.account, features)}>{step.label}</Link> : step.label}
               </span>
               {step.account !== "" && <AccountLink net={net} address={step.account} />}
-              {amount && step.role === "sender" && <Amount value={loss(amount.value)} currency={amount.currency} issuer={amount.issuer} className="flow__amount" />}
-              {amount && step.role === "destination" && <Amount signed value={amount.value} currency={amount.currency} issuer={amount.issuer} className="flow__amount" />}
+              {amount && step.role === "sender" && <StepAmount net={net} amount={amount} sign="−" className="flow__amount" />}
+              {amount && step.role === "destination" && <StepAmount net={net} amount={amount} sign="+" className="flow__amount" />}
               {amount && via && (
                 <span className="flow__sub">
-                  pays out <Amount value={amount.value} currency={amount.currency} issuer={amount.issuer} />
+                  pays out <StepAmount net={net} amount={amount} />
                 </span>
               )}
             </div>

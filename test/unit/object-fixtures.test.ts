@@ -625,7 +625,8 @@ describe("the cases and the account's files", () => {
 
   it("gives every object of XRPL_ACCOUNT's account_objects an index or a node file: its trust line, the three live synthetic objects and a Delegate it gave (C7)", () => {
     for (const file of [`node/account_objects/${XRPL_ACCOUNT}.json`, `node/account_objects/${XRPL_ACCOUNT}@limit=400.json`]) {
-      const objects = handWritten("xrpl", file).result.account_objects as Json[];
+      // The first five are E10's; the three that follow (two `MPToken` and the `MPTokenIssuance` the account made) are E14's, which have no index file and whose node file is the issuance's by its ID (test/unit/mpt-fixtures.test.ts).
+      const objects = (handWritten("xrpl", file).result.account_objects as Json[]).slice(0, 5);
       expect(objects.map((object) => object.LedgerEntryType)).toEqual(["RippleState", "Escrow", "Check", "PayChannel", "Delegate"]);
       for (const object of objects.slice(1)) {
         const indexed = [...files.keys()].some((path) => path.startsWith("xrpl/data-api/") && path.endsWith(`/${object.index}.json`));

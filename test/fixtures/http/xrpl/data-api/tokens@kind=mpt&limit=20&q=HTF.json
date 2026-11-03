@@ -1,0 +1,20 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 99226369,
+    "complete": false
+  },
+  "kind": "mpt",
+  "ledger_index": 107721455,
+  "close_time": "2026-10-17T17:01:12Z",
+  "totals": {
+    "issuances": 25,
+    "holders": 329,
+    "transfers_24h": 96
+  },
+  "total": 1,
+  "count": 1,
+  "tokens": [
+    {"rank":1,"mpt_issuance_id":"05A2797960352D719D5E3750339599019B1D381BBBFAE058","issuer":"r9m62EkNsBVKVWGKrByJ1Tyc9Ezer5nWsy","ticker":"HTF","name":"Harborline Treasury Fund","asset_scale":2,"maximum_amount":"5000000000","outstanding_amount":"1820451117","holders":8,"transfer_fee":100,"flags":{"locked":false,"can_lock":true,"require_auth":true,"can_escrow":true,"can_trade":true,"can_transfer":true,"can_clawback":true},"transfers_24h":0}
+  ]
+}

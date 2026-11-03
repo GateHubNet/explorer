@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { shortAddress } from "../../app/domain/format";
+import { mptIssuerOf } from "../../app/domain/mpt-id";
 import { linkTextOf, plainNameOf } from "../../app/domain/names";
 import type { TxObject } from "../../app/server/api-types";
 import type { AccountHeader, AccountListPageData, HistoryHeader, TabList } from "../../app/server/account-view";
@@ -25,6 +26,7 @@ import {
   watchNamesLog,
 } from "../support/names";
 import { expectDegraded, forgetStored, isStored, unavailable } from "../support/nft-pages";
+import { MPT_FIXTURE_IDS, MPT_LOCKED_HOLDING } from "../support/mpt-case-rules";
 import { objectCase } from "../support/object-cases";
 import { delegationsSample } from "../support/object-samples";
 import { anchors, elementText, pageClient, tableRows, textOf } from "../support/pages";
@@ -50,6 +52,8 @@ const ACTIVE = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
 const PARENT = "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ";
 /** The issuer of ACTIVE's one token, LIONS. */
 const LIONS_ISSUER = "rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS";
+/** The issuers of the two MPTs the active account holds (E14): the Tokens card links each, so the header's call asks for them with the trust lines' issuer. */
+const MPT_ISSUERS = [MPT_FIXTURE_IDS.htf, MPT_LOCKED_HOLDING].map(mptIssuerOf);
 const DELETED = "r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC";
 const XAHAU_ACTIVE = "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto";
 const XAHAU_DELETED = "rMoPk1MiYJbmdNL8xr5s11r7jrxzBhJWLD";
@@ -86,12 +90,12 @@ const rowAccounts = (list: TabList): string[] =>
 const nameOf = (data: AccountListPageData) => (data.header as AccountHeader).name;
 
 describe("the first page", () => {
-  it("asks the header's names after the header's calls (the address, its parent, its token's issuer), the node domain's toml beside them, and the list's names after its rows", async () => {
+  it("asks the header's names after the header's calls (the address, its parent, its token's issuer and its MPTs' issuers), the node domain's toml beside them, and the list's names after its rows", async () => {
     const mock = upstream("xrpl");
     const { data, marks } = await loadAccountPage<AccountListPageData>(`/xrpl/account/${ACTIVE}`);
     const list = await data.list;
 
-    const headerAsked = sorted([ACTIVE, PARENT, LIONS_ISSUER]);
+    const headerAsked = sorted([ACTIVE, PARENT, LIONS_ISSUER, ...MPT_ISSUERS]);
     const listAsked = sorted(rowAccounts(list));
     expect(listAsked.length).toBeGreaterThan(0);
     expect(namesCalls(mock).sort()).toEqual([headerAsked, listAsked].sort());
@@ -164,7 +168,7 @@ describe("the first page", () => {
     const list = html.slice(html.indexOf('class="objectlist"'));
     const linked = linkedAccounts(list, "xrpl");
     expect(linked).toEqual(expect.arrayContaining(["rp8D2s2o2dDHxYNBobMmBmbjmzVEHDMPvp", "rGCMDQCMGueT8HTcKL3j7cA9aJ7qfX92GW", ACTIVE]));
-    expect(namesCalls(mock)).toEqual([sorted([...new Set([ACTIVE, PARENT, LIONS_ISSUER, ...linked])])]);
+    expect(namesCalls(mock)).toEqual([sorted([...new Set([ACTIVE, PARENT, LIONS_ISSUER, ...MPT_ISSUERS, ...linked])])]);
     expectLinkedAccountsNamed(mock, list, "xrpl");
   });
 
@@ -383,7 +387,7 @@ describe("the Delegation tab", () => {
     const page = await html(`/xrpl/account/${ACTIVE}?tab=delegation&case=names`);
 
     // The header's call (the address, its parent, its token's issuer) and the list's: the delegates of the given list and the delegators of the held one, each once.
-    expect(namesCalls(mock).sort()).toEqual([sorted([ACTIVE, PARENT, LIONS_ISSUER]), sorted([...DELEGATES, ...DELEGATORS])].sort());
+    expect(namesCalls(mock).sort()).toEqual([sorted([ACTIVE, PARENT, LIONS_ISSUER, ...MPT_ISSUERS]), sorted([...DELEGATES, ...DELEGATORS])].sort());
     const listCall = indexOf(mock.requests, (r) => isNamesRequest(r) && !askedIn(r).includes(PARENT));
     expect(listCall).toBeGreaterThan(indexOf(mock.requests, (r) => r.key === GIVEN));
     expect(listCall).toBeGreaterThan(indexOf(mock.requests, (r) => r.key === HELD));
@@ -397,7 +401,7 @@ describe("the Delegation tab", () => {
     const empty = delegationsSample({ delegations: [], count: 0 });
     const mock = upstream("xrpl", { [GIVEN]: empty, [HELD]: empty });
     await html(`/xrpl/account/${ACTIVE}?tab=delegation&case=names-empty`);
-    expect(namesCalls(mock)).toEqual([sorted([ACTIVE, PARENT, LIONS_ISSUER])]);
+    expect(namesCalls(mock)).toEqual([sorted([ACTIVE, PARENT, LIONS_ISSUER, ...MPT_ISSUERS])]);
   });
 
   it("draws the addresses when the list's names call fails: the header keeps its names, the page is served and not stored, and it is logged once", async () => {

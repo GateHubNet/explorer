@@ -26,6 +26,979 @@ exports[`every recorded transaction > parses to these totals per set 1`] = `
 }
 `;
 
+exports[`the recorded MPT transactions, parsed > xrpl-mpt authorize_by_issuer D3DD0FD6F6CB18411950864C79BD3EA6EBE976D2A303C206F9D45A84862B15EF 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "after": "13.199604",
+      "currency": "XRP",
+      "value": "-0.00004",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "change": "modified",
+      "index": "9423771F1224B31AE8A9AECDF97F5BD7750E6676E53FD85E53EA839F0471F37D",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rMNysCkYEX9L3SrSPqavVVXYFT2v5CEVpo",
+      "change": "modified",
+      "index": "BE84C4D26B1756BEFEE40029642F334EA7CF892FF51E147A2A5519866DBEDFC8",
+      "mpt": "064E273A6D15D1F5614B4D4E3183F835BCD62E7F6FD9FFD8",
+      "type": "MPToken",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt authorize_holder B9DEF907D9D931A316C89EAB3278EC8C55AFFF86BDBFF475188A537AE1426530 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rMNysCkYEX9L3SrSPqavVVXYFT2v5CEVpo",
+      "after": "2.999882",
+      "currency": "XRP",
+      "value": "-0.00004",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rMNysCkYEX9L3SrSPqavVVXYFT2v5CEVpo",
+      "change": "modified",
+      "index": "30EC541E2F34128E7BB8FE89F95027AF6FB2C6C16EEA21F700470FC05F29FD15",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rMNysCkYEX9L3SrSPqavVVXYFT2v5CEVpo",
+      "change": "modified",
+      "index": "A27928A278A252AA5EC1B8A1AABA895EEA61E5A97AB38239587127DAD854B704",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rMNysCkYEX9L3SrSPqavVVXYFT2v5CEVpo",
+      "change": "created",
+      "index": "BE84C4D26B1756BEFEE40029642F334EA7CF892FF51E147A2A5519866DBEDFC8",
+      "mpt": "064E273A6D15D1F5614B4D4E3183F835BCD62E7F6FD9FFD8",
+      "type": "MPToken",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt clawback_full 01D099632560B0D854D1843A064E61148AD5A131A4866279D0AB8CF9ACF71D6B 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "after": "13.199404",
+      "currency": "XRP",
+      "value": "-0.00004",
+    },
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "currency": "064E273A6D15D1F5614B4D4E3183F835BCD62E7F6FD9FFD8",
+      "mpt": true,
+      "value": "1",
+    },
+    {
+      "account": "rMNysCkYEX9L3SrSPqavVVXYFT2v5CEVpo",
+      "after": "0",
+      "currency": "064E273A6D15D1F5614B4D4E3183F835BCD62E7F6FD9FFD8",
+      "issuer": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "mpt": true,
+      "value": "-1",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "change": "modified",
+      "index": "04C1B4D56A3FC2D58A719B710E73B9E02E39F4469D6B6538EAE3F963E4795B57",
+      "mpt": "064E273A6D15D1F5614B4D4E3183F835BCD62E7F6FD9FFD8",
+      "type": "MPTokenIssuance",
+    },
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "change": "modified",
+      "index": "16A729DEA951BB43F5E8419BA499926C7F2524FA9887BDDFE69FBEF37B576519",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "change": "deleted",
+      "index": "32C5CF7AB9CB4C6D06CA05A8223BA24C6DED07C6E630B34BCDD9616533F323D5",
+      "type": "Ticket",
+    },
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "change": "modified",
+      "index": "9423771F1224B31AE8A9AECDF97F5BD7750E6676E53FD85E53EA839F0471F37D",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rMNysCkYEX9L3SrSPqavVVXYFT2v5CEVpo",
+      "change": "modified",
+      "index": "BE84C4D26B1756BEFEE40029642F334EA7CF892FF51E147A2A5519866DBEDFC8",
+      "mpt": "064E273A6D15D1F5614B4D4E3183F835BCD62E7F6FD9FFD8",
+      "type": "MPToken",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt clawback_issued C2071343FB6CB00E495F50BD319B773D7461435E5B19F8EF0E1E2AF2853824D8 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rYNKrtQaf3vUVWVK5sw9rJdPGDLbxZu89",
+      "after": "19.799954",
+      "currency": "XRP",
+      "value": "-0.000012",
+    },
+    {
+      "account": "rYNKrtQaf3vUVWVK5sw9rJdPGDLbxZu89",
+      "after": "0",
+      "currency": "594F494E4B000000000000000000000000000000",
+      "issuer": "rYNK7JFGbJhkX8HhT4zw1LJ1Yiu3aa9Mp",
+      "value": "1",
+    },
+    {
+      "account": "rYNK7JFGbJhkX8HhT4zw1LJ1Yiu3aa9Mp",
+      "after": "0",
+      "currency": "594F494E4B000000000000000000000000000000",
+      "issuer": "rYNKrtQaf3vUVWVK5sw9rJdPGDLbxZu89",
+      "value": "-1",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rYNKrtQaf3vUVWVK5sw9rJdPGDLbxZu89",
+      "change": "modified",
+      "index": "1195CF5B88E3401F8397F2753AB50334C4FFD01B7DD84FF708D21B7A93A3DDAC",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "7A35D7421AD9301CCEF56B3C9DC80570F3DFE7912A6C09CF397150D3B7F6E5B4",
+      "type": "RippleState",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt clawback_partial 5F279C8E57CEA1A0F3E017155E7C4EBFDBC8B458F68E35BE93CAD122FF82035E 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rNd7q6Wn8hV8Wm6GBhbgSxiibHU2VVFxDF",
+      "currency": "0668F12B957FD962BCEBF31F92169C7F6D25271F5D64869C",
+      "mpt": true,
+      "value": "1000000",
+    },
+    {
+      "account": "rMGADLtve6nS9kg7bqX6Na2S22wSNT1wx4",
+      "after": "3000000",
+      "currency": "0668F12B957FD962BCEBF31F92169C7F6D25271F5D64869C",
+      "issuer": "rNd7q6Wn8hV8Wm6GBhbgSxiibHU2VVFxDF",
+      "mpt": true,
+      "value": "-1000000",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rNd7q6Wn8hV8Wm6GBhbgSxiibHU2VVFxDF",
+      "change": "modified",
+      "index": "2896E1C1C14DF4EE0D5007CFDFEB325ADDAA319768FA68F85ECBBE57BF60067D",
+      "mpt": "0668F12B957FD962BCEBF31F92169C7F6D25271F5D64869C",
+      "type": "MPTokenIssuance",
+    },
+    {
+      "account": "rNd7q6Wn8hV8Wm6GBhbgSxiibHU2VVFxDF",
+      "change": "modified",
+      "index": "6880F8D0299ACDC2BFDBAD3611F492EB5AAA278D490B605E8DB28C1B84720E55",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rMGADLtve6nS9kg7bqX6Na2S22wSNT1wx4",
+      "change": "modified",
+      "index": "A999535B5B16E85E650A3CAA7A420D5167742FD95C4D1011172577D26D69FCF9",
+      "mpt": "0668F12B957FD962BCEBF31F92169C7F6D25271F5D64869C",
+      "type": "MPToken",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt escrow_create 4DFC30E6EE88AF6CE5718368A5F599158809E05584AF86C2E8E8101229A50523 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rw4tVZXoDHcVm2frmxXJra3EoxHDjp4US4",
+      "after": "7.99999",
+      "currency": "XRP",
+      "value": "-0.00001",
+    },
+    {
+      "account": "rw4tVZXoDHcVm2frmxXJra3EoxHDjp4US4",
+      "after": "677146",
+      "currency": "0663EB64E8DDA74A98C6C70B740E67C7A2D1509EE78C163A",
+      "issuer": "r4NHJEz1w7iXckeExjmFG1RxEcFDgBFgN8",
+      "mpt": true,
+      "value": "-277073",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rw4tVZXoDHcVm2frmxXJra3EoxHDjp4US4",
+      "change": "modified",
+      "index": "24E9A815F5B976FECCD05182F1EB79343386B31609B80967B61DE29CE871A01B",
+      "mpt": "0663EB64E8DDA74A98C6C70B740E67C7A2D1509EE78C163A",
+      "type": "MPToken",
+    },
+    {
+      "change": "modified",
+      "index": "4474FB6856472E2AA72B9C2A123BA11294CAC5E2F6E64D7730DAE8C76E0C09CC",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rBoJ7MWPXiejVbqCRhiVgGcaXAHXVstCD4",
+      "change": "modified",
+      "index": "4B40F400FD48C903030E92AFFCA4C5671EAFA25BF4888AA2A1F9DD542692B879",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rw4tVZXoDHcVm2frmxXJra3EoxHDjp4US4",
+      "change": "modified",
+      "index": "73476BE359C1C48C4CA671B2C340C006EC7DD72F6C17EAD52E220003D15CC576",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "r4NHJEz1w7iXckeExjmFG1RxEcFDgBFgN8",
+      "change": "modified",
+      "index": "AB0AD45D944A582EE7D25BD5321F4B63EF8654F1626C4A06B54A2EA49654C447",
+      "mpt": "0663EB64E8DDA74A98C6C70B740E67C7A2D1509EE78C163A",
+      "type": "MPTokenIssuance",
+    },
+    {
+      "account": "rw4tVZXoDHcVm2frmxXJra3EoxHDjp4US4",
+      "change": "modified",
+      "index": "B38FF894FB0CBE6A2425CB5B1A758C498F05C2B843E90225E035B7B1B3B791B0",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rw4tVZXoDHcVm2frmxXJra3EoxHDjp4US4",
+      "change": "created",
+      "index": "BE2CA8CAB77F1F5298BBA9368632D3D842CD2F40193F8B3A78927242605CD5C3",
+      "type": "Escrow",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt escrow_finish 40D8B7B72377D423DFB41756AD619C15CEC2B61CE7F56A7FD6405F7F8BE080E1 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rBoJ7MWPXiejVbqCRhiVgGcaXAHXVstCD4",
+      "after": "5.99995",
+      "currency": "XRP",
+      "value": "-0.00001",
+    },
+    {
+      "account": "rBoJ7MWPXiejVbqCRhiVgGcaXAHXVstCD4",
+      "after": "277073",
+      "currency": "0663EB64E8DDA74A98C6C70B740E67C7A2D1509EE78C163A",
+      "issuer": "r4NHJEz1w7iXckeExjmFG1RxEcFDgBFgN8",
+      "mpt": true,
+      "value": "277073",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rw4tVZXoDHcVm2frmxXJra3EoxHDjp4US4",
+      "change": "modified",
+      "index": "24E9A815F5B976FECCD05182F1EB79343386B31609B80967B61DE29CE871A01B",
+      "mpt": "0663EB64E8DDA74A98C6C70B740E67C7A2D1509EE78C163A",
+      "type": "MPToken",
+    },
+    {
+      "account": "rBoJ7MWPXiejVbqCRhiVgGcaXAHXVstCD4",
+      "change": "modified",
+      "index": "4474FB6856472E2AA72B9C2A123BA11294CAC5E2F6E64D7730DAE8C76E0C09CC",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rBoJ7MWPXiejVbqCRhiVgGcaXAHXVstCD4",
+      "change": "modified",
+      "index": "4B40F400FD48C903030E92AFFCA4C5671EAFA25BF4888AA2A1F9DD542692B879",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rw4tVZXoDHcVm2frmxXJra3EoxHDjp4US4",
+      "change": "modified",
+      "index": "73476BE359C1C48C4CA671B2C340C006EC7DD72F6C17EAD52E220003D15CC576",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "r4NHJEz1w7iXckeExjmFG1RxEcFDgBFgN8",
+      "change": "modified",
+      "index": "AB0AD45D944A582EE7D25BD5321F4B63EF8654F1626C4A06B54A2EA49654C447",
+      "mpt": "0663EB64E8DDA74A98C6C70B740E67C7A2D1509EE78C163A",
+      "type": "MPTokenIssuance",
+    },
+    {
+      "account": "rw4tVZXoDHcVm2frmxXJra3EoxHDjp4US4",
+      "change": "modified",
+      "index": "B38FF894FB0CBE6A2425CB5B1A758C498F05C2B843E90225E035B7B1B3B791B0",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rw4tVZXoDHcVm2frmxXJra3EoxHDjp4US4",
+      "change": "deleted",
+      "index": "BE2CA8CAB77F1F5298BBA9368632D3D842CD2F40193F8B3A78927242605CD5C3",
+      "type": "Escrow",
+    },
+    {
+      "account": "rBoJ7MWPXiejVbqCRhiVgGcaXAHXVstCD4",
+      "change": "modified",
+      "index": "CD6DC5CFEACC0665ED510D4C15A87EF6DB15B3FFE00EC5AA756B183031B131C6",
+      "mpt": "0663EB64E8DDA74A98C6C70B740E67C7A2D1509EE78C163A",
+      "type": "MPToken",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt issuance_create 68D137B937AE7C6EF558DBDDC307B3BC6FADEB3C2F038DDAA3D36BF93C1FDF9E 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rBEERdzDHqDyYmfw2jqzyMNBZu31yzfg6q",
+      "after": "303.744763",
+      "currency": "XRP",
+      "value": "-0.00001",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rBEERdzDHqDyYmfw2jqzyMNBZu31yzfg6q",
+      "change": "created",
+      "index": "3A34002D881E56712F3A2470949E862720BA1D5170FEE74FF4DF03EC1005A067",
+      "mpt": "03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80",
+      "type": "MPTokenIssuance",
+    },
+    {
+      "account": "rBEERdzDHqDyYmfw2jqzyMNBZu31yzfg6q",
+      "change": "modified",
+      "index": "4F39A0E6E25B376EBB07A36C389FC4446D6B9A7D6A453F33C45EEBB7627C8A4A",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rBEERdzDHqDyYmfw2jqzyMNBZu31yzfg6q",
+      "change": "modified",
+      "index": "587EA6874B939D3F3AB3F0A44437BCB7D82079F6FEFCAD8EC67776C65EDDE44C",
+      "type": "DirectoryNode",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt issuance_create_no_max 3CE646A68D56F2CC959D0207815E368FA7E122A5E61B3810703ADAD8A058AC68 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rLKfWwLeimLe69mrTr3MygNavDxL8tjuUX",
+      "after": "20.592184",
+      "currency": "XRP",
+      "value": "-0.000012",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rLKfWwLeimLe69mrTr3MygNavDxL8tjuUX",
+      "change": "modified",
+      "index": "55CA2AD80AD5FC1A43C4661F10AB1D0AD1E3C413220C67409F9AF50B538E3ADB",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rLKfWwLeimLe69mrTr3MygNavDxL8tjuUX",
+      "change": "created",
+      "index": "9E1B8CF6EE11C84F0E72738BB6370359494AF4F4C04AD297F0906F117ED889B7",
+      "mpt": "05FC5D62D3D74E31D901BBC29F79AAA07911B0274AFA9CE9",
+      "type": "MPTokenIssuance",
+    },
+    {
+      "account": "rLKfWwLeimLe69mrTr3MygNavDxL8tjuUX",
+      "change": "modified",
+      "index": "A4BA8F32DF79A4D56B31564C1DF9400DC21A9E5DCC5F986C175C0D201DF10B86",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt issuance_create_raw_metadata 542F24F494DF60DA2A5929897FE852221045C0FB6CB028B9D15CCE01BB6AA1FC 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rNX4faQ35SdtE4rDoEg8YeVLQKQ57AYyCt",
+      "after": "4.999965",
+      "currency": "XRP",
+      "value": "-0.000012",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rNX4faQ35SdtE4rDoEg8YeVLQKQ57AYyCt",
+      "change": "modified",
+      "index": "7737F72B44FAC3A6D0F528658E8C9A587F3DC53156DB158565A507D84300E13D",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rNX4faQ35SdtE4rDoEg8YeVLQKQ57AYyCt",
+      "change": "created",
+      "index": "F38A0B45EA3794198614BDD04D679C6DEEFEC4D3D6F687068F3291777E4171AD",
+      "mpt": "0630D1509457BB4DAC6428F49FDC6CDE60AF0E07BA7A3733",
+      "type": "MPTokenIssuance",
+    },
+    {
+      "account": "rNX4faQ35SdtE4rDoEg8YeVLQKQ57AYyCt",
+      "change": "modified",
+      "index": "FBC83C026590F401AC949F1B034B6EF591989B8DBD44C7789139C2B2715716E2",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt issuance_create_short_keys B95BDC99AF0F038B7B60FC60BE5C70BCD87F5182C68E6BF97F996739E6CEAEA1 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rLFUzo23kPsxeMfJ8FPixizEREUhNVf66g",
+      "after": "6.199967",
+      "currency": "XRP",
+      "value": "-0.000012",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rLFUzo23kPsxeMfJ8FPixizEREUhNVf66g",
+      "change": "created",
+      "index": "2FFEDE88DB99CD27F36F4CEC94D0338E6F89E1FA6A7FBAC3B81A6227F7B95E48",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rLFUzo23kPsxeMfJ8FPixizEREUhNVf66g",
+      "change": "created",
+      "index": "8E25631A5DB470447953C54EB2BA26973F24722F7E39BBC55661CDF50E423287",
+      "mpt": "05AC2E9BD957F450A34D46B9F70983D04DB415D20EC3A1DF",
+      "type": "MPTokenIssuance",
+    },
+    {
+      "account": "rLFUzo23kPsxeMfJ8FPixizEREUhNVf66g",
+      "change": "modified",
+      "index": "D372D292FD3921EB47BCE82F1BE43CC1920BD3A5314B39E9F2459C16AC4BFF27",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt issuance_destroy 9E8E4942CB82D3BAF55E3873D297C5B2241ED251AFE8B186DB9FDA42279D4A8B 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "after": "13.199364",
+      "currency": "XRP",
+      "value": "-0.00004",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "change": "deleted",
+      "index": "04C1B4D56A3FC2D58A719B710E73B9E02E39F4469D6B6538EAE3F963E4795B57",
+      "mpt": "064E273A6D15D1F5614B4D4E3183F835BCD62E7F6FD9FFD8",
+      "type": "MPTokenIssuance",
+    },
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "change": "modified",
+      "index": "16A729DEA951BB43F5E8419BA499926C7F2524FA9887BDDFE69FBEF37B576519",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "change": "modified",
+      "index": "6C4EA30D40453DB3A5193488BB11F724ACC7FB2C695C03A2B1BE5711CE0A6658",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "change": "deleted",
+      "index": "7891DABEC6CC749347B455955CF1C36428A3DDFF27907A4076DCE1A211471F3B",
+      "type": "Ticket",
+    },
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "change": "modified",
+      "index": "9423771F1224B31AE8A9AECDF97F5BD7750E6676E53FD85E53EA839F0471F37D",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt issuance_set_lock_all 5DB41F975E3AC04DD4AE9E93764AFBBABB0E4C7322B2D6F2E84B253FAA170BF3 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rNFta7UKwcoiCpxEYbhH2v92numE3cceB6",
+      "after": "4.085926",
+      "currency": "XRP",
+      "value": "-0.00001",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rNFta7UKwcoiCpxEYbhH2v92numE3cceB6",
+      "change": "modified",
+      "index": "046826B9A5403AB04605D1F9DA6A4766E4E11F7F647F4B93F1A46BFC750C95D6",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rNFta7UKwcoiCpxEYbhH2v92numE3cceB6",
+      "change": "modified",
+      "index": "D3A8AF38D098F89AC179070DCFCB602B5E8A87E6F7B8457941DC97A59B50AFE8",
+      "mpt": "05EECEBE97A7D635DE2393068691A015FED5A89AD203F5AA",
+      "type": "MPTokenIssuance",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt issuance_set_lock_holder C166A16A2188E5BBD9EE2D73BEE9798515027FF894F5FBA91FA01BE5819F8EC3 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rJgwiVNzEEgtXngyi4bhSVkVLhWWu7UqfS",
+      "after": "9.99994",
+      "currency": "XRP",
+      "value": "-0.00001",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rJgwiVNzEEgtXngyi4bhSVkVLhWWu7UqfS",
+      "change": "modified",
+      "index": "A6AE81480F09F998DFC0386FACA9ADC4AE473EE421718B5CBFDCDBA1FE3050C5",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rBoJ7MWPXiejVbqCRhiVgGcaXAHXVstCD4",
+      "change": "modified",
+      "index": "A869B9DBED88239AF17368158130BB29E1D2A4FD537D43E225F6DD2DF8AFB774",
+      "mpt": "0663EACAC1E295FCE4BA9E9ECD5EC0E84C5089AEE6B00E65",
+      "type": "MPToken",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt issuance_set_unlock_holder 90094A7658143819679C7D81FC282F4BD47C2F64FDDAA6D03B40A02002E36EB5 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rJgwiVNzEEgtXngyi4bhSVkVLhWWu7UqfS",
+      "after": "9.99993",
+      "currency": "XRP",
+      "value": "-0.00001",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rJgwiVNzEEgtXngyi4bhSVkVLhWWu7UqfS",
+      "change": "modified",
+      "index": "A6AE81480F09F998DFC0386FACA9ADC4AE473EE421718B5CBFDCDBA1FE3050C5",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rBoJ7MWPXiejVbqCRhiVgGcaXAHXVstCD4",
+      "change": "modified",
+      "index": "A869B9DBED88239AF17368158130BB29E1D2A4FD537D43E225F6DD2DF8AFB774",
+      "mpt": "0663EACAC1E295FCE4BA9E9ECD5EC0E84C5089AEE6B00E65",
+      "type": "MPToken",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt payment_before_delivered_fix 9219729CC7AF29AB5BC67EF94BAA9A818A4F0D60711E50BC06E11919C0DE7C58 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rE9v7U5cQQAuvtYKgyFPpqc719a1MH4SNP",
+      "after": "2.549976",
+      "currency": "XRP",
+      "value": "-0.000012",
+    },
+    {
+      "account": "rE9v7U5cQQAuvtYKgyFPpqc719a1MH4SNP",
+      "currency": "060CA3E09B41B8EB574622BE0CDA7BB12D05EB50B60C8EF5",
+      "mpt": true,
+      "value": "-1",
+    },
+    {
+      "account": "rGxUbYEHnmiJ55e5hKuJ9m7dthdJHSx5vz",
+      "after": "1",
+      "currency": "060CA3E09B41B8EB574622BE0CDA7BB12D05EB50B60C8EF5",
+      "issuer": "rE9v7U5cQQAuvtYKgyFPpqc719a1MH4SNP",
+      "mpt": true,
+      "value": "1",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rE9v7U5cQQAuvtYKgyFPpqc719a1MH4SNP",
+      "change": "modified",
+      "index": "905FF72BB17369F96E29FF2C152C41E50982C30345202349129BF74D67AC40CD",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rE9v7U5cQQAuvtYKgyFPpqc719a1MH4SNP",
+      "change": "modified",
+      "index": "955D4DD6A680861862921AFB7BE4D0A7645562C0E1181E170D36414C4185A07C",
+      "mpt": "060CA3E09B41B8EB574622BE0CDA7BB12D05EB50B60C8EF5",
+      "type": "MPTokenIssuance",
+    },
+    {
+      "account": "rGxUbYEHnmiJ55e5hKuJ9m7dthdJHSx5vz",
+      "change": "modified",
+      "index": "D68EECA66FEB7900662F47B1B7A7B402E8881B065535644CC22244CD69E05846",
+      "mpt": "060CA3E09B41B8EB574622BE0CDA7BB12D05EB50B60C8EF5",
+      "type": "MPToken",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt payment_failed F7B0BE5AA088F02BCC6F15BF3B58D37153FB041D8C5E5A29F126BBB1738DD87D 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "after": "13.199684",
+      "currency": "XRP",
+      "value": "-0.00004",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "change": "modified",
+      "index": "9423771F1224B31AE8A9AECDF97F5BD7750E6676E53FD85E53EA839F0471F37D",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt payment_holder_to_holder B0180041927546FF6673C8A678289647CD461557F7B956848F33FEED0F799D0F 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rD9nGmG8wVwguyZcz8rLT4d2MZ1EyFGDSS",
+      "after": "1.999848",
+      "currency": "XRP",
+      "value": "-0.000012",
+    },
+    {
+      "account": "rD9nGmG8wVwguyZcz8rLT4d2MZ1EyFGDSS",
+      "after": "0",
+      "currency": "063AD9F575D20B5318CEE1E1ED7891C54A983F23C47481C1",
+      "issuer": "rBjyg2GWvXnGaxfWKLoyaTFqpFABD4MkTd",
+      "mpt": true,
+      "value": "-100000",
+    },
+    {
+      "account": "rEPrn4DbXvHNBDJghQWUf92NzLU3MURFC3",
+      "after": "56327452",
+      "currency": "063AD9F575D20B5318CEE1E1ED7891C54A983F23C47481C1",
+      "issuer": "rBjyg2GWvXnGaxfWKLoyaTFqpFABD4MkTd",
+      "mpt": true,
+      "value": "100000",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rD9nGmG8wVwguyZcz8rLT4d2MZ1EyFGDSS",
+      "change": "modified",
+      "index": "127F886F7F3B493BD87D30633481C27EFB7FC9924B90FC23D05166252F2040DB",
+      "mpt": "063AD9F575D20B5318CEE1E1ED7891C54A983F23C47481C1",
+      "type": "MPToken",
+    },
+    {
+      "account": "rD9nGmG8wVwguyZcz8rLT4d2MZ1EyFGDSS",
+      "change": "modified",
+      "index": "515040C1657FC240FAE44E8092124C7B60C28DDE5EEDD3C8BD1E3E8F25F2ED0D",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rEPrn4DbXvHNBDJghQWUf92NzLU3MURFC3",
+      "change": "modified",
+      "index": "FC8875DD52D57C6E1719377A77340A07713B4747814E323E7DB8CCEDD89D3CE9",
+      "mpt": "063AD9F575D20B5318CEE1E1ED7891C54A983F23C47481C1",
+      "type": "MPToken",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt payment_mint 4D9BB2A0B0289D36A995B10AB17D5BE9B19E961B777AFDE29D84CC59384E74F6 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "after": "13.199564",
+      "currency": "XRP",
+      "value": "-0.00004",
+    },
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "currency": "064E273A6D15D1F5614B4D4E3183F835BCD62E7F6FD9FFD8",
+      "mpt": true,
+      "value": "-1",
+    },
+    {
+      "account": "rMNysCkYEX9L3SrSPqavVVXYFT2v5CEVpo",
+      "after": "1",
+      "currency": "064E273A6D15D1F5614B4D4E3183F835BCD62E7F6FD9FFD8",
+      "issuer": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "mpt": true,
+      "value": "1",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "change": "modified",
+      "index": "04C1B4D56A3FC2D58A719B710E73B9E02E39F4469D6B6538EAE3F963E4795B57",
+      "mpt": "064E273A6D15D1F5614B4D4E3183F835BCD62E7F6FD9FFD8",
+      "type": "MPTokenIssuance",
+    },
+    {
+      "account": "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR",
+      "change": "modified",
+      "index": "9423771F1224B31AE8A9AECDF97F5BD7750E6676E53FD85E53EA839F0471F37D",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rMNysCkYEX9L3SrSPqavVVXYFT2v5CEVpo",
+      "change": "modified",
+      "index": "BE84C4D26B1756BEFEE40029642F334EA7CF892FF51E147A2A5519866DBEDFC8",
+      "mpt": "064E273A6D15D1F5614B4D4E3183F835BCD62E7F6FD9FFD8",
+      "type": "MPToken",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt payment_redeem 21B46565FD7B5D609EF6C1B36598608C4F3809E5F9774C2F34C403E305A8295A 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rG4w2E3eHBiJvBSmjwBbJHi7FrCdowtDNd",
+      "after": "14.399761",
+      "currency": "XRP",
+      "value": "-0.000012",
+    },
+    {
+      "account": "rG4w2E3eHBiJvBSmjwBbJHi7FrCdowtDNd",
+      "after": "0",
+      "currency": "0631375471048C4D35D2044917EE3C26F60E6CA8FC954A71",
+      "issuer": "rBJ2ogWEZvsxkuK7aV4k6H9VAto7k2SsH9",
+      "mpt": true,
+      "value": "-1",
+    },
+    {
+      "account": "rBJ2ogWEZvsxkuK7aV4k6H9VAto7k2SsH9",
+      "currency": "0631375471048C4D35D2044917EE3C26F60E6CA8FC954A71",
+      "mpt": true,
+      "value": "1",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rG4w2E3eHBiJvBSmjwBbJHi7FrCdowtDNd",
+      "change": "modified",
+      "index": "5FFF74C59DBC7198330621F987D32260F56AE2E84A085F98201EF9AF569BE44D",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rBJ2ogWEZvsxkuK7aV4k6H9VAto7k2SsH9",
+      "change": "modified",
+      "index": "A2FC64E2248E68777314450E5B2165134603CE373A6850B04F18086642973DAC",
+      "mpt": "0631375471048C4D35D2044917EE3C26F60E6CA8FC954A71",
+      "type": "MPTokenIssuance",
+    },
+    {
+      "account": "rG4w2E3eHBiJvBSmjwBbJHi7FrCdowtDNd",
+      "change": "modified",
+      "index": "D6431B39AFE5B3E21DBEC7191C4DF50DA5151B1EF875F18DA11D8ADE119AFEAC",
+      "mpt": "0631375471048C4D35D2044917EE3C26F60E6CA8FC954A71",
+      "type": "MPToken",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt payment_transfer_fee 80C74925827B059CA14F2C7C4E01F8DE37C5502648CE20DE90B35827E73D503E 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rMPTejgDkDqy92EkAhBo6u7RRPFRfH6MCR",
+      "after": "4.999533",
+      "currency": "XRP",
+      "value": "-0.000012",
+    },
+    {
+      "account": "rMPTejgDkDqy92EkAhBo6u7RRPFRfH6MCR",
+      "after": "199999997994097",
+      "currency": "0598F6E09E30A809E63A1F02DE789586D2F4FDA9EF5200E3",
+      "issuer": "rERShrtUSEXkrwtTpugPV4v8E787vpx1kb",
+      "mpt": true,
+      "value": "-1005890",
+    },
+    {
+      "account": "rERShrtUSEXkrwtTpugPV4v8E787vpx1kb",
+      "currency": "0598F6E09E30A809E63A1F02DE789586D2F4FDA9EF5200E3",
+      "mpt": true,
+      "value": "5890",
+    },
+    {
+      "account": "rKSg2VZbw9gRRuSwBjBFAfBoGC5Vs1FmFn",
+      "after": "1000013",
+      "currency": "0598F6E09E30A809E63A1F02DE789586D2F4FDA9EF5200E3",
+      "issuer": "rERShrtUSEXkrwtTpugPV4v8E787vpx1kb",
+      "mpt": true,
+      "value": "1000000",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rMPTejgDkDqy92EkAhBo6u7RRPFRfH6MCR",
+      "change": "modified",
+      "index": "38B604B0C8BB534BFC479B5390C6569201A7726A070C3D836B53EDF7B4BA29DB",
+      "mpt": "0598F6E09E30A809E63A1F02DE789586D2F4FDA9EF5200E3",
+      "type": "MPToken",
+    },
+    {
+      "account": "rERShrtUSEXkrwtTpugPV4v8E787vpx1kb",
+      "change": "modified",
+      "index": "6ED3994A5CA2C75FD1A45E2A3C27B9154829E4AF8C164EAC372EB22B13714084",
+      "mpt": "0598F6E09E30A809E63A1F02DE789586D2F4FDA9EF5200E3",
+      "type": "MPTokenIssuance",
+    },
+    {
+      "account": "rKSg2VZbw9gRRuSwBjBFAfBoGC5Vs1FmFn",
+      "change": "modified",
+      "index": "C93C22633A8930BB9BB3C25834496F6A9EEA83E4C6D01BD572EFC8DF36DB8B2B",
+      "mpt": "0598F6E09E30A809E63A1F02DE789586D2F4FDA9EF5200E3",
+      "type": "MPToken",
+    },
+    {
+      "account": "rMPTejgDkDqy92EkAhBo6u7RRPFRfH6MCR",
+      "change": "modified",
+      "index": "DD05ADDFF8AD81FCC0497675640EB14FECCE7E726FFC0063C06F91BBCF5C765D",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded MPT transactions, parsed > xrpl-mpt unauthorize_holder 7ED410EEF5D92F11831E41A464203F78945EF632B687928129E74FCA24F155EE 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rMNysCkYEX9L3SrSPqavVVXYFT2v5CEVpo",
+      "after": "2.999802",
+      "currency": "XRP",
+      "value": "-0.00004",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rMNysCkYEX9L3SrSPqavVVXYFT2v5CEVpo",
+      "change": "modified",
+      "index": "30EC541E2F34128E7BB8FE89F95027AF6FB2C6C16EEA21F700470FC05F29FD15",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rMNysCkYEX9L3SrSPqavVVXYFT2v5CEVpo",
+      "change": "modified",
+      "index": "A27928A278A252AA5EC1B8A1AABA895EEA61E5A97AB38239587127DAD854B704",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rMNysCkYEX9L3SrSPqavVVXYFT2v5CEVpo",
+      "change": "deleted",
+      "index": "BE84C4D26B1756BEFEE40029642F334EA7CF892FF51E147A2A5519866DBEDFC8",
+      "mpt": "064E273A6D15D1F5614B4D4E3183F835BCD62E7F6FD9FFD8",
+      "type": "MPToken",
+    },
+  ],
+}
+`;
+
 exports[`the recorded transactions, parsed > xahau ClaimReward 3A1F25CDF0E2E4466AA0B019EA3039A6E5F87C01FBDD69CBDC474DAC32D8E64C 1`] = `
 {
   "accountsCreated": [],

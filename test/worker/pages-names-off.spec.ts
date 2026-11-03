@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
 import { FEATURE_VARS } from "../../app/ui/features";
+import { MPT_FIXTURE_IDS } from "../support/mpt-case-rules";
 import { dataUrlOf, expectDrawn, expectNoNames, namesOffSpec, namesPartOf } from "../support/names";
 import { collectionCase, nftCase } from "../support/nft-cases";
 import { objectCase } from "../support/object-cases";
@@ -9,7 +10,7 @@ import { textOf } from "../support/pages";
 import { validatorCase } from "../support/validators-cases";
 
 // The pages that another switch gates, with only `NAMES` off (display names spec 2.2 and 6.1; global constraints): the account's Analytics view, NFTs tab and Delegation tab, the markets and a pair, the AMM
-// list and a pool, a swap through it, the validators, the NFT pages, an escrow, a check, a payment channel, the token list, a token and its holders. They make no `account_names` request and no toml request, whatever they hold that a name could be made of, and draw no
+// list and a pool, a swap through it, the validators, the NFT pages, an escrow, a check, a payment channel, the token list and its MPT tab, a token and its holders. They make no `account_names` request and no toml request, whatever they hold that a name could be made of, and draw no
 // name or mark (no `acct__name`). The `worker-off` project (names-off.spec.ts) has every switch off, where each of these is a 404 or a redirect before any call, and "no names request" of a
 // 404 says nothing; the `worker-names-off` project (vitest.config.ts) has every switch on but this one, so that each page is there. Each page also says what a name would have been made
 // of: an account the fixtures name that it links, or a short address it draws (the tables that write an issuer as text). What the two files check of each page, and their setup, are
@@ -33,6 +34,8 @@ const ESCROW = await objectCase("xrpl", "escrow-finished");
 /** A check whose destination the fixtures name, and a payment channel whose source they name. */
 const CHECK = await objectCase("xrpl", "check-expired");
 const CHANNEL = await objectCase("xrpl", "channel-closing");
+/** An MPT issuance the fixtures give holders and transfers: no address of it is named, so the page draws short addresses. */
+const MPT = MPT_FIXTURE_IDS.htf;
 
 /** What a page that names nothing says for itself when it links no account the fixtures name: a short address it draws. */
 const SHORT_ADDRESS = /\br[1-9A-HJ-NP-Za-km-z]{5}…[1-9A-HJ-NP-Za-km-z]{4}\b/;
@@ -69,10 +72,14 @@ describe("the pages the other switches gate", () => {
     ["a payment channel", "xrpl", `/xrpl/payment-channels/${CHANNEL.id}`, "linked"],
     ["the token list", "xrpl", "/xrpl/tokens", "linked"],
     ["the Xahau token list", "xahau", "/xahau/tokens", "linked"],
+    ["the MPT tab of the token list", "xrpl", "/xrpl/tokens?kind=mpt", "short"],
     ["a token", "xrpl", `/xrpl/token/RLUSD.${RLUSD_ISSUER}`, "linked"],
     ["a Xahau token", "xahau", `/xahau/token/EVR.${EVR_ISSUER}`, "linked"],
     ["the holders of a token", "xrpl", `/xrpl/token/RLUSD.${RLUSD_ISSUER}/holders`, "linked"],
     ["the holders of a Xahau token", "xahau", `/xahau/token/EVR.${EVR_ISSUER}/holders`, "linked"],
+    ["an MPT", "xrpl", `/xrpl/mpt/${MPT}`, "short"],
+    ["the holders of an MPT", "xrpl", `/xrpl/mpt/${MPT}/holders`, "short"],
+    ["the transfers of an MPT", "xrpl", `/xrpl/mpt/${MPT}/transfers`, "short"],
   ] as const)("draws %s by addresses, with the page there, and asks for no name and no toml", async (_, net, path, says) => {
     const mock = upstream(net);
     const { response, html } = await serve(path);

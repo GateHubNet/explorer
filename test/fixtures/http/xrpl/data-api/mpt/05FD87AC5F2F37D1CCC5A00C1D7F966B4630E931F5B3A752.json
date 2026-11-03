@@ -1,0 +1,41 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 99226369,
+    "complete": true
+  },
+  "issuance": {
+    "mpt_issuance_id": "05FD87AC5F2F37D1CCC5A00C1D7F966B4630E931F5B3A752",
+    "issuer": "r9gHkzVKwE3NcJzNZCYUpDHXXDqokhTEWr",
+    "sequence": 100501420,
+    "ticker": "OLDG",
+    "name": "Old Gilt Note",
+    "asset_scale": 2,
+    "outstanding_amount": "0",
+    "escrowed_amount": "0",
+    "locked_amount": "0",
+    "locked_holders": 0,
+    "holders": 0,
+    "transfer_fee": 0,
+    "flags": {
+      "locked": false,
+      "can_lock": false,
+      "require_auth": false,
+      "can_escrow": false,
+      "can_trade": false,
+      "can_transfer": true,
+      "can_clawback": false
+    },
+    "metadata": {
+      "ticker": "OLDG",
+      "name": "Old Gilt Note",
+      "icon": "https://oldgilt.example/icon.png",
+      "asset_class": "defi",
+      "issuer_name": "Old Gilt Ltd"
+    },
+    "metadata_hex": "7B227469636B6572223A224F4C4447222C226E616D65223A224F6C642047696C74204E6F7465222C2269636F6E223A2268747470733A2F2F6F6C6467696C742E6578616D706C652F69636F6E2E706E67222C2261737365745F636C617373223A2264656669222C226973737565725F6E616D65223A224F6C642047696C74204C7464227D",
+    "metadata_conforms": true,
+    "last_ledger": 107721455,
+    "destroyed": true
+  }
+}

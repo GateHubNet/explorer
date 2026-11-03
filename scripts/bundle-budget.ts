@@ -4,7 +4,7 @@
 // with `process.argv[1]`; through a link they differ, and it then printed nothing and exited 0.) The check fails when
 //
 //   - the JavaScript a page loads first, gzipped, is over the page's budget (`BUDGETS`, ruling R19): 150 KB on the home, ledger, transaction,
-//     account, markets, NFT older sales, NFT, escrow, check, token list, token and token holders pages, 160 KB on the network, market pair, validators, validator, amendments, amendment,
+//     account, markets, NFT older sales, NFT, escrow, check, token list, token, token holders and the MPT, MPT holders and MPT transfers pages, 160 KB on the network, market pair, validators, validator, amendments, amendment,
 //     AMM pools, AMM pool, NFT list, NFT collection, payment channel and supply pages (the route manifest is in it: see below);
 //   - the analytics view of the account page loads more than 160 KB of JavaScript, gzipped, in all (spec 5, gate 2): the account route's first
 //     load, the chunk of the view that its `import()` names (`ANALYTICS_VIEW`), and the files that chunk imports statically, followed from file
@@ -68,6 +68,9 @@ export const PAGES = [
   { name: "token", route: "routes/net.token.$token", budget: "lookup" },
   { name: "token-holders", route: "routes/net.token.$token.holders", budget: "lookup" },
   { name: "supply", route: "routes/net.supply", budget: "dashboard" },
+  { name: "mpt", route: "routes/net.mpt.$id", budget: "lookup" },
+  { name: "mpt-holders", route: "routes/net.mpt.$id.holders", budget: "lookup" },
+  { name: "mpt-transfers", route: "routes/net.mpt.$id.transfers", budget: "lookup" },
 ] as const satisfies ReadonlyArray<{ name: string; route: string; budget: BudgetName }>;
 
 /**

@@ -1,12 +1,15 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import { loadManifest, loadTx } from "../../test/support/ledgers";
+import { MPT_FEE_PAYMENT_ISSUANCE, MPT_FIXTURE_IDS, MPT_MINT_ISSUANCE } from "../../test/support/mpt-case-rules";
 import { objectCase } from "../../test/support/object-cases";
 import { encodeCtid } from "../domain/ctid";
 import { dropsToNative, shortAddress, shortHash } from "../domain/format";
 import { shortNftId } from "../domain/nft-params";
 import type { TxJson, TxMeta } from "../domain/parse/types";
-import type { TxBinary, TxObject, TxStoredJson } from "./api-types";
+import type { MptSummary, TxBinary, TxObject, TxStoredJson } from "./api-types";
+import { mptAmountsOf, type MptLookupResult } from "./mpt-view";
 import type { NodeTx } from "./node-rpc";
 import {
   binaryOf,
@@ -16,6 +19,7 @@ import {
   transactionPage,
   txFromIndex,
   txFromNode,
+  withMpt,
   type TransactionPageData,
   type TransactionSource,
 } from "./transaction-view";
@@ -155,6 +159,138 @@ describe("plainText", () => {
         { t: "text", v: " AMM pool." },
       ]),
     ).toBe(`${shortAddress("rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh")} paid 1,250.5 RLUSD through the XRP/RLUSD AMM pool.`);
+  });
+});
+
+describe("plainText with an MPT", () => {
+  const ID = "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8";
+  const issuer = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+
+  it("writes an MPT amount in the words of `MptAmount` (units, grouped, and the start of the ID) and a reference to an issuance as 'MPT ' and the start of the ID", () => {
+    expect(plainText([{ t: "text", v: "locked " }, { t: "mpt", id: ID, issuer, units: "2500000" }, { t: "text", v: " of the " }, { t: "mpt", id: ID, issuer }])).toBe(
+      "locked 2,500,000 units of MPT 0000012A… of the MPT 0000012A…",
+    );
+  });
+});
+
+describe("plainText with a scaled MPT", () => {
+  const ID = "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8";
+  const issuer = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+
+  it("writes the scaled value and the ticker, 'units' when the issuance has none, and a reference as its ticker", () => {
+    expect(
+      plainText([
+        { t: "mpt", id: ID, issuer, units: "2500000", value: "25000.00", ticker: "HTF" },
+        { t: "text", v: ", " },
+        { t: "mpt", id: ID, issuer, units: "2500000", value: "25000.00" },
+        { t: "text", v: ", the " },
+        { t: "mpt", id: ID, issuer, ticker: "HTF" },
+      ]),
+    ).toBe("25,000.00 HTF, 25,000.00 units, the HTF");
+  });
+
+  it("keeps the units when there is a ticker and no value (a scale above 19)", () => {
+    expect(plainText([{ t: "mpt", id: ID, issuer, units: "2500000", ticker: "HTF" }])).toBe("2,500,000 units of MPT 0000012A…");
+  });
+});
+
+describe("the MPT amounts of a transaction page", () => {
+  const MANIFEST = loadManifest("xrpl-mpt");
+  const source = (name: string): TransactionSource => {
+    const { hash } = MANIFEST.cases[name] as { hash: string };
+    const { tx, meta, ledgerIndex, closeTime } = loadTx("xrpl-mpt", hash);
+    return { origin: "index", hash, ledgerIndex, closeTime: closeTime + 946_684_800, tx, meta };
+  };
+  const mptPage = (name: string) => transactionPage(source(name), { network: XRPL, neighbours: null, binary: { state: "pending" } });
+
+  const summary = (id: string, over: Partial<MptSummary> = {}): MptSummary => ({
+    mpt_issuance_id: id,
+    issuer: "rIssuer",
+    ticker: "FEE",
+    asset_scale: 6,
+    outstanding_amount: "1",
+    holders: 2,
+    transfer_fee: 0,
+    flags: { locked: false, can_lock: false, require_auth: false, can_escrow: false, can_trade: false, can_transfer: true, can_clawback: false },
+    destroyed: false,
+    ...over,
+  });
+  const answer = (...entries: Array<MptSummary | { mpt_issuance_id: string }>): MptLookupResult => ({ state: "ok", map: new Map(entries.map((entry) => [entry.mpt_issuance_id, entry])) });
+
+  it("tags the issuer's row 'issuer', also when the issuer sent the transaction, and the holder's by what it was in it", () => {
+    const mint = mptPage("payment_mint");
+    const mpt = mint.changes.filter((change) => change.mpt);
+    expect(mpt.map((change) => [change.role, change.issuer === undefined])).toEqual([
+      ["issuer", true],
+      ["destination", false],
+    ]);
+    // The same account's XRP row (the fee) is still the sender's.
+    expect(mint.changes.filter((change) => !change.mpt).map((change) => change.role)).toEqual(["sender"]);
+    expect(mptPage("payment_transfer_fee").changes.filter((change) => change.mpt).map((change) => change.role)).toEqual(["sender", "issuer", "destination"]);
+  });
+
+  it("collects the issuance IDs of the sentence, the flow, the balance changes and the touched objects: one for a payment", () => {
+    expect(mptAmountsOf(mptPage("payment_transfer_fee"))).toEqual([MPT_FEE_PAYMENT_ISSUANCE]);
+    expect(mptAmountsOf(mptPage("payment_mint"))).toEqual([MPT_MINT_ISSUANCE]);
+  });
+
+  it("fills the sentence, the flow, the balance changes and the objects, and the summary with them", () => {
+    const draft = mptPage("payment_transfer_fee");
+    expect(draft.summary).toContain("1,000,000 units of MPT 0598F6E0…");
+    const { page: filled, unresolved } = withMpt(draft, answer(summary(MPT_FEE_PAYMENT_ISSUANCE)));
+    expect(unresolved).toBe(false);
+    expect(filled.summary).toBe(draft.summary.replace("1,000,000 units of MPT 0598F6E0…", "1.000000 FEE"));
+    expect(filled.sentence).toContainEqual(expect.objectContaining({ t: "mpt", units: "1000000", value: "1.000000", ticker: "FEE" }));
+    expect(filled.flow?.at(-1)?.amount).toMatchObject({ units: "1000000", value: "1.000000", ticker: "FEE" });
+    const fee = filled.changes.filter((change) => change.mpt);
+    expect(fee.map((change) => [change.value, change.scaled, change.ticker])).toEqual([
+      ["-1005890", "-1.005890", "FEE"],
+      ["5890", "0.005890", "FEE"],
+      ["1000000", "1.000000", "FEE"],
+    ]);
+    expect(fee[0]!.scaledAfter).toBe("199999997.994097");
+    expect(filled.objects.filter((object) => object.mpt).map((object) => object.ticker)).toEqual(["FEE", "FEE", "FEE"]);
+    // The page's own data is not changed, and what is not an MPT amount is as it was.
+    expect(draft.changes.some((change) => change.scaled !== undefined)).toBe(false);
+    expect(filled.raw).toEqual(draft.raw);
+    expect(filled.fee).toBe(draft.fee);
+  });
+
+  // The whole-branch review's I1: an issuer's ticker of U+202E and "DSU" turned the rest of the sentence's paragraph, the destination address among it. The ticker is read without its bidi controls where
+  // `resolveMpt` fills it, so the sentence, the summary (the description of the page) and the rest of the page's data hold none.
+  it("keeps the destination of a payment's sentence in reading order when the issuer's ticker holds a bidi override", () => {
+    const draft = mptPage("payment_transfer_fee");
+    const { page: filled } = withMpt(draft, answer(summary(MPT_FEE_PAYMENT_ISSUANCE, { ticker: "‮DSU" })));
+    expect(filled.sentence).toContainEqual(expect.objectContaining({ t: "mpt", units: "1000000", value: "1.000000", ticker: "DSU" }));
+    expect(filled.summary).toBe(draft.summary.replace("1,000,000 units of MPT 0598F6E0…", "1.000000 DSU"));
+    expect(filled.summary).toMatch(/1\.000000 DSU to /);
+    expect(JSON.stringify([filled.sentence, filled.summary, filled.changes, filled.objects])).not.toMatch(/[؜‎‏‪-‮⁦-⁩]/);
+  });
+
+  it("keeps the class only when every ID was answered with a scale", () => {
+    const draft = mptPage("payment_transfer_fee");
+    const scaled = withMpt(draft, answer(summary(MPT_FEE_PAYMENT_ISSUANCE)));
+    expect(scaled.unresolved).toBe(false);
+    // Answered bare, or not at all, or no answer: the page is in units, and the loader gives it the class `short`.
+    expect(withMpt(draft, answer({ mpt_issuance_id: MPT_FEE_PAYMENT_ISSUANCE })).unresolved).toBe(true);
+    expect(withMpt(draft, answer(summary(MPT_MINT_ISSUANCE))).unresolved).toBe(true);
+    expect(withMpt(draft, { state: "failed" }).unresolved).toBe(true);
+    // A scale above 19 is an answer. No lookup at all (MPT off, a network without MPT) leaves the class as it was.
+    expect(withMpt(draft, answer(summary(MPT_FEE_PAYMENT_ISSUANCE, { asset_scale: 25 }))).unresolved).toBe(false);
+    expect(withMpt(draft, { state: "off" })).toEqual({ page: draft, unresolved: false });
+  });
+
+  it("is not unresolved for a transaction with no MPT amount", () => {
+    const plain = transactionPage(txFromIndex(fixtureTx("xrpl", PAYMENT)), { network: XRPL, neighbours: null, binary: { state: "pending" } });
+    expect(mptAmountsOf(plain)).toEqual([]);
+    expect(withMpt(plain, answer(summary(MPT_FIXTURE_IDS.htf))).unresolved).toBe(false);
+  });
+
+  it("leaves the units in a page whose lookup was answered bare, and the summary with them", () => {
+    const draft = mptPage("payment_transfer_fee");
+    const { page: bare } = withMpt(draft, answer({ mpt_issuance_id: MPT_FEE_PAYMENT_ISSUANCE }));
+    expect(bare.summary).toBe(draft.summary);
+    expect(bare.changes.every((change) => change.scaled === undefined && change.ticker === undefined)).toBe(true);
   });
 });
 

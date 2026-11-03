@@ -15,12 +15,13 @@ import {
   DELEGATE,
 } from "../../test/support/object-samples";
 import { said, stateOf, walk, XAHAU, XRPL } from "../../test/support/object-view-world";
-import type { Segment } from "../domain/describe";
+import { accountsIn, type Segment } from "../domain/describe";
 import { shortAddress } from "../domain/format";
 import { NO_NAMES, type NamesPart } from "../domain/names";
 import type { EscrowAnswer, ObjectEvent, ObjectHistoryPage } from "./api-types";
 import { drawnAccounts, escrowPage, windowBarOf, type EscrowPageData } from "./escrow-view";
 import type { DetailRow, ObjectSource } from "./ledger-object-view";
+import { resolveMpt } from "./mpt-view";
 import { collectAddresses } from "./names-collect";
 import { RIPPLE_EPOCH_OFFSET, type LedgerObject } from "./node-rpc";
 import { unixOf } from "./validator-facts";
@@ -559,6 +560,41 @@ describe("escrowPage: the details", () => {
     expect(drawnAccounts(data)).not.toContain(answer.escrow.amount!.issuer);
   });
 
+  it("scales an MPT escrow's Amount row and every sentence that names it once the lookup answered, and leaves the tags in units (escrow-mpt)", async () => {
+    const answer = await answerOf("xrpl", "escrow-mpt");
+    const data = page(indexed(answer));
+    const id = answer.escrow.amount!.mpt_issuance_id!;
+    const summary = {
+      mpt_issuance_id: id,
+      issuer: "rIssuer",
+      ticker: "HTF",
+      asset_scale: 2,
+      outstanding_amount: "1",
+      holders: 1,
+      transfer_fee: 0,
+      flags: { locked: false, can_lock: false, require_auth: false, can_escrow: true, can_trade: false, can_transfer: true, can_clawback: false },
+      destroyed: false,
+    };
+    const { view, unresolved } = resolveMpt(data, { state: "ok", map: new Map([[id, summary]]) });
+
+    expect(unresolved).toBe(false);
+    expect(view.amount).toEqual({ mpt: { id, units: "250", value: "2.50", ticker: "HTF" } });
+    expect(rowOf(view, "Amount")!.value).toEqual({ kind: "amount", amount: { mpt: { id, units: "250", value: "2.50", ticker: "HTF" } } });
+    // The sentences hold the amount as an `mpt` segment with its value and ticker (Sentence draws it as MptAmount), the status lines and the timeline's among them.
+    const named = (segments: readonly Segment[]) => segments.filter((segment) => segment.t === "mpt");
+    expect(named(view.summary)).toEqual([expect.objectContaining({ units: "250", value: "2.50", ticker: "HTF" })]);
+    const sentences = [view.summary, ...view.statusLines, ...view.timeline.map((item) => item.what)];
+    expect(sentences.flatMap(named).length).toBeGreaterThan(1);
+    for (const segment of sentences.flatMap(named)) expect(segment).toMatchObject({ value: "2.50", ticker: "HTF" });
+    // The tags are the escrow's own words and have no lookup: units.
+    expect(view.meta.amount).toBe("250 units of MPT 0000012A…");
+    // The page as built is not changed, and with no lookup it is the page as built.
+    expect(data.amount).toEqual({ mpt: { id, units: "250" } });
+    expect(resolveMpt(data, { state: "off" })).toEqual({ view: data, unresolved: false });
+    // An answer that is bare leaves the units and says so.
+    expect(resolveMpt(data, { state: "ok", map: new Map([[id, { mpt_issuance_id: id }]]) })).toEqual({ view: data, unresolved: true });
+  });
+
   it("draws a dash for an amount D5 could not read, and leaves it out of the sentences with wording that still reads (T1)", async () => {
     const answer = await answerOf("xrpl", "escrow-cancellable");
     delete answer.escrow.amount;
@@ -812,17 +848,31 @@ describe("drawnAccounts", () => {
 
   it("lists exactly the accounts that the page holds, on every recorded escrow: collectAddresses over the page finds no other", async () => {
     const seen = new Set<string>();
+    const mptSegments: Segment[] = [];
     for (const [net, which] of RECORDED) {
       const data = page(indexed(await answerOf(net, which)), {}, net === "xrpl" ? XRPL : XAHAU);
       const drawn = drawnAccounts(data);
       expect(new Set(drawn).size, `${net} ${which}`).toBe(drawn.length);
-      expect([...collectAddresses({ ...data, names: undefined, meta: undefined })].sort(), `${net} ${which}`).toEqual([...drawn].sort());
+      // An `mpt` segment holds its issuer for the amount's title; like a token amount's issuer in a sentence, it is no account the page draws. Taking it out of `held` makes this test blind to the page ever
+      // drawing it as a link, so two others stand guard: the assertion below (`accountsIn` finds no account in an `mpt` segment, so `drawnAccounts` never lists its issuer and the loader never asks for
+      // its name), and test/worker/ledger-objects-names.spec.ts, "does not ask for an MPT's issuer, which the page does not draw" (every account the escrow-mpt page links is asked for, and no other),
+      // which fails when the page links an issuer that `drawnAccounts` did not list.
+      const held = JSON.parse(JSON.stringify({ ...data, names: undefined, meta: undefined }), (_key, value: unknown) => {
+        if (typeof value !== "object" || value === null || (value as { t?: unknown }).t !== "mpt") return value;
+        mptSegments.push(value as Segment);
+        return { ...value, issuer: undefined };
+      });
+      expect([...collectAddresses(held)].sort(), `${net} ${which}`).toEqual([...drawn].sort());
       // the owner and the destination come first (they are one account where an escrow is to its own owner)
       const parties = [...new Set([data.details[1]!.value, data.details[2]!.value].map((value) => (value as { address: string }).address))];
       expect(drawn.slice(0, parties.length), `${net} ${which}`).toEqual(parties);
       drawn.forEach((address) => seen.add(address));
     }
     expect(seen.size).toBeGreaterThan(8);
+    // The recorded MPT escrow's sentences name the issuance, with its issuer, and not one of them is an account to draw.
+    expect(mptSegments.length).toBeGreaterThan(0);
+    expect(mptSegments.every((segment) => segment.t === "mpt" && typeof segment.issuer === "string")).toBe(true);
+    expect(accountsIn(mptSegments)).toEqual([]);
   });
 
   it("lists the accounts of each place a sentence stands: the summary, the status lines, the banner and what a timeline item did", () => {

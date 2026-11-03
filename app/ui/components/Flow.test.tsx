@@ -16,6 +16,7 @@ const ALICE = "rJF2XanJQGFLS5ZUdcqEzwJcTJ7aFfQvg";
 const BOB = "rNYbL8WZKKNNni5rb2MzcxnAEgkQC5Kq5";
 const POOL = "rAtRwrVakWQaGpzxtqgJZDb3Tg7t32rXT";
 const USD = { currency: "USD", issuer: "rA7wzfRjziBcrbFwErG1t2sdVofKQmg95" };
+const MPT_ID = "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8";
 
 const steps: FlowStep[] = [
   { role: "sender", account: ALICE, label: "Sender", amount: { value: "512.402115", currency: "XRP" } },
@@ -59,6 +60,76 @@ describe("Flow", () => {
     expect(pool!.textContent).toContain("pays out");
     expect(destination!.querySelector(".amt")?.textContent).toBe("+1,250.00 USD");
     expect(destination!.querySelector(".amt")?.classList.contains("amt--pos")).toBe(true);
+  });
+
+  it("shows an MPT's amount as its units and the ID of its issuance, raw: a loss for the sender, a gain for the destination, as it is for a pool", () => {
+    const amount = { mpt: MPT_ID, issuer: BOB, units: "2500000" };
+    renderInRouter(
+      <Flow
+        net="xrpl"
+        steps={[
+          { role: "sender", account: ALICE, label: "Sender", amount },
+          { role: "pool", account: POOL, label: "DEX offer", amount },
+          { role: "destination", account: BOB, label: "Destination", amount },
+        ]}
+      />,
+    );
+    const [sender, via, destination] = [...screen.getByRole("group").querySelectorAll(".flow__node")] as HTMLElement[];
+    expect(sender!.querySelector(".flow__amount")?.textContent).toBe("−2,500,000 units of MPT 0000012A…");
+    expect(via!.querySelector(".flow__sub")?.textContent).toBe("pays out 2,500,000 units of MPT 0000012A…");
+    expect(destination!.querySelector(".flow__amount")?.textContent).toBe("+2,500,000 units of MPT 0000012A…");
+    expect(sender!.querySelector(".mptamount")?.getAttribute("title")).toBe(`MPT ${MPT_ID} issued by ${BOB}`);
+  });
+
+  it("gives an MPT step's amount the classes of any other amount: amt, and amt--pos for a gain only (M6)", () => {
+    const amount = { mpt: MPT_ID, issuer: BOB, units: "2500000" };
+    renderInRouter(
+      <Flow
+        net="xrpl"
+        steps={[
+          { role: "sender", account: ALICE, label: "Sender", amount },
+          { role: "pool", account: POOL, label: "DEX offer", amount },
+          { role: "destination", account: BOB, label: "Destination", amount },
+        ]}
+      />,
+    );
+    const [sender, via, destination] = [...screen.getByRole("group").querySelectorAll(".flow__node")] as HTMLElement[];
+    const classes = (node: HTMLElement) => [...(node.querySelector(".amt")?.classList ?? [])].sort();
+    expect(classes(sender!)).toEqual(["amt", "flow__amount"]);
+    expect(classes(via!)).toEqual(["amt"]);
+    expect(classes(destination!)).toEqual(["amt", "amt--pos", "flow__amount"]);
+  });
+
+  it("draws a step's MPT amount scaled, with its ticker, and links the ticker to the issuance's page while MPT is on", async () => {
+    const amount = { mpt: MPT_ID, issuer: BOB, units: "2500000", value: "25000.00", ticker: "HTF" };
+    renderUnderLayout(
+      <Flow
+        net="xrpl"
+        steps={[
+          { role: "sender", account: ALICE, label: "Sender", amount },
+          { role: "destination", account: BOB, label: "Destination", amount },
+        ]}
+      />,
+      { ...NO_FEATURES, mpt: true },
+    );
+    const [sender, destination] = [...(await screen.findByRole("group")).querySelectorAll(".flow__node")] as HTMLElement[];
+    expect(sender!.querySelector(".flow__amount")?.textContent).toBe("−25,000.00 HTF");
+    expect(destination!.querySelector(".flow__amount")?.textContent).toBe("+25,000.00 HTF");
+    const link = within(destination!).getByRole("link", { name: "HTF" });
+    expect(link.getAttribute("href")).toBe(`/xrpl/mpt/${MPT_ID}`);
+    // The amount's link and the account's are two targets in the node.
+    expect(within(destination!).getAllByRole("link").map((a) => a.textContent)).toEqual([shortAddress(BOB), "HTF"]);
+  });
+
+  it("links an MPT amount in units too, by its ID, and not while MPT is off", async () => {
+    const amount = { mpt: MPT_ID, issuer: BOB, units: "2500000" };
+    const steps: FlowStep[] = [{ role: "destination", account: BOB, label: "Destination", amount }];
+    renderUnderLayout(<Flow net="xahau" steps={steps} />, { ...NO_FEATURES, mpt: true });
+    expect((await screen.findByRole("link", { name: "0000012A…" })).getAttribute("href")).toBe(`/xahau/mpt/${MPT_ID}`);
+    cleanup();
+    renderUnderLayout(<Flow net="xrpl" steps={steps} />, { ...NO_FEATURES, mpt: false });
+    await screen.findByRole("group");
+    expect(screen.queryByRole("link", { name: "0000012A…" })).toBeNull();
   });
 
   it("separates the nodes by arrows that screen readers skip", () => {

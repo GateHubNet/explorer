@@ -1,0 +1,45 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 99226369,
+    "complete": false
+  },
+  "issuance": {
+    "mpt_issuance_id": "05A2797960352D719D5E3750339599019B1D381BBBFAE058",
+    "issuer": "r9m62EkNsBVKVWGKrByJ1Tyc9Ezer5nWsy",
+    "sequence": 94534009,
+    "ticker": "HTF",
+    "name": "Harborline Treasury Fund",
+    "asset_scale": 2,
+    "maximum_amount": "5000000000",
+    "outstanding_amount": "1820451117",
+    "escrowed_amount": "96411120",
+    "locked_amount": "0",
+    "locked_holders": 0,
+    "holders": 8,
+    "transfer_fee": 100,
+    "flags": {
+      "locked": false,
+      "can_lock": true,
+      "require_auth": true,
+      "can_escrow": true,
+      "can_trade": true,
+      "can_transfer": true,
+      "can_clawback": true
+    },
+    "metadata": {
+      "ticker": "HTF",
+      "name": "Harborline Treasury Fund",
+      "desc": "A tokenized treasury fund.",
+      "icon": "https://harborline.example/htf/icon.png",
+      "asset_class": "rwa",
+      "asset_subclass": "treasury",
+      "issuer_name": "Harborline Capital",
+      "uris": [{"uri":"https://harborline.example/htf","category":"website","title":"Fund page"}]
+    },
+    "metadata_hex": "7B227469636B6572223A22485446222C226E616D65223A22486172626F726C696E652054726561737572792046756E64222C2264657363223A224120746F6B656E697A65642074726561737572792066756E642E222C2269636F6E223A2268747470733A2F2F686172626F726C696E652E6578616D706C652F6874662F69636F6E2E706E67222C2261737365745F636C617373223A22727761222C2261737365745F737562636C617373223A227472656173757279222C226973737565725F6E616D65223A22486172626F726C696E65204361706974616C222C2275726973223A5B7B22757269223A2268747470733A2F2F686172626F726C696E652E6578616D706C652F687466222C2263617465676F7279223A2277656273697465222C227469746C65223A2246756E642070616765227D5D7D",
+    "metadata_conforms": true,
+    "last_ledger": 107721455,
+    "destroyed": false
+  }
+}

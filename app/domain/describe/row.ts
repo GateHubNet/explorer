@@ -1,7 +1,7 @@
 // What a table row shows of a transaction (the ledger page's list, the home page's): pure, no I/O.
 
 import type { Native, TxJson, TxMeta } from "../parse/types";
-import { account, parseAmount, seq } from "./helpers";
+import { account, deliveredMptAmount, mptFlowAmount, mptIssuerOf, parseAmount, parseMptAmount, seq } from "./helpers";
 import type { Description, FlowAmount, Segment } from "./types";
 
 /**
@@ -37,15 +37,30 @@ export function rowSentence(description: Pick<Description, "ok" | "sentence" | "
 /**
  * The one amount that says the most about a transaction, for a list's Amount column: what a payment delivered (what it was
  * for, when it failed or the node did not say), what an offer sells, or the `Amount` of any other type that has one.
- * `undefined` for a type with no amount, and for one that is not an amount of a currency (an MPT).
+ * An MPT's amount is `{ mpt, issuer, units }` (the units of its issuance, not scaled; an object with a malformed ID is no amount); a clawback's issued token has the sender as its issuer.
+ * `undefined` for a type with no amount.
  */
 export function headlineAmount(tx: TxJson, meta: TxMeta, native: Native): FlowAmount | undefined {
   switch (tx.TransactionType) {
-    case "Payment":
-      return parseAmount(meta.delivered_amount, native) ?? parseAmount(tx.DeliverMax ?? tx.Amount, native);
+    case "Payment": {
+      const intended = tx.DeliverMax ?? tx.Amount;
+      const intendedMpt = parseMptAmount(intended);
+      const delivered = intendedMpt && deliveredMptAmount(meta, intendedMpt.id);
+      return (
+        parseAmount(meta.delivered_amount, native) ??
+        (delivered && { mpt: delivered.id, issuer: mptIssuerOf(delivered.id), units: delivered.units }) ??
+        parseAmount(intended, native) ??
+        mptFlowAmount(intended)
+      );
+    }
     case "OfferCreate":
       return parseAmount(tx.TakerGets, native);
+    case "Clawback": {
+      // An issued token's `Amount.issuer` names the holder; the amount is the sender's own token (`describe` shows it so).
+      const issued = parseAmount(tx.Amount, native);
+      return issued?.issuer === undefined ? (issued ?? mptFlowAmount(tx.Amount)) : { ...issued, issuer: tx.Account };
+    }
     default:
-      return parseAmount(tx.Amount, native);
+      return parseAmount(tx.Amount, native) ?? mptFlowAmount(tx.Amount);
   }
 }

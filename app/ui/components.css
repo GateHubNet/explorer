@@ -2120,6 +2120,15 @@ a.tabs__item:hover {
   text-underline-offset: 3px;
 }
 
+/* A reference to an MPT in words ("HTF", "MPT 0000012A…": MptLink, in a sentence, a detail, a balance change's currency): its colour alone does not tell it from the words round it (WCAG 1.4.1), so it
+   is underlined, as `.mptamount a` and `.objectlink` are. */
+.mptlink {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  /* The ticker is the issuer's own text: one with no space in it breaks at the edge of its cell. */
+  overflow-wrap: anywhere;
+}
+
 /* An escrow, a check or a channel in a sentence ("escrow 57978925", "a check"): `Sentence`'s link, wherever it stands (a transaction's words, a ledger's or an account's row). Its colour alone
    does not tell it from the words round it (2.06 to 2.88:1 against the text, and axe does not see it: its heuristic wants more words than link), so it is underlined (WCAG 1.4.1). */
 .objectlink {

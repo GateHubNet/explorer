@@ -681,6 +681,7 @@ describe("the classes of the ledger object pages' components (Task 5)", () => {
     ".permchip",
     ".permchip--granular",
     ".mptamount",
+    ".mptlink",
     ".objectlink",
     ".tokenlink",
   ];
@@ -695,7 +696,7 @@ describe("the classes of the ledger object pages' components (Task 5)", () => {
   });
 
   // The roots are the whole class, whatever follows them: nothing of another sheet starts with one of these names either (`.timeline-x`, `.states-y`), which would be the next collision.
-  it.each(["states", "timeline", "checkflow", "permchip", "mptamount"])("no stylesheet but components.css has a class that starts with .%s", (root) => {
+  it.each(["states", "timeline", "checkflow", "permchip", "mptamount", "mptlink"])("no stylesheet but components.css has a class that starts with .%s", (root) => {
     const started = new RegExp(`\\.${root}(?![\\w-])|\\.${root}[_-]`);
     for (const [file, css] of [["pages.css", pagesCss], ["charts.css", chartsCss], ["base.css", baseCss], ["tokens.css", tokensCss]] as const) {
       expect(started.test(css), `${file} has a class of ${root}`).toBe(false);
@@ -751,6 +752,38 @@ describe("the classes of the ledger object pages' components (Task 5)", () => {
       expect(Number.parseFloat(link["min-height"]!), selector).toBeGreaterThanOrEqual(24);
       expect(Number.parseFloat(link["min-width"]!), selector).toBeGreaterThanOrEqual(24);
     }
+  });
+
+  // E14: a reference to an MPT in words (MptLink) is a link in running words, as an object link is.
+  it("underlines a reference to an MPT that is a link in words, with an offset of 3 px", () => {
+    expect(rule(componentsCss, ".mptlink")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px" });
+  });
+
+  // E14 (review of Tasks 7 and 8, I1): the ticker is the issuer's own text, and nothing on the explorer's path caps it. The reference breaks at the edge of its cell, in a sentence (`.mptlink`) and in the
+  // balance changes' currency column (`.cur--mpt`, a 130 px track), instead of painting over the Change cell beside it.
+  it("breaks a ticker that is no word at the edge of its cell, in running words and in the balance changes' currency column", () => {
+    expect(rule(componentsCss, ".mptlink")["overflow-wrap"]).toBe("anywhere");
+    expect(rule(pagesCss, ".cur--mpt")["overflow-wrap"]).toBe("anywhere");
+  });
+
+  // E14: an MPT's currency in the balance changes has the issuance's link and the issuer's under it, and a flow step's MPT amount links under the account's link: each is a target of at least
+  // 24 px (WCAG 2.5.8), and the amount stands clear of the 44 px target of the account link above it.
+  it("makes the links of an MPT's currency cell and of a flow step's MPT amount targets of at least 24 px, the amount clear of the account link", () => {
+    for (const selector of [".cur--mpt a", ".flow__amount a"]) {
+      const link = rule(pagesCss, selector);
+      expect(link, selector).toMatchObject({ display: "inline-flex", "align-items": "center" });
+      expect(Number.parseFloat(link["min-height"]!), selector).toBeGreaterThanOrEqual(24);
+      expect(Number.parseFloat(link["min-width"]!), selector).toBeGreaterThanOrEqual(24);
+    }
+    // The account link's box reaches 12 px under its text (padding 12, margin -12) and the node's gap is 4 px: 8 px more clears it.
+    expect(rule(pagesCss, ".flow__node > a")).toMatchObject({ "padding-block": "12px", "margin-block": "-12px" });
+    expect(rule(pagesCss, ".flow__node")).toMatchObject({ gap: "4px" });
+    expect(rule(pagesCss, ".flow__node > .flow__amount:has(a)")).toMatchObject({ "margin-top": "8px" });
+  });
+
+  // E14: the ticker of the MPT a touched object is about is the issuer's text, as long as the issuer wrote it.
+  it("cuts the ticker beside a touched object's type with an ellipsis, before the account's link shrinks", () => {
+    expect(rule(pagesCss, ".objects__ticker")).toMatchObject({ "min-width": "0", overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" });
   });
 
   // E11: a token's code is a link in the words of a pair's and a pool's "USD issued by r…" and of the toml's currencies under "How we know", where a colour alone would not tell it (WCAG 1.4.1).
@@ -1076,5 +1109,72 @@ describe("the supply page", () => {
 
   it("defines none of the kit's classes (the compact bar, the tile's formula and aside, the card): this sheet places them", () => {
     expect(pagesCss).not.toMatch(/\.share--compact|\.share__caption|\.stat__formula|\.stat__aside|\.stat-grid--wide|\.chart__head/);
+  });
+});
+
+// ---- E14: the MPT pages (spec 3, 10; ruling C17) ---------------------------------------------------------------------------------------------------------------------------------
+
+describe("the MPT pages", () => {
+  // The issuer writes the name, the ticker, the description, a link's words, its category and a JSON of any size, and nothing here caps them. A word with no space in it has nowhere to break but at the
+  // edge of its cell, or it paints over the next tile or column (E11's I1, and the fixtures' `nonConforming` issuance, whose name is 128 characters of one letter).
+  it.each([".mpt__text", ".mpt__idtext", ".mpt__json", ".mpt__hex pre", ".mptflags__line"])("breaks the issuer's text in %s at the edge of its cell", (selector) => {
+    expect(rule(pagesCss, selector)["overflow-wrap"]).toBe("anywhere");
+  });
+
+  it("breaks the page's own heading and every card it holds, through the token page's rule that this page's root carries", () => {
+    expect(rule(pagesCss, ".token-page")["overflow-wrap"]).toBe("anywhere");
+  });
+
+  it("underlines a link the issuer wrote in a row of the metadata: its colour alone would not tell it from the row's words (WCAG 1.4.1)", () => {
+    expect(rule(pagesCss, ".mpt__metadata dd a")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px" });
+  });
+
+  it("makes the raw hex's summary a 44 px target, and keeps the page's buttons at 44 px through the token page's rule", () => {
+    expect(rule(pagesCss, ".mpt__hex summary")).toMatchObject({ display: "flex", "align-items": "center", "min-height": "44px" });
+    expect(rule(pagesCss, ".token-page .btn")["min-height"]).toBe("44px");
+  });
+
+  it("lets the metadata's JSON and text scroll inside a block of 320 px at most", () => {
+    expect(rule(pagesCss, ".mpt__json")["max-height"]).toBe("320px");
+  });
+
+  it("puts a flag's label over its pill and line on a phone, and the three side by side above it", () => {
+    expect(rule(pagesCss, ".mptflags__row")["grid-template-columns"]).toBe("110px auto minmax(0, 1fr)");
+    const phone = /@media \(max-width: 640px\) \{\s*\.mptflags__row \{\s*grid-template-columns: auto minmax\(0, 1fr\);\s*\}\s*\.mptflags__label \{\s*grid-column: 1 \/ -1;\s*\}/;
+    expect(phone.test(pagesCss)).toBe(true);
+  });
+
+  // The holders' and the transfers' pages start with the issuance as a line that leads back to its page: the name is the link, in a line of tags, so it is told by more than its colour (WCAG 1.4.1)
+  // and is a 44 px target on touch.
+  it("underlines the link back to the issuance in the head of the list pages, as a 44 px target, and breaks its text at the edge of the card", () => {
+    expect(rule(pagesCss, ".mpt__headlink")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px", display: "inline-flex", "align-items": "center", "min-height": "44px", "overflow-wrap": "anywhere" });
+    expect(rule(pagesCss, ".mpt__headline")).toMatchObject({ margin: "0", "min-width": "0" });
+  });
+
+  it("is defined in pages.css alone: the components sheet has none of the page's classes", () => {
+    expect(componentsCss).not.toMatch(/\.mpt__|\.mptflags|\.mpttab/);
+  });
+
+  // The MPT tab of the token list (spec 4; ruling C17): the Token cell holds the issuer's ticker (16 code points) and name (128, the fixtures' `nonConforming` one is 128 letters with no space), which break at
+  // the edge of the cell instead of painting over the Issuer column. Unlike a toml name (`.tokens__name`, clipped by an ellipsis on one line) they wrap: the rule is the cell's own, and does not lean on the
+  // inherited `overflow-wrap` of the table (`.tokens__table`), which a later edit of the list could drop.
+  it.each([".mpttab__code", ".mpttab__name"])("breaks the issuer's text in the MPT tab's %s at the edge of its cell, and does not clip it on one line", (selector) => {
+    const declarations = rule(pagesCss, selector);
+    expect(declarations["overflow-wrap"]).toBe("anywhere");
+    expect(declarations["white-space"]).toBeUndefined();
+    expect(declarations["text-overflow"]).toBeUndefined();
+    expect(declarations.overflow).toBeUndefined();
+  });
+
+  it("keeps the tab's table the list's own (`.tokens__table`: wrapping anywhere, a link of 24 px at least), and wraps the pills of the Flags column", () => {
+    expect(rule(pagesCss, ".tokens__table")["overflow-wrap"]).toBe("anywhere");
+    expect(rule(pagesCss, ".mpttab__flags")).toMatchObject({ display: "flex", "flex-wrap": "wrap", gap: "4px" });
+  });
+
+  it("styles the tab's name, ID and code in the list's own sizes: the name 12.5 px in the muted colour, the short ID 11.5 px in the faint one, the ticker in semi-bold", () => {
+    expect(rule(pagesCss, ".mpttab__name")).toMatchObject({ color: "var(--muted)", "font-size": "12.5px" });
+    expect(rule(pagesCss, ".mpttab__id")).toMatchObject({ color: "var(--faint)", "font-size": "11.5px" });
+    expect(rule(pagesCss, ".mpttab__code")["font-weight"]).toBe("600");
+    expect(rule(pagesCss, ".tokens__name")).toMatchObject({ color: "var(--muted)", "font-size": "12.5px" });
   });
 });

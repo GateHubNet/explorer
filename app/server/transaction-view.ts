@@ -5,7 +5,7 @@
 
 import { encodeCtid } from "../domain/ctid";
 import { delegateOf, describe, isInnerBatch, type Detail, type FlowStep, type Segment } from "../domain/describe";
-import { decodeHex } from "../domain/describe/helpers";
+import { decodeHex, mptWords } from "../domain/describe/helpers";
 import { dropsToNative, formatAmount, formatCurrency, shortAddress, shortHash } from "../domain/format";
 import type { NamesPart } from "../domain/names";
 import { shortNftId } from "../domain/nft-params";
@@ -13,6 +13,7 @@ import { balanceChanges, objectsTouched } from "../domain/parse";
 import { isPoolAccountRoot, nodesOf } from "../domain/parse/objects";
 import type { BalanceChange, Native, TouchedObject, TxJson, TxMeta } from "../domain/parse/types";
 import type { TxBinary, TxObject, TxStoredJson } from "./api-types";
+import { resolveMpt, type MptLookupResult } from "./mpt-view";
 import type { NodeTx } from "./node-rpc";
 import { searchOnOther, type NetworkName, type SearchPageData } from "./search-view";
 import { checkNodeTransaction, isObject, malformed } from "./tx-shape";
@@ -111,10 +112,17 @@ export function binaryOf(answer: TxBinary | TxStoredJson): Extract<BinaryRaw, { 
 
 // ---- The page ------------------------------------------------------------------------------------------------------------
 
-/** What an account was in the transaction, when it was something: the row of the balance changes says so. A delegate's row holds the fee it paid. */
-export type ChangeRole = "sender" | "delegate" | "destination" | "pool";
+/**
+ * What an account was in the transaction, when it was something: the row of the balance changes says so. A delegate's row holds the fee it paid. An MPT's issuer has its own role on the row of the
+ * issuance's outstanding amount (spec 5.2), whatever else the account was in the transaction.
+ */
+export type ChangeRole = "sender" | "delegate" | "destination" | "pool" | "issuer";
 
-export type ChangeRow = BalanceChange & { role?: ChangeRole };
+/**
+ * A balance change with the role of its account. The MPT entries are filled by the lookup (`resolveMpt`): `scaled` and `scaledAfter` are `value` and `after` scaled by the issuance's asset scale
+ * (left out above scale 19, or while the issuance is not looked up) and `ticker` its ticker; `value` and `after` stay the ledger's integer units.
+ */
+export type ChangeRow = BalanceChange & { role?: ChangeRole; scaled?: string; scaledAfter?: string; ticker?: string };
 
 export interface Memo {
   /** The memo's data: text, or its hex when it is not text; empty for a memo without data. */
@@ -230,6 +238,8 @@ export function plainText(segments: readonly Segment[]): string {
           return segment.name;
         case "object":
           return segment.v;
+        case "mpt":
+          return segment.units === undefined ? (segment.ticker ?? `MPT ${segment.id.slice(0, 8)}…`) : mptWords({ id: segment.id, units: segment.units, value: segment.value, ticker: segment.ticker });
       }
     })
     .join("");
@@ -254,17 +264,16 @@ function withRoles(changes: BalanceChange[], tx: TxJson, meta: TxMeta): ChangeRo
     if (isPoolAccountRoot(node) && typeof node.fields.Account === "string") pools.add(node.fields.Account);
   }
   const delegate = delegateOf(tx);
+  const roleOf = (change: BalanceChange): ChangeRole | undefined => {
+    // The entry of an MPT with no `issuer` is the issuer's own: the change of what the issuance has outstanding.
+    if (change.mpt === true && change.issuer === undefined) return "issuer";
+    if (change.account === tx.Account) return "sender";
+    if (change.account === delegate) return "delegate";
+    if (change.account === tx.Destination) return "destination";
+    return pools.has(change.account) ? "pool" : undefined;
+  };
   return changes.map((change) => {
-    const role: ChangeRole | undefined =
-      change.account === tx.Account
-        ? "sender"
-        : change.account === delegate
-          ? "delegate"
-          : change.account === tx.Destination
-            ? "destination"
-            : pools.has(change.account)
-              ? "pool"
-              : undefined;
+    const role = roleOf(change);
     return role === undefined ? change : { ...change, role };
   });
 }
@@ -319,6 +328,20 @@ export function transactionPage(
     neighbours: opts.neighbours ? { previous: opts.neighbours.previous, next: opts.neighbours.next } : null,
     raw: { tx: JSON.stringify(tx, null, 2), meta: JSON.stringify(meta, null, 2), binary: opts.binary },
   };
+}
+
+/**
+ * The page with its MPT amounts filled from the lookup of its issuances (`mptAmountsOf` collected the IDs, `loadMptLookup` asked): the sentence, the details, the flow, the balance changes and the
+ * touched objects get their scaled values and tickers (`resolveMpt`), and `summary`, the sentence as plain text, is made again from the filled sentence, so that the description of the page says
+ * what the page says. `unresolved` is true when an MPT amount stayed in units (a failed lookup, an ID answered bare): the loader then gives the page the class `short`, never `immutable`, so units
+ * are not kept for a year. With no lookup (`MPT` off, a network without MPT, no MPT amount) the page is as `transactionPage` made it.
+ */
+export function withMpt(
+  page: Omit<TransactionPageData, "names">,
+  lookup: MptLookupResult,
+): { page: Omit<TransactionPageData, "names">; unresolved: boolean } {
+  const { view, unresolved } = resolveMpt(page, lookup);
+  return { page: { ...view, summary: plainText(view.sentence) }, unresolved };
 }
 
 /**

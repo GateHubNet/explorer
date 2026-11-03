@@ -11,9 +11,10 @@ import BigNumber from "bignumber.js";
 import { encodeAccountID } from "ripple-address-codec";
 
 import { accountsIn, type Segment } from "../domain/describe";
-import { mptWords } from "../domain/describe/helpers";
+import { mptSegment, mptWords } from "../domain/describe/helpers";
 import { dropsToNative, formatAmount, formatCurrency } from "../domain/format";
 import type { NamesPart } from "../domain/names";
+import { isMptIssuanceId } from "../domain/mpt-id";
 import { OBJECT_KINDS, type ObjectKind } from "../domain/object-link";
 import { OBJECT_NOUNS } from "../domain/object-nouns";
 import { channelStatus, checkStatus, escrowStatus } from "../domain/object-status";
@@ -81,7 +82,7 @@ function amountOf(raw: unknown, native: Native): ObjectAmount | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
   const { value, currency, issuer, mpt_issuance_id: mpt } = raw as Record<string, unknown>;
   if (!isText(value)) return undefined;
-  if (isText(mpt)) return /^[0-9a-fA-F]{48}$/.test(mpt) ? mptAmount(mpt, value) : undefined;
+  if (isText(mpt)) return isMptIssuanceId(mpt) ? mptAmount(mpt, value) : undefined;
   return isText(currency) && isText(issuer) ? { currency, issuer, value } : undefined;
 }
 
@@ -170,10 +171,11 @@ export function answerObject(answer: ObjectAnswer): EscrowObject | CheckObject |
 // ---- Amounts -------------------------------------------------------------------------------------------------------------------------------------
 
 /**
- * An amount as a page draws it. An MPT is `mpt`: its issuance ID and its raw integer units, for `MptAmount` (raw, no scale: E14 adds it). Anything else keeps its issuer, which a page draws
- * as an `AccountLink` where the amount stands in a detail, and `Amount` writes in a title where it stands in a sentence.
+ * An amount as a page draws it. An MPT is `mpt`: its issuance ID and its raw integer units, for `MptAmount`; the units scaled (`value`) and the issuance's `ticker` are filled by the loader's
+ * lookup (`resolveMpt`, E14), which reads `{ id, units }` as a carrier. An MPT's issuer is not in it: it is no account the page draws, as a sentence's token issuer is not. Anything else keeps its
+ * issuer, which a page draws as an `AccountLink` where the amount stands in a detail, and `Amount` writes in a title where it stands in a sentence.
  */
-export type DisplayAmount = { value: string; currency: string; issuer?: string } | { mpt: { id: string; units: string } };
+export type DisplayAmount = { value: string; currency: string; issuer?: string } | { mpt: { id: string; units: string; value?: string; ticker?: string } };
 
 export function displayAmount(a: ObjectAmount): DisplayAmount {
   if (a.mpt_issuance_id !== undefined) return { mpt: { id: a.mpt_issuance_id, units: a.value } };
@@ -187,11 +189,11 @@ export const rawValue = (amount: DisplayAmount): string => ("mpt" in amount ? am
 export const optionalUnix = (iso: string | undefined): number | undefined => (iso === undefined ? undefined : unixOf(iso));
 
 /**
- * An amount in a sentence: an `amount` segment, which `Amount` draws with its issuer in a title only (so a sentence's issuer is not a name to collect), or words for an MPT, which a
- * segment cannot hold.
+ * An amount in a sentence: an `amount` segment, which `Amount` draws with its issuer in a title only (so a sentence's issuer is not a name to collect), or an `mpt` segment for an MPT, which
+ * `Sentence` draws as `MptAmount` (in units, scaled once the loader's lookup filled it: E14, ruling C13).
  */
 export function amountSegment(a: DisplayAmount): Segment {
-  return "mpt" in a ? { t: "text", v: mptWords(a.mpt) } : { t: "amount", ...a };
+  return "mpt" in a ? mptSegment(a.mpt.id, a.mpt.units) : { t: "amount", ...a };
 }
 
 /** An amount as plain text, for a title or a description: "1,000 XRP", "250 units of MPT 0000012A…". */

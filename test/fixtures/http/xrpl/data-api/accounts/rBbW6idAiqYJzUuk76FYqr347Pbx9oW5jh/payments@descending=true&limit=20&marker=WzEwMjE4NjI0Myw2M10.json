@@ -1,0 +1,24 @@
+{
+  "count": 1,
+  "payments": [
+    {
+      "amount": "1000000",
+      "currency": "0598F6E09E30A809E63A1F02DE789586D2F4FDA9EF5200E3",
+      "delivered_amount": "1000000",
+      "destination": "rKSg2VZbw9gRRuSwBjBFAfBoGC5Vs1FmFn",
+      "destination_balance_changes": [{"counterparty":"rERShrtUSEXkrwtTpugPV4v8E787vpx1kb","currency":"0598F6E09E30A809E63A1F02DE789586D2F4FDA9EF5200E3","value":"1000000"}],
+      "executed_time": "2025-10-02T16:27:51Z",
+      "issuer": "rERShrtUSEXkrwtTpugPV4v8E787vpx1kb",
+      "ledger_index": 99251687,
+      "max_amount": "1062500",
+      "source": "rMPTejgDkDqy92EkAhBo6u7RRPFRfH6MCR",
+      "source_balance_changes": [{"counterparty":"rERShrtUSEXkrwtTpugPV4v8E787vpx1kb","currency":"0598F6E09E30A809E63A1F02DE789586D2F4FDA9EF5200E3","value":"-1005890"}],
+      "source_currency": "0598F6E09E30A809E63A1F02DE789586D2F4FDA9EF5200E3",
+      "transaction_cost": "0.000012",
+      "tx_hash": "80C74925827B059CA14F2C7C4E01F8DE37C5502648CE20DE90B35827E73D503E",
+      "tx_index": 13,
+      "mpt_issuance_id": "0598F6E09E30A809E63A1F02DE789586D2F4FDA9EF5200E3"
+    }
+  ],
+  "result": "success"
+}

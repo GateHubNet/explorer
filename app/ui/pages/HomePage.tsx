@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 
 import { formatAmount, formatUtc } from "../../domain/format";
+import { mptLink } from "../../domain/mpt-link";
 import type { HomeLedgerRow, HomePageData, HomeTxRow } from "../../server/home-view";
 import { LATEST_LEDGERS_ID, LATEST_TRANSACTIONS_ID } from "../anchors";
 import { AccountLink } from "../components/AccountLink";
@@ -10,6 +11,7 @@ import { DataTable, type Column } from "../components/DataTable";
 import { HashLink, LedgerLink } from "../components/HashLink";
 import { LiveStatus, LiveToggle, PAUSED_AFTER_FAILURES } from "../components/LiveStatus";
 import { LiveValue } from "../components/LiveValue";
+import { MptAmount } from "../components/MptAmount";
 import { ResultPill } from "../components/Pill";
 import { RelativeTime } from "../components/RelativeTime";
 import { SearchBox } from "../components/SearchBox";
@@ -18,6 +20,7 @@ import { TypeTag } from "../components/TypeTag";
 import type { NetworkInfo } from "../networks";
 import { cx } from "../cx";
 import { useHolds } from "../use-hold";
+import { useFeatures } from "../use-network";
 import type { LiveControls } from "../use-live-controls";
 
 /** `17:01:12`, from unix seconds. */
@@ -41,6 +44,7 @@ const count = (n: number) => formatAmount(String(n));
  */
 export function HomePage({ network, data, live }: { network: NetworkInfo; data: HomePageData; live?: LiveControls }) {
   const { latest, txCount, average, fees } = data;
+  const features = useFeatures();
   const latestHref = `/${network.id}/ledger/${latest.index}`;
   const whole = latest.supply.split(".")[0]!;
   // What the tiles say as text: it is also the token of the figure, which ticks in only when it says something else.
@@ -78,7 +82,11 @@ export function HomePage({ network, data, live }: { network: NetworkInfo; data: 
       ellipsis: true,
       cell: (row) =>
         row.amount ? (
-          <Amount value={row.amount.value} currency={row.amount.currency} issuer={row.amount.issuer} />
+          "mpt" in row.amount ? (
+            <MptAmount id={row.amount.mpt} units={row.amount.units} issuer={row.amount.issuer} href={mptLink(network.id, row.amount.mpt, features)} />
+          ) : (
+            <Amount value={row.amount.value} currency={row.amount.currency} issuer={row.amount.issuer} />
+          )
         ) : (
           <span className="faint">—</span>
         ),

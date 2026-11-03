@@ -26,6 +26,7 @@ export const LAYOUT_XRPL: Omit<PublicNetwork, "features"> = {
   other: "xahau",
   hasAmm: true,
   hasDelegation: true,
+  hasMpt: true,
   software: "rippled",
   displays: ["native", "usd"],
 };
@@ -42,6 +43,7 @@ export const LAYOUT_XAHAU: Omit<PublicNetwork, "features"> = {
   other: "xrpl",
   hasAmm: false,
   hasDelegation: false,
+  hasMpt: false,
   software: "xahaud",
   displays: ["native"],
 };

@@ -8,9 +8,13 @@ import {
   account,
   closingDetails,
   delegateOf,
+  deliveredMptAmount,
   detail,
   fieldDetail,
+  mptIssuerOf,
+  mptSegment,
   parseAmount,
+  parseMptAmount,
   plural,
   pool,
   poolPair,
@@ -19,7 +23,7 @@ import {
   type FlagTable,
   type Part,
 } from "./helpers";
-import type { Detail, FlowAmount, FlowStep, HandlerMap, Input, Summary } from "./types";
+import type { CurrencyAmount, Detail, FlowAmount, FlowStep, HandlerMap, Input, Summary } from "./types";
 
 const TF_PARTIAL_PAYMENT = 0x00020000;
 
@@ -34,7 +38,7 @@ const PAYMENT_FLAGS: FlagTable = [
  * includes the fee, which is taken out, unless a delegate sent the transaction: the delegate paid the fee. Undefined
  * when the balances show no fall, so a sentence never claims a number the metadata does not give.
  */
-function spentOf(input: Input, max: FlowAmount): FlowAmount | undefined {
+function spentOf(input: Input, max: CurrencyAmount): CurrencyAmount | undefined {
   const { tx, native } = input;
   let net = new BigNumber(0);
   for (const change of input.changes()) {
@@ -63,10 +67,46 @@ function step(role: FlowStep["role"], who: unknown, label: string, amount?: Flow
   return flow;
 }
 
+/**
+ * A payment of an MPT (`Amount` is `{ mpt_issuance_id, value }`): the issuer of the MPT "issued" it, anyone else "sent" it. What arrived is the metadata's `delivered_amount` (the API's) or
+ * `DeliveredAmount` (the ledger's own field), else the whole `Amount` unless the payment may be partial, as for any other payment. The flow is sender to destination; when a `SendMax` lets the
+ * sender spend more than what arrived (a transfer fee) the sender's side names no amount, as for a payment of a currency whose spending the metadata does not show.
+ */
+function describeMptPayment({ tx, meta, native, ok, verb }: Input, rawAmount: unknown, intended: { id: string; units: string }): Summary {
+  const partialFlag = typeof tx.Flags === "number" && (tx.Flags & TF_PARTIAL_PAYMENT) !== 0;
+  const delivered = ok ? (deliveredMptAmount(meta, intended.id) ?? (partialFlag ? undefined : intended)) : undefined;
+  const issuing = mptIssuerOf(intended.id) === tx.Account;
+
+  const amount = amountSegment(rawAmount, native);
+  const to = [" to ", account(tx.Destination)];
+  const [past, infinitive] = issuing ? (["issued", "issue"] as const) : (["sent", "send"] as const);
+  const predicate: Part =
+    partialFlag && !delivered ? [`${verb(past, infinitive)} up to `, amount, to] : [`${verb(past, infinitive)} `, delivered ? mptSegment(delivered.id, delivered.units) : amount, to];
+
+  const arrived: FlowAmount | undefined = delivered && { mpt: delivered.id, issuer: mptIssuerOf(delivered.id), units: delivered.units };
+  const flow: FlowStep[] = [
+    step("sender", tx.Account, "Sender", tx.SendMax === undefined ? arrived : undefined),
+    step("destination", tx.Destination, "Destination", arrived),
+  ];
+
+  const details: Detail[] = [
+    detail("Amount", amount),
+    ...(delivered && !new BigNumber(delivered.units).isEqualTo(intended.units) ? [detail("Delivered", mptSegment(delivered.id, delivered.units))] : []),
+    ...(tx.SendMax !== undefined ? [detail("Send max", amountSegment(tx.SendMax, native))] : []),
+    ...(tx.DeliverMin !== undefined ? [detail("Deliver min", amountSegment(tx.DeliverMin, native))] : []),
+    ...fieldDetail(tx, "DestinationTag", "Destination tag"),
+    ...fieldDetail(tx, "InvoiceID", "Invoice ID"),
+    ...closingDetails(tx, PAYMENT_FLAGS),
+  ];
+  return { title: "Payment", predicate: seq(predicate), ...(typeof tx.Destination === "string" ? { flow } : {}), details };
+}
+
 function describePayment(input: Input): Summary {
   const { tx, meta, native, ok, verb } = input;
   // API v2 and recent nodes may answer with DeliverMax alone.
   const rawAmount = tx.Amount ?? tx.DeliverMax;
+  const mpt = parseMptAmount(rawAmount);
+  if (mpt) return describeMptPayment(input, rawAmount, mpt);
   const intended = parseAmount(rawAmount, native);
   const sendMax = parseAmount(tx.SendMax, native);
   const partialFlag = typeof tx.Flags === "number" && (tx.Flags & TF_PARTIAL_PAYMENT) !== 0;

@@ -493,6 +493,19 @@ a.example:hover {
   font-size: 16px;
 }
 
+/* An MPT's amount in a step links its issuance's page (MptAmount, while MPT is on), under the account link, whose 44 px target reaches 12 px under its text: the link is a target of at least
+   24 px (WCAG 2.5.8), and the amount stands 8 px lower, so that the two targets do not overlap. */
+.flow__amount a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  min-width: 24px;
+}
+
+.flow__node > .flow__amount:has(a) {
+  margin-top: 8px;
+}
+
 .flow__arrow {
   flex: 0 0 auto;
   display: flex;
@@ -534,6 +547,19 @@ a.example:hover {
 .cur__line {
   color: var(--faint);
   font-size: 12px;
+}
+
+/* An MPT's currency cell names the issuance by its ticker, which is the issuer's own text: it breaks at the edge of the cell (a 130 px track), not over the Change cell beside it. */
+.cur--mpt {
+  overflow-wrap: anywhere;
+}
+
+/* An MPT's currency cell has two links, one over the other (the issuance's and the issuer's): each is a target of at least 24 px (WCAG 2.5.8), as the Tokens card's and the pool's lines are. */
+.cur--mpt a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  min-width: 24px;
 }
 
 .memo {
@@ -597,6 +623,14 @@ a.example:hover {
 /* The link of an object's type keeps its width: the account's link beside it is the one that shrinks. */
 .objects__type {
   flex: none;
+}
+
+/* The ticker of the MPT an object is about is the issuer's text, as long as the issuer wrote it: it shrinks, with an ellipsis, before the account's link does. */
+.objects__ticker {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .objects__more summary {
@@ -5367,6 +5401,32 @@ a.markets__pair:hover .markets__name {
   white-space: nowrap;
 }
 
+/* The MPT tab's Token cell (E14 spec 4, below the issued list's rules it reuses: the link, the coin, the column of names). The ticker (16 code points) and the name (128) are the issuer's own text, and a
+   run of them has no space to break at: unlike a toml name, which the list clips with an ellipsis, they wrap at the edge of the cell (`overflow-wrap: anywhere`, pinned in test/unit/pages-css.test.ts;
+   the fixtures' `nonConforming` issuance has a name of 128 letters). The ID of an issuance with no metadata is the start and end of 48 hex digits, which fits the track. */
+.mpttab__code {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.mpttab__name {
+  color: var(--muted);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.mpttab__id {
+  color: var(--faint);
+  font-size: 11.5px;
+}
+
+/* The Flags column: the pills side by side, and onto a second line where the track is short. */
+.mpttab__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 .tokens__foot {
   align-items: flex-start;
 }
@@ -5668,6 +5728,161 @@ a.markets__pair:hover .markets__name {
   .token-page__title {
     font-size: 22px;
   }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   MPT: /{net}/mpt/{ID} and its holders' and transfers' pages (E14 spec 3). The page is the token page's: its classes (`.token-page*`, `.tokens*`) are drawn again, and this block holds what an MPT
+   has besides them. Everything the issuer wrote (the name, the ticker, the metadata, a link's words) is free text with no spaces to break at, so each place that shows it breaks it at the
+   edge of its cell (`overflow-wrap: anywhere`, pinned in test/unit/pages-css.test.ts). */
+
+/* The first line of the holders' and the transfers' pages: the issuance as a link back to its page, among its tags. */
+.mpt__headline {
+  min-width: 0;
+  margin: 0;
+}
+
+.mpt__headlink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The issuance ID in full, in mono, with the button that copies it. */
+.mpt__id {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.mpt__idtext {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--fg);
+  font-size: 12.5px;
+}
+
+/* A line of the metadata: the issuer's text, or the words of its link. */
+.mpt__text {
+  overflow-wrap: anywhere;
+}
+
+/* A link the issuer wrote is in the words of its row: told from them by more than its colour (WCAG 1.4.1). */
+.mpt__metadata dd a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Indented JSON, and the metadata's text: a block of its own, scrolling when it is long, wrapping where it has no space. */
+.mpt__json {
+  max-height: 320px;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+/* The raw hex: a disclosure whose summary is a 44 px target on touch, and whose body is mono with nowhere to break. */
+.mpt__hex {
+  margin-top: 12px;
+}
+
+.mpt__hex summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.mpt__hex pre {
+  overflow-wrap: anywhere;
+}
+
+/* The Flags card: a row for each ability, its name, Yes or No in a pill, and what it means for this token. */
+.mptflags__intro {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.mptflags__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mptflags__row {
+  display: grid;
+  grid-template-columns: 110px auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.mptflags__row:first-child {
+  border-top: 0;
+}
+
+.mptflags__label {
+  font-weight: 600;
+}
+
+.mptflags__line {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .mptflags__row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .mptflags__label {
+    grid-column: 1 / -1;
+  }
+}
+
+/* A holder's balance with what of it is in escrow under it, both at the end of the cell. */
+.mpt__balance {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.mpt__escrow {
+  font-size: 12px;
+}
+
+/* A card the index has no rows for. */
+.mpt__missing {
+  margin: 0;
+  padding: 18px 20px;
+}
+
+/* The page that says MPT is not on Xahau: the heading, a sentence, the ID, the two ways out. */
+.mpt__none {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px 22px;
+}
+
+.mpt__none-text {
+  margin: 0;
+  color: var(--muted);
 }
 
 /* ---------------------------------------------------------------------------------------------------------------

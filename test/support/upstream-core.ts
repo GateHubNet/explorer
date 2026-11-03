@@ -23,10 +23,11 @@
 //   node amm_info rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3
 //                                     a pool by its account; by its pair the subject is `<asset>_<asset2>`, written as a book's
 //   node nft_info <NFT ID>            an NFT by its id (so are `nft_sell_offers` and `nft_buy_offers`); `node ledger_entry <ID>` a ledger entry (a URIToken, an escrow, a check, a
-//                                     payment channel, a delegation) by its `index`
+//                                     payment channel, a delegation) by its `index`; `node ledger_entry mpt_issuance_<ID>` an MPT issuance by its 48-digit ID (`mpt_issuance`)
 //   GET /v2/account_names             without a query: every names call of the network (`GET /v2/account_names?addresses=…` is one call, and wins over it)
 //
-// `GET /v2/account_names` has no file per call: the mock composes D4's answer from the network's `data-api/account_names.json` (`composeAccountNames`).
+// `GET /v2/account_names` has no file per call: the mock composes D4's answer from the network's `data-api/account_names.json` (`composeAccountNames`). `GET /v2/mpt?ids=` has none either: it composes
+// D9's answer from the network's `data-api/mpt_lookup.json` (`composeMptLookup`), and `GET /v2/mpt?ids=…` as an override key wins, as `GET /v2/account_names?addresses=…` does.
 
 import { isValidClassicAddress } from "ripple-address-codec";
 
@@ -120,12 +121,14 @@ const SUBJECT_PARAMS: Record<string, string[]> = {
   account_objects: ["account"],
   // The pool form: the subject is the pool account. The pair form has no such parameter, see `PAIR_PARAMS`.
   amm_info: ["amm_account"],
-  // The NFT commands (rippled's and Clio's) are about one NFT; a `ledger_entry` asked by `index` is about the entry, which for a URIToken is its id.
+  // The NFT commands (rippled's and Clio's) are about one NFT; a `ledger_entry` asked by `index` is about the entry, which for a URIToken is its id, and one asked by `mpt_issuance` about an MPT issuance.
   nft_info: ["nft_id"],
   nft_sell_offers: ["nft_id"],
   nft_buy_offers: ["nft_id"],
-  ledger_entry: ["index"],
+  ledger_entry: ["index", "mpt_issuance"],
 };
+
+const HEX48 = /^[0-9a-fA-F]{48}$/;
 
 /** The methods whose subject is two assets, and the parameters that hold them: a book's, and an `amm_info` asked by pair. */
 const PAIR_PARAMS: Record<string, [string, string]> = {
@@ -160,6 +163,8 @@ export function nodeSubject(method: string, params: NodeParams): string | undefi
   for (const name of SUBJECT_PARAMS[method] ?? []) {
     if (params[name] !== undefined) {
       const value = text(params[name]);
+      // An issuance is asked for by its ID, which is no entry's `index`: its subject (and so its file, `ledger_entry/mpt_issuance_<ID>.json`) says so, with the ID in upper case as an answer writes it.
+      if (name === "mpt_issuance") return `mpt_issuance_${HEX48.test(value) ? value.toUpperCase() : value}`;
       return HEX64.test(value) ? value.toUpperCase() : value;
     }
   }
@@ -368,6 +373,11 @@ function dataApiAbsent(net: NetworkName, segments: string[], search: URLSearchPa
       return new Response(JSON.stringify({ result: "success", coverage: TOKEN_COVERAGE[net], count: 0, transfers: [] }), { status: 200, headers: JSON_HEADERS });
     }
   }
+  // D9's issuance and its holders and transfers: 400 `invalid mpt issuance id` unless the ID is 48 hex digits (either case), else the routes' own 404 `issuance not found`, which is what every ID is on a network
+  // without MPT. The lookup (`/v2/mpt` alone) is composed (`composeMptLookup`), and the MPT list is `/v2/tokens?kind=mpt`, a missing route like the issued list.
+  if (version === "v2" && resource === "mpt" && id !== undefined && (sub === undefined || ((sub === "holders" || sub === "transfers") && segments.length === 4))) {
+    return HEX48.test(id) ? dataApiError(404, "issuance not found") : dataApiError(400, "invalid mpt issuance id");
+  }
   // D1's validator and its validations (`summary` is a route of its own), and one amendment: the routes' own not-found messages.
   if (version === "v2" && resource === "network") {
     const [, , , key, page, ...rest] = segments;
@@ -408,6 +418,33 @@ function composeAccountNames(search: URLSearchParams, names: NamesTable): Respon
   if (!addresses.every((address) => isValidClassicAddress(address))) return dataApiError(400, "invalid ripple address");
   const account_names = addresses.map((address) => (Object.hasOwn(names, address) ? names[address] : { address }));
   return new Response(JSON.stringify({ result: "success", count: account_names.length, account_names }), { status: 200, headers: JSON_HEADERS });
+}
+
+// ---- The MPT lookup --------------------------------------------------------------------------------------------------
+
+/** The most issuances one lookup asks for (D9's limit). */
+const MPT_LOOKUP_MAX = 100;
+
+/** A network's issuances for the lookup, by upper-case ID: its `data-api/mpt_lookup.json` (scripts/mpt-fixtures.ts writes it), or none. */
+type MptTable = Record<string, unknown>;
+
+/**
+ * `GET /v2/mpt?ids=…` as D9 answers it (data-api `feat/explorer-data-2` at c9a2fc0, apps/api/src/mpt/mpt.controller.ts and its reference "`GET /v2/mpt?ids=`"): the first `ids` parameter, split on `,`; 400 `ids is required`
+ * when it is missing or empty, `too many ids` for 101 elements or more (whatever they are), `invalid mpt issuance id` for any element that is not 48 hex digits (an empty one too); else `{ result, count, issuances }` with
+ * one entry for each ID in the order asked (a repeated one at each place): the network's summary for it, or the ID alone, in upper case as every answer writes it. A network with no table (Xahau has no MPT) has every
+ * ID alone.
+ */
+function composeMptLookup(search: URLSearchParams, table: MptTable): Response {
+  const raw = search.get("ids");
+  if (raw === null || raw === "") return dataApiError(400, "ids is required");
+  const ids = raw.split(",");
+  if (ids.length > MPT_LOOKUP_MAX) return dataApiError(400, "too many ids");
+  if (!ids.every((id) => HEX48.test(id))) return dataApiError(400, "invalid mpt issuance id");
+  const issuances = ids.map((id) => {
+    const upper = id.toUpperCase();
+    return Object.hasOwn(table, upper) ? table[upper] : { mpt_issuance_id: upper };
+  });
+  return new Response(JSON.stringify({ result: "success", count: issuances.length, issuances }), { status: 200, headers: JSON_HEADERS });
 }
 
 const NODE_ABSENT: Record<string, string> = {
@@ -531,6 +568,7 @@ export function createUpstream({ files, bases, primary, overrides = {}, requests
   const used = new Set<string>();
   const hashes = new Map<NetworkName, Promise<Record<string, number>>>();
   const nameTables = new Map<NetworkName, Promise<NamesTable>>();
+  const mptTables = new Map<NetworkName, Promise<MptTable>>();
 
   const targets = NETWORK_NAMES.map((net) => ({
     net,
@@ -554,6 +592,16 @@ export function createUpstream({ files, bases, primary, overrides = {}, requests
     if (!table) {
       table = files.read(`${net}/data-api/account_names.json`).then((json) => (json === undefined ? {} : (JSON.parse(json) as NamesTable)));
       nameTables.set(net, table);
+    }
+    return table;
+  }
+
+  /** The MPT issuances of a network, from its `data-api/mpt_lookup.json`: none when it has no such file. */
+  function mptTableOf(net: NetworkName): Promise<MptTable> {
+    let table = mptTables.get(net);
+    if (!table) {
+      table = files.read(`${net}/data-api/mpt_lookup.json`).then((json) => (json === undefined ? {} : (JSON.parse(json) as MptTable)));
+      mptTables.set(net, table);
     }
     return table;
   }
@@ -648,6 +696,9 @@ export function createUpstream({ files, bases, primary, overrides = {}, requests
         }
         return composeAccountNames(url.searchParams, await namesTableOf(net));
       }
+
+      // The MPT lookup: D9's answer composed from the network's issuances (an override of the exact request is above).
+      if (segments.length === 2 && segments[0] === "v2" && segments[1] === "mpt") return composeMptLookup(url.searchParams, await mptTableOf(net));
 
       // A ledger asked for by its hash is the file of its index.
       let pathname = rest;

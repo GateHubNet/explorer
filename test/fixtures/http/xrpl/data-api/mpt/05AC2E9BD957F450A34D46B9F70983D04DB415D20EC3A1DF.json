@@ -1,0 +1,47 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 99226369,
+    "complete": true
+  },
+  "issuance": {
+    "mpt_issuance_id": "05AC2E9BD957F450A34D46B9F70983D04DB415D20EC3A1DF",
+    "issuer": "rLFUzo23kPsxeMfJ8FPixizEREUhNVf66g",
+    "sequence": 95170203,
+    "ticker": "XDRAGO",
+    "name": "XDRAGO",
+    "asset_scale": 1,
+    "maximum_amount": "100000000000",
+    "outstanding_amount": "64999999996",
+    "escrowed_amount": "0",
+    "locked_amount": "0",
+    "locked_holders": 0,
+    "holders": 7,
+    "transfer_fee": 5000,
+    "flags": {
+      "locked": false,
+      "can_lock": false,
+      "require_auth": false,
+      "can_escrow": true,
+      "can_trade": true,
+      "can_transfer": true,
+      "can_clawback": false
+    },
+    "metadata": {
+      "ticker": "XDRAGO",
+      "name": "XDRAGO",
+      "desc": "XDRAGO",
+      "icon": "ipfs://bafybeigxzvoit6zrdtkqlsafs6ofki7omvupuhq6koa3heceztzznk55ey/14.png",
+      "asset_class": "memes",
+      "issuer_name": "XDRAGO",
+      "uris": [{"uri":"x.com/xdragonnfts","category":"social","title":"xdragonnfts"}]
+    },
+    "metadata_hex": "7B2274223A2258445241474F222C226E223A2258445241474F222C2264223A2258445241474F222C2269223A22697066733A2F2F6261667962656967787A766F6974367A7264746B716C73616673366F666B69376F6D767570756871366B6F6133686563657A747A7A6E6B353565792F31342E706E67222C226163223A226D656D6573222C22696E223A2258445241474F222C227573223A5B7B2275223A22782E636F6D2F78647261676F6E6E667473222C2263223A22736F6369616C222C2274223A2278647261676F6E6E667473227D5D7D",
+    "metadata_conforms": true,
+    "created_ledger": 106427568,
+    "created_time": "2026-08-20T17:37:00Z",
+    "created_tx_hash": "B95BDC99AF0F038B7B60FC60BE5C70BCD87F5182C68E6BF97F996739E6CEAEA1",
+    "last_ledger": 107721455,
+    "destroyed": false
+  }
+}

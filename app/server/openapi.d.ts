@@ -306,7 +306,7 @@ export interface paths {
         };
         /**
          * Get payments
-         * @description The `Payment` transactions between two different accounts of the ledgers that closed between `start` and `end`, oldest first; with a currency in the path, only the payments of that currency. `format=csv` gives the payments as a flat CSV file.
+         * @description The `Payment` transactions between two different accounts of the ledgers that closed between `start` and `end`, oldest first; with a currency in the path, only the payments of that currency. An MPT payment has the issuance ID as its `currency`, its amounts in integer units, and `mpt_issuance_id` as its last key. `format=csv` gives the payments as a flat CSV file.
          */
         get: operations["PaymentsController_list"];
         put?: never;
@@ -326,7 +326,7 @@ export interface paths {
         };
         /**
          * Get payments
-         * @description The `Payment` transactions between two different accounts of the ledgers that closed between `start` and `end`, oldest first; with a currency in the path, only the payments of that currency. `format=csv` gives the payments as a flat CSV file.
+         * @description The `Payment` transactions between two different accounts of the ledgers that closed between `start` and `end`, oldest first; with a currency in the path, only the payments of that currency. An MPT payment has the issuance ID as its `currency`, its amounts in integer units, and `mpt_issuance_id` as its last key. `format=csv` gives the payments as a flat CSV file.
          */
         get: operations["PaymentsController_list"];
         put?: never;
@@ -606,7 +606,7 @@ export interface paths {
         };
         /**
          * Get the balance changes of an account
-         * @description Every change of a balance of the account (the native currency and its trust lines) made by the transactions of the ledgers that closed between `start` and `end`, oldest first; the fee of a transaction comes first, as a `transaction_cost` without a `node_index`. `currency`, `counterparty` (alias `issuer`) and `change_type` (alias `type`) keep the changes of that currency, against that counterparty, of that kind. `format=csv` gives the changes as a CSV file.
+         * @description Every change of a balance of the account (the native currency, its trust lines and its MPTs) made by the transactions of the ledgers that closed between `start` and `end`, oldest first; the fee of a transaction comes first, as a `transaction_cost` without a `node_index`. `currency`, `counterparty` (alias `issuer`) and `change_type` (alias `type`) keep the changes of that currency, against that counterparty, of that kind. The change of an MPT has the issuance ID as its `currency`, its amounts in integer units, and `mpt_issuance_id` as its last key. `format=csv` gives the changes as a CSV file.
          */
         get: operations["AccountBalanceChangesController_list"];
         put?: never;
@@ -746,7 +746,7 @@ export interface paths {
         };
         /**
          * Get the sums of the balance changes of an account by change type and currency
-         * @description Every balance change of the window counts once, the fees (`transaction_cost`) too. A change type is one of transaction_cost, payment_destination, payment_source, exchange, intermediary, escrow_create, escrow_finish, escrow_cancel, paychannel_fund, paychannel_payout; the changes of transaction types that have none are grouped without a `change_type`. `in` is the sum of the positive changes and `out` the sum of the negative ones as a positive amount; `in_value` and `out_value` are their values in the native currency (the native currency is worth itself, an issued amount its amount over the rate of its day, cut to 17 significant digits per change type, asset and day, and 0 without a rate; a change on a line the account owes on is a change of its own currency), and `net_value` is `in_value` minus `out_value`. `totals` has an entry for each change type that has a change, in that order. Without `interval` `rows` are per change type and asset (`issuer` is left out for the native currency), the largest `in_value + out_value` first; with one they are per bucket and change type, with `date` the start of the bucket. The window is whole UTC days, from the day of `start` to the day of `end` (both included, whatever the time of day), widened to whole buckets when there is an `interval`; the answer's `start` is the start of the first day or bucket and `end` the start of the one after the last, so it is exclusive. An `end` before `start` is an empty answer. With an interval, at most 1000 buckets. `format=csv` gives the rows as a CSV file.
+         * @description Every balance change of the window counts once, the fees (`transaction_cost`) too. A change type is one of transaction_cost, payment_destination, payment_source, exchange, intermediary, escrow_create, escrow_finish, escrow_cancel, paychannel_fund, paychannel_payout, clawback; the changes of transaction types that have none are grouped without a `change_type`. `in` is the sum of the positive changes and `out` the sum of the negative ones as a positive amount; `in_value` and `out_value` are their values in the native currency (the native currency is worth itself, an issued amount its amount over the rate of its day, cut to 17 significant digits per change type, asset and day, and 0 without a rate; a change on a line the account owes on is a change of its own currency), and `net_value` is `in_value` minus `out_value`. `totals` has an entry for each change type that has a change, in that order. Without `interval` `rows` are per change type and asset (`issuer` is left out for the native currency), the largest `in_value + out_value` first; with one they are per bucket and change type, with `date` the start of the bucket. The window is whole UTC days, from the day of `start` to the day of `end` (both included, whatever the time of day), widened to whole buckets when there is an `interval`; the answer's `start` is the start of the first day or bucket and `end` the start of the one after the last, so it is exclusive. An `end` before `start` is an empty answer. With an interval, at most 1000 buckets. `format=csv` gives the rows as a CSV file.
          */
         get: operations["AccountAnalyticsController_balanceChanges"];
         put?: never;
@@ -949,6 +949,26 @@ export interface paths {
          * @description The delegations the account gave (`direction=given`, the default: it is the `account` of the entry) or holds (`direction=held`: it is the `authorize`) that are in the ledger as of the newest committed ledger, the entry changed last first, then by `delegation_id`. Each lists the `permissions` the delegate was given, with the last transaction that changed the entry (`updated`) and the one that made it (`created`, when it is indexed). An entry whose list was emptied is deleted and is not listed. `format=csv` gives the delegations as a CSV file, with the permission names in one cell separated by a space (without `coverage`). Xahau has no delegation: its list is empty.
          */
         get: operations["AccountDelegationsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/accounts/{address}/mpt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the MPT holdings of an account
+         * @description The account's balances of MPTs at the newest committed ledger (`ledger_index`, `close_time`), by issuance ID: the integer units it can move (`amount`) and has in escrow (`escrowed_amount`), `locked` when the balance cannot move (its own flag or the issuance's), and its `authorized` flag. `issuer` comes from the ID; `ticker`, `name` and `asset_scale` from the issuance, when its state is known. `include_zero` adds a balance of nothing; a deleted token is never listed. The marker is the ID of the last row. `format=csv` gives the holdings as a CSV file `<address> - mpt.csv` (without `coverage`). A network without MPT has an empty list, complete.
+         */
+        get: operations["AccountMptController_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1389,6 +1409,86 @@ export interface paths {
          * @description Which kind of object the ID is, among the escrows, checks, payment channels and delegations: its `object_type` (`Escrow`, `Check`, `PayChannel` or `Delegate`), its owner (`account`), whether it was `deleted`, and the ledger of its newest row, as of the newest committed ledger. An object that was created before the index starts and has not been touched since is not known.
          */
         get: operations["LedgerObjectsController_lookup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/mpt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Look up several MPT issuances
+         * @description A summary of each of 1 to 100 issuances, in the order asked, duplicates too. An ID with no row, or whose state is not known, is the ID alone, as is every ID on a network without MPT. No coverage, no paging, no CSV.
+         */
+        get: operations["MptController_lookup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/mpt/{issuanceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an MPT issuance
+         * @description One issuance as of the last run of the `mpt_state` job: its issuer and sequence, the ticker and name of its metadata, the ledger's integer units of its maximum, outstanding, escrowed and locked amounts (`asset_scale` says how to show them), its holders, transfer fee and flags, its metadata (`metadata` only when it was decoded; `metadata_hex` and `metadata_conforms` when it has any), its creation when that is in the coverage, and `destroyed`. No row, a state outside the coverage or newer than the last tick, and every ID on a network without MPT are a 404 `issuance not found`. No CSV.
+         */
+        get: operations["MptController_issuance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/mpt/{issuanceId}/holders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the holders of an MPT issuance
+         * @description The balances of an issuance as of the last run of the `mpt_state` job, the largest first (`amount`, the integer units the holder can move, and `escrowed_amount`, those it has in escrow, count together), then by address. `locked` says the balance cannot move, by the holder's own flag or the issuance's; `authorized` is the holder's flag, which means something when the issuance requires it. `include_zero` adds the holders with nothing. An issuance whose state is not known is served; no row is a 404 `issuance not found`, as is every ID on a network without MPT. `format=csv` gives the holders as a CSV file `<issuanceId> - holders.csv` (without `coverage`).
+         */
+        get: operations["MptController_holders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/mpt/{issuanceId}/transfers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the transfers of an MPT issuance
+         * @description What the successful transactions of the ledgers that closed between `start` and `end` moved, clawed back, locked or unlocked of an issuance, oldest first. `amount` is integer units; `source` and `destination` are left out where there is none (a lock of every balance has no destination) and `fee`, the transfer fee burned, unless it is above 0. `kind` and `account` (on either side, not validated) keep those rows. An issuance whose state is not known is served; no row is a 404 `issuance not found`, as is every ID on a network without MPT. `format=csv` gives the transfers as a CSV file `<issuanceId> - transfers.csv` (without `coverage`).
+         */
+        get: operations["MptController_transfers"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1926,7 +2026,7 @@ export interface paths {
         };
         /**
          * Get the tokens, ranked by holders
-         * @description The tokens of a kind (`issued`: the currencies issued on trust lines) with the most holders first, then by issuer, then by currency; `rank` is the place of a token in that order among the tokens the filters select. A token is a currency and its issuer, as of the last run of the tokens job (`ledger_index` and `close_time` are the ledger it is through): its holders (the accounts that hold a positive balance), `trust_lines` (the lines that count), `supply` (the exact sum of the balances), the `price` of the last day against the native currency with its `price_change` (percent) and `price_time` (the month when the day has none, without a change), the `native_volume` and `trades` of the day, and the issuer's `domain`, whether its toml `listed` the token, and the `name` it gives it. `min_holders` keeps the tokens with at least that many holders; `q` (1 to 64 characters) keeps the tokens of an issuer (a classic address), or those whose code, name or domain contains it (any case), whose currency it is (40 hex digits) or whose issuer starts with it. `total` is the number of tokens the filters select, on all pages; `total_below`, with `min_holders`, the number that match `q` but have fewer holders. `totals` describe the whole kind, whatever the filters: `tokens`, `tokens_with_10_holders`, `holders` (distinct holders of all tokens; left out while the job has not counted them) and the `native_volume` of the day on the markets (left out without a day set). Before the job has built a generation the answer has no tokens. The ranking is rebuilt each minute, so a token can move between pages from one minute to the next. `format=csv` gives the tokens as a CSV file (without `coverage`).
+         * @description The tokens of a kind with the most holders first, then by issuer, then by the token; `rank` is the place of a token in that order among the tokens the filters select. `kind=mpt` lists the MPT issuances instead of the currencies issued on trust lines (`issued`, the default): its row, its `totals` and its search are in the MPT section of the reference, and the rest of this text is of `issued`. A token is a currency and its issuer, as of the last run of the tokens job (`ledger_index` and `close_time` are the ledger it is through): its holders (the accounts that hold a positive balance), `trust_lines` (the lines that count), `supply` (the exact sum of the balances), the `price` of the last day against the native currency with its `price_change` (percent) and `price_time` (the month when the day has none, without a change), the `native_volume` and `trades` of the day, and the issuer's `domain`, whether its toml `listed` the token, and the `name` it gives it. `min_holders` keeps the tokens with at least that many holders; `q` (1 to 64 characters) keeps the tokens of an issuer (a classic address), or those whose code, name or domain contains it (any case), whose currency it is (40 hex digits) or whose issuer starts with it. `total` is the number of tokens the filters select, on all pages; `total_below`, with `min_holders`, the number that match `q` but have fewer holders. `totals` describe the whole kind, whatever the filters: `tokens`, `tokens_with_10_holders`, `holders` (distinct holders of all tokens; left out while the job has not counted them) and the `native_volume` of the day on the markets (left out without a day set). Before the job has built a generation the answer has no tokens. The ranking is rebuilt each minute, so a token can move between pages from one minute to the next. `format=csv` gives the tokens as a CSV file (without `coverage`).
          */
         get: operations["TokensController_list"];
         put?: never;
@@ -2487,7 +2587,7 @@ export interface operations {
             };
             header?: never;
             path: {
-                /** @description A currency and its issuer, `USD+rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B`, or the native currency alone. Omitted: all currencies. */
+                /** @description A currency and its issuer, `USD+rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B`, the native currency alone, or an MPT: its 48 hex digits, with or without its issuer. Omitted: all currencies. */
                 currency: unknown;
             };
             cookie?: never;
@@ -2520,7 +2620,7 @@ export interface operations {
             };
             header?: never;
             path: {
-                /** @description A currency and its issuer, `USD+rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B`, or the native currency alone. Omitted: all currencies. */
+                /** @description A currency and its issuer, `USD+rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B`, the native currency alone, or an MPT: its 48 hex digits, with or without its issuer. Omitted: all currencies. */
                 currency: unknown;
             };
             cookie?: never;
@@ -3006,7 +3106,7 @@ export interface operations {
                 /** @description Newest first. */
                 descending?: boolean;
                 /** @description Only changes of this kind. Alias: type. */
-                change_type?: "transaction_cost" | "exchange" | "intermediary" | "payment_source" | "payment_destination" | "escrow_create" | "escrow_cancel" | "escrow_finish" | "paychannel_fund" | "paychannel_payout";
+                change_type?: "transaction_cost" | "exchange" | "intermediary" | "payment_source" | "payment_destination" | "escrow_create" | "escrow_cancel" | "escrow_finish" | "paychannel_fund" | "paychannel_payout" | "clawback";
                 /** @description Only changes against this counterparty; not with the native currency. Alias: issuer. */
                 counterparty?: unknown;
                 /** @description Only changes of this currency. */
@@ -3565,6 +3665,35 @@ export interface operations {
                 limit?: number;
                 /** @description `given` (default): the delegations the account made. `held`: those it was given. */
                 direction?: "given" | "held";
+            };
+            header?: never;
+            path: {
+                /** @description The address of the account (a classic address). */
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AccountMptController_list: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page: the ID of its last row. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Also a balance of nothing. */
+                include_zero?: boolean;
             };
             header?: never;
             path: {
@@ -4181,6 +4310,112 @@ export interface operations {
             path: {
                 /** @description The 64 hex digits of the object ID, in any case. */
                 object_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MptController_lookup: {
+        parameters: {
+            query: {
+                /** @description A comma list of 1 to 100 issuance IDs. */
+                ids: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MptController_issuance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The ID of the issuance: 48 hex digits in either case, answered in upper case. */
+                issuanceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MptController_holders: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Also the holders with nothing. */
+                include_zero?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description The ID of the issuance: 48 hex digits in either case, answered in upper case. */
+                issuanceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MptController_transfers: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Newest first. */
+                descending?: boolean;
+                /** @description End time. Default: the newest ledger. */
+                end?: unknown;
+                /** @description Start time. Default: the beginning. */
+                start?: unknown;
+                /** @description Only the rows with this account as source or destination. */
+                account?: unknown;
+                /** @description A comma list of payment, clawback, lock, unlock, escrow_create, escrow_finish, escrow_cancel. Default: all. */
+                kind?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The ID of the issuance: 48 hex digits in either case, answered in upper case. */
+                issuanceId: string;
             };
             cookie?: never;
         };
@@ -5001,12 +5236,12 @@ export interface operations {
                 marker?: unknown;
                 /** @description Default 200, at most 1000. */
                 limit?: number;
-                /** @description A search, 1 to 64 characters: an issuer address, or text in the code, name or domain, a currency in hex, an issuer prefix. */
+                /** @description A search, 1 to 64 characters: an issuer address, or text in the code, name or domain, a currency in hex, an issuer prefix. With `kind=mpt`: an issuer address, an issuance ID, or text in the ticker or name, an issuer prefix, an ID prefix of 8 hex digits or more. */
                 q?: unknown;
                 /** @description Only the tokens with at least this many holders: 0 to 1,000,000,000. Default 0. */
                 min_holders?: number;
                 /** @description Default: issued. */
-                kind?: "issued";
+                kind?: "issued" | "mpt";
             };
             header?: never;
             path?: never;

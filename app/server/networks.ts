@@ -37,6 +37,8 @@ export interface Network {
   hasAmm: boolean;
   /** Whether the network's ledger has permission delegation, the Delegate object (XRPL and XRPL Testnet do, Xahau and Xahau Testnet do not): the Delegation tab of an account is drawn by it, besides its `DELEGATION` switch. */
   hasDelegation: boolean;
+  /** Whether the network's ledger has multi-purpose tokens, MPT (XRPL and XRPL Testnet do, Xahau and Xahau Testnet do not): the MPT pages and the token list's MPT tab are drawn by it, besides the `MPT` switch. */
+  hasMpt: boolean;
   /** The server software the network's validators run: it names the file their domains publish (`xrp-ledger.toml` or `xahau.toml`). */
   software: "rippled" | "xahaud";
   /** The currencies the network's amounts can be shown in, the native one first. Only the mainnet XRPL has USD (issued by GateHub). */
@@ -45,7 +47,7 @@ export interface Network {
   features: Features;
 }
 
-type NetworkEntry = Pick<Network, "id" | "kind" | "native" | "ctidNetworkId" | "other" | "hasAmm" | "hasDelegation" | "software" | "displays"> & {
+type NetworkEntry = Pick<Network, "id" | "kind" | "native" | "ctidNetworkId" | "other" | "hasAmm" | "hasDelegation" | "hasMpt" | "software" | "displays"> & {
   /** The `Env` variables that hold this network's URLs. */
   dataApiUrlVar: "XRPL_DATA_API_URL" | "XAHAU_DATA_API_URL";
   nodeUrlVar: "XRPL_NODE_URL" | "XAHAU_NODE_URL";
@@ -62,6 +64,7 @@ const NETWORKS: Record<NetworkKind, Record<NetworkId, NetworkEntry>> = {
       other: "xahau",
       hasAmm: true,
       hasDelegation: true,
+      hasMpt: true,
       software: "rippled",
       displays: ["native", "usd"],
       dataApiUrlVar: "XRPL_DATA_API_URL",
@@ -75,6 +78,7 @@ const NETWORKS: Record<NetworkKind, Record<NetworkId, NetworkEntry>> = {
       other: "xrpl",
       hasAmm: false,
       hasDelegation: false,
+      hasMpt: false,
       software: "xahaud",
       displays: ["native"],
       dataApiUrlVar: "XAHAU_DATA_API_URL",
@@ -90,6 +94,7 @@ const NETWORKS: Record<NetworkKind, Record<NetworkId, NetworkEntry>> = {
       other: "xahau",
       hasAmm: true,
       hasDelegation: true,
+      hasMpt: true,
       software: "rippled",
       displays: ["native"],
       dataApiUrlVar: "XRPL_DATA_API_URL",
@@ -103,6 +108,7 @@ const NETWORKS: Record<NetworkKind, Record<NetworkId, NetworkEntry>> = {
       other: "xrpl",
       hasAmm: false,
       hasDelegation: false,
+      hasMpt: false,
       software: "xahaud",
       displays: ["native"],
       dataApiUrlVar: "XAHAU_DATA_API_URL",

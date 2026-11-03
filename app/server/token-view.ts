@@ -3,7 +3,8 @@
 // BigNumber, so no float and no exponent reaches a label. The page draws what it is given and never fetches: every label and every href is text in the data.
 //
 // The list is one call (spec 2.3). A search of more than `TOKEN_SEARCH_MAX` characters is no call: `answer` is `null`, and the page is the form with its message, no list and no pager. An answer
-// from before D6's first generation has no `totals`, no `total` and no ledger (`TokensResponse`): the tiles read dashes, and there is no note, no pager and no "Show all".
+// from before D6's first generation has no `totals`, no `total` and no ledger (`TokensResponse`): the tiles read dashes, and there is no note, no pager and no "Show all". The MPT tab (E14 spec 4) is
+// the same call with `kind=mpt`: `tokensPage` hands its head, tiles, rows and notes to `mptTokensTab` (mpt-view.ts) and keeps the form, the tabs and the pager for both kinds.
 //
 // The token page is #1 with up to six cards that stand or fail on their own (spec 3.5): the holders, the transfers, the pools and the issuer's settings, the last of which is read from the node
 // when D6 has none. What the issuer controls (the toml's fields, its URLs, its domain) is text: it is shown without its bidi controls, and only an `https:` URL becomes a link (`linkOf`),
@@ -28,9 +29,10 @@ import type { NetworkInfo } from "../ui/networks";
 import { httpsLink } from "./account-name-view";
 import { accountFlags, type Loaded } from "./account-view";
 import { componentsByPool, displayPair, poolVolume } from "./amm-view";
-import type { AmmPool, AmmVolumeRow, IssuedTokenRow, IssuedTokensTotals, IssuerSettings, Page, TokenAnswer, TokenDetail, TokenHoldersResponse, TokenMarket, TokensResponse, TokenTransfersResponse } from "./api-types";
+import type { AmmPool, AmmVolumeRow, IssuedTokenRow, IssuedTokensTotals, IssuerSettings, MptTokensPage, Page, TokenAnswer, TokenDetail, TokenHoldersResponse, TokenMarket, TokensResponse, TokenTransfersResponse } from "./api-types";
 import { coverageNote, type CoverageNoteText } from "./coverage";
 import { BN, feePercent } from "./exact";
+import { mptTokensTab, type MptRowView } from "./mpt-view";
 import { networkInfoOf, type PublicNetwork } from "./network-route";
 import type { NetworkId } from "./networks";
 import type { AccountInfo } from "./node-rpc";
@@ -84,8 +86,9 @@ export interface IssuedRowView {
   listed: boolean;
 }
 
-/** What the tags of the list read of the view (`meta-tokens.ts`): the search, if it was one that could be asked; all; a page behind a marker; a search that was too long. */
+/** What the tags of the list read of the view (`meta-tokens.ts`): the kind; the search, if it was one that could be asked; all; a page behind a marker; a search that was too long. */
 export interface TokensMetaFacts {
+  kind: TokenKind;
   q?: string;
   all: boolean;
   more: boolean;
@@ -95,10 +98,10 @@ export interface TokensMetaFacts {
 export interface TokensInput {
   net: TokensNet;
   params: TokensParams;
-  /** E14's seam: whether the MPT tab is a link (`mptAvailableOf`). */
+  /** Whether the MPT tab is a link (`mptAvailableOf`). */
   mptAvailable: boolean;
-  /** D6's list; `null` when the search was too long and the list was not asked. */
-  answer: TokensResponse | null;
+  /** D6's list for the issued kind, D9's for the MPT kind (the answer is of the view's kind); `null` when the search was too long and the list was not asked. */
+  answer: TokensResponse | MptTokensPage | null;
   names: NamesPart;
 }
 
@@ -111,10 +114,13 @@ export interface TokensPageData {
   /** The data API path the list is made from. */
   source: string;
   tiles: Array<{ label: string; value: string; sub: string }>;
-  search: { action: string; q: string; error: string | null; label: string; placeholder: string; hidden: Array<{ name: string; value: string }> };
+  /** `before` are the hidden fields written before the search field (the MPT tab's `kind=mpt`, so that a submit writes the canonical `kind`, `q` order), `hidden` those after it (`all=1`). */
+  search: { action: string; q: string; error: string | null; label: string; placeholder: string; before: Array<{ name: string; value: string }>; hidden: Array<{ name: string; value: string }> };
   showAll: { href: string; label: string } | null;
-  /** The issued tokens' table; `null` when the search was too long. */
+  /** The issued tokens' table; `null` when the search was too long, and for the MPT kind. */
   issued: { rows: IssuedRowView[]; empty: string | null; note: { text: string; more?: { text: string; href: string } } | null; footnote: string } | null;
+  /** The MPT tab's table (`mptTokensTab`); `null` when the search was too long, and for the issued kind. */
+  mpt: { rows: MptRowView[]; empty: string | null; note: { text: string } | null; footnote: string } | null;
   coverage: CoverageNoteText | null;
   pager: Paging & { labels: typeof PAGER_LABELS };
   names: NamesPart;
@@ -189,47 +195,53 @@ function showAllOf(net: TokensNet, params: TokensParams, answer: TokensResponse 
 
 /**
  * The page data of `/{net}/tokens` (spec 2.1): the head, the kind tabs, the three tiles, the search form and its link, and the table with its note, footnote, coverage and pager. `answer` is
- * D6's first call; `null` is the search of more than 64 characters, which is no call (spec 1.3). The links keep the search and `all`; a page behind a marker keeps the trail.
+ * the first call's: D6's for the issued kind, D9's for the MPT kind (E14 spec 4; its head, tiles and table are `mptTokensTab`'s); `null` is the search of more than 64 characters, which is no
+ * call (spec 1.3). The links keep the kind, the search and, for the issued list, `all`; a page behind a marker keeps the trail.
  */
 export function tokensPage({ net, params, mptAvailable, answer, names }: TokensInput): TokensPageData {
+  if (answer !== null && answer.kind !== params.kind) throw new Error(`the ${answer.kind} list answered the ${params.kind} view`);
   const tooLong = answer === null;
   // What the page repeats of the search in words and in the tags: without the controls that would turn the words around it, and not at all when it was too long to ask.
   const q = answer === null ? undefined : withoutBidiControls(params.q ?? "") || undefined;
+  const issuedAnswer = answer?.kind === "issued" ? answer : null;
+  const tab = params.kind === "mpt" ? mptTokensTab(answer?.kind === "mpt" ? answer : null, { net, q }) : null;
   return {
     kind: "tokens",
     network: networkInfoOf(net),
     tokenKind: params.kind,
     tabs: kindTabs(net, params.kind, mptAvailable),
-    intro: `Tokens on ${net.name}, ranked by holders. Names come from each issuer's toml.`,
-    source: `/v2/tokens?kind=issued${params.all ? "" : `&min_holders=${MIN_HOLDERS}`}`,
-    tiles: tilesOf(net, answer?.totals),
+    intro: tab?.intro ?? `Tokens on ${net.name}, ranked by holders. Names come from each issuer's toml.`,
+    source: tab?.source ?? `/v2/tokens?kind=issued${params.all ? "" : `&min_holders=${MIN_HOLDERS}`}`,
+    tiles: tab?.tiles ?? tilesOf(net, issuedAnswer?.totals),
     search: {
       action: tokensHref(net.id),
       q: params.q ?? "",
       error: tooLong ? `Search for at most ${TOKEN_SEARCH_MAX} characters` : null,
-      label: "Code, name or issuer",
-      placeholder: "RLUSD, Ripple or rMxCK…",
+      label: tab?.search.label ?? "Code, name or issuer",
+      placeholder: tab?.search.placeholder ?? "RLUSD, Ripple or rMxCK…",
+      before: tab === null ? [] : [{ name: "kind", value: "mpt" }],
       hidden: params.all ? [{ name: "all", value: "1" }] : [],
     },
-    showAll: showAllOf(net, params, answer),
+    showAll: tab === null ? showAllOf(net, params, issuedAnswer) : null,
     issued:
-      answer === null
+      issuedAnswer === null
         ? null
         : {
-            rows: answer.tokens.map((row) => rowOf(net, row)),
-            empty: answer.tokens.length === 0 ? emptyOf(params, q, answer) : null,
-            note: noteOf(net, params, answer),
+            rows: issuedAnswer.tokens.map((row) => rowOf(net, row)),
+            empty: issuedAnswer.tokens.length === 0 ? emptyOf(params, q, issuedAnswer) : null,
+            note: noteOf(net, params, issuedAnswer),
             footnote: `Holders: accounts with a positive balance. Supply: the sum of their balances. Price: the last trade against ${net.native}.`,
           },
-    coverage: answer === null ? null : coverageNote(answer.coverage, "trust lines"),
+    mpt: tab?.mpt ?? null,
+    coverage: tab === null ? (issuedAnswer === null ? null : coverageNote(issuedAnswer.coverage, "trust lines")) : tab.coverage,
     pager: {
       ...(answer === null
         ? { newerHref: null, olderHref: null }
-        : trailPaging({ marker: params.marker, back: params.back, next: answer.marker }, (to) => tokensHref(net.id, { q: params.q, all: params.all, ...to }))),
+        : trailPaging({ marker: params.marker, back: params.back, next: answer.marker }, (to) => tokensHref(net.id, { kind: params.kind, q: params.q, all: params.all, ...to }))),
       labels: PAGER_LABELS,
     },
     names,
-    meta: { ...(q === undefined ? {} : { q }), all: params.all, more: params.marker !== undefined, error: tooLong },
+    meta: { kind: params.kind, ...(q === undefined ? {} : { q }), all: params.all, more: params.marker !== undefined, error: tooLong },
   };
 }
 

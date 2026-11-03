@@ -15,9 +15,9 @@ const noindex = (title: string, description: string): MetaDescriptor[] => [
   { name: "robots", content: "noindex, follow" },
 ];
 
-/** The title's lead: "Tokens", "All tokens", "More tokens" behind a marker, and "matching “q”" for a search (a search names the page before all does). */
-function leadOf({ q, all, more }: TokensMetaFacts): string {
-  const lead = more ? "More tokens" : q === undefined && all ? "All tokens" : "Tokens";
+/** The title's lead: "Tokens", "All tokens", "More tokens" behind a marker, and "matching “q”" for a search (a search names the page before all does); "MPTs" and "More MPTs" on the MPT tab, which has no "all". */
+function leadOf({ kind, q, all, more }: TokensMetaFacts): string {
+  const lead = kind === "mpt" ? (more ? "More MPTs" : "MPTs") : more ? "More tokens" : q === undefined && all ? "All tokens" : "Tokens";
   return q === undefined ? lead : `${lead} matching “${q}”`;
 }
 
@@ -28,11 +28,17 @@ function leadOf({ q, all, more }: TokensMetaFacts): string {
  * The default view is indexable, with a canonical URL on the origin of the request and no image (a list that changes every minute would have its picture out of date at once). Every
  * other view is `noindex, follow`, with no canonical URL and no Open Graph or card tags: a search ("Tokens matching “USD”"), all the tokens ("All tokens"), a page behind a marker
  * ("More tokens"), and a search that was too long to ask, which is "Tokens" and does not repeat what was typed.
+ *
+ * The MPT tab (E14 spec 4) is the same page in another view, the same way: "MPTs · XRPL · explorer", "MPT issuances on the XRP Ledger, ranked by holders.", and the canonical URL
+ * `/{net}/tokens?kind=mpt` (written here as `tokensHref` writes it); a search or a page behind a marker is `noindex, follow` ("MPTs matching “HTF”", "More MPTs").
  */
 export function tokensMeta(facts: TokensMetaFacts, ctx: MetaContext): MetaDescriptor[] {
   const { network, origin } = ctx;
   const title = `${leadOf(facts)} · ${suffixOf(network)}`;
-  const description = `Issued tokens on ${network.longName}, ranked by holders: supply, price, 24-hour volume and whether each issuer's toml lists it.`;
+  const mpt = facts.kind === "mpt";
+  const description = mpt
+    ? `MPT issuances on ${network.longName}, ranked by holders.`
+    : `Issued tokens on ${network.longName}, ranked by holders: supply, price, 24-hour volume and whether each issuer's toml lists it.`;
   if (facts.q !== undefined || facts.all || facts.more || facts.error) return noindex(title, description);
-  return sharing({ title, description, url: absolute(origin, `/${network.id}/tokens`) });
+  return sharing({ title, description, url: absolute(origin, `/${network.id}/tokens${mpt ? "?kind=mpt" : ""}`) });
 }

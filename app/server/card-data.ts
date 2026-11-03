@@ -1,9 +1,9 @@
-// The words and numbers of a link-preview image (spec 9, the LinkPreview board; validators spec 8; AMM spec 5.2; NFT spec 10; token pages spec 7.2): a transaction, a ledger, an account, a
-// validator, an amendment, an AMM pool, an NFT or an issued token, from the same facts the page's tags are made of, so a link's text and its picture never disagree. Pure;
+// The words and numbers of a link-preview image (spec 9, the LinkPreview board; validators spec 8; AMM spec 5.2; NFT spec 10; token pages spec 7.2; E14 spec 9): a transaction, a ledger, an account, a
+// validator, an amendment, an AMM pool, an NFT, an issued token or an MPT, from the same facts the page's tags are made of, so a link's text and its picture never disagree. Pure;
 // app/og/card.tsx draws what this returns.
 
 import { describe, headlineAmount, type FlowAmount } from "../domain/describe";
-import { formatAmount, formatCurrency, shortAddress, shortHash } from "../domain/format";
+import { formatAmount, shortAddress, shortHash } from "../domain/format";
 import { labelWords, plainNameOf, vouchedByOf, type NameView } from "../domain/names";
 import type { Native } from "../domain/parse/types";
 import { formatDate } from "../domain/time-words";
@@ -12,7 +12,8 @@ import type { NetworkBrief } from "../ui/networks";
 import type { AmmPoolFacts } from "./amm-view";
 import type { AmendmentDetail, NftKind, ValidatorDetail } from "./api-types";
 import type { LedgerFacts } from "./meta-ledger";
-import { movement, type TxFacts } from "./meta-transaction";
+import { amountText, movement, type TxFacts } from "./meta-transaction";
+import type { MptFacts } from "./mpt-view";
 import type { Network } from "./networks";
 import type { NftFacts } from "./nft-view";
 import type { TokenMetaFacts } from "./token-view";
@@ -43,7 +44,6 @@ function clip(text: string, max: number): string {
 }
 
 const labelOf = (network: NetworkBrief) => network.label;
-const amountText = (amount: FlowAmount) => `${formatAmount(amount.value)} ${formatCurrency(amount.currency)}`;
 
 /** What the card of a transaction reads: the page's own data, and what only the transaction itself says. */
 export type TxCardFacts = TxFacts &
@@ -341,5 +341,33 @@ export function tokenCard(facts: TokenMetaFacts, network: NetworkBrief): CardDat
     parties: [facts.issuer],
     note: clip(`${holders} · supply ${facts.supply} ${facts.code}`, NOTE_MAX),
     footer: [{ text: facts.listedBy === undefined ? `Issued token on ${network.name}` : `Listed in ${clip(facts.listedBy, DOMAIN_MAX)}'s toml` }],
+  };
+}
+
+/**
+ * The most characters of an MPT's name the note of its card says: the issuer writes up to 128, the note is one line of 34 px between the card's side paddings (1,056 px), and the figures after the name
+ * must stay whole, so the name is cut and not the note (the token card's note is cut from its end, which is its code, said by the headline as well).
+ */
+const MPT_NAME_MAX = 40;
+
+/**
+ * The card of an MPT (E14 spec 9), made of the facts the page's tags are (`mptFacts`, whose `card` is the issuer's ticker and name without their bidi controls), so a link's text and its picture agree: the
+ * kind "MPT"; the ticker for the big line, in mono as a token's code is, else the start and end of the ID; the issuer under it (its display name when the names say one, else its short address);
+ * the note, "{name} · {compact outstanding} {T} outstanding · {n} holders" (without the name when there is none, without the holders for an issuance only the node has, whose amount is in
+ * "units" when it has no ticker); and the footer, "Created 9 Oct 2025" when the index knows the day, else "MPT on {network}". The card has no line of its own for the name: it leads the note. Every figure is
+ * the facts' own text: none is worked out here.
+ */
+export function mptCard(facts: MptFacts, network: NetworkBrief): CardData {
+  const { card } = facts;
+  const holders = card.holders === undefined ? [] : [card.holders === 1 ? "1 holder" : `${formatAmount(String(card.holders))} holders`];
+  const figures = [`${card.outstanding} outstanding`, ...holders].join(" · ");
+  return {
+    network: network.id,
+    networkLabel: labelOf(network),
+    kind: "MPT",
+    headline: { text: card.headline, mono: true },
+    parties: [card.issuer],
+    note: card.name === undefined ? figures : `${clip(card.name, MPT_NAME_MAX)} · ${figures}`,
+    footer: [{ text: card.created === undefined ? `MPT on ${network.name}` : `Created ${formatCardDate(card.created)}` }],
   };
 }

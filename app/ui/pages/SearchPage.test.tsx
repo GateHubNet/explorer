@@ -17,6 +17,8 @@ const OBJECTS_ON = { ...NO_FEATURES, ledgerObjects: true };
 const NFTS_AND_OBJECTS_ON = { ...NFTS_ON, ledgerObjects: true };
 /** `TOKENS` on, every other switch off. */
 const TOKENS_ON = { ...NO_FEATURES, tokens: true };
+/** `MPT` on, every other switch off. */
+const MPT_ON = { ...NO_FEATURES, mpt: true };
 
 afterEach(cleanup);
 
@@ -232,6 +234,29 @@ describe("the help text", () => {
       "A transaction or ledger hash: 64 hexadecimal characters",
       "An NFT or URIToken id: 64 hexadecimal characters",
       "An escrow, check or payment channel id: 64 hexadecimal characters",
+      "A token: its code and issuer",
+      "A ledger index, such as 107695660",
+      "A CTID: C followed by 15 hexadecimal characters",
+    ]);
+  });
+
+  it("adds the MPT issuance ID with MPT on, after the ids and before the token, and only then (E14 spec 8)", () => {
+    renderUnderNetwork(<SearchPage network={XRPL} data={{ kind: "help", query: "hello" }} />, MPT_ON, { path: "/xrpl/search", hydrated: true });
+    expect(within(screen.getByRole("list")).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "An account address, starting with r, or an X-address",
+      "A transaction or ledger hash: 64 hexadecimal characters",
+      "An MPT issuance ID (48 hex digits)",
+      "A ledger index, such as 107695660",
+      "A CTID: C followed by 15 hexadecimal characters",
+    ]);
+    cleanup();
+    renderUnderNetwork(<SearchPage network={XRPL} data={{ kind: "help", query: "hello" }} />, { ...NFTS_AND_OBJECTS_ON, tokens: true, mpt: true }, { path: "/xrpl/search", hydrated: true });
+    expect(within(screen.getByRole("list")).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "An account address, starting with r, or an X-address",
+      "A transaction or ledger hash: 64 hexadecimal characters",
+      "An NFT or URIToken id: 64 hexadecimal characters",
+      "An escrow, check or payment channel id: 64 hexadecimal characters",
+      "An MPT issuance ID (48 hex digits)",
       "A token: its code and issuer",
       "A ledger index, such as 107695660",
       "A CTID: C followed by 15 hexadecimal characters",

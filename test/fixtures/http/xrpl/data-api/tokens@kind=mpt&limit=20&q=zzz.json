@@ -1,0 +1,18 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 99226369,
+    "complete": true
+  },
+  "kind": "mpt",
+  "ledger_index": 107721455,
+  "close_time": "2026-10-17T17:01:12Z",
+  "totals": {
+    "issuances": 25,
+    "holders": 329,
+    "transfers_24h": 96
+  },
+  "total": 0,
+  "count": 0,
+  "tokens": []
+}

@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import type { FlowStep } from "../domain/describe";
-import { shortHash } from "../domain/format";
-import type { NameView } from "../domain/names";
+import { shortAddress, shortHash } from "../domain/format";
+import { NO_NAMES, type NamesPart, type NameView } from "../domain/names";
 import { AMM_POOL, ammLiquiditySample, ammPoolSample } from "../../test/support/amm-samples";
 import { AMM_ID, amendmentDetailSample, SAMPLE_KEYS, UNKNOWN_ID, validatorDetailSample, XCB_ID } from "../../test/support/d1-samples";
+import { MPT_SAMPLE_ID, MPT_SAMPLE_ISSUER, mptIssuanceSample, mptSample } from "../../test/support/mpt-samples";
 import { TOKEN_SAMPLE_ISSUER, tokenDetailSample } from "../../test/support/token-samples";
 import { ammPoolFacts, type AmmPoolFacts } from "./amm-view";
+import { mptFacts, type MptSource } from "./mpt-view";
 import { type NftFacts } from "./nft-view";
 import { tokenFacts, type TokenMetaFacts } from "./token-view";
 import type { AmendmentDetail, ValidatorDetail } from "./api-types";
-import { accountCard, amendmentCard, formatCardTime, ledgerCard, nftCard, nftCardFacts, poolCard, tokenCard, transactionCard, transactionFacts, validatorCard, type NftCardFacts } from "./card-data";
+import { accountCard, amendmentCard, formatCardTime, ledgerCard, mptCard, nftCard, nftCardFacts, poolCard, tokenCard, transactionCard, transactionFacts, validatorCard, type NftCardFacts } from "./card-data";
 
 // What the link-preview image says (spec 9, the LinkPreview board): the words and numbers of the card for a transaction, a ledger and an
 // account, from the same facts the page's tags are built from. The layout is app/og/card.test.ts; the PNG is test/worker/og.spec.ts.
@@ -79,6 +81,16 @@ describe("transactionCard", () => {
   it("takes the amount the page lists first (what a payment delivered) over the ends of the flow", () => {
     const card = transactionCard(tx({ amount: { value: "7", currency: "EUR" } }), XRPL);
     expect(card.headline).toEqual({ text: "7 EUR", mono: true });
+  });
+
+  it("writes an MPT's amount as units of the issuance, which the card does not look up", () => {
+    const amount = { mpt: "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8", issuer: "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh", units: "2500000" };
+    expect(transactionCard(tx({ amount }), XRPL).headline).toEqual({ text: "2,500,000 units of MPT 0000012A…", mono: true });
+    const moved: FlowStep[] = [
+      { role: "sender", account: SENDER, label: "Sender", amount },
+      { role: "destination", account: RECEIVER, label: "Destination", amount },
+    ];
+    expect(transactionCard(tx({ flow: moved }), XRPL).headline).toEqual({ text: "2,500,000 units of MPT 0000012A…", mono: true });
   });
 
   it("writes a currency code as the page does", () => {
@@ -697,6 +709,115 @@ describe("tokenCard", () => {
   });
 });
 
+// ---- An MPT ----------------------------------------------------------------------------------------------------------------------------
+
+describe("mptCard", () => {
+  const MPT_NET = { id: "xrpl", name: "XRPL" } as const;
+  const SHORT_ID = `${MPT_SAMPLE_ID.slice(0, 8)}…${MPT_SAMPLE_ID.slice(-4)}`;
+  /** HTF as the index has it (the board's figures: 18,204,511.20 outstanding over 3,412 holders, created on 9 Oct 2025), with the keys `over` replaces. */
+  const indexed = (over: Parameters<typeof mptIssuanceSample>[0] = {}): MptSource => ({ origin: "index", answer: mptSample({ issuance: mptIssuanceSample(over) }) });
+  /** The same issuance as only the node has it: no metadata, no holders, no creation time. */
+  const fromNode: MptSource = { origin: "node", node: { LedgerEntryType: "MPTokenIssuance", Issuer: MPT_SAMPLE_ISSUER, Sequence: 298, Flags: 0x22, AssetScale: 2, OutstandingAmount: "1820451120" }, ledgerIndex: 107721455, id: MPT_SAMPLE_ID };
+  const named: NamesPart = { state: "ok", map: { [MPT_SAMPLE_ISSUER]: { name: { text: "Harborline", kind: "verified" }, labels: [] } satisfies NameView } };
+  const cardOf = (source: MptSource, names: NamesPart = NO_NAMES, network: typeof XRPL | typeof XRPL_TESTNET = XRPL) => mptCard(mptFacts(network, source, names), network);
+
+  it("is the board: the kind MPT, the ticker as the big line, the issuer, the name and the figures, the day it was created", () => {
+    expect(cardOf(indexed(), named)).toEqual({
+      network: "xrpl",
+      networkLabel: "XRPL mainnet",
+      kind: "MPT",
+      headline: { text: "HTF", mono: true },
+      parties: ["Harborline"],
+      note: "Harborline Treasury Fund · 18.2M HTF outstanding · 3,412 holders",
+      footer: [{ text: "Created 9 Oct 2025" }],
+    });
+  });
+
+  it("names the issuer by its short address where the names say nothing of it", () => {
+    expect(cardOf(indexed()).parties).toEqual([shortAddress(MPT_SAMPLE_ISSUER)]);
+  });
+
+  it("leaves the name out of the note of an issuance that has none, and keeps the figures", () => {
+    const card = cardOf(indexed({ name: undefined, metadata: undefined }));
+    expect(card.headline).toEqual({ text: "HTF", mono: true });
+    expect(card.note).toBe("18.2M HTF outstanding · 3,412 holders");
+  });
+
+  it("is headed by the start and end of the ID, in mono, where the issuance has no ticker, and counts its amount in units", () => {
+    const card = cardOf(indexed({ ticker: undefined, name: undefined, metadata: undefined }));
+    expect(card.headline).toEqual({ text: SHORT_ID, mono: true });
+    expect(card.note).toBe("18.2M units outstanding · 3,412 holders");
+  });
+
+  it("reads an issuance only the network has: units, no holders, no creation, and the network in the footer", () => {
+    expect(cardOf(fromNode)).toEqual({
+      network: "xrpl",
+      networkLabel: "XRPL mainnet",
+      kind: "MPT",
+      headline: { text: SHORT_ID, mono: true },
+      parties: [shortAddress(MPT_SAMPLE_ISSUER)],
+      note: "18.2M units outstanding",
+      footer: [{ text: "MPT on XRPL" }],
+    });
+    expect(cardOf(fromNode, NO_NAMES, XRPL_TESTNET).footer).toEqual([{ text: "MPT on XRPL Testnet" }]);
+    expect(cardOf(indexed({ created_time: undefined })).footer).toEqual([{ text: "MPT on XRPL" }]);
+  });
+
+  it("says holder of an issuance with one, 0 holders of one with none, and groups the thousands as the page does", () => {
+    expect(cardOf(indexed({ holders: 1 })).note).toBe("Harborline Treasury Fund · 18.2M HTF outstanding · 1 holder");
+    expect(cardOf(indexed({ holders: 0 })).note).toBe("Harborline Treasury Fund · 18.2M HTF outstanding · 0 holders");
+    expect(cardOf(indexed({ holders: 1234567 })).note).toBe("Harborline Treasury Fund · 18.2M HTF outstanding · 1,234,567 holders");
+  });
+
+  it("reads the day in UTC as the cards do: the last second of a day and the first of the next", () => {
+    expect(cardOf(indexed({ created_time: "2025-10-09T23:59:59Z" })).footer).toEqual([{ text: "Created 9 Oct 2025" }]);
+    expect(cardOf(indexed({ created_time: "2025-10-10T00:00:00Z" })).footer).toEqual([{ text: "Created 10 Oct 2025" }]);
+  });
+
+  it("cuts a name that runs on (the issuer writes up to 128 characters) so that the figures stay whole on the card, and leaves one that fits", () => {
+    const long = `Harborline ${"Treasury ".repeat(14)}Fund`;
+    const card = cardOf(indexed({ name: long }));
+    expect(card.note).toBe(`${Array.from(long).slice(0, 39).join("").trimEnd()}… · 18.2M HTF outstanding · 3,412 holders`);
+    const fits = "x".repeat(40);
+    expect(cardOf(indexed({ name: fits })).note).toBe(`${fits} · 18.2M HTF outstanding · 3,412 holders`);
+    expect(cardOf(indexed({ name: "x".repeat(41) })).note).toBe(`${"x".repeat(39)}… · 18.2M HTF outstanding · 3,412 holders`);
+  });
+
+  // One rule for the issuer's text (the whole-branch review's I1): the tab, the pages, the tags and the card read it without its bidi controls.
+  it("draws the issuer's ticker and name without their bidi controls, as the tab does, and a ticker of nothing else as none", () => {
+    const hostile = cardOf(indexed({ ticker: "H\u202ETF", name: "Harbor\u2066line\u200F Fund" }));
+    expect(hostile.headline).toEqual({ text: "HTF", mono: true });
+    expect(hostile.note).toBe("Harborline Fund · 18.2M HTF outstanding · 3,412 holders");
+    const nothing = cardOf(indexed({ ticker: "\u202E\u202C", name: "\u2066\u2069", metadata: undefined }));
+    expect(nothing.headline).toEqual({ text: SHORT_ID, mono: true });
+    expect(nothing.note).toBe("18.2M units outstanding · 3,412 holders");
+    for (const text of [hostile.headline.text, hostile.note!, nothing.headline.text, nothing.note!]) expect(text).not.toMatch(/[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/);
+  });
+
+  it("reads the ticker as every page does: cut to 16 code points, and a blank one is none", () => {
+    const long = cardOf(indexed({ ticker: "ABCDEFGHIJKLMNOPQRST" }));
+    expect(long.headline.text).toBe("ABCDEFGHIJKLMNOP");
+    expect(long.note).toContain("18.2M ABCDEFGHIJKLMNOP outstanding");
+    const blank = cardOf(indexed({ ticker: "   ", metadata: undefined }));
+    expect(blank.headline.text).toBe(SHORT_ID);
+    expect(blank.note).toContain("18.2M units outstanding");
+  });
+
+  // The whole-branch review's M1: above asset scale 19 the amount is the ledger's integers, not the token's, so the card counts it in units whatever the ticker is.
+  it("counts the amount in units above scale 19, and keeps the ticker as the headline", () => {
+    const card = cardOf(indexed({ asset_scale: 25, outstanding_amount: "1820451120" }));
+    expect(card.headline).toEqual({ text: "HTF", mono: true });
+    expect(card.note).toBe("Harborline Treasury Fund · 1.82B units outstanding · 3,412 holders");
+    expect(cardOf(indexed({ asset_scale: 19, outstanding_amount: "1820451120" })).note).toContain("HTF outstanding");
+  });
+
+  it("has a card with no status and no end to the footer", () => {
+    const card = cardOf(indexed());
+    expect("status" in card).toBe(false);
+    expect("footerEnd" in card).toBe(false);
+  });
+});
+
 // ---- The pill: the network's label, whatever its kind ----------------------------------------------------------------------------------------
 
 describe("the pill of every card", () => {
@@ -710,11 +831,12 @@ describe("the pill of every card", () => {
       poolCard(poolFacts(), network).networkLabel,
       nftCard({ kind: "nftoken", headline: "#1", collection: "r…", note: "Never sold" }, network).networkLabel,
       tokenCard(tokenFacts({ id: network.id }, tokenDetailSample(), false), network).networkLabel,
+      mptCard(mptFacts(network, { origin: "index", answer: mptSample() }, NO_NAMES), network).networkLabel,
     ];
-    expect(labels(XRPL)).toEqual(Array(8).fill("XRPL mainnet"));
-    expect(labels(XAHAU)).toEqual(Array(8).fill("Xahau mainnet"));
-    expect(labels(XRPL_TESTNET)).toEqual(Array(8).fill("XRPL Testnet"));
-    expect(labels(XAHAU_TESTNET)).toEqual(Array(8).fill("Xahau Testnet"));
+    expect(labels(XRPL)).toEqual(Array(9).fill("XRPL mainnet"));
+    expect(labels(XAHAU)).toEqual(Array(9).fill("Xahau mainnet"));
+    expect(labels(XRPL_TESTNET)).toEqual(Array(9).fill("XRPL Testnet"));
+    expect(labels(XAHAU_TESTNET)).toEqual(Array(9).fill("Xahau Testnet"));
   });
 
   it("says the testnet's name where the footer names the network", () => {

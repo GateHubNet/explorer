@@ -14,7 +14,9 @@ import { compare, generate, readLedgers } from "./http-fixtures";
 import { marketFixtures } from "./market-fixtures";
 import { NFT_ACCOUNTS, NFT_CASE_TXS, NFT_SETS, nftFixtures } from "./nft-fixtures";
 import { OBJECT_ROW_LISTS, OBJECT_SETS, OBJECTS_ACCOUNT, objectFixtures, SYNTHETIC_DELEGATE } from "./object-fixtures";
+import { MPT_FIXTURE_IDS, MPT_RECORDED, MPT_ROW_LISTS, mptFixtures, mptNodeFixtures } from "./mpt-fixtures";
 import { FEATURED_XRPL_TOKENS, TOKEN_ROW_LISTS } from "./token-fixtures";
+import { dataApiFile, nodeFile } from "../test/support/upstream-core";
 
 describe("the fixture generators, loaded from derived-trades.ts", () => {
   it("have their constants whole: the XRP/RLUSD pool is the native currency and RLUSD", () => {
@@ -53,12 +55,26 @@ describe("the fixture generators, loaded from derived-trades.ts", () => {
     for (const { currency, issuer } of FEATURED_XRPL_TOKENS) expect(ammFixtures().has(`xrpl/data-api/amm/pools@asset=${currency}+${issuer}&limit=20.json`), currency).toBe(true);
   });
 
+  // E14's MPT generator: its constants are whole too (none was read from another module of the cycle): the ten issuances, the nine recorded transactions and the lists a row to a line.
+  it("have the MPT generator's constants whole: the ten issuances' IDs, the nine recorded transactions, and the lists a row to a line", () => {
+    expect(Object.keys(MPT_FIXTURE_IDS)).toEqual(["htf", "shortKeys", "noMetadata", "rawMetadata", "nonConforming", "destroyed", "lockedAll", "escrow", "nodeOnly", "nowhere"]);
+    expect(Object.values(MPT_FIXTURE_IDS).every((id) => /^[0-9A-F]{48}$/.test(id))).toBe(true);
+    expect(Object.keys(MPT_RECORDED)).toHaveLength(9);
+    expect(Object.values(MPT_RECORDED).every(({ ledger, hash }) => Number.isSafeInteger(ledger) && /^[0-9A-F]{64}$/.test(hash))).toBe(true);
+    expect(MPT_ROW_LISTS).toEqual(["holders", "transfers", "tokens"]);
+  });
+
   // A whole generation and five of its generators again: about 1.8 s on a developer's machine, and more than 5 s on a CI runner.
   it("generate the files `pnpm fixtures:sync` wrote, which loads them from http-fixtures.ts", () => {
     expect(derivedExchanges(readLedgers("xrpl")).length).toBeGreaterThan(0);
     const generated = generate();
     const objects = [...objectFixtures("xrpl"), ...objectFixtures("xahau")];
     for (const [path, text] of [...marketFixtures(), ...ammInfoFixtures(), ...ammFixtures(), ...nftFixtures(), ...objects]) expect(generated.get(path), path).toBe(text);
+    // The MPT generator's files are in it, XRPL's alone, and none of them is written twice.
+    const mpt = [...mptFixtures("xrpl").map(({ path, query }) => dataApiFile("xrpl", path, query)), ...mptNodeFixtures("xrpl").map(({ method, params }) => nodeFile("xrpl", method, params))];
+    expect(mpt.length).toBeGreaterThan(60);
+    expect(new Set(mpt).size).toBe(mpt.length);
+    for (const file of mpt) expect(generated.has(file!), file).toBe(true);
     expect(compare(generated)).toEqual({ missing: [], changed: [], stale: [] });
   }, 15_000);
 });

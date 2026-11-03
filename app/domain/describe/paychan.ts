@@ -21,7 +21,7 @@ import {
   wholeNumber,
   type FlagTable,
 } from "./helpers";
-import type { Detail, FlowAmount, HandlerMap, Input, Segment, Summary } from "./types";
+import type { CurrencyAmount, Detail, HandlerMap, Input, Segment, Summary } from "./types";
 
 /** "channel 3F9A21…B7C4", the channel being named by its ID, which links to its page, or just "a channel". */
 function channelOf(tx: Input["tx"]): Segment | string {
@@ -81,7 +81,7 @@ const CHANNEL_CLAIM_FLAGS: FlagTable = [
  * What this claim paid out: the rise of the channel's `Balance`, which the claim sets to the total paid out so far.
  * Undefined when the metadata does not show the channel; zero (a claim of nothing new) is returned as zero.
  */
-function paidOut({ tx, meta, native }: Input): FlowAmount | undefined {
+function paidOut({ tx, meta, native }: Input): CurrencyAmount | undefined {
   if (typeof tx.Channel !== "string") return undefined;
   const channel = tx.Channel.toUpperCase();
   const node = nodesOf(meta).find((n) => n.type === "PayChannel" && n.index.toUpperCase() === channel);

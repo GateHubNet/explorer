@@ -1,0 +1,31 @@
+{
+  "result": {
+    "Account": "rYNKrtQaf3vUVWVK5sw9rJdPGDLbxZu89",
+    "Amount": {
+      "currency": "594F494E4B000000000000000000000000000000",
+      "issuer": "rYNK7JFGbJhkX8HhT4zw1LJ1Yiu3aa9Mp",
+      "value": "1"
+    },
+    "Fee": "12",
+    "Flags": 0,
+    "LastLedgerSequence": 85885447,
+    "Memos": [
+      {"Memo":{"MemoData":"436C61776261636B2054657374202D203120546F6B656E20436C61776564206261636B2C2077696C6C20626520726573746F72656420746F20436F6D6D756E6974792077616C6C6574206D6F6D656E746172696C792E"}}
+    ],
+    "Sequence": 85885161,
+    "SigningPubKey": "ED5048B5CAC582295C50BEF9A171DC44330A2EFD6E631BDE1FDFDA72081761DDBB",
+    "TransactionType": "Clawback",
+    "TxnSignature": "04A61671948D833F4C97352D34FD51283691F4C064DDFB50A156D7C36BFABF386A9FA5EDCE1F73B3D683CF8E81A9B3920E4ED7742DFCE576301DD7EF16C31A04",
+    "date": 760934621,
+    "hash": "C2071343FB6CB00E495F50BD319B773D7461435E5B19F8EF0E1E2AF2853824D8",
+    "inLedger": 85885429,
+    "ledger_index": 85885429,
+    "meta": {
+      "AffectedNodes": [{"ModifiedNode":{"FinalFields":{"Account":"rYNKrtQaf3vUVWVK5sw9rJdPGDLbxZu89","Balance":"19799954","Flags":2155872256,"OwnerCount":0,"Sequence":85885162},"LedgerEntryType":"AccountRoot","LedgerIndex":"1195CF5B88E3401F8397F2753AB50334C4FFD01B7DD84FF708D21B7A93A3DDAC","PreviousFields":{"Balance":"19799966","Sequence":85885161},"PreviousTxnID":"96CCC07A8DBA976B473169DB553534B6460EEFE7C41571F125B2588C4F6AAA50","PreviousTxnLgrSeq":85885368}},{"ModifiedNode":{"FinalFields":{"Balance":{"currency":"594F494E4B000000000000000000000000000000","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"0"},"Flags":2228224,"HighLimit":{"currency":"594F494E4B000000000000000000000000000000","issuer":"rYNK7JFGbJhkX8HhT4zw1LJ1Yiu3aa9Mp","value":"333333"},"HighNode":"0","LowLimit":{"currency":"594F494E4B000000000000000000000000000000","issuer":"rYNKrtQaf3vUVWVK5sw9rJdPGDLbxZu89","value":"0"},"LowNode":"0"},"LedgerEntryType":"RippleState","LedgerIndex":"7A35D7421AD9301CCEF56B3C9DC80570F3DFE7912A6C09CF397150D3B7F6E5B4","PreviousFields":{"Balance":{"currency":"594F494E4B000000000000000000000000000000","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"-1"}},"PreviousTxnID":"10296F3A211CAB9BA496AD79B6E15C07ED7A5E4E6047861F0F39238B3499E443","PreviousTxnLgrSeq":85885408}}],
+      "TransactionIndex": 80,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "status": "success",
+    "validated": true
+  }
+}

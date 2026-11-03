@@ -165,6 +165,11 @@ const ROUTES: FakeRoute[] = [
   { id: "routes/net.token.$token.holders", parentId: "routes/net", module: "token-holders.js", imports: ["shared.js", "table.js"] },
   // The supply page draws the chart kit's share bar, two cards of columns and its tiles, with a table in each card: a dashboard (decision 14 of the supply spec).
   { id: "routes/net.supply", parentId: "routes/net", module: "supply.js", imports: ["shared.js", "table.js", "charts.js"] },
+  // An MPT issuance's page draws a header, tiles, two cards, the meter and two tables, and no chart: a lookup page, no heavier than home's here for the same reason.
+  { id: "routes/net.mpt.$id", parentId: "routes/net", module: "mpt.js", imports: ["shared.js", "table.js"] },
+  // Its holders and its transfers: a head and one table each (the holders' with the meter), and no chart: lookup pages too, the same.
+  { id: "routes/net.mpt.$id.holders", parentId: "routes/net", module: "mpt-holders.js", imports: ["shared.js", "table.js"] },
+  { id: "routes/net.mpt.$id.transfers", parentId: "routes/net", module: "mpt-transfers.js", imports: ["shared.js", "table.js"] },
   // Not one of the pages: its chunk is loaded only when somebody goes there.
   { id: "routes/net.search", parentId: "routes/net", module: "search.js", imports: ["shared.js", "search-page.js"] },
 ];
@@ -201,6 +206,9 @@ const CHUNKS: FakeChunk[] = [
   { name: "token.js", size: 1700 },
   { name: "token-holders.js", size: 1400 },
   { name: "supply.js", size: 1800 },
+  { name: "mpt.js", size: 1000 },
+  { name: "mpt-holders.js", size: 900 },
+  { name: "mpt-transfers.js", size: 900 },
   { name: "charts.js", size: 6000 },
   { name: "qr-picture.js", size: 700 },
   { name: "search.js", size: 500 },
@@ -208,7 +216,7 @@ const CHUNKS: FakeChunk[] = [
 ];
 
 describe("the pages", () => {
-  it("are home, ledger, transaction, account, network, markets, market-pair, validators, validator, amendments, amendment, amm, amm-pool, nfts, nft-sales, nft-collection, nft, escrow, check, payment-channel, tokens, token, token-holders and supply, by their routes, each with the name of its budget", () => {
+  it("are home, ledger, transaction, account, network, markets, market-pair, validators, validator, amendments, amendment, amm, amm-pool, nfts, nft-sales, nft-collection, nft, escrow, check, payment-channel, tokens, token, token-holders, supply, mpt, mpt-holders and mpt-transfers, by their routes, each with the name of its budget", () => {
     expect(PAGES).toEqual([
       { name: "home", route: "routes/net._index", budget: "lookup" },
       { name: "ledger", route: "routes/net.ledger.$id", budget: "lookup" },
@@ -234,6 +242,9 @@ describe("the pages", () => {
       { name: "token", route: "routes/net.token.$token", budget: "lookup" },
       { name: "token-holders", route: "routes/net.token.$token.holders", budget: "lookup" },
       { name: "supply", route: "routes/net.supply", budget: "dashboard" },
+      { name: "mpt", route: "routes/net.mpt.$id", budget: "lookup" },
+      { name: "mpt-holders", route: "routes/net.mpt.$id.holders", budget: "lookup" },
+      { name: "mpt-transfers", route: "routes/net.mpt.$id.transfers", budget: "lookup" },
     ]);
   });
 
@@ -253,7 +264,7 @@ describe("checkBundle: what a page loads", () => {
     // The route manifest is one of the files every page loads, and counts like the others.
     const common = ["entry.js", "root.js", "net.js", "shared.js", "shell.js", MANIFEST];
     const byPage = Object.fromEntries(report.pages.map((page) => [page.name, page]));
-    expect(Object.keys(byPage)).toEqual(["home", "ledger", "transaction", "account", "network", "markets", "market-pair", "validators", "validator", "amendments", "amendment", "amm", "amm-pool", "nfts", "nft-sales", "nft-collection", "nft", "escrow", "check", "payment-channel", "tokens", "token", "token-holders", "supply"]);
+    expect(Object.keys(byPage)).toEqual(["home", "ledger", "transaction", "account", "network", "markets", "market-pair", "validators", "validator", "amendments", "amendment", "amm", "amm-pool", "nfts", "nft-sales", "nft-collection", "nft", "escrow", "check", "payment-channel", "tokens", "token", "token-holders", "supply", "mpt", "mpt-holders", "mpt-transfers"]);
     expect(byPage.home!.bytes).toBe(sum([...common, "table.js", "home.js"]));
     expect(byPage.ledger!.bytes).toBe(sum([...common, "table.js", "ledger.js"]));
     expect(byPage.transaction!.bytes).toBe(sum([...common, "tx.js"]));
@@ -278,6 +289,9 @@ describe("checkBundle: what a page loads", () => {
     expect(byPage.token!.bytes).toBe(sum([...common, "table.js", "token.js"]));
     expect(byPage["token-holders"]!.bytes).toBe(sum([...common, "table.js", "token-holders.js"]));
     expect(byPage.supply!.bytes).toBe(sum([...common, "table.js", "charts.js", "supply.js"]));
+    expect(byPage.mpt!.bytes).toBe(sum([...common, "table.js", "mpt.js"]));
+    expect(byPage["mpt-holders"]!.bytes).toBe(sum([...common, "table.js", "mpt-holders.js"]));
+    expect(byPage["mpt-transfers"]!.bytes).toBe(sum([...common, "table.js", "mpt-transfers.js"]));
     // The chunk of a route that is not a page, and the ones only it imports, are in none of the pages.
     expect(report.pages.flatMap((page) => page.files)).not.toContain("search-page.js");
     expect(byPage.home!.files).toEqual(expect.arrayContaining([...common, "table.js", "home.js"]));
@@ -334,10 +348,13 @@ describe("checkBundle: what a page loads", () => {
     expect(table).toMatch(/\ntoken\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toMatch(/\ntoken-holders\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toMatch(/\nsupply\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/\nmpt\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/\nmpt-holders\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/\nmpt-transfers\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toContain("budgets: 150.0 KB for the lookup pages, 160.0 KB for the dashboards");
     expect(
-      table.split("\n").filter((line) => /^\s*(home|ledger|transaction|account|network|markets|market-pair|validators|validator|amendments|amendment|amm|amm-pool|nfts|nft-sales|nft-collection|nft|escrow|check|payment-channel|tokens|token|token-holders|supply)\s+\d/.test(line)),
-    ).toHaveLength(24);
+      table.split("\n").filter((line) => /^\s*(home|ledger|transaction|account|network|markets|market-pair|validators|validator|amendments|amendment|amm|amm-pool|nfts|nft-sales|nft-collection|nft|escrow|check|payment-channel|tokens|token|token-holders|supply|mpt|mpt-holders|mpt-transfers)\s+\d/.test(line)),
+    ).toHaveLength(27);
     expect(table).toMatch(/\naccount analytics\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
   });
 
@@ -433,8 +450,8 @@ describe("checkBundle: what a page loads", () => {
     });
     const report = checkBundle(dir);
     expect(report.pages.every((page) => page.files.includes("react-dom.js"))).toBe(true);
-    // The twenty-four pages, and the analytics view, which is the account page's files and more.
-    expect(report.problems).toHaveLength(25);
+    // The twenty-seven pages, and the analytics view, which is the account page's files and more.
+    expect(report.problems).toHaveLength(28);
   });
 });
 

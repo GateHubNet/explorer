@@ -21,7 +21,9 @@ import type { ObjectSource } from "./ledger-object-view";
 import { notFound, upstreamOutage } from "./loader-errors";
 import { logProblem } from "./logging";
 import { isMarker } from "./marker";
-import { collectAddresses, loadNames } from "./names-load";
+import { loadMptLookup } from "./mpt-load";
+import { mptAmountsOf, resolveMpt, type MptLookupResult } from "./mpt-view";
+import { collectAddresses, loadNames, NAMES_DEADLINE_MS } from "./names-load";
 import { requireNetwork } from "./network-route";
 import { networkOf, type Network } from "./networks";
 import type { NodeRpc, ServerState } from "./node-rpc";
@@ -77,6 +79,8 @@ const KINDS: { [K in ObjectKind]: KindOf<K> } = {
  *   An entry the view cannot read (one without its account, say) is a 503 too.
  * - `server_state` failing is the page without its Owner reserve row, served and not stored (degraded).
  * - **Names** (§2.3): one call after the calls the page awaits, for the accounts it draws (the view's `drawnAccounts`); a names call that fails or is late leaves the addresses and degrades the page.
+ * - **MPT amounts** (E14, behind `MPT`): an escrow's page asks the data API once for the issuances of its amounts (`mptAmountsOf`, `loadMptLookup`), beside the names call, and shows them scaled (`resolveMpt`);
+ *   a failed lookup leaves units and degrades the page. A check's and a channel's stay in units.
  * - **Class** (§9): `MARKER_PAGE_CLASS` behind a marker, `slow` for an object that was removed, else `live` (the node's page too).
  */
 export async function loadObjectPage<K extends ObjectKind>(
@@ -146,9 +150,14 @@ export async function loadObjectPage<K extends ObjectKind>(
   }
   if (draft.reserve === null) markDegraded(context, `${words}: no owner reserve`);
 
-  const { part: names } = await loadNames(api, collectAddresses(calls.drawn(draft)), { context, request, features: net.features });
+  // The names call, and for an escrow the one MPT lookup of its page (E14, ruling C13), side by side: a check's and a channel's MPT amounts stay in units. A lookup that fails marks the page degraded
+  // (served, not stored); none of the page's classes changes for an amount in units.
+  const [{ part: names }, lookup] = await Promise.all([
+    loadNames(api, collectAddresses(calls.drawn(draft)), { context, request, features: net.features }),
+    kind === "escrow" ? loadMptLookup(api, mptAmountsOf(draft), { context, request, features: net.features, net, deadlineMs: NAMES_DEADLINE_MS }) : Promise.resolve<MptLookupResult>({ state: "off" }),
+  ]);
   const cls = marker !== undefined ? MARKER_PAGE_CLASS : draft.removed ? "slow" : "live";
-  return cached({ ...draft, names } as ObjectPages[K], cls);
+  return cached({ ...resolveMpt(draft, lookup).view, names } as ObjectPages[K], cls);
 }
 
 /**

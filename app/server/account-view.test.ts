@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import type { Segment } from "../domain/describe";
 import { dropsToNative } from "../domain/format";
+import { mptIssuerOf } from "../domain/mpt-id";
 import { NO_NAMES } from "../domain/names";
 import { nftSample, nftsPageSample, uriTokenSample, NFT_MARKER, NFT_OWNER, OTHER_ISSUER, URI_TOKEN_ID, URI_TOKEN_ISSUER } from "../../test/support/nft-samples";
 import { objectCase } from "../../test/support/object-cases";
 import { DELEGATE, DELEGATOR, delegationsSample } from "../../test/support/object-samples";
+import { MPT_FEE_PAYMENT_ISSUANCE, MPT_FIXTURE_IDS, MPT_LOCKED_HOLDING, MPT_RECORDED } from "../../test/support/mpt-case-rules";
 import { allSwitches } from "../../test/support/switches";
 import { featuresOf, NO_FEATURES } from "../ui/features";
 import type { AccountData, AccountExchange, BalancesResponse, NftsPage, OrdersResponse, Payment, TxObject } from "./api-types";
@@ -25,6 +27,7 @@ import {
   isAccountTab,
   listAddresses,
   loaded,
+  mptHoldingsOf,
   objectRows,
   nftsList,
   objectsList,
@@ -65,7 +68,14 @@ const FAILED: Loaded<never> = { state: "failed" };
 const created = (net: "xrpl" | "xahau", address: string): AccountData => read(`${net}/data-api/accounts/${address}.json`).account_data;
 const balancesOf = (net: "xrpl" | "xahau", address: string): BalancesResponse => read(`${net}/data-api/accounts/${address}/balances.json`);
 const infoOf = (net: "xrpl" | "xahau", address: string): AccountInfo => read(`${net}/node/account_info/${address}.json`).result;
-const objectsOf = (net: "xrpl" | "xahau", address: string): AccountObjects => read(`${net}/node/account_objects/${address}.json`).result;
+// The objects of E10's tests: the active account's `account_objects` carry E14's MPT entries after them (two `MPToken` and an `MPTokenIssuance`, test/fixtures/PROVENANCE.md, "MPT answers"), which the account
+// page draws as of the MPT page's task (its `OWNED_LABELS`, its Tokens card), and the tests of that task read them in.
+const objectsOf = (net: "xrpl" | "xahau", address: string): AccountObjects => {
+  const result: AccountObjects = read(`${net}/node/account_objects/${address}.json`).result;
+  return { ...result, account_objects: result.account_objects.filter((object) => !/^MPToken/.test(object.LedgerEntryType)) };
+};
+/** The active account's `account_objects` as the node gives them, E14's MPT entries included. */
+const allObjectsOf = (net: "xrpl" | "xahau", address: string): AccountObjects => read(`${net}/node/account_objects/${address}.json`).result;
 const stateOf = (net: "xrpl" | "xahau"): ServerState => read(`${net}/node/server_state.json`).result.state;
 const list = <K extends string>(net: "xrpl" | "xahau", address: string, kind: string, key: K, marker?: string) =>
   read(`${net}/data-api/accounts/${address}/${kind}@descending=true&limit=20${marker ? `&marker=${marker}` : ""}.json`)[key];
@@ -85,7 +95,9 @@ const text = (segments: readonly Segment[]) =>
                 ? `[${s.pair}]`
                 : s.t === "permission"
                   ? `(${s.name})`
-                  : `«${s.v}»`,
+                  : s.t === "mpt"
+                    ? `<MPT ${s.id}${s.units === undefined ? "" : ` ${s.units}`}>`
+                    : `«${s.v}»`,
     )
     .join("");
 
@@ -744,13 +756,13 @@ describe("paymentRows", () => {
 
   it("keeps an issued currency's issuer, a tag of 0, and the exact digits of the amount", () => {
     const rows = paymentRows(list("xahau", XAHAU, "payments", "payments") as Payment[], XAHAU);
-    const evr = rows.find((r) => r.amount.currency === "EVR")!;
+    const evr = rows.find((r) => "currency" in r.amount && r.amount.currency === "EVR")!;
     expect(evr).toMatchObject({ direction: "sent", amount: { value: "-1.432450858916131", currency: "EVR", issuer: expect.stringMatching(/^rEvern/) }, tag: 0 });
   });
 
   it("shows no sign on a payment of nothing", () => {
     const [row] = paymentRows([{ ...(list("xrpl", XRPL, "payments", "payments", "WzEwNzYzNjY3Myw3OF0")[0] as Payment), delivered_amount: "0" }], XRPL);
-    expect(row!.amount.value).toBe("0");
+    expect(row!.amount).toMatchObject({ value: "0" });
   });
 });
 
@@ -1105,7 +1117,10 @@ describe("the lists of the tabs", () => {
     const first = paymentsList(read(`xrpl/data-api/accounts/${XRPL}/payments@descending=true&limit=20.json`), ctx());
     expect(first).toMatchObject({ tab: "payments", csvHref: `/xrpl/account/${XRPL}/payments.csv`, paging: { olderHref: `/xrpl/account/${XRPL}?tab=payments&marker=WzEwNzYzNjY3Myw3OF0` } });
     const second = paymentsList(read(`xrpl/data-api/accounts/${XRPL}/payments@descending=true&limit=20&marker=WzEwNzYzNjY3Myw3OF0.json`), ctx({ marker: "WzEwNzYzNjY3Myw3OF0" }));
-    expect(second).toMatchObject({ csvHref: `/xrpl/account/${XRPL}/payments.csv`, paging: { newerHref: `/xrpl/account/${XRPL}?tab=payments`, olderHref: null } });
+    // The second page goes on to E14's third (the one MPT payment older than it), by the marker of its last row.
+    expect(second).toMatchObject({ csvHref: `/xrpl/account/${XRPL}/payments.csv`, paging: { newerHref: `/xrpl/account/${XRPL}?tab=payments`, olderHref: `/xrpl/account/${XRPL}?tab=payments&marker=WzEwMjE4NjI0Myw2M10&back=WzEwNzYzNjY3Myw3OF0` } });
+    const third = paymentsList(read(`xrpl/data-api/accounts/${XRPL}/payments@descending=true&limit=20&marker=WzEwMjE4NjI0Myw2M10.json`), ctx({ marker: "WzEwMjE4NjI0Myw2M10" }));
+    expect(third).toMatchObject({ csvHref: `/xrpl/account/${XRPL}/payments.csv`, paging: { olderHref: null } });
   });
 
   it("pages the trades, and says so when there are none", () => {
@@ -1348,6 +1363,7 @@ describe("the accounts the page draws", () => {
     const tokens = (...items: Array<{ issuer: string; lp: boolean }>): AccountHeader["tokens"] => ({
       state: "ok",
       truncated: false,
+      mpt: [],
       items: items.map(({ issuer, lp }) => ({ currency: lp ? `03${"AB".repeat(19)}` : "USD", issuer, value: "1", lp, href: null })),
     });
     const activation = { time: 0, parent: "rParent", initialBalance: "25", txHash: "AB".repeat(32) };
@@ -1378,5 +1394,225 @@ describe("the accounts the page draws", () => {
       nftsList(nftsPageSample(), ctx),
     ];
     for (const list of lists) expect(list.state === "ok" && list.names).toBe(NO_NAMES);
+  });
+});
+
+
+// ---- E14: MPTs on the account page (spec 5.4) -------------------------------------------------------------------------------------------------------------------------------------------------
+
+describe("the MPTs an account holds and issued", () => {
+  const ALL = allObjectsOf("xrpl", XRPL).account_objects;
+  const token = (over: Record<string, unknown> = {}): LedgerObject => ({ LedgerEntryType: "MPToken", Flags: 0, MPTokenIssuanceID: MPT_FIXTURE_IDS.htf, MPTAmount: "100", ...over });
+
+  describe("ownedCounts", () => {
+    it("counts the active account's MPT entries with their labels: 2 MPT holdings, 1 MPT issuance", () => {
+      const counts = ownedCounts(ALL);
+      expect(counts.find((count) => count.type === "MPToken")).toEqual({ type: "MPToken", label: "MPT holdings", count: 2 });
+      expect(counts.find((count) => count.type === "MPTokenIssuance")).toEqual({ type: "MPTokenIssuance", label: "MPT issuance", count: 1 });
+    });
+
+    it("says it in the singular for one holding", () => {
+      expect(ownedCounts([token()])).toEqual([{ type: "MPToken", label: "MPT holding", count: 1 }]);
+    });
+  });
+
+  describe("mptHoldingsOf and tokensOf", () => {
+    const balances: BalancesResponse = { result: "success", balances: [{ currency: "XRP", value: "5" }] };
+    /** Where a row's ticker leads is `mptLink`'s, as a trust line's code is `tokenLink`'s: the issuance's page with MPT on, nothing with every switch off. */
+    const ON = objectsCtx({ features: { ...NO_FEATURES, mpt: true } });
+
+    it("lists the MPToken entries in the order of their issuance IDs, with MPTAmount and LockedAmount together as the units and the issuer decoded from the ID", () => {
+      const holdings = mptHoldingsOf(ALL, ON);
+      expect(holdings).toEqual([
+        { mpt: MPT_FIXTURE_IDS.htf, issuer: mptIssuerOf(MPT_FIXTURE_IDS.htf), units: "3000000", locked: false, href: `/xrpl/mpt/${MPT_FIXTURE_IDS.htf}` },
+        { mpt: MPT_LOCKED_HOLDING, issuer: mptIssuerOf(MPT_LOCKED_HOLDING), units: "45000000", locked: true, href: `/xrpl/mpt/${MPT_LOCKED_HOLDING}` },
+      ]);
+      // Whatever order the node lists them in.
+      expect(mptHoldingsOf([...ALL].reverse(), ON).map((holding) => holding.mpt)).toEqual([MPT_FIXTURE_IDS.htf, MPT_LOCKED_HOLDING]);
+      expect(tokensOf(balances, ON, ALL).mpt).toEqual(holdings);
+    });
+
+    // Review of Tasks 7 and 8, M3 and M4: the Worker decides the link, as it does for a trust line's code (`Token.href`), so that the row is a plain `Link` and the Tokens card, which the
+    // analytics view loads too, imports neither `MptLink` nor `mpt-link` (test/unit/account-bundle.test.ts).
+    it("decides where each row's ticker leads: the issuance's page while MPT is on, in capitals whatever the case of the entry, and nowhere while it is off", () => {
+      expect(tokensOf(balances, ON, ALL).mpt.map((holding) => holding.href)).toEqual([`/xrpl/mpt/${MPT_FIXTURE_IDS.htf}`, `/xrpl/mpt/${MPT_LOCKED_HOLDING}`]);
+      expect(mptHoldingsOf([token({ MPTokenIssuanceID: MPT_LOCKED_HOLDING.toLowerCase() })], ON)[0]!.href).toBe(`/xrpl/mpt/${MPT_LOCKED_HOLDING}`);
+      expect(tokensOf(balances, objectsCtx(), ALL).mpt.map((holding) => holding.href)).toEqual([null, null]);
+    });
+
+    it("sets 'locked' from the entry's lsfMPTLocked alone, not from its authorization", () => {
+      const lockedWith = (Flags: number) => mptHoldingsOf([token({ Flags })], ON)[0]!.locked;
+      // 0: nothing, 1: lsfMPTLocked, 2: lsfMPTAuthorized, 3: both.
+      expect([0, 1, 2, 3].map(lockedWith)).toEqual([false, true, false, true]);
+      expect(mptHoldingsOf([token({ Flags: undefined })], ON)[0]!.locked).toBe(false);
+    });
+
+    it("reads a field the ledger left out as 0, an ID in any case as capitals, and leaves out an entry whose ID or amounts are not well formed", () => {
+      const holdings = mptHoldingsOf([
+        token({ MPTAmount: undefined, LockedAmount: "7" }),
+        token({ MPTokenIssuanceID: MPT_LOCKED_HOLDING.toLowerCase(), MPTAmount: undefined }),
+        token({ MPTokenIssuanceID: "00AB" }),
+        token({ MPTokenIssuanceID: MPT_FEE_PAYMENT_ISSUANCE, MPTAmount: "five" }),
+        token({ MPTokenIssuanceID: MPT_FIXTURE_IDS.shortKeys, MPTAmount: "-1" }),
+        token({ MPTokenIssuanceID: MPT_FIXTURE_IDS.destroyed, LockedAmount: 5 }),
+        { LedgerEntryType: "MPToken" },
+        { LedgerEntryType: "RippleState", MPTokenIssuanceID: MPT_FIXTURE_IDS.htf },
+      ], ON);
+      expect(holdings.map((holding) => [holding.mpt, holding.units])).toEqual([
+        [MPT_FIXTURE_IDS.htf, "7"],
+        [MPT_LOCKED_HOLDING, "0"],
+      ]);
+    });
+
+    it("is none for an account that holds no MPT, and with no objects given", () => {
+      expect(mptHoldingsOf(objectsOf("xrpl", XRPL).account_objects, ON)).toEqual([]);
+      expect(tokensOf(balances, objectsCtx()).mpt).toEqual([]);
+    });
+
+    it("keeps the trust lines exactly as they were beside the holdings", () => {
+      const lines = tokensOf(balancesOf("xrpl", XRPL), objectsCtx());
+      const both = tokensOf(balancesOf("xrpl", XRPL), objectsCtx(), ALL);
+      expect(both.items).toEqual(lines.items);
+      expect(both.truncated).toBe(lines.truncated);
+    });
+  });
+
+  describe("the header's tokens", () => {
+    const input = (over: Partial<Parameters<typeof accountHeader>[0]> = {}): Parameters<typeof accountHeader>[0] => ({
+      native: "XRP",
+      created: ok(created("xrpl", XRPL)),
+      info: ok(infoOf("xrpl", XRPL)),
+      objects: ok(allObjectsOf("xrpl", XRPL)),
+      state: ok(stateOf("xrpl")),
+      balances: ok(balancesOf("xrpl", XRPL)),
+      lastLedgerTime: 1792253462,
+      link: objectsCtx(),
+      ...over,
+    });
+
+    it("carries the holdings of the node's objects beside the trust lines of the index's balances", () => {
+      const { header } = accountHeader(input());
+      expect(header.tokens.state === "ok" && header.tokens.mpt.map((holding) => holding.mpt)).toEqual([MPT_FIXTURE_IDS.htf, MPT_LOCKED_HOLDING]);
+      expect(header.owned?.counts.map((count) => `${count.count} ${count.label}`)).toEqual(expect.arrayContaining(["2 MPT holdings", "1 MPT issuance"]));
+    });
+
+    it("has no holdings, and says the node's objects failed, when they could not be read: the trust lines are still there", () => {
+      const { header, problems } = accountHeader(input({ objects: FAILED }));
+      expect(problems).toContain("node account_objects failed");
+      expect(header.tokens).toMatchObject({ state: "ok", mpt: [] });
+      expect(header.tokens.state === "ok" && header.tokens.items.length).toBeGreaterThan(0);
+    });
+
+    it("is the card's error, holdings and all, when the balances failed", () => {
+      const { header, problems } = accountHeader(input({ balances: FAILED }));
+      expect(problems).toContain("balances failed");
+      expect(header.tokens).toEqual({ state: "failed" });
+    });
+
+    it("draws the issuers of the holdings after the trust lines' in the accounts the header names", () => {
+      const { header } = accountHeader(input());
+      const issuers = header.tokens.state === "ok" ? header.tokens.items.map((item) => item.issuer) : [];
+      const mpt = [MPT_FIXTURE_IDS.htf, MPT_LOCKED_HOLDING].map(mptIssuerOf);
+      expect(headerAccounts(XRPL, header, { ammPages: true }).slice(-(mpt.length + issuers.length))).toEqual([...issuers, ...mpt]);
+    });
+  });
+
+  describe("the Objects tab's rows", () => {
+    const rows = () => objectRows(ALL, objectsCtx()).rows;
+    const fieldsOf = (type: string) => rows().filter((row) => row.type === type).map((row) => row.fields.map((field) => [field.label, text(field.value)]));
+
+    it("lists an MPToken's MPT (a reference), Balance, In escrow when above 0, Locked and Authorized", () => {
+      const [first, second] = fieldsOf("MPToken");
+      expect(first).toEqual([
+        ["MPT", `<MPT ${MPT_FIXTURE_IDS.htf}>`],
+        ["Balance", `<MPT ${MPT_FIXTURE_IDS.htf} 2500000>`],
+        ["In escrow", `<MPT ${MPT_FIXTURE_IDS.htf} 500000>`],
+        ["Locked", "No"],
+        ["Authorized", "Yes"],
+      ]);
+      // The second holds nothing in escrow, is locked and authorized.
+      expect(second!.map(([label]) => label)).toEqual(["MPT", "Balance", "Locked", "Authorized"]);
+      expect(second!.slice(2)).toEqual([["Locked", "Yes"], ["Authorized", "Yes"]]);
+    });
+
+    it("lists an MPTokenIssuance's MPT, Outstanding, Max amount, Asset scale and Transfer fee", () => {
+      const [issuance] = fieldsOf("MPTokenIssuance");
+      const id = rows().find((row) => row.type === "MPTokenIssuance")!.fields[0]!.value[0] as Extract<Segment, { t: "mpt" }>;
+      expect(id.id).toBe(MPT_FIXTURE_IDS.nodeOnly);
+      expect(issuance).toEqual([
+        ["MPT", `<MPT ${MPT_FIXTURE_IDS.nodeOnly}>`],
+        ["Outstanding", `<MPT ${MPT_FIXTURE_IDS.nodeOnly} 12500000>`],
+        ["Max amount", `<MPT ${MPT_FIXTURE_IDS.nodeOnly} 1000000000000>`],
+        ["Asset scale", "4"],
+        ["Transfer fee", "0.192%"],
+      ]);
+    });
+
+    it("reads a field the issuance leaves out as the ledger's default: nothing outstanding, scale 0, no transfer fee, and no Max amount", () => {
+      const bare: LedgerObject = { LedgerEntryType: "MPTokenIssuance", index: "AB".repeat(32), Issuer: XRPL, Sequence: 99791449, Flags: 0 };
+      const { rows: [row] } = objectRows([bare], objectsCtx());
+      expect(row!.fields.map((field) => [field.label, text(field.value)])).toEqual([
+        ["MPT", `<MPT ${MPT_FIXTURE_IDS.nodeOnly}>`],
+        ["Outstanding", `<MPT ${MPT_FIXTURE_IDS.nodeOnly} 0>`],
+        ["Asset scale", "0"],
+        ["Transfer fee", "None"],
+      ]);
+    });
+
+    it("gives an entry whose ID is not well formed no fields rather than a reference to nothing", () => {
+      const { rows: [token_, issuance] } = objectRows([token({ MPTokenIssuanceID: "00AB" }), { LedgerEntryType: "MPTokenIssuance", Issuer: "nope", Sequence: 1 }], objectsCtx());
+      expect(token_!.fields).toEqual([]);
+      expect(issuance!.fields).toEqual([]);
+    });
+
+    it("lists the accounts of an MPT row as none: its issuer is no field, and the reference is not an account", () => {
+      const list = objectsList(allObjectsOf("xrpl", XRPL), objectsCtx());
+      expect(listAddresses(list)).not.toContain(mptIssuerOf(MPT_FIXTURE_IDS.htf));
+    });
+  });
+
+  describe("a payment row of an MPT", () => {
+    const row = (name: "payments", marker: string) => list("xrpl", XRPL, name, "payments", marker)[0] as Payment;
+
+    it("is the MPT's amount, signed from the account's side, with the issuer decoded from the issuance ID", () => {
+      const payment = row("payments", "WzEwMjE4NjI0Myw2M10");
+      expect(payment.mpt_issuance_id).toBe(MPT_FEE_PAYMENT_ISSUANCE);
+      const [sent] = paymentRows([{ ...payment, source: XRPL }], XRPL);
+      expect(sent).toMatchObject({ direction: "sent", amount: { mpt: MPT_FEE_PAYMENT_ISSUANCE, issuer: mptIssuerOf(MPT_FEE_PAYMENT_ISSUANCE), units: `-${payment.delivered_amount}` } });
+      const [received] = paymentRows([{ ...payment, destination: XRPL }], XRPL);
+      expect(received).toMatchObject({ direction: "received", amount: { mpt: MPT_FEE_PAYMENT_ISSUANCE, units: payment.delivered_amount } });
+      expect(received!.amount).not.toHaveProperty("currency");
+    });
+
+    it("is the currency row it was for a payment without an issuance ID, or with one that is not 48 hex digits", () => {
+      const payment = row("payments", "WzEwMjE4NjI0Myw2M10");
+      const [plain] = paymentRows([{ ...payment, mpt_issuance_id: undefined }], XRPL);
+      expect(plain!.amount).toMatchObject({ currency: payment.currency });
+      const [bad] = paymentRows([{ ...payment, mpt_issuance_id: "00AB" }], XRPL);
+      expect(bad!.amount).toMatchObject({ currency: payment.currency });
+    });
+  });
+
+  describe("a transaction row's change", () => {
+    const tx = (name: keyof typeof MPT_RECORDED): TxObject => read(`xrpl/data-api/transactions/${MPT_RECORDED[name].hash}.json`).transaction;
+    const RECEIVER = "rKSg2VZbw9gRRuSwBjBFAfBoGC5Vs1FmFn";
+    const SENDER = "rMPTejgDkDqy92EkAhBo6u7RRPFRfH6MCR";
+
+    it("is the MPT's change in units, the account's own, in an MPT form beside the currency's", () => {
+      const [got] = transactionRows([tx("payment_transfer_fee")], RECEIVER, "XRP");
+      expect(got!.change).toEqual({ mpt: MPT_FEE_PAYMENT_ISSUANCE, units: "1000000", more: 0 });
+      expect(got!.what.some((segment) => segment.t === "mpt")).toBe(true);
+    });
+
+    it("puts the native change first and counts the MPT's among the others: the sender paid the fee and sent the MPT", () => {
+      const [sent] = transactionRows([tx("payment_transfer_fee")], SENDER, "XRP");
+      // The fee alone is not the change that matters: the MPT's is, and it is the only one.
+      expect(sent!.change).toEqual({ mpt: MPT_FEE_PAYMENT_ISSUANCE, units: "-1005890", more: 0 });
+    });
+
+    it("keeps a currency's change in its form", () => {
+      const [row] = transactionRows([read(`xrpl/data-api/accounts/${XRPL}/transactions@descending=true&limit=20.json`).transactions[0]], XRPL, "XRP");
+      expect(row!.change && "value" in row!.change && "currency" in row!.change).toBe(true);
+    });
   });
 });

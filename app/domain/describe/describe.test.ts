@@ -1,13 +1,14 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { allTxs, loadManifest, loadTx, type FixtureSet } from "../../../test/support/ledgers";
+import { MPT_FEE_PAYMENT_ISSUANCE, MPT_FIXTURE_IDS, MPT_LOCKED_HOLDING, MPT_MINT_ISSUANCE } from "../../../test/support/mpt-case-rules";
 import { objectCase, type ObjectCase } from "../../../test/support/object-cases";
 import type { TxObject } from "../../server/api-types";
 import { permissionChip } from "../permissions";
 import type { Native, TxJson, TxMeta } from "../parse/types";
 import { formatCurrency } from "../format";
 import { resultText } from "../results";
-import { mergeHandlers, pairName, poolPair } from "./helpers";
+import { mergeHandlers, mptSegment, pairName, poolPair } from "./helpers";
 import { describe as describeTx } from "./index";
 import type { Description, Handler, Segment } from "./types";
 
@@ -28,6 +29,8 @@ function textOf(segments: Segment[]): string {
           return `${s.value} ${s.currency}`;
         case "permission":
           return `[${s.name}]`;
+        case "mpt":
+          return s.units === undefined ? `[mpt ${s.id}]` : `${s.units} [mpt ${s.id}]`;
       }
     })
     .join("");
@@ -49,6 +52,8 @@ function readOf(segments: Segment[]): string {
           return `${s.value} ${formatCurrency(s.currency)}`;
         case "permission":
           return s.name;
+        case "mpt":
+          return s.units === undefined ? `MPT ${s.id.slice(0, 8)}…` : `${s.units} units of MPT ${s.id.slice(0, 8)}…`;
       }
     })
     .join("");
@@ -665,22 +670,30 @@ describe("describe: escrows", () => {
   describe("an MPT's amount", () => {
     const ISSUANCE = "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8";
     const AMOUNT = { mpt_issuance_id: ISSUANCE, value: "2500000" };
-    const WORDS = "2,500,000 units of MPT 0000012A…";
+    // The segment `Sentence` draws as `MptAmount` (raw units until a lookup scales them) and `plainText` writes as "2,500,000 units of MPT 0000012A…".
+    const SEGMENT = mptSegment(ISSUANCE, "2500000");
 
-    it("is in the words of `MptAmount` in an EscrowCreate's sentence and its Amount detail, never raw JSON", () => {
+    it("is an MPT segment, with the issuer decoded from the ID, in an EscrowCreate's sentence and its Amount detail, never raw JSON", () => {
       const d = say(synth("EscrowCreate", { Amount: AMOUNT, Destination: B, FinishAfter: 845387999 }), SUCCESS);
-      expect(textOf(d.sentence)).toBe(`${A} locked ${WORDS} for ${B}, release after 2026-10-15 13:59:59 UTC.`);
+      expect(SEGMENT).toMatchObject({ t: "mpt", id: ISSUANCE, units: "2500000", issuer: expect.stringMatching(/^r/) });
+      expect(d.sentence).toContainEqual(SEGMENT);
+      expect(textOf(d.sentence)).toBe(`${A} locked 2500000 [mpt ${ISSUANCE}] for ${B}, release after 2026-10-15 13:59:59 UTC.`);
       const amount = d.details.find((row) => row.label === "Amount")!;
-      expect(amount.value).toStrictEqual([text(WORDS)]);
+      expect(amount.value).toStrictEqual([SEGMENT]);
       expect(textOf(d.sentence)).not.toContain("{");
       expect(textOf(amount.value)).not.toContain("{");
     });
 
-    it("is in the same words in a type's own sentence and in a field of a type nothing here describes", () => {
+    it("is the same segment in a type's own sentence and in a field of a type nothing here describes", () => {
       const payment = say(synth("Payment", { Amount: AMOUNT, Destination: B }), SUCCESS);
-      expect(textOf(payment.sentence)).toContain(WORDS);
+      expect(payment.sentence).toContainEqual(SEGMENT);
       expect(textOf(payment.sentence)).not.toContain("{");
-      expect(say(synth("SomethingNew", { Amount: AMOUNT }), SUCCESS).details.find((row) => row.label === "Amount")!.value).toStrictEqual([text(WORDS)]);
+      expect(say(synth("SomethingNew", { Amount: AMOUNT }), SUCCESS).details.find((row) => row.label === "Amount")!.value).toStrictEqual([SEGMENT]);
+    });
+
+    it("is a reference to the issuance, without units, in a field that holds an issuance ID", () => {
+      const generic = say(synth("SomethingNew", { MPTokenIssuanceID: ISSUANCE.toLowerCase() }), SUCCESS);
+      expect(generic.details.find((row) => row.label === "MPTokenIssuanceID")!.value).toStrictEqual([mptSegment(ISSUANCE)]);
     });
   });
 
@@ -2401,6 +2414,355 @@ describe.each<FixtureSet>(["xrpl", "xrpl-amm", "xahau", "xrpl-extra", "xahau-ext
       for (const step of d.flow) {
         if (step.amount) expect(step.amount.value, tx.hash).toMatch(/^-?\d+(\.\d+)?(e-?\d+)?$/i);
       }
+    }
+  });
+});
+
+// The MPT transactions and Clawback (spec 5.3, Task 6): the recorded cases of D9's ledgers (`xrpl-mpt`, by their manifest names) and, where a case is not recorded, a transaction written the way a node sends it.
+describe("describe: MPT transactions", () => {
+  const recorded = (name: string): Description => run("xrpl-mpt", loadManifest("xrpl-mpt").cases[name].hash);
+  const failedRecorded = (name: string): Description => failedRun("xrpl-mpt", loadManifest("xrpl-mpt").cases[name].hash);
+  const reference = (id: string): Segment => mptSegment(id);
+
+  const HTF = MPT_FIXTURE_IDS.htf;
+  const ISSUER = "rBEERdzDHqDyYmfw2jqzyMNBZu31yzfg6q";
+  const MINT_ISSUER = "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR";
+  const MINT_HOLDER = "rMNysCkYEX9L3SrSPqavVVXYFT2v5CEVpo";
+
+  describe("MPTokenIssuanceCreate", () => {
+    it("says who created which MPT, the ID read from the node the transaction created (the data API's JSON has no meta.mpt_issuance_id)", () => {
+      const d = recorded("issuance_create");
+      expect(d.title).toBe("MPT issuance");
+      expect(d.sentence).toStrictEqual([account(ISSUER), text(" created the MPT "), reference(HTF), text(".")]);
+      expect(d.flow).toBeUndefined();
+    });
+
+    it("reads the ID from the created node alone: the data API's JSON drops the meta.mpt_issuance_id rippled adds", () => {
+      const { tx, meta } = loadTx("xrpl-mpt", loadManifest("xrpl-mpt").cases.issuance_create.hash);
+      const { mpt_issuance_id: _dropped, ...asTheDataApiServesIt } = meta as TxMeta & { mpt_issuance_id?: string };
+      expect(_dropped).toBe(HTF);
+      const d = describeTx(tx, asTheDataApiServesIt, { native: "XRP" });
+      expect(d.sentence).toStrictEqual([account(ISSUER), text(" created the MPT "), reference(HTF), text(".")]);
+      expect(rows(d)[0]).toStrictEqual(["Issuance ID", `[mpt ${HTF}]`]);
+    });
+
+    it("lists the ID, the scale, the largest amount scaled by the transaction's own scale, the fee, the flags and the size of the metadata", () => {
+      const tx = loadTx("xrpl-mpt", loadManifest("xrpl-mpt").cases.issuance_create.hash).tx;
+      expect(rows(recorded("issuance_create"))).toStrictEqual([
+        ["Issuance ID", `[mpt ${HTF}]`],
+        ["Asset scale", "4"],
+        ["Max amount", "100,000,000.0000"],
+        ["Transfer fee", "0.192%"],
+        ["Flags", "tfMPTCanLock, tfMPTRequireAuth, tfMPTCanEscrow, tfMPTCanTrade, tfMPTCanTransfer, tfMPTCanClawback"],
+        ["Metadata", `${(tx.MPTokenMetadata as string).length / 2} bytes`],
+      ]);
+    });
+
+    it("says 'Not set' for a largest amount the transaction leaves out, 'None' for no fee, and lists only the flags it sets", () => {
+      const d = recorded("issuance_create_no_max");
+      expect(rows(d).slice(0, 4)).toStrictEqual([
+        ["Issuance ID", expect.stringMatching(/^\[mpt [0-9A-F]{48}\]$/)],
+        ["Asset scale", "2"],
+        ["Max amount", "Not set"],
+        ["Transfer fee", "None"],
+      ]);
+      expect(rows(d).find(([label]) => label === "Flags")![1]).toBe("tfMPTCanLock, tfMPTCanTrade, tfMPTCanTransfer");
+    });
+
+    it("scales the largest amount by the scale it is created with, and shows the units unscaled above 19", () => {
+      const create = (fields: Record<string, unknown>) => say(synth("MPTokenIssuanceCreate", fields), SUCCESS);
+      expect(rows(create({ AssetScale: 2, MaximumAmount: "124000000" })).find(([label]) => label === "Max amount")![1]).toBe("1,240,000.00");
+      expect(rows(create({ MaximumAmount: "124000000" })).find(([label]) => label === "Max amount")![1]).toBe("124,000,000");
+      expect(rows(create({ AssetScale: 0, MaximumAmount: "9223372036854775807" })).find(([label]) => label === "Max amount")![1]).toBe("9,223,372,036,854,775,807");
+      expect(rows(create({ AssetScale: 20, MaximumAmount: "124000000" })).find(([label]) => label === "Max amount")![1]).toBe("124,000,000 units");
+      expect(rows(create({ AssetScale: 19, MaximumAmount: "5" })).find(([label]) => label === "Max amount")![1]).toBe("0.0000000000000000005");
+    });
+
+    it("says a failed create tried to create an MPT, with no ID to name and no ID row", () => {
+      const d = failedRecorded("issuance_create");
+      expect(d.sentence.slice(0, 2)).toStrictEqual([account(ISSUER), text(" tried to create an MPT.")]);
+      expect(textOf(d.sentence)).toBe(`${ISSUER} tried to create an MPT.${KILLED}`);
+      expect(rows(d).map(([label]) => label)).not.toContain("Issuance ID");
+      const hand = say(synth("MPTokenIssuanceCreate", { Flags: 2 }), FAILED);
+      expect(textOf(hand.sentence)).toBe(`${A} tried to create an MPT.${NO_PERMISSION}`);
+    });
+  });
+
+  describe("MPTokenIssuanceDestroy", () => {
+    it("says which MPT was destroyed and lists its ID", () => {
+      const d = recorded("issuance_destroy");
+      expect(d.title).toBe("MPT issuance");
+      expect(d.sentence).toStrictEqual([account(MINT_ISSUER), text(" destroyed the MPT "), reference(MPT_MINT_ISSUANCE), text(".")]);
+      expect(rows(d)).toStrictEqual([
+        ["Issuance ID", `[mpt ${MPT_MINT_ISSUANCE}]`],
+        ["Ticket sequence", "105785151"],
+      ]);
+    });
+
+    it("says a failed one tried to", () => {
+      expect(textOf(failedRecorded("issuance_destroy").sentence)).toBe(`${MINT_ISSUER} tried to destroy the MPT [mpt ${MPT_MINT_ISSUANCE}].${KILLED}`);
+    });
+  });
+
+  describe("MPTokenIssuanceSet", () => {
+    const LOCKED_ISSUANCE = MPT_LOCKED_HOLDING;
+    const LOCK_ALL = loadManifest("xrpl-mpt").cases.issuance_set_lock_all.hash;
+    const LOCKER = "rJgwiVNzEEgtXngyi4bhSVkVLhWWu7UqfS";
+    const LOCKED = "rBoJ7MWPXiejVbqCRhiVgGcaXAHXVstCD4";
+
+    it("says an issuer locked one holder's balance", () => {
+      const d = recorded("issuance_set_lock_holder");
+      expect(d.title).toBe("MPT lock");
+      expect(d.sentence).toStrictEqual([account(LOCKER), text(" locked "), account(LOCKED), text("'s balance of "), reference(LOCKED_ISSUANCE), text(".")]);
+      expect(rows(d)).toStrictEqual([
+        ["Issuance ID", `[mpt ${LOCKED_ISSUANCE}]`],
+        ["Holder", LOCKED],
+        ["Flags", "tfMPTLock"],
+      ]);
+    });
+
+    it("says an issuer unlocked it", () => {
+      const d = recorded("issuance_set_unlock_holder");
+      expect(textOf(d.sentence)).toBe(`${LOCKER} unlocked ${LOCKED}'s balance of [mpt ${LOCKED_ISSUANCE}].`);
+      expect(d.title).toBe("MPT lock");
+      expect(rows(d).at(-1)).toStrictEqual(["Flags", "tfMPTUnlock"]);
+    });
+
+    it("says an issuer locked every balance when no holder is named, and unlocked them", () => {
+      const d = run("xrpl-mpt", LOCK_ALL);
+      expect(textOf(d.sentence)).toBe(`rNFta7UKwcoiCpxEYbhH2v92numE3cceB6 locked every balance of [mpt 05EECEBE97A7D635DE2393068691A015FED5A89AD203F5AA].`);
+      expect(rows(d).map(([label]) => label)).toStrictEqual(["Issuance ID", "Flags"]);
+      const unlock = say(synth("MPTokenIssuanceSet", { MPTokenIssuanceID: HTF, Flags: 2 }), SUCCESS);
+      expect(textOf(unlock.sentence)).toBe(`${A} unlocked every balance of [mpt ${HTF}].`);
+    });
+
+    it("says a failed one tried to", () => {
+      expect(textOf(failedRecorded("issuance_set_lock_holder").sentence)).toBe(
+        `${LOCKER} tried to lock ${LOCKED}'s balance of [mpt ${LOCKED_ISSUANCE}].${KILLED}`,
+      );
+      expect(textOf(failedRecorded("issuance_set_lock_all").sentence)).toContain(" tried to lock every balance of [mpt ");
+      expect(textOf(say(synth("MPTokenIssuanceSet", { MPTokenIssuanceID: HTF, Holder: B, Flags: 2 }), FAILED).sentence)).toBe(
+        `${A} tried to unlock ${B}'s balance of [mpt ${HTF}].${NO_PERMISSION}`,
+      );
+    });
+
+    it("says a Set with neither flag changed the MPT (DynamicMPT), titled as an issuance, and lists the other fields it carries as they are", () => {
+      const d = say(synth("MPTokenIssuanceSet", { MPTokenIssuanceID: HTF, MPTokenMetadata: "7B7D", TransferFee: 250 }), SUCCESS);
+      expect(d.title).toBe("MPT issuance");
+      expect(textOf(d.sentence)).toBe(`${A} changed the MPT [mpt ${HTF}].`);
+      expect(rows(d)).toStrictEqual([
+        ["Issuance ID", `[mpt ${HTF}]`],
+        ["MPTokenMetadata", "7B7D"],
+        ["TransferFee", "250"],
+      ]);
+      expect(textOf(say(synth("MPTokenIssuanceSet", { MPTokenIssuanceID: HTF, TransferFee: 250 }), FAILED).sentence)).toBe(`${A} tried to change the MPT [mpt ${HTF}].${NO_PERMISSION}`);
+    });
+
+    it("names an issuance the transaction does not give as 'an MPT', and keeps a value that is no ID as it is", () => {
+      expect(textOf(say(synth("MPTokenIssuanceSet", { Flags: 1 }), SUCCESS).sentence)).toBe(`${A} locked every balance of an MPT.`);
+      const odd = say(synth("MPTokenIssuanceSet", { MPTokenIssuanceID: "not an id", Flags: 1 }), SUCCESS);
+      expect(textOf(odd.sentence)).toBe(`${A} locked every balance of an MPT.`);
+      expect(rows(odd)[0]).toStrictEqual(["Issuance ID", "not an id"]);
+    });
+  });
+
+  describe("MPTokenAuthorize", () => {
+    it("says a holder opted in to hold an MPT", () => {
+      const d = recorded("authorize_holder");
+      expect(d.title).toBe("MPT authorization");
+      expect(d.sentence).toStrictEqual([account(MINT_HOLDER), text(" opted in to hold "), reference(MPT_MINT_ISSUANCE), text(".")]);
+      expect(rows(d)).toStrictEqual([["Issuance ID", `[mpt ${MPT_MINT_ISSUANCE}]`]]);
+    });
+
+    it("says a holder stopped holding it", () => {
+      const d = recorded("unauthorize_holder");
+      expect(textOf(d.sentence)).toBe(`${MINT_HOLDER} stopped holding [mpt ${MPT_MINT_ISSUANCE}].`);
+      expect(rows(d)).toStrictEqual([
+        ["Issuance ID", `[mpt ${MPT_MINT_ISSUANCE}]`],
+        ["Flags", "tfMPTUnauthorize"],
+      ]);
+    });
+
+    it("says an issuer authorized a holder to hold it, and took the authorization back", () => {
+      const d = recorded("authorize_by_issuer");
+      expect(d.sentence).toStrictEqual([account(MINT_ISSUER), text(" authorized "), account(MINT_HOLDER), text(" to hold "), reference(MPT_MINT_ISSUANCE), text(".")]);
+      expect(rows(d)).toStrictEqual([
+        ["Issuance ID", `[mpt ${MPT_MINT_ISSUANCE}]`],
+        ["Holder", MINT_HOLDER],
+      ]);
+      const back = say(synth("MPTokenAuthorize", { MPTokenIssuanceID: HTF, Holder: B, Flags: 1 }), SUCCESS);
+      expect(textOf(back.sentence)).toBe(`${A} took back ${B}'s authorization to hold [mpt ${HTF}].`);
+      expect(rows(back).at(-1)).toStrictEqual(["Flags", "tfMPTUnauthorize"]);
+    });
+
+    it("says a failed one tried to", () => {
+      expect(textOf(failedRecorded("authorize_holder").sentence)).toBe(`${MINT_HOLDER} tried to opt in to hold [mpt ${MPT_MINT_ISSUANCE}].${KILLED}`);
+      expect(textOf(failedRecorded("unauthorize_holder").sentence)).toContain(" tried to stop holding [mpt ");
+      expect(textOf(failedRecorded("authorize_by_issuer").sentence)).toContain(` tried to authorize ${MINT_HOLDER} to hold [mpt `);
+      expect(textOf(say(synth("MPTokenAuthorize", { MPTokenIssuanceID: HTF, Holder: B, Flags: 1 }), FAILED).sentence)).toBe(
+        `${A} tried to take back ${B}'s authorization to hold [mpt ${HTF}].${NO_PERMISSION}`,
+      );
+    });
+  });
+
+  describe("Clawback", () => {
+    it("says an issuer clawed back an amount of its MPT from a holder", () => {
+      const d = recorded("clawback_full");
+      expect(d.title).toBe("Clawback");
+      expect(d.sentence).toStrictEqual([account(MINT_ISSUER), text(" clawed back "), mptSegment(MPT_MINT_ISSUANCE, "1"), text(" from "), account(MINT_HOLDER), text(".")]);
+      expect(rows(d)).toStrictEqual([
+        ["Amount", `1 [mpt ${MPT_MINT_ISSUANCE}]`],
+        ["Holder", MINT_HOLDER],
+        ["Ticket sequence", "105785147"],
+      ]);
+    });
+
+    it("draws the flow from the holder to the issuer, in the MPT's units", () => {
+      const amount = { mpt: MPT_MINT_ISSUANCE, issuer: MINT_ISSUER, units: "1" };
+      expect(recorded("clawback_full").flow).toStrictEqual([
+        { role: "sender", account: MINT_HOLDER, label: "Holder", amount },
+        { role: "destination", account: MINT_ISSUER, label: "Issuer", amount },
+      ]);
+    });
+
+    it("says what an issued token's clawback took, from the holder the amount's issuer names, the amount shown with the sender as its issuer", () => {
+      const d = recorded("clawback_issued");
+      const sender = "rYNKrtQaf3vUVWVK5sw9rJdPGDLbxZu89";
+      const holder = "rYNK7JFGbJhkX8HhT4zw1LJ1Yiu3aa9Mp";
+      const amount = { value: "1", currency: "594F494E4B000000000000000000000000000000", issuer: sender };
+      expect(d.sentence).toStrictEqual([account(sender), text(" clawed back "), { t: "amount", ...amount }, text(" from "), account(holder), text(".")]);
+      expect(textOf(d.sentence)).toContain("clawed back 1 594F494E4B000000000000000000000000000000 from ");
+      expect(readOf(d.sentence)).toBe(`${sender} clawed back 1 YOINK from ${holder}.`);
+      expect(rows(d)).toStrictEqual([
+        ["Amount", "1 594F494E4B000000000000000000000000000000"],
+        ["Holder", holder],
+      ]);
+      expect(d.flow).toStrictEqual([
+        { role: "sender", account: holder, label: "Holder", amount },
+        { role: "destination", account: sender, label: "Issuer", amount },
+      ]);
+    });
+
+    it("says a failed one tried to, and draws no flow", () => {
+      const d = failedRecorded("clawback_full");
+      expect(textOf(d.sentence)).toBe(`${MINT_ISSUER} tried to claw back 1 [mpt ${MPT_MINT_ISSUANCE}] from ${MINT_HOLDER}.${KILLED}`);
+      expect(d.flow).toBeUndefined();
+      expect(readOf(failedRun("xrpl-mpt", loadManifest("xrpl-mpt").cases.clawback_issued.hash).sentence)).toContain(" tried to claw back 1 YOINK from ");
+    });
+
+    it("names no amount and no holder when the transaction gives neither", () => {
+      const d = say(synth("Clawback", { Holder: B }), SUCCESS);
+      expect(textOf(d.sentence)).toBe(`${A} clawed back an amount from an unknown account.`);
+      expect(d.flow).toBeUndefined();
+    });
+  });
+
+  describe("an MPT Payment", () => {
+    const SENDER = "rMPTejgDkDqy92EkAhBo6u7RRPFRfH6MCR";
+    const RECEIVER = "rKSg2VZbw9gRRuSwBjBFAfBoGC5Vs1FmFn";
+    const FEE_ID = MPT_FEE_PAYMENT_ISSUANCE;
+
+    it("says the issuer issued the amount to a holder", () => {
+      const d = recorded("payment_mint");
+      expect(d.title).toBe("Payment");
+      expect(d.sentence).toStrictEqual([account(MINT_ISSUER), text(" issued "), mptSegment(MPT_MINT_ISSUANCE, "1"), text(" to "), account(MINT_HOLDER), text(".")]);
+    });
+
+    it("says a holder sent it to another account, whoever received it, an issuer too", () => {
+      const fee = recorded("payment_transfer_fee");
+      expect(fee.sentence).toStrictEqual([account(SENDER), text(" sent "), mptSegment(FEE_ID, "1000000"), text(" to "), account(RECEIVER), text(".")]);
+      expect(textOf(recorded("payment_redeem").sentence)).toContain(" sent 1 [mpt ");
+      expect(textOf(recorded("payment_holder_to_holder").sentence)).toContain(" sent 100000 [mpt ");
+    });
+
+    it("lists the amount and the send max, and 'Delivered' only when it differs (the recorded one delivered all of it)", () => {
+      const d = recorded("payment_transfer_fee");
+      expect(rows(d)).toStrictEqual([
+        ["Amount", `1000000 [mpt ${FEE_ID}]`],
+        ["Send max", `1062500 [mpt ${FEE_ID}]`],
+      ]);
+      // A partial payment that delivered less, written the way a node sends it: the delivered amount in the metadata.
+      const { tx, meta } = loadTx("xrpl-mpt", loadManifest("xrpl-mpt").cases.payment_transfer_fee.hash);
+      const partial = describeTx({ ...tx, Flags: 0x00020000 }, { ...meta, delivered_amount: { mpt_issuance_id: FEE_ID, value: "400000" } }, { native: "XRP" });
+      expect(partial.sentence).toContainEqual(mptSegment(FEE_ID, "400000"));
+      expect(rows(partial)).toStrictEqual([
+        ["Amount", `1000000 [mpt ${FEE_ID}]`],
+        ["Delivered", `400000 [mpt ${FEE_ID}]`],
+        ["Send max", `1062500 [mpt ${FEE_ID}]`],
+        ["Flags", "tfPartialPayment"],
+      ]);
+    });
+
+    it("reads the delivered amount from DeliveredAmount when the metadata has no delivered_amount", () => {
+      // The delivered 400000 is unlike the Amount (1000000): without the DeliveredAmount read the sentence would say "up to" the Amount, and no row would name what arrived.
+      const { tx, meta } = loadTx("xrpl-mpt", loadManifest("xrpl-mpt").cases.payment_transfer_fee.hash);
+      const { delivered_amount, ...without } = meta;
+      expect(delivered_amount).toBeDefined();
+      const d = describeTx({ ...tx, Flags: 0x00020000 }, { ...without, DeliveredAmount: { mpt_issuance_id: FEE_ID, value: "400000" } }, { native: "XRP" });
+      expect(d.sentence).toContainEqual(mptSegment(FEE_ID, "400000"));
+      expect(d.sentence).not.toContainEqual(mptSegment(FEE_ID, "1000000"));
+      expect(textOf(d.sentence)).not.toContain("up to");
+      expect(rows(d)).toContainEqual(["Delivered", `400000 [mpt ${FEE_ID}]`]);
+      expect(d.flow?.at(-1)?.amount).toStrictEqual({ mpt: FEE_ID, issuer: "rERShrtUSEXkrwtTpugPV4v8E787vpx1kb", units: "400000" });
+    });
+
+    it("reads DeliveredAmount when delivered_amount is the node's 'unavailable'", () => {
+      const { tx, meta } = loadTx("xrpl-mpt", loadManifest("xrpl-mpt").cases.payment_transfer_fee.hash);
+      const d = describeTx({ ...tx, Flags: 0x00020000 }, { ...meta, delivered_amount: "unavailable", DeliveredAmount: { mpt_issuance_id: FEE_ID, value: "400000" } }, { native: "XRP" });
+      expect(d.sentence).toContainEqual(mptSegment(FEE_ID, "400000"));
+    });
+
+    it.each(["delivered_amount", "DeliveredAmount"])("does not take what %s says of another issuance than the Amount's as delivered", (field) => {
+      const { tx, meta } = loadTx("xrpl-mpt", loadManifest("xrpl-mpt").cases.payment_transfer_fee.hash);
+      const other = { mpt_issuance_id: MPT_MINT_ISSUANCE, value: "400000" };
+      const metadata = { ...meta, delivered_amount: undefined, DeliveredAmount: undefined, [field]: other };
+      const d = describeTx({ ...tx, Flags: 0x00020000 }, metadata, { native: "XRP" });
+      expect(textOf(d.sentence)).toBe(`${SENDER} sent up to 1000000 [mpt ${FEE_ID}] to ${RECEIVER}.`);
+      expect(rows(d).map(([label]) => label)).not.toContain("Delivered");
+    });
+
+    it("draws the flow from the sender to the destination, with the amount the destination got and none on the sender's side when a send max may have spent more", () => {
+      const amount = { mpt: FEE_ID, issuer: "rERShrtUSEXkrwtTpugPV4v8E787vpx1kb", units: "1000000" };
+      expect(recorded("payment_transfer_fee").flow).toStrictEqual([
+        { role: "sender", account: SENDER, label: "Sender" },
+        { role: "destination", account: RECEIVER, label: "Destination", amount },
+      ]);
+      const mint = { mpt: MPT_MINT_ISSUANCE, issuer: MINT_ISSUER, units: "1" };
+      expect(recorded("payment_mint").flow).toStrictEqual([
+        { role: "sender", account: MINT_ISSUER, label: "Sender", amount: mint },
+        { role: "destination", account: MINT_HOLDER, label: "Destination", amount: mint },
+      ]);
+    });
+
+    it("says a failed payment tried to send it, with the amount it was for and no flow", () => {
+      const d = recorded("payment_failed");
+      expect(textOf(d.sentence)).toMatch(/ tried to (send|issue) \d+ \[mpt [0-9A-F]{48}\] to /);
+      expect(d.ok).toBe(false);
+      expect(d.flow).toBeUndefined();
+    });
+
+    it("reads an MPT payment before fixMPTDeliveredAmount, whose metadata the node completes, as any other", () => {
+      const d = recorded("payment_before_delivered_fix");
+      expect(textOf(d.sentence)).toMatch(/ (sent|issued) \d+ \[mpt [0-9A-F]{48}\] to /);
+    });
+
+    it("says a partial payment with nothing delivered in its metadata was up to the amount", () => {
+      const tx = synth("Payment", { Amount: { mpt_issuance_id: HTF, value: "500" }, Destination: B, Flags: 0x00020000 });
+      expect(textOf(say(tx, SUCCESS).sentence)).toBe(`${A} sent up to 500 [mpt ${HTF}] to ${B}.`);
+      expect(textOf(say(tx, FAILED).sentence)).toBe(`${A} tried to send up to 500 [mpt ${HTF}] to ${B}.${NO_PERMISSION}`);
+    });
+
+    it("keeps a payment with an Amount that looks like an MPT's and is not as the field it is", () => {
+      const tx = synth("Payment", { Amount: { mpt_issuance_id: "AB".repeat(20), value: "500" }, Destination: B });
+      expect(say(tx, SUCCESS).sentence.some((segment) => segment.t === "mpt")).toBe(false);
+    });
+  });
+
+  it("describes all 22 recorded cases as a type of its own, never as a type nothing here describes", () => {
+    for (const [name, { hash }] of Object.entries<{ hash: string }>(loadManifest("xrpl-mpt").cases)) {
+      const d = run("xrpl-mpt", hash);
+      expect(textOf(d.sentence), name).not.toContain(" submitted a");
+      expect(d.title, name).not.toMatch(/^MPToken/);
     }
   });
 });

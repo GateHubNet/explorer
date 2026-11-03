@@ -10,7 +10,7 @@ import { shortAddress, shortHash } from "../../domain/format";
 import { NO_NAMES, nameViewOf, type NameMap, type NamesPart } from "../../domain/names";
 import { permissionChip } from "../../domain/permissions";
 import { accountNameHeader, type NameHeader, type NameHeaderInput } from "../../server/account-name-view";
-import type { AccountAnalyticsPageData, AccountHeader, AccountListPageData, AccountNftRow, AccountPageData, Loaded, NeverActivatedData, ObjectRow, TabList, TxRow } from "../../server/account-view";
+import type { AccountAnalyticsPageData, AccountHeader, AccountListPageData, AccountNftRow, AccountPageData, Loaded, MptHolding, NeverActivatedData, ObjectRow, TabList, TxRow } from "../../server/account-view";
 import type { AnalyticsData } from "../../server/analytics-view";
 import type { DelegationList, DelegationRow } from "../../server/delegation-view";
 import type { AccountNameEntry, TomlAnswer } from "../../server/api-types";
@@ -114,6 +114,7 @@ const header = (over: Partial<AccountHeader> = {}): AccountHeader => ({
   tokens: {
     state: "ok",
     truncated: false,
+    mpt: [],
     items: [
       { currency: "USD", issuer: ISSUER, value: "3120.50", lp: false, href: null },
       { currency: `03${"AB".repeat(19)}`, issuer: POOL, value: "1042.77", lp: true, href: null },
@@ -882,7 +883,7 @@ describe("the margin", () => {
       // A negative balance: this account is the line's issuer, and the line's href says so.
       { currency: lions, issuer: ISSUER, value: "-5", lp: false, href: `/xrpl/token/LIONS.${ADDRESS}` },
     ];
-    renderUnderLayout(<AccountPage network={XRPL} data={data({ header: header({ tokens: { state: "ok", items, truncated: false } }) })} />, { ...NO_FEATURES, tokens: true, ammPages: true });
+    renderUnderLayout(<AccountPage network={XRPL} data={data({ header: header({ tokens: { state: "ok", items, mpt: [], truncated: false } }) })} />, { ...NO_FEATURES, tokens: true, ammPages: true });
     const rows = [...(await screen.findByRole("heading", { name: "Tokens" })).closest("section")!.querySelectorAll(".token")];
     const [usd, lp, hex] = rows as HTMLElement[];
 
@@ -913,17 +914,17 @@ describe("the margin", () => {
 
   it("puts the tokens after the tenth under 'Show N more'", async () => {
     const items = Array.from({ length: 13 }, (_, i) => ({ currency: "USD", issuer: `rIssuer${i}`, value: String(i), lp: false, href: null }));
-    renderInRouter(<AccountPage network={XRPL} data={data({ header: header({ tokens: { state: "ok", items, truncated: false } }) })} />);
+    renderInRouter(<AccountPage network={XRPL} data={data({ header: header({ tokens: { state: "ok", items, mpt: [], truncated: false } }) })} />);
     const more = (await screen.findByText("Show 3 more")).closest("details")!;
     expect(more.open).toBe(false);
     expect(more.querySelectorAll(".token")).toHaveLength(3);
   });
 
   it("says when the list of tokens may be longer, and when there are none", async () => {
-    const { unmount } = renderInRouter(<AccountPage network={XRPL} data={data({ header: header({ tokens: { state: "ok", items: [{ currency: "USD", issuer: ISSUER, value: "1", lp: false, href: null }], truncated: true } }) })} />);
+    const { unmount } = renderInRouter(<AccountPage network={XRPL} data={data({ header: header({ tokens: { state: "ok", items: [{ currency: "USD", issuer: ISSUER, value: "1", lp: false, href: null }], mpt: [], truncated: true } }) })} />);
     expect(await screen.findByText("first 1 trust line")).toBeTruthy();
     unmount();
-    renderInRouter(<AccountPage network={XRPL} data={data({ header: header({ tokens: { state: "ok", items: [], truncated: false } }) })} />);
+    renderInRouter(<AccountPage network={XRPL} data={data({ header: header({ tokens: { state: "ok", items: [], mpt: [], truncated: false } }) })} />);
     expect(await screen.findByText("No tokens.")).toBeTruthy();
   });
 
@@ -1960,5 +1961,173 @@ describe("NeverActivatedPage", () => {
     expect(screen.getByText(ADDRESS)).toBeTruthy();
     expect(screen.getByRole("link", { name: `Look for ${shortAddress(ADDRESS)} on Xahau` }).getAttribute("href")).toBe(`/xahau/account/${ADDRESS}`);
     expect(screen.getByRole("link", { name: "Go to the XRPL home" }).getAttribute("href")).toBe("/xrpl");
+  });
+});
+
+
+// ---- E14: MPTs on the account page (spec 5.4) -----------------------------------------------------------------------------------------------------------------------------------------------
+
+describe("the Tokens card's MPT rows", () => {
+  const XAU = "03F907F270631F5CC5E1A2E556F42D017F52CEE7EA30AF80";
+  const LOCKED = "0663EACAC1E295FCE4BA9E9ECD5EC0E84C5089AEE6B00E65";
+  const MPT_ISSUER = "rBEERdzDHqDyYmfw2jqzyMNBZu31yzfg6q";
+  const OTHER_ISSUER = "rJgwiVNzEEgtXngyi4bhSVkVLhWWu7UqfS";
+  // The Worker decides where the row's ticker leads, as it does for a trust line's code (`tokensOf`): the issuance's page with MPT on, `null` with it off.
+  const holding = (over: Partial<MptHolding> = {}): MptHolding => {
+    const mpt = over.mpt ?? XAU;
+    return { mpt, issuer: MPT_ISSUER, units: "3000000", locked: false, href: `/xrpl/mpt/${mpt}`, ...over };
+  };
+  const withMpt = (mpt: MptHolding[], items: Extract<AccountHeader["tokens"], { state: "ok" }>["items"] = []) =>
+    data({ header: header({ tokens: { state: "ok", items, mpt, truncated: false } }) });
+  const ON: Features = { ...NO_FEATURES, mpt: true };
+  const card = async () => (await screen.findByRole("heading", { name: "Tokens" })).closest("section")!;
+
+  it("draws a holding after the trust lines: the ticker as a link to the issuance's page, the issuer as a link, the scaled amount", async () => {
+    renderUnderLayout(<AccountPage network={XRPL} data={withMpt([holding({ value: "30000.00", ticker: "XAU" })], [{ currency: "USD", issuer: ISSUER, value: "3120.50", lp: false, href: null }])} />, ON);
+    const rows = [...(await card()).querySelectorAll<HTMLElement>(".token")];
+    expect(rows).toHaveLength(2);
+    const [line, mpt] = rows as [HTMLElement, HTMLElement];
+    expect(line.textContent).toContain("USD");
+    const name = within(mpt).getByRole("link", { name: "XAU" });
+    expect(name.getAttribute("href")).toBe(`/xrpl/mpt/${XAU}`);
+    expect(name.parentElement!.matches(".token__name > span:first-child")).toBe(true);
+    expect(within(mpt).getByRole("link", { name: shortAddress(MPT_ISSUER) }).getAttribute("href")).toBe(`/xrpl/account/${MPT_ISSUER}`);
+    expect(mpt.querySelector(".amt")!.textContent).toBe("30,000.00");
+    // The row says it has links, for the 24 px targets of its two (pages-css.test.ts).
+    expect(mpt.classList.contains("token--linked")).toBe(true);
+    expect(mpt.querySelector(".token__badge")!.textContent).toBe("XAU");
+  });
+
+  it("draws the units, with their word, and the start of the ID in place of a ticker while the lookup has not answered", async () => {
+    renderUnderLayout(<AccountPage network={XRPL} data={withMpt([holding()])} />, ON);
+    const [row] = (await card()).querySelectorAll<HTMLElement>(".token");
+    expect(within(row!).getByRole("link", { name: "MPT 03F907F2…" }).getAttribute("href")).toBe(`/xrpl/mpt/${XAU}`);
+    expect(row!.querySelector(".amt")!.textContent).toBe("3,000,000 units");
+    expect(row!.querySelector(".token__badge")!.textContent).toBe("MPT");
+  });
+
+  it("says 'Locked' in words when the issuer locked the balance, and not otherwise", async () => {
+    renderUnderLayout(<AccountPage network={XRPL} data={withMpt([holding({ locked: false }), holding({ mpt: LOCKED, issuer: OTHER_ISSUER, units: "45000000", locked: true })])} />, ON);
+    const [open, locked] = [...(await card()).querySelectorAll<HTMLElement>(".token")] as [HTMLElement, HTMLElement];
+    expect(open.textContent).not.toContain("Locked");
+    expect(locked.querySelector(".token__issuer")!.textContent).toBe(`${shortAddress(OTHER_ISSUER)} · Locked`);
+    expect(locked.querySelector(".amt")!.textContent).toBe("45,000,000 units");
+  });
+
+  it("draws the words without a link while MPT is off (the row has no href), the issuer's link still there: the page as before E14", async () => {
+    renderUnderLayout(<AccountPage network={XRPL} data={withMpt([holding({ value: "30000.00", ticker: "XAU", href: null })])} />, NO_FEATURES);
+    const [row] = (await card()).querySelectorAll<HTMLElement>(".token");
+    expect(row!.classList.contains("token--linked")).toBe(false);
+    expect(within(row!).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([`/xrpl/account/${MPT_ISSUER}`]);
+    expect(row!.textContent).toContain("XAU");
+    expect(row!.querySelector(".token__name > span:first-child")!.getAttribute("title")).toBe(`MPT ${XAU}`);
+  });
+
+  // Review of Tasks 7 and 8, M3 and M4: the link is the row's own `href`, not the page's switches, and it is the plain link of a trust line's code, not the underlined link of running words.
+  it("links the ticker with the row's own href, not the underlined link of running words, and the whole ID in its title", async () => {
+    renderUnderLayout(<AccountPage network={XRPL} data={withMpt([holding({ value: "30000.00", ticker: "XAU", href: "/xrpl/mpt/ELSEWHERE" })])} />, NO_FEATURES);
+    const [row] = (await card()).querySelectorAll<HTMLElement>(".token");
+    const name = within(row!).getByRole("link", { name: "XAU" });
+    expect(name.getAttribute("href")).toBe("/xrpl/mpt/ELSEWHERE");
+    expect(name.getAttribute("title")).toBe(`MPT ${XAU}`);
+    expect(name.classList.contains("mptlink")).toBe(false);
+    expect(row!.classList.contains("token--linked")).toBe(true);
+  });
+
+  it("is a card with only MPT rows when the account has no trust line: not 'No tokens.', and the action still counts trust lines", async () => {
+    renderUnderLayout(<AccountPage network={XRPL} data={withMpt([holding({ ticker: "XAU", value: "300.0000" })])} />, ON);
+    const section = await card();
+    expect(within(section).queryByText("No tokens.")).toBeNull();
+    expect(section.textContent).toContain("0 trust lines");
+    expect(section.querySelectorAll(".token")).toHaveLength(1);
+  });
+
+  it("says 'No tokens.' only when there is neither a trust line nor a holding", async () => {
+    renderUnderLayout(<AccountPage network={XRPL} data={withMpt([])} />, ON);
+    expect(await screen.findByText("No tokens.")).toBeTruthy();
+  });
+
+  it("lists every holding after the 'Show N more' of the trust lines, without a limit of its own", async () => {
+    const items = Array.from({ length: 12 }, (_, i) => ({ currency: "USD", issuer: `rIssuer${i}`, value: String(i), lp: false, href: null }));
+    const many = Array.from({ length: 15 }, (_, i) => holding({ mpt: `00000000${String(i).padStart(2, "0")}`.padEnd(48, "A"), units: String(i + 1) }));
+    renderUnderLayout(<AccountPage network={XRPL} data={withMpt(many, items)} />, ON);
+    const section = await card();
+    const more = section.querySelector("details.more")!;
+    expect(more.querySelectorAll(".token")).toHaveLength(2);
+    expect(section.querySelectorAll(".token")).toHaveLength(12 + 15);
+    // The holdings have the badge "MPT" (no ticker); the trust lines "USD". All 15 are outside the disclosure and after it.
+    const mpt = [...section.querySelectorAll<HTMLElement>(".token")].filter((row) => row.querySelector(".token__badge")!.textContent === "MPT");
+    expect(mpt).toHaveLength(15);
+    for (const row of mpt) {
+      expect(more.contains(row)).toBe(false);
+      expect(more.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+  });
+
+  it("keeps the issuer's ticker as text: markup in it is not markup", async () => {
+    const hostile = `"><img src=x onerror=alert(1)>`;
+    renderUnderLayout(<AccountPage network={XRPL} data={withMpt([holding({ ticker: hostile, value: "1.00" })])} />, ON);
+    const section = await card();
+    expect(section.querySelector("img")).toBeNull();
+    expect(section.querySelector(".token__name")!.textContent).toContain(hostile);
+  });
+});
+
+describe("the MPTs in the lists", () => {
+  const ID = "0598F6E09E30A809E63A1F02DE789586D2F4FDA9EF5200E3";
+  const MPT_ISSUER = "rERShrtUSEXkrwtTpugPV4v8E787vpx1kb";
+  const ON: Features = { ...NO_FEATURES, mpt: true };
+
+  it("draws an MPT payment's amount signed from the account's side: scaled and linked once the lookup answered, the units and the ID before", async () => {
+    const list: TabList = {
+      state: "ok",
+      tab: "payments",
+      names: NO_NAMES,
+      csvHref: `/xrpl/account/${ADDRESS}/payments.csv`,
+      paging: { newerHref: null, olderHref: null },
+      rows: [
+        { hash: TX, time: 1792251771, direction: "sent", counterparty: BOB, amount: { mpt: ID, issuer: MPT_ISSUER, units: "-1000000", value: "-1.000000", ticker: "FEE" }, tag: null },
+        { hash: "AA".repeat(32), time: 1792200000, direction: "received", counterparty: PARENT, amount: { mpt: ID, issuer: MPT_ISSUER, units: "2500000" }, tag: null },
+      ],
+    };
+    renderUnderLayout(<AccountPage network={XRPL} data={data({ tab: "payments", list })} />, ON);
+    const rows = within(await screen.findByRole("table", { name: "Payments" })).getAllByRole("row");
+    expect(rows[1]!.textContent).toContain("−1.000000 FEE");
+    expect(rows[2]!.textContent).toContain("+2,500,000 units of MPT 0598F6E0…");
+    expect(rows[2]!.querySelector(".amt--pos")).not.toBeNull();
+    expect(rows[1]!.querySelector(".amt--pos")).toBeNull();
+    expect(within(rows[1]!).getByRole("link", { name: "FEE" }).getAttribute("href")).toBe(`/xrpl/mpt/${ID}`);
+    expect(within(rows[2]!).getByRole("link", { name: "0598F6E0…" }).getAttribute("href")).toBe(`/xrpl/mpt/${ID}`);
+    expect(rows[2]!.querySelector(".mptamount")!.getAttribute("title")).toBe(`MPT ${ID} issued by ${MPT_ISSUER}`);
+  });
+
+  it("draws the change of a transaction row that is an MPT's, with its 'more'", async () => {
+    const mine = txRow({ change: { mpt: ID, units: "-1005890", value: "-1.005890", ticker: "FEE", more: 1 } });
+    const raw = txRow({ hash: "BB".repeat(32), change: { mpt: ID, units: "1000000", more: 0 } });
+    renderUnderLayout(<AccountPage network={XRPL} data={data({ list: transactions([mine, raw]) })} />, ON);
+    const rows = within(await screen.findByRole("table", { name: "Transactions" })).getAllByRole("row");
+    expect(rows[1]!.querySelector(".change")!.textContent).toBe("−1.005890 FEE+1 more");
+    expect(rows[2]!.querySelector(".change")!.textContent).toBe("+1,000,000 units of MPT 0598F6E0…");
+    expect(rows[2]!.querySelector(".change .amt--pos")).not.toBeNull();
+  });
+
+  it("draws an MPT of the Objects tab's rows as a reference and as amounts, the reference a link to the issuance's page while MPT is on", async () => {
+    const rows: ObjectRow[] = [
+      {
+        key: "M1",
+        type: "MPToken",
+        fields: [
+          { label: "MPT", value: [{ t: "mpt", id: ID, issuer: MPT_ISSUER, ticker: "FEE" }] },
+          { label: "Balance", value: [{ t: "mpt", id: ID, issuer: MPT_ISSUER, units: "2500000", value: "2.500000", ticker: "FEE" }] },
+          { label: "Locked", value: [{ t: "text", v: "No" }] },
+        ],
+        tx: null,
+      },
+    ];
+    const list: TabList = { state: "ok", tab: "objects", rows, trustLines: 0, offers: 0, truncated: false, ledgerIndex: 107695660, names: NO_NAMES };
+    renderUnderLayout(<AccountPage network={XRPL} data={data({ tab: "objects", list })} />, ON);
+    await screen.findAllByRole("link", { name: "FEE" });
+    expect(document.body.textContent).toContain("2.500000 FEE");
+    expect(screen.getAllByRole("link", { name: "FEE" }).map((a) => a.getAttribute("href"))).toEqual([`/xrpl/mpt/${ID}`, `/xrpl/mpt/${ID}`]);
   });
 });

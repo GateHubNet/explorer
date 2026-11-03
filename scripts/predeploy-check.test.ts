@@ -592,7 +592,8 @@ describe("deployProblems", () => {
       it("depends on no other switch: on over every other switch off is accepted, and so is off over every other switch on", () => {
         for (const env of ["sandbox", "production"] as const) {
           expect(deployProblems(withVars({ ...allSwitches("off"), TOKENS: "on" }, env), env), env).toEqual([]);
-          expect(deployProblems(withVars({ ...allSwitches("on"), TOKENS: "off" }, env), env), env).toEqual([]);
+          // MPT is turned off as well: MPT on over TOKENS off is the one pair the guard refuses (the MPT block below).
+          expect(deployProblems(withVars({ ...allSwitches("on"), TOKENS: "off", MPT: "off" }, env), env), env).toEqual([]);
         }
       });
     });
@@ -699,6 +700,96 @@ describe("deployProblems", () => {
         for (const env of ["sandbox", "production"] as const) {
           expect(deployProblems(withVars({ ...allSwitches("off"), VALIDATORS_MAP: "on" }, env), env), env).toEqual([]);
           expect(deployProblems(withVars({ ...allSwitches("on"), VALIDATORS_MAP: "off" }, env), env), env).toEqual([]);
+        }
+      });
+    });
+
+    // MPT (E14): the MPT pages, the links to an issuance and the units and scale of MPT amounts. A sandbox or production build must say it, and say it right. It needs TOKENS on: the MPT tab is a kind of the token
+    // list, and a page that links an issuance leads to a token page's neighbour with nothing to come back to (README "Switches"). That is the guard's one rule for it, as `AMM_PAGES` has one on `AMM_DATA`.
+    describe("MPT", () => {
+      const NEEDS_TOKENS = "MPT is on but TOKENS is off: the MPT pages need the token pages";
+
+      it("passes a build whose MPT is off or on over TOKENS on, and the passing configs carry it, off", () => {
+        expect((good("sandbox").vars as Config).MPT).toBe("off");
+        expect((good("production").vars as Config).MPT).toBe("off");
+        expect(deployProblems(good("sandbox"), "sandbox")).toEqual([]);
+        expect(deployProblems(good("production"), "production")).toEqual([]);
+        expect(deployProblems(withVars({ MPT: "off" }, "production"), "production")).toEqual([]);
+        for (const env of ["sandbox", "production"] as const) expect(deployProblems(withVars({ MPT: "on", TOKENS: "on" }, env), env), env).toEqual([]);
+      });
+
+      it("refuses a build without MPT, and names it", () => {
+        for (const env of ["sandbox", "production"] as const) {
+          const vars = { ...(good(env).vars as Config) };
+          delete vars.MPT;
+          const problems = deployProblems(good(env, { vars }), env);
+          expect(problems, env).toHaveLength(1);
+          expect(problems[0]).toContain("MPT is not set");
+          expect(problems[0]).toContain('"on" or "off"');
+        }
+      });
+
+      it('refuses MPT: "yes", and names it, and no other reason with it (a value that is not exactly "on" is off)', () => {
+        for (const env of ["sandbox", "production"] as const) {
+          for (const value of ["yes", "ON", "On", "true", true]) {
+            const problems = deployProblems(withVars({ MPT: value, TOKENS: "off" }, env), env);
+            expect(problems, `${env} ${String(value)}`).toHaveLength(1);
+            expect(problems[0]).toContain("MPT");
+            expect(problems[0]).toContain('not exactly "on" or "off"');
+          }
+        }
+      });
+
+      it('refuses a misspelt MTP and MPTS: "on" as a var that is not a switch, naming MPT among the switches', () => {
+        for (const env of ["sandbox", "production"] as const) {
+          for (const name of ["MTP", "MPTS"]) {
+            const problems = deployProblems(withVars({ [name]: "on" }, env), env);
+            expect(problems, `${env} ${name}`).toHaveLength(1);
+            expect(problems[0]).toContain(`${name} is`);
+            expect(problems[0]).toContain("not a switch");
+            expect(problems[0]).toContain(`the switches are ${FEATURE_VARS.join(", ")}`);
+            expect(problems[0]).toContain("a misspelt one?");
+          }
+        }
+      });
+
+      // The pages need the token pages: MPT is a kind of the token list.
+      it.each(["sandbox", "production"] as const)("refuses MPT on with TOKENS off in %s, with that reason alone", (env) => {
+        expect(deployProblems(withVars({ MPT: "on", TOKENS: "off" }, env), env)).toEqual([NEEDS_TOKENS]);
+        expect(deployProblems(withVars({ ...allSwitches("on"), MPT: "on", TOKENS: "off" }, env), env)).toEqual([NEEDS_TOKENS]);
+      });
+
+      it("refuses MPT on with TOKENS missing, or not exactly on, with the switch's own reason first and this one after it", () => {
+        for (const env of ["sandbox", "production"] as const) {
+          const vars: Config = { ...(good(env).vars as Config), MPT: "on" };
+          delete vars.TOKENS;
+          const missing = deployProblems(good(env, { vars }), env);
+          expect(missing, env).toHaveLength(2);
+          expect(missing[0]).toContain("TOKENS is not set");
+          expect(missing[1]).toBe(NEEDS_TOKENS);
+
+          for (const value of ["yes", "ON", true, 1]) {
+            const problems = deployProblems(withVars({ MPT: "on", TOKENS: value }, env), env);
+            expect(problems, `${env} ${String(value)}`).toHaveLength(2);
+            expect(problems[0]).toContain("TOKENS");
+            expect(problems[0]).toContain('not exactly "on" or "off"');
+            expect(problems[1]).toBe(NEEDS_TOKENS);
+          }
+        }
+      });
+
+      it("gives its reason after AMM_PAGES's when both pairs are wrong", () => {
+        const problems = deployProblems(withVars({ AMM_PAGES: "on", AMM_DATA: "off", MPT: "on", TOKENS: "off" }), "sandbox");
+        expect(problems).toEqual(["AMM_PAGES is on but AMM_DATA is off: the AMM pages need the AMM data", NEEDS_TOKENS]);
+      });
+
+      it("accepts TOKENS on with MPT either way, and no other switch matters: every other one off over MPT and TOKENS on, and every other one on over MPT off", () => {
+        for (const env of ["sandbox", "production"] as const) {
+          expect(deployProblems(withVars({ ...allSwitches("off"), TOKENS: "on", MPT: "on" }, env), env), env).toEqual([]);
+          expect(deployProblems(withVars({ ...allSwitches("off"), TOKENS: "on", MPT: "off" }, env), env), env).toEqual([]);
+          expect(deployProblems(withVars({ ...allSwitches("on"), MPT: "off" }, env), env), env).toEqual([]);
+          expect(deployProblems(withVars({ ...allSwitches("on") }, env), env), env).toEqual([]);
+          expect(deployProblems(withVars({ ...allSwitches("off"), MPT: "off", TOKENS: "off" }, env), env), env).toEqual([]);
         }
       });
     });
@@ -1297,5 +1388,17 @@ describe("the deploy scripts and wrangler.jsonc", () => {
     expect(vars().VALIDATORS_MAP).toBe("on");
     expect(vars("sandbox").VALIDATORS_MAP).toBe("off");
     expect(vars("production").VALIDATORS_MAP).toBe("off");
+  });
+
+  // MPT (README "Switches"): on in development and the tests (the top level), off in sandbox and production until the environment's data API serves D9 on XRPL's network (and TOKENS is on there), and D9's live
+  // comparison is decided (E14 rollout). A flip is a commit, so it is read from the file. In no block is it on over TOKENS off (the guard's rule).
+  it("has MPT on at the top level and off in sandbox and production, and never on over TOKENS off", () => {
+    const vars = (env?: string) => unstable_readConfig({ config: join(project, "wrangler.jsonc"), env }).vars as Record<string, unknown>;
+    expect(vars().MPT).toBe("on");
+    expect(vars("sandbox").MPT).toBe("off");
+    expect(vars("production").MPT).toBe("off");
+    for (const env of [undefined, "sandbox", "production"]) {
+      if (vars(env).MPT === "on") expect(vars(env).TOKENS, env ?? "top level").toBe("on");
+    }
   });
 });

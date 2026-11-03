@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 99226369,
+    "complete": true
+  },
+  "count": 6,
+  "transfers": [
+    {"ledger_index":107719455,"tx_index":77,"tx_hash":"8BA83401CC5E4DF962803782963D1A858E6D2EF52A21411636BE2F711B1722D3","executed_time":"2026-10-17T14:47:52Z","tx_type":"Payment","kind":"payment","source":"rLFUzo23kPsxeMfJ8FPixizEREUhNVf66g","destination":"rsjUhrFQeMpHpbCkzJzr2jm9rMyD5xMz5Z","amount":"5000000000"},
+    {"ledger_index":107717455,"tx_index":71,"tx_hash":"772EEBD5672AAD1DF3B20BE2B3B74B8291BB346A56468D11CFC05F92C9BB13D2","executed_time":"2026-10-17T12:34:32Z","tx_type":"Payment","kind":"payment","source":"rsjUhrFQeMpHpbCkzJzr2jm9rMyD5xMz5Z","destination":"rN1BiDVsXMqBP3WZjmuEqXovhKSFU51QVa","amount":"90000000","fee":"4500000"},
+    {"ledger_index":107715455,"tx_index":25,"tx_hash":"CD3CA27B3DFA4A7947DF6677DEE511EA90B50A61C850AD955259295A27C320D1","executed_time":"2026-10-17T10:21:12Z","tx_type":"Payment","kind":"payment","source":"rN1BiDVsXMqBP3WZjmuEqXovhKSFU51QVa","destination":"rN2aVvdRq1K6MmFyUxT7R8GjsvTh58z1m7","amount":"4000000","fee":"200000"},
+    {"ledger_index":107713455,"tx_index":27,"tx_hash":"C7EB63D4F9FE390045A889C4F8B032CF1D0ED86A3545811FAFB9FC1CBB96D479","executed_time":"2026-10-17T08:07:52Z","tx_type":"Payment","kind":"payment","source":"rsjUhrFQeMpHpbCkzJzr2jm9rMyD5xMz5Z","destination":"rfFWTE3NbCByofCCeCeFp9wU5wCMKyUCM3","amount":"30000000","fee":"1500000"},
+    {"ledger_index":107711455,"tx_index":40,"tx_hash":"C49921358C77803D2368B145F45C359333EBF7D2EB63DEE62BC9ED749939AA12","executed_time":"2026-10-17T05:54:32Z","tx_type":"Payment","kind":"payment","source":"rfFWTE3NbCByofCCeCeFp9wU5wCMKyUCM3","destination":"rLFUzo23kPsxeMfJ8FPixizEREUhNVf66g","amount":"100000"},
+    {"ledger_index":107709455,"tx_index":19,"tx_hash":"2E03A004667E3300FA55268BA878B4ABA2F0A3826B576D72AD9FBABFE0E8F10E","executed_time":"2026-10-17T03:41:12Z","tx_type":"Payment","kind":"payment","source":"rB2qh2GephTALUH1KfrBurWz5iU6b9GTmM","destination":"rhsJbm4ede5yxyoJgAb4rYVukALeHYwLXU","amount":"200000","fee":"10000"}
+  ]
+}

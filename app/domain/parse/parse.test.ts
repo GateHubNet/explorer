@@ -1,8 +1,10 @@
 import BigNumber from "bignumber.js";
 import { describe, expect, it } from "vitest";
 import { allTxs, loadManifest, loadTx, type FixtureSet } from "../../../test/support/ledgers";
+import { MPT_FEE_PAYMENT_ISSUANCE, MPT_FIXTURE_IDS, MPT_MINT_ISSUANCE } from "../../../test/support/mpt-case-rules";
+import { mptIdOf } from "../mpt-id";
 import { acceptedNftId, accountsCreated, ammHops, balanceChanges, createdUriTokenIds, mintedNftIds, objectsTouched } from "./index";
-import type { AmmHop, Native, TxMeta } from "./types";
+import type { AffectedNode, AmmHop, BalanceChange, Native, TxJson, TxMeta } from "./types";
 
 const SETS: FixtureSet[] = ["xrpl", "xrpl-amm", "xahau"];
 const nativeOf = (set: FixtureSet): Native => (set === "xahau" ? "XAH" : "XRP");
@@ -620,4 +622,243 @@ describe("the NFT ids of a transaction", () => {
       }
     }
   });
+});
+
+// The MPT amounts of a transaction (spec 5.2, rulings C7 and C9): an `MPToken` node whose `MPTAmount` changed is the holder's entry, an `MPTokenIssuance` node whose `OutstandingAmount` changed (listed) the
+// issuer's, negated. The metadata does not list an added field, so a "before" that is not listed is 0 only for the holder a succeeded transaction credits (D9 section 4.1's dated note), else the final value.
+describe("the MPT amounts of a transaction", () => {
+  const caseOf = (name: string) => loadTx("xrpl-mpt", loadManifest("xrpl-mpt").cases[name].hash);
+  const mptChanges = (name: string): BalanceChange[] => {
+    const { tx, meta } = caseOf(name);
+    return balanceChanges(tx, meta, "XRP").filter((change) => change.mpt);
+  };
+  /** The compact form of an entry: who, how much, and the balance after. */
+  const brief = (changes: BalanceChange[]) => changes.map(({ account, value, after }) => [account, value, after]);
+
+  const FEE_SENDER = "rMPTejgDkDqy92EkAhBo6u7RRPFRfH6MCR";
+  const FEE_RECEIVER = "rKSg2VZbw9gRRuSwBjBFAfBoGC5Vs1FmFn";
+  const FEE_ISSUER = "rERShrtUSEXkrwtTpugPV4v8E787vpx1kb";
+  const MINT_ISSUER = "rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR";
+  const MINT_HOLDER = "rMNysCkYEX9L3SrSPqavVVXYFT2v5CEVpo";
+
+  it("gives a payment with a transfer fee the sender's fall, the receiver's rise and the issuer's fee, all tagged mpt", () => {
+    const changes = mptChanges("payment_transfer_fee");
+    expect(changes).toEqual([
+      { account: FEE_SENDER, currency: MPT_FEE_PAYMENT_ISSUANCE, issuer: FEE_ISSUER, value: "-1005890", after: "199999997994097", mpt: true },
+      { account: FEE_ISSUER, currency: MPT_FEE_PAYMENT_ISSUANCE, value: "5890", mpt: true },
+      { account: FEE_RECEIVER, currency: MPT_FEE_PAYMENT_ISSUANCE, issuer: FEE_ISSUER, value: "1000000", after: "1000013", mpt: true },
+    ]);
+    // Sender first, as for any transaction; the issuer's entry has no `issuer` and no `after` (it is the fee, the outstanding amount's fall negated).
+    const { tx, meta } = caseOf("payment_transfer_fee");
+    expect(balanceChanges(tx, meta, "XRP")[0]).toMatchObject({ account: FEE_SENDER });
+    expect(Object.keys(changes[1]!)).not.toContain("issuer");
+    expect(Object.keys(changes[1]!)).not.toContain("after");
+  });
+
+  it("gives a mint the receiver's credit and the issuer's equal debit", () => {
+    expect(mptChanges("payment_mint")).toEqual([
+      { account: MINT_ISSUER, currency: MPT_MINT_ISSUANCE, value: "-1", mpt: true },
+      { account: MINT_HOLDER, currency: MPT_MINT_ISSUANCE, issuer: MINT_ISSUER, value: "1", after: "1", mpt: true },
+    ]);
+  });
+
+  it("gives an escrow create the holder's debit and no issuer entry (the issuance's LockedAmount moved, not its OutstandingAmount)", () => {
+    expect(brief(mptChanges("escrow_create"))).toEqual([["rw4tVZXoDHcVm2frmxXJra3EoxHDjp4US4", "-277073", "677146"]]);
+  });
+
+  it("gives an escrow finish the destination's credit alone: the owner's MPToken only moved its LockedAmount", () => {
+    expect(brief(mptChanges("escrow_finish"))).toEqual([["rBoJ7MWPXiejVbqCRhiVgGcaXAHXVstCD4", "277073", "277073"]]);
+  });
+
+  it("gives none for a holder's opt-in (a created MPToken with nothing on it), a lock of one holder or of every balance, and a failed payment", () => {
+    for (const name of ["authorize_holder", "issuance_set_lock_holder", "issuance_set_unlock_holder", "issuance_set_lock_all", "authorize_by_issuer", "unauthorize_holder", "issuance_create", "issuance_destroy", "payment_failed"]) {
+      expect(mptChanges(name), name).toEqual([]);
+    }
+  });
+
+  it("reads a field the final fields lack as 0: a redemption and a clawback take the holder to 0 and give the issuer the amount", () => {
+    expect(brief(mptChanges("payment_redeem"))).toEqual([
+      ["rG4w2E3eHBiJvBSmjwBbJHi7FrCdowtDNd", "-1", "0"],
+      ["rBJ2ogWEZvsxkuK7aV4k6H9VAto7k2SsH9", "1", undefined],
+    ]);
+    // The issuer sent a clawback, so its entry comes first.
+    expect(brief(mptChanges("clawback_full"))).toEqual([
+      [MINT_ISSUER, "1", undefined],
+      [MINT_HOLDER, "-1", "0"],
+    ]);
+    expect(brief(mptChanges("clawback_partial"))).toEqual([
+      ["rNd7q6Wn8hV8Wm6GBhbgSxiibHU2VVFxDF", "1000000", undefined],
+      ["rMGADLtve6nS9kg7bqX6Na2S22wSNT1wx4", "-1000000", "3000000"],
+    ]);
+  });
+
+  it("gives a payment between holders two entries and none for an issuer, the sender's gone to 0", () => {
+    expect(brief(mptChanges("payment_holder_to_holder"))).toEqual([
+      ["rD9nGmG8wVwguyZcz8rLT4d2MZ1EyFGDSS", "-100000", "0"],
+      ["rEPrn4DbXvHNBDJghQWUf92NzLU3MURFC3", "100000", "56327452"],
+    ]);
+  });
+
+  it("sums to zero per issuance, but for an escrow's move (the amount leaves the balance and is not outstanding-neutral in the metadata)", () => {
+    const cases = Object.keys(loadManifest("xrpl-mpt").cases);
+    expect(cases).toHaveLength(22);
+    for (const name of cases) {
+      const total = mptChanges(name).reduce((sum, { value }) => sum.plus(value), new BigNumber(0));
+      expect(total.toFixed(), name).toBe(name === "escrow_create" ? "-277073" : name === "escrow_finish" ? "277073" : "0");
+    }
+  });
+
+  it("leaves every other entry of these transactions what it was: the fee payer's XRP and no `mpt` flag", () => {
+    const { tx, meta } = caseOf("payment_transfer_fee");
+    const others = balanceChanges(tx, meta, "XRP").filter((change) => !change.mpt);
+    expect(others).toEqual([{ account: FEE_SENDER, currency: "XRP", value: "-0.000012", after: expect.stringMatching(/^\d+(\.\d+)?$/) }]);
+  });
+
+  describe("on a transaction of its own making", () => {
+    const HOLDER = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+    const OTHER = "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De";
+    const ISSUER = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
+    const ID = mptIdOf(298, ISSUER);
+    const PAYER = "rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV";
+
+    const node = (kind: "CreatedNode" | "ModifiedNode" | "DeletedNode", type: string, fields: Record<string, unknown>, previous?: Record<string, unknown>): AffectedNode => {
+      const body = { LedgerEntryType: type, LedgerIndex: "AB".repeat(32), ...(kind === "CreatedNode" ? { NewFields: fields } : { FinalFields: fields }), ...(previous ? { PreviousFields: previous } : {}) };
+      return { [kind]: body } as AffectedNode;
+    };
+    const meta = (nodes: AffectedNode[], result = "tesSUCCESS"): TxMeta => ({ TransactionIndex: 0, TransactionResult: result, AffectedNodes: nodes });
+    const tx = (over: Record<string, unknown>): TxJson => ({ TransactionType: "Payment", Account: PAYER, Fee: "12", ...over }) as TxJson;
+    const token = (holder: string, amount: string | undefined, over: Record<string, unknown> = {}) => ({ Account: holder, Flags: 0, ...(amount === undefined ? {} : { MPTAmount: amount }), MPTokenIssuanceID: ID, ...over });
+    const mptOf = (t: TxJson, m: TxMeta) => brief(balanceChanges(t, m, "XRP").filter((change) => change.mpt));
+
+    const paying = (to: string, id = ID) => tx({ Destination: to, Amount: { mpt_issuance_id: id, value: "500" } });
+
+    it("credits the Destination of a succeeded Payment from 0 when the node lists nothing before, and shows no change for the same node of a failed one", () => {
+      const nodes = [node("ModifiedNode", "MPToken", token(HOLDER, "500"), {})];
+      expect(mptOf(paying(HOLDER), meta(nodes))).toEqual([[HOLDER, "500", "500"]]);
+      expect(mptOf(paying(HOLDER), meta(nodes, "tecPATH_PARTIAL"))).toEqual([]);
+      // A holder the payment does not credit is not credited by a node that lists nothing.
+      expect(mptOf(paying(OTHER), meta(nodes))).toEqual([]);
+    });
+
+    it("credits the holder of the issuance the transaction moves, not the same holder's token of another (D9's rule: the holder and the issuance)", () => {
+      const other = mptIdOf(299, ISSUER);
+      const nodes = [node("ModifiedNode", "MPToken", token(HOLDER, "500"), {}), node("ModifiedNode", "MPToken", token(HOLDER, "700", { MPTokenIssuanceID: other }), { Flags: 0 })];
+      // The payment is of `other`: its token is credited from 0 and the first, that lists nothing, is no change.
+      expect(brief(balanceChanges(paying(HOLDER, other), meta(nodes), "XRP").filter((change) => change.mpt))).toEqual([[HOLDER, "700", "700"]]);
+      // A payment whose Amount is not an MPT credits no one.
+      expect(mptOf(tx({ Destination: HOLDER, Amount: "10" }), meta(nodes))).toEqual([]);
+      // DeliverMax stands in for Amount.
+      expect(mptOf(tx({ Destination: HOLDER, DeliverMax: { mpt_issuance_id: ID.toLowerCase(), value: "500" } }), meta(nodes))).toEqual([[HOLDER, "500", "500"]]);
+    });
+
+    it("credits an EscrowFinish's destination, the one the escrow names, not whoever finished it", () => {
+      const escrow = node("DeletedNode", "Escrow", { Account: OTHER, Destination: HOLDER, Amount: { mpt_issuance_id: ID, value: "500" } });
+      const nodes = [node("ModifiedNode", "MPToken", token(HOLDER, "500"), {}), node("ModifiedNode", "MPToken", token(OTHER, "900"), { LockedAmount: "500" }), escrow];
+      expect(mptOf(tx({ TransactionType: "EscrowFinish", Owner: OTHER, OfferSequence: 1 }), meta(nodes))).toEqual([[HOLDER, "500", "500"]]);
+    });
+
+    it("credits an escrow's holder only in the issuance the escrow holds", () => {
+      const other = mptIdOf(299, ISSUER);
+      const escrow = node("DeletedNode", "Escrow", { Account: OTHER, Destination: HOLDER, Amount: { mpt_issuance_id: other, value: "500" } });
+      const nodes = [node("ModifiedNode", "MPToken", token(HOLDER, "500"), {}), escrow];
+      expect(mptOf(tx({ TransactionType: "EscrowFinish", Owner: OTHER, OfferSequence: 1 }), meta(nodes))).toEqual([]);
+    });
+
+    it("credits an EscrowCancel's owner, the escrow's account", () => {
+      const escrow = node("DeletedNode", "Escrow", { Account: HOLDER, Destination: OTHER, Amount: { mpt_issuance_id: ID, value: "500" } });
+      const nodes = [node("ModifiedNode", "MPToken", token(HOLDER, "500"), {}), escrow];
+      expect(mptOf(tx({ TransactionType: "EscrowCancel", Owner: HOLDER, OfferSequence: 1 }), meta(nodes))).toEqual([[HOLDER, "500", "500"]]);
+    });
+
+    it.each([
+      ["Payment", () => paying(HOLDER), []],
+      [
+        "EscrowFinish",
+        () => tx({ TransactionType: "EscrowFinish", Owner: OTHER, OfferSequence: 1 }),
+        [node("DeletedNode", "Escrow", { Account: OTHER, Destination: HOLDER, Amount: { mpt_issuance_id: ID, value: "500" } })],
+      ],
+      [
+        "EscrowCancel",
+        () => tx({ TransactionType: "EscrowCancel", Owner: HOLDER, OfferSequence: 1 }),
+        [node("DeletedNode", "Escrow", { Account: HOLDER, Destination: OTHER, Amount: { mpt_issuance_id: ID, value: "500" } })],
+      ],
+    ])("credits the holder of a succeeded %s from 0 and shows no change of the same node when the result is a tec", (_type, transaction, escrow) => {
+      const nodes = [node("ModifiedNode", "MPToken", token(HOLDER, "500"), {}), ...escrow];
+      expect(mptOf(transaction(), meta(nodes))).toEqual([[HOLDER, "500", "500"]]);
+      expect(mptOf(transaction(), meta(nodes, "tecNO_PERMISSION"))).toEqual([]);
+    });
+
+    it("gives no entry for an MPToken whose Account is empty", () => {
+      expect(mptOf(paying(HOLDER), meta([node("ModifiedNode", "MPToken", token("", "500"), { MPTAmount: "1" })]))).toEqual([]);
+    });
+
+    it("takes a listed before as it is, and a created MPToken from 0", () => {
+      expect(mptOf(tx({ Destination: OTHER }), meta([node("ModifiedNode", "MPToken", token(HOLDER, "70"), { MPTAmount: "100" })]))).toEqual([[HOLDER, "-30", "70"]]);
+      expect(mptOf(tx({ Destination: OTHER }), meta([node("CreatedNode", "MPToken", token(HOLDER, "25"))]))).toEqual([[HOLDER, "25", "25"]]);
+    });
+
+    it("lists an issuance's OutstandingAmount only when it is listed, and negates the change", () => {
+      const issuance = (outstanding: string, previous?: Record<string, unknown>) => node("ModifiedNode", "MPTokenIssuance", { Issuer: ISSUER, Sequence: 298, OutstandingAmount: outstanding }, previous);
+      const entries = (m: TxMeta) => balanceChanges(tx({ Destination: OTHER }), m, "XRP").filter((change) => change.mpt);
+      expect(entries(meta([issuance("40", { OutstandingAmount: "100" })]))).toEqual([{ account: ISSUER, currency: ID, value: "60", mpt: true }]);
+      expect(entries(meta([issuance("100", { OutstandingAmount: "40" })]))).toEqual([{ account: ISSUER, currency: ID, value: "-60", mpt: true }]);
+      expect(entries(meta([issuance("100", { Flags: 0 })]))).toEqual([]);
+      expect(entries(meta([issuance("100")]))).toEqual([]);
+    });
+
+    it("skips a node whose fields do not make an ID or an amount, rather than throwing", () => {
+      const nodes = [
+        node("ModifiedNode", "MPToken", token(HOLDER, "5", { MPTokenIssuanceID: "00AB" }), { MPTAmount: "1" }),
+        node("ModifiedNode", "MPToken", token(HOLDER, "five"), { MPTAmount: "1" }),
+        node("ModifiedNode", "MPToken", token(HOLDER, "5"), { MPTAmount: "-1" }),
+        node("ModifiedNode", "MPTokenIssuance", { Issuer: "not an address", Sequence: 1, OutstandingAmount: "1" }, { OutstandingAmount: "2" }),
+        node("ModifiedNode", "MPTokenIssuance", { Issuer: ISSUER, Sequence: "298", OutstandingAmount: "1" }, { OutstandingAmount: "2" }),
+        node("ModifiedNode", "MPTokenIssuance", { Issuer: ISSUER, Sequence: -1, OutstandingAmount: "1" }, { OutstandingAmount: "2" }),
+        node("ModifiedNode", "MPTokenIssuance", { Issuer: ISSUER, Sequence: 298, OutstandingAmount: 1 }, { OutstandingAmount: "2" }),
+      ];
+      expect(mptOf(tx({ Destination: OTHER }), meta(nodes))).toEqual([]);
+      // The touched objects name the issuance of a node that has one (the token with a bad amount holds a good ID) and not the others.
+      expect(objectsTouched(meta(nodes)).map((touched) => touched.mpt)).toEqual([undefined, ID, ID, undefined, undefined, undefined, ID]);
+    });
+
+    it("upper-cases the ID a node holds", () => {
+      const lower = ID.toLowerCase();
+      const entries = balanceChanges(tx({ Destination: OTHER }), meta([node("ModifiedNode", "MPToken", token(HOLDER, "5", { MPTokenIssuanceID: lower }), { MPTAmount: "1" })]), "XRP");
+      expect(entries).toEqual([{ account: HOLDER, currency: ID, issuer: ISSUER, value: "4", after: "5", mpt: true }]);
+    });
+  });
+
+  describe("the touched objects", () => {
+    it("carry the issuance ID of an MPToken (its MPTokenIssuanceID) and of an MPTokenIssuance (mptIdOf of its Sequence and Issuer)", () => {
+      const { meta } = caseOf("payment_transfer_fee");
+      const touched = objectsTouched(meta);
+      expect(touched.filter((object) => object.type === "MPToken")).toEqual([
+        expect.objectContaining({ change: "modified", account: FEE_SENDER, mpt: MPT_FEE_PAYMENT_ISSUANCE }),
+        expect.objectContaining({ change: "modified", account: FEE_RECEIVER, mpt: MPT_FEE_PAYMENT_ISSUANCE }),
+      ]);
+      expect(touched.filter((object) => object.type === "MPTokenIssuance")).toEqual([expect.objectContaining({ change: "modified", account: FEE_ISSUER, mpt: MPT_FEE_PAYMENT_ISSUANCE })]);
+      // Only these two types carry it.
+      expect(touched.filter((object) => object.mpt === undefined).map((object) => object.type)).toEqual(["AccountRoot"]);
+    });
+
+    it("name the issuer of a created issuance and its ID, the one the recorded create made", () => {
+      const { meta } = caseOf("issuance_create");
+      const created = objectsTouched(meta).find((object) => object.type === "MPTokenIssuance")!;
+      expect(created).toMatchObject({ change: "created", mpt: MPT_FIXTURE_IDS.htf });
+      expect(created.account).toMatch(/^r/);
+    });
+
+    it("name the holder of a created MPToken and a deleted one", () => {
+      expect(objectsTouched(caseOf("authorize_holder").meta).find((object) => object.type === "MPToken")).toMatchObject({ change: "created", account: MINT_HOLDER, mpt: MPT_MINT_ISSUANCE });
+      expect(objectsTouched(caseOf("unauthorize_holder").meta).find((object) => object.type === "MPToken")).toMatchObject({ change: "deleted", account: MINT_HOLDER });
+    });
+  });
+});
+
+describe("the recorded MPT transactions, parsed", () => {
+  for (const [name, { hash }] of Object.entries<{ hash: string }>(loadManifest("xrpl-mpt").cases)) {
+    it(`xrpl-mpt ${name} ${hash}`, () => {
+      expect(parseAll("xrpl-mpt", hash)).toMatchSnapshot();
+    });
+  }
 });

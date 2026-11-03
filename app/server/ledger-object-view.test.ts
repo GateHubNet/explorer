@@ -20,7 +20,7 @@ import {
 } from "../../test/support/object-samples";
 import { stateOf, XAHAU, XRPL } from "../../test/support/object-view-world";
 import type { Segment } from "../domain/describe";
-import { seq } from "../domain/describe/helpers";
+import { mptIssuerOf, seq } from "../domain/describe/helpers";
 import { NO_NAMES, type NamesPart } from "../domain/names";
 import type { TimelineItem } from "../ui/components/Timeline";
 import type { ObjectAnswer, ObjectEvent, ObjectHistoryPage } from "./api-types";
@@ -265,10 +265,14 @@ describe("displayAmount, amountSegment and amountText", () => {
     expect(displayAmount(mptAmountSample())).toEqual({ mpt: { id: MPT_ISSUANCE_ID, units: "500" } });
   });
 
-  it("writes an amount into a sentence as an amount segment, with the issuer for its title, and an MPT as words (a segment cannot hold one)", () => {
+  it("writes an amount into a sentence as an amount segment, with the issuer for its title, and an MPT as an mpt segment (which Sentence draws as MptAmount, scaled once the lookup answers)", () => {
     expect(amountSegment({ value: "0.5", currency: "XRP" })).toEqual({ t: "amount", value: "0.5", currency: "XRP" });
     expect(amountSegment({ value: "9", currency: "USD", issuer: TOKEN_ISSUER })).toEqual({ t: "amount", value: "9", currency: "USD", issuer: TOKEN_ISSUER });
-    expect(amountSegment({ mpt: { id: MPT_ISSUANCE_ID, units: "2500000" } })).toEqual({ t: "text", v: "2,500,000 units of MPT 0000012A…" });
+    const segment = amountSegment({ mpt: { id: MPT_ISSUANCE_ID, units: "2500000" } });
+    expect(segment).toEqual({ t: "mpt", id: MPT_ISSUANCE_ID, issuer: mptIssuerOf(MPT_ISSUANCE_ID), units: "2500000" });
+    // The scaled value and the ticker of a lookup are not in it until `resolveMpt` fills them.
+    expect(segment).not.toHaveProperty("value");
+    expect(segment).not.toHaveProperty("ticker");
   });
 
   it("writes an amount as plain text for a title or a description", () => {

@@ -1,0 +1,24 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 99226369,
+    "complete": true
+  },
+  "kind": "mpt",
+  "ledger_index": 107721455,
+  "close_time": "2026-10-17T17:01:12Z",
+  "totals": {
+    "issuances": 25,
+    "holders": 329,
+    "transfers_24h": 96
+  },
+  "total": 25,
+  "count": 5,
+  "tokens": [
+    {"rank":21,"mpt_issuance_id":"06317180FEDED5FDB0AD570C07A3C70FB8C73C6D01EBB3D9","issuer":"rQNd2dFddgwqEvgm1CcKy9mgwwrD68kSDD","asset_scale":3,"maximum_amount":"90000000000","outstanding_amount":"11999997","holders":5,"transfer_fee":250,"flags":{"locked":false,"can_lock":true,"require_auth":false,"can_escrow":false,"can_trade":true,"can_transfer":true,"can_clawback":false},"transfers_24h":4},
+    {"rank":22,"mpt_issuance_id":"0551EDEB0C515D0BC571741E76975D8B1CD70C70EB1998DA","issuer":"rp332XzVvzwi7W5H77CbPEinyqnSWBbBpm","ticker":"BRIX","name":"Brixton Land Share","asset_scale":4,"outstanding_amount":"30892806710","holders":4,"transfer_fee":0,"flags":{"locked":false,"can_lock":false,"require_auth":false,"can_escrow":false,"can_trade":true,"can_transfer":true,"can_clawback":false},"transfers_24h":1},
+    {"rank":23,"mpt_issuance_id":"063CE265100CDE164FCDC230295289E54EC83FB8069F8190","issuer":"rpT1N3rPrYBhMUEvdnC6ZS8tBUVsqMQE3t","asset_scale":0,"outstanding_amount":"149998","holders":4,"transfer_fee":0,"flags":{"locked":false,"can_lock":false,"require_auth":false,"can_escrow":false,"can_trade":true,"can_transfer":true,"can_clawback":false},"transfers_24h":5},
+    {"rank":24,"mpt_issuance_id":"04C511019AFCD153FAFEF9B5AA4A87D8554E8F5460741B03","issuer":"rE3Vvd3pj5PnoFiY8PRnvWBwT5ZVSWcurg","ticker":"AURA","name":"Aura Credit Note","asset_scale":3,"outstanding_amount":"87359243877","holders":3,"transfer_fee":0,"flags":{"locked":false,"can_lock":false,"require_auth":false,"can_escrow":false,"can_trade":false,"can_transfer":true,"can_clawback":false},"transfers_24h":1},
+    {"rank":25,"mpt_issuance_id":"064E273A6D15D1F5614B4D4E3183F835BCD62E7F6FD9FFD8","issuer":"rwA8orrVtNPuBykRvQdDJzRDQbe7CuxCiR","ticker":"USDPEND","name":"SUBSCRIPTION_CASH Receipt - SGBENJI","asset_scale":0,"outstanding_amount":"1","holders":1,"transfer_fee":0,"flags":{"locked":false,"can_lock":false,"require_auth":true,"can_escrow":false,"can_trade":false,"can_transfer":true,"can_clawback":true},"transfers_24h":9}
+  ]
+}

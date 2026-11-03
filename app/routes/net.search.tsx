@@ -1,6 +1,7 @@
 import { redirect } from "react-router";
 
 import { hashWhat } from "../domain/hash-nouns";
+import { mptLink } from "../domain/mpt-link";
 import { nftPath } from "../domain/nft-link";
 import { poolLink } from "../domain/pool-link";
 import { classify } from "../domain/search";
@@ -63,6 +64,13 @@ function tokenStep(network: Network, typed: string): TokenStep {
   return { offer: { href: tokensHref(network.id, { q: text }), label: `Look for “${text}” among tokens →` } };
 }
 
+/** The answer for a text no step found a place for: the token step's redirect or offer, else the help text, as a 200. It is the last step. */
+function unplaced(network: Network, typed: string, query: string) {
+  const step = tokenStep(network, typed);
+  if (step !== null && "to" in step) return found(step.to);
+  return cached(step === null ? helpPage(query) : helpPage(query, step.offer), "short");
+}
+
 /**
  * `/{net}/search?q=...` (spec 6): says what the input is (`classify`) and either redirects to the page that shows it or
  * answers with a page of its own. Every answer is class `short`; the pages are `noindex, follow`.
@@ -74,6 +82,8 @@ function tokenStep(network: Network, typed: string): TokenStep {
  *   (`/{net}/nft/{HASH}` for an NFT, whose page shows what only the node has too; an object's page; a delegation's delegator's Delegation tab, or the account page when `DELEGATION` is off or
  *   the delegation is removed: `objectMatchHref`). Two or more: a page with a link to each. None: a 404 that offers the same search on the other network. While `NFTS` or `LEDGER_OBJECTS` is off
  *   its question is not asked (the sequence is `findHash`'s, which E14 extends).
+ * - 48 hex digits (E14 spec 8: an MPT issuance ID, in either case, no `0x`): while `MPT` is on a redirect to `/{net}/mpt/{ID}` in capitals (`mptLink`, the one place an inbound MPT link is decided), without
+ *   asking anyone and on Xahau too, whose page says MPT is not there; while it is off the text is what it was before E14, one that `classify` found nothing in (the last step, below).
  * - A CTID: of this network, the transaction at its place in the ledger (a redirect, or a 404 if there is none); of the
  *   other network, a page that offers it there; of neither, a 404.
  * - A text none of those is, while `TOKENS` is on (token pages spec 5.3): the text read as the path of a token (`parseTokenPath`: `USD.rvYAf…`, `usd rvYAf…`, `RLUSD+rMxCK…`) is a redirect to the token's page, without a
@@ -129,11 +139,14 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
       return cached(otherNetworkPage(query, input.ctid, nameOf(context, resolved.otherNetwork)), "short");
     }
 
-    case "none": {
-      const step = tokenStep(network, typed);
-      if (step !== null && "to" in step) return found(step.to);
-      return cached(step === null ? helpPage(query) : helpPage(query, step.offer), "short");
+    case "mpt": {
+      // Null while `MPT` is off: the digits are then a text like any other.
+      const to = mptLink(network.id, input.id, network.features);
+      return to === null ? unplaced(network, typed, query) : found(to);
     }
+
+    case "none":
+      return unplaced(network, typed, query);
   }
 }
 

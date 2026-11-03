@@ -155,7 +155,10 @@ describe("mockUpstream", () => {
 
       const payments = await api.accountPayments(ACTIVE, { descending: true, limit: 20 });
       expect(payments.marker).toBeTruthy();
-      expect((await api.accountPayments(ACTIVE, { descending: true, limit: 20, marker: payments.marker })).marker).toBeUndefined();
+      // Three pages: the third is E14's, with the one MPT payment older than the second's (test/fixtures/PROVENANCE.md, "MPT answers").
+      const secondPayments = await api.accountPayments(ACTIVE, { descending: true, limit: 20, marker: payments.marker });
+      expect(secondPayments.marker).toBeTruthy();
+      expect((await api.accountPayments(ACTIVE, { descending: true, limit: 20, marker: secondPayments.marker })).marker).toBeUndefined();
       const exchanges = await api.accountExchanges(ACTIVE, { descending: true, limit: 20 });
       expect(exchanges.marker).toBeTruthy();
       expect((await api.accountExchanges(ACTIVE, { descending: true, limit: 20, marker: exchanges.marker })).exchanges).toHaveLength(1);
@@ -255,7 +258,8 @@ describe("mockUpstream", () => {
       // Its trust line, and the ledger-object pages' escrow, channel and delegation it owns and the check sent to it (scripts/object-fixtures.ts, C7).
       expect(info.account_data).toMatchObject({ Account: ACTIVE, Balance: "10001625", OwnerCount: 4, Sequence: 98986800 });
       const objects = await node.accountObjects(ACTIVE);
-      expect(objects.account_objects.map((object) => object.LedgerEntryType)).toEqual(["RippleState", "Escrow", "Check", "PayChannel", "Delegate"]);
+      // And E14's three after them: two holdings of MPTs and the issuance it made (`OwnerCount` stays 4).
+      expect(objects.account_objects.map((object) => object.LedgerEntryType)).toEqual(["RippleState", "Escrow", "Check", "PayChannel", "Delegate", "MPToken", "MPToken", "MPTokenIssuance"]);
       expect(objects.marker).toBeUndefined();
 
       expect((await failureOf(node.accountInfo(DELETED))).message).toContain("actNotFound");

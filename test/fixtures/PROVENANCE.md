@@ -23,6 +23,7 @@ last touched the source directory, which is the one that put these exact files t
 | `ledgers/xahau-nft/` (9 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xahau/uritoken/` at `PIN` | `ed8edd3fed57ac5b8b9cd120ae88e51a59f5a81b` | `wss://xahau.network` | 2026-10-26T15:30:01Z | 26811706 |
 | `ledgers/xrpl-objects/` (22 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xrpl/objects/` at D5's `0c2e58c3995cb3fdc240c3bf89dea9c4ab1e8adb` (`PIN` of E10, see below) | `c3fe181141f62cbabb24693f26771eb228f8c2d5` | `wss://s2.ripple.com` | 2026-10-29T04:51:57.628Z | 107973016 |
 | `ledgers/xahau-objects/` (12 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xahau/objects/` at the same commit | `9a56f23cc8693bedc00acd5ca494138a018396a2` | `wss://xahau.network` | 2026-10-29T04:56:33.429Z | 26873124 |
+| `ledgers/xrpl-mpt/` (27 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xrpl/mpt/` at D9's `c9a2fc0ffd41b3ad7e5b78fbb73b220f38700f30` (`PIN` of E14, see below) | `f84869828d70954353cf1e7b574bfdda6a1e05a2` | `wss://s2.ripple.com` | 2026-10-31T15:51:37.413Z | 108026259 |
 | `runtime/amm-deposit.meta.json` | the metadata of AMMDeposit `83F332E0141EF2AD30427A8476FFD8469D678321F58E649F30761A862D880A4B`, taken from `xrpl/recorded/107671558.json.gz` | as `ledgers/xrpl/` | as `ledgers/xrpl/` | as `ledgers/xrpl/` | as `ledgers/xrpl/` |
 
 The two `-nft` sets were copied later and from another checkout: D3's worktree, branch `feat/explorer-data-2`, commit `da5ce14ccfe9e429aacaf5ab6672eac15ce0d1de` (`PIN`), read with
@@ -35,6 +36,13 @@ session was changing), byte for byte (each file's blob is the pin's), the `.json
 "Last changed in" is `git -C <D5 worktree> log -1 --format=%H 0c2e58c -- packages/shared/test/fixtures/<xrpl|xahau>/objects` for each directory. They are not among `SETS`
 (scripts/http-fixtures.ts): most of their ledgers are newer than the head of the other sets (2026-10-17), which `last_validated` and every page built on it would follow (plan
 Ruling 7); see "Ledger object answers".
+
+The `-mpt` set was copied for E14 (the MPT pages) from D9's worktree, branch `feat/explorer-data-2`, at commit `c9a2fc0ffd41b3ad7e5b78fbb73b220f38700f30` (D9's last, E14's `PIN`), read with `git show`
+(`git -C <D9 worktree> show c9a2fc0ffd41b3ad7e5b78fbb73b220f38700f30:packages/shared/test/fixtures/xrpl/mpt/<file>`), byte for byte (each `.json.gz` blob is the pin's), the 27 ledgers only: not
+`server_definitions.json`, `server_info.json` or `FINDINGS.md`, and not D9's `manifest.json`: this set's own holds two keys, `source` (where the files came from, as the table says) and `cases`, D9's 22 cases verbatim
+(a name, its ledger, hash, transaction type and a note). It is not among `SETS` either (plan ruling C2): `readLedgers` feeds the markets, pools and tokens generators, and D9's recordings are whole ledgers (2,100 transactions), so putting it there would move 62 generated
+files under every market, pool and token test (measured on a scratch copy of the real `generate()`: 16 `exchanges/`, 4 `network/`, 9 `amm/`, 31 `tokens`, the names and `ledger-hashes.json`). `scripts/mpt-fixtures.ts` reads it through `readLedgerSet`,
+and `test/support/ledgers.ts` has it as `FixtureSet` `xrpl-mpt`. See "MPT answers".
 
 What each set holds (details in `data-api-new/packages/shared/test/fixtures/README.md`):
 
@@ -62,6 +70,12 @@ What each set holds (details in `data-api-new/packages/shared/test/fixtures/READ
 - `ledgers/xahau-objects/`: 12 ledgers, 8852809 to 26399329 (2024-09-30 to 2026-10-09), the 11 cases of Xahau (an escrow created to itself, finished by its owner, finished with an
   `EscrowID`, cancelled by a third party, of a token; a check created and cashed with `DeliverMin`; a channel created and claimed, and a token channel created and claimed) and one
   supporting token cash.
+
+- `ledgers/xrpl-mpt/`: 27 ledgers of XRPL mainnet, 85885429 to 107541378 (2024-02-11 to 2026-10-09), 2,100 transactions, 1.25 MB gzipped (1.28 MB with the manifest), each holding one of the 22 cases of D9's MPT parser
+  (the manifest's `cases`: issuances created with every field, with short keys, with a URL as metadata and with no maximum; a lock of one holder and its unlock, a lock of every balance, a destroy; an opt-in, an
+  authorization by the issuer and an opt-out; payments that move a balance between holders, mint, redeem, pay a transfer fee, come before `fixMPTDeliveredAmount` or fail; clawbacks in full and in part, and one of an issued token; an escrow created and
+  finished), three supporting transactions and the three ledgers that enabled MPT's amendments. Nine of the 22 are the explorer's `MPT_RECORDED` (`test/support/mpt-case-rules.ts`); the rest are read by later
+  tasks through `loadManifest("xrpl-mpt")` and `loadTx`. D9's `FINDINGS.md` lists no case as not found (`escrow_cancel` is the testnet's, not recorded here).
 
 To add a transaction that is not here (the plan's later tasks may need one), record it in `data-api-new` with
 `record-fixtures --txs <hash>`, copy the new ledger file and the merged manifest the same way, and add its row above.
@@ -1035,3 +1049,62 @@ recordings show none). No operator is implied: the names are fictional and the d
 key orders on the objects before serialization, the fixed cases, the tomls of the verified domains, the seeded addresses and their shares, the deleted accounts, and the line
 count of `account_names.json`; `test/unit/upstream-core.test.ts` checks the mock's composition of the names batch and its three 400s. `scripts/http-fixtures.test.ts` fails when a
 file is not what the generator writes. `isNamesGenerated` names the files, and they have a budget of their own in `test/unit/http-fixtures.test.ts` (128 KiB a network).
+
+## The API description: `api/openapi.yaml` and `app/server/openapi.d.ts`, synced from D9 (E14)
+
+Not a fixture, and written here because the sync is a copy from the data API's repository that the explorer pins, as the ledgers above are. `pnpm api:sync` copies a data API checkout's `docs/openapi.yaml` and
+generates `app/server/openapi.d.ts` from it; E14 syncs from D9's pin and not from the branch tip, which holds routes of later work (the rule of every plan since E11, and E14 Ruling C1):
+
+| | Repository, ref | Commit | For |
+|---|---|---|---|
+| `docs/openapi.yaml` | `data-api`, `feat/explorer-data-2` | `c9a2fc0ffd41b3ad7e5b78fbb73b220f38700f30` (`PIN` of E14, read with `git show c9a2fc0ffd41b3ad7e5b78fbb73b220f38700f30:docs/openapi.yaml` into a scratch `docs/`, then `DATA_API_REPO=<scratch> pnpm api:sync`) | `api/openapi.yaml`, byte for byte, and `app/server/openapi.d.ts` generated from it |
+
+The sync adds to E13's (D8's, `cbd6c51`) document: the five paths `/v2/accounts/{address}/mpt` (51 lines), `/v2/mpt`, `/v2/mpt/{issuanceId}`, `/v2/mpt/{issuanceId}/holders` and `/v2/mpt/{issuanceId}/transfers`
+(168 lines for the four), so that the 99 `/v2` paths (and `/liveliness/healthz`) become 104; and the description edits that name MPT in five paths the document already had: the payments (`/v2/payments`
+and `/v2/payments/{currency}`: an MPT payment has the issuance ID as its `currency` and `mpt_issuance_id` as its last key), the balance changes of an account and their analytics (the MPT balances, and
+`clawback` among the change types) and `kind=mpt` of the tokens. The document has no response schemas (`components.schemas` is `{}`, as before), so no schema comes with the paths: the types of the MPT answers
+are written by hand in `app/server/api-types.ts`. 340 lines of diff in `api/openapi.yaml` (285 added, 55 removed) and 255 in `app/server/openapi.d.ts` (245 added, 10 removed). No block moves, no path is lost and nothing of D8
+is removed: `/v2/network/validators/countries` is still there. The explorer's client calls four of the five new paths (`PATHS` in `app/server/data-api.ts`; not the account's `/mpt`, which no page asks for)
+and sends `kind=mpt` to `/v2/tokens`.
+
+## MPT answers: `http/xrpl/data-api/mpt/`, `http/xrpl/data-api/mpt_lookup.json`, `http/xrpl/data-api/tokens@kind=mpt…`, the nine recorded transactions' files and `http/xrpl/node/ledger_entry/mpt_issuance_<ID>.json`
+
+The data API's answers of D9 (`GET /v2/mpt/{id}`, its `/holders` and `/transfers`, `GET /v2/mpt?ids=` and `GET /v2/tokens?kind=mpt`) for the MPT pages and the token tab (E14), and the node's `ledger_entry` of an issuance the
+index lacks. D9 has no deployment to record, so `scripts/mpt-fixtures.ts` generates them (`generate()` joins them for XRPL, after the token pages; Xahau has no MPT and no file), and `pnpm fixtures:sync` writes them with
+D9's key orders (`builtFixtureText`, which sorts nothing: the keys of each answer are those of its "Keys of …" line of the reference, pinned by `test/unit/mpt-fixtures.test.ts` in the files themselves; the rows of the lists a
+line each, `MPT_ROW_LISTS`). They follow D9 at data-api `feat/explorer-data-2` commit **c9a2fc0** (c9a2fc0ffd41b3ad7e5b78fbb73b220f38700f30): its `docs/api-reference.md`, section "MPT", and its spec
+`docs/superpowers/specs/2026-10-17-mpt-data-design.md`, section 7; the metadata is decoded by a port of its `decodeMptMetadata` and `mptMetadataHexConforms` (`packages/shared/src/util/mpt-metadata.ts` at the same commit).
+
+| Files below `xrpl/` | Holds | Kind |
+|---|---|---|
+| `data-api/transactions/<HASH>.json`, `…@binary=true.json`, `node/tx/<HASH>.json` (27 files, 83,659 bytes) | the nine transactions of `MPT_RECORDED` of D9's recordings (`ledgers/xrpl-mpt/`), served as every recorded transaction is (`dataApiTx`, `binaryTx`, `nodeTxResult`), but that the data API's JSON has no `mpt_issuance_id` in the metadata (it is the stored binary decoded again, which does not carry the key the node adds to a successful `MPTokenIssuanceCreate`: E14 ruling C10, a page reads the ID from the created node) | generator (derived) |
+| `data-api/ledgers/<index>@transactions=true.json` (9 files, 63,039 bytes) | the hashes of the nine ledgers of those transactions, 747 in ledger order, which the transaction page reads for its neighbours. No plain ledger file: the pages do not ask for one | generator (derived) |
+| `data-api/mpt/<ID>.json`, `…/holders@limit=10.json`, `…/transfers@descending=true&limit=8.json` (29 files with those below, 60,676 bytes) | the eight issuances that have an answer: `htf` and `shortKeys` are the recorded creates (the ID is the created node's; their ticker, name, scale, maximum, transfer fee and flags are what they were created with, their metadata decoded as D9 does, `metadata_conforms` as D9 judges it, `created_*` the recorded transaction's), the others made up | generator (derived and synthetic) |
+| `data-api/mpt/<htf>/holders@limit=50.json`, `…&marker=<M>.json`; `…/transfers@descending=true&limit=20.json`, `…&marker=<M>.json`, and `…&limit=20&marker=<the 8th transfer's>.json` | `htf`'s 63 holders over two pages (50 and 13: one locked on its own, one with 1,250,000 in escrow) and its 28 transfers over two (20 and 8; plus the 20 behind the marker of the card's eight, rows 9 to 28, which its "Older →" opens): every kind of D9's seven, a lock and an unlock of every balance (no destination, the outstanding amount) among them, the transfer fee on top of a payment between two holders and none on a mint or a redemption, the newest five within a day of the newest ledger | generator (synthetic) |
+| `data-api/mpt_lookup.json` (7,041 bytes) | `{ "<ID>": summary }` for the eight answered issuances and four that the recorded transactions touch (the mint, opt-in and clawback share `064E273A…`; the fee payment's `0598F6E0…`; the escrow's `0663EB64…`; the lock's `0663EACA…`): the mock composes `GET /v2/mpt?ids=` from it (E14 ruling C5; one table, because a file name has at most four IDs in it and each page's set of IDs differs). A summary of a recorded issuance is what the node in the recorded metadata says (`FinalFields`: scale, maximum, `OutstandingAmount`, fee, flags, metadata), and the lock's, whose transaction touches no issuance node, is made up around its ID; their `holders` are made up. `nodeOnly`, `nowhere` and E10's synthetic MPT escrow (`0000012AB5F7…`) are not in it, and are answered as the ID alone | generator (derived and synthetic) |
+| `data-api/tokens@kind=mpt&limit=20.json`, `…&marker=<M>.json`, `…&limit=20&q=HTF.json`, `…&limit=20&q=zzz.json` (4 files, 12,353 bytes) | the MPT tab: 25 issuances over two pages (20 and 5), most holders first, then issuer, then ID (D9's order), the marker `["mpt", holders, issuer, id]` of the last row; the live issuances with a known state (not `destroyed`, not `nodeOnly`): the seven answered, the four of the lookup that have no page of their own, and 14 seeded fillers (invented tickers and names; none says HTF or zzz). Its totals are the whole kind's: 25 issuances, the holders about nine tenths of the rows' sum (accounts that hold several are counted once) and the payments of the day, the rows' sum. `q=HTF` finds `escrow`, "Harborline Treasury Fund" (the board's), whose coverage is not complete, and ranks it 1 among the match; `q=zzz` finds none. `coverage` is `{ from_ledger_index: 99226369, complete: true }` on the others | generator (synthetic) |
+| `node/ledger_entry/mpt_issuance_<nodeOnly>.json` (2,168 bytes) | the node's `MPTokenIssuance` of `nodeOnly`: the recorded create's `AssetScale`, `Flags`, `MPTokenMetadata`, `MaximumAmount` and `TransferFee`, another sequence, the active account as the issuer, and an `OutstandingAmount` of 12,500,000; its key is rippled's (SHA-512Half of `0x007E` and the ID, checked against the recorded node). An issuance with no file (`nowhere`) is `entryNotFound` | generator (derived) |
+
+**The issuances** (`MPT_FIXTURE_IDS`, `test/support/mpt-case-rules.ts`): `htf` (the recorded create of XAU), `shortKeys` (the recorded create with XLS-89's short keys; its decoded metadata has the long names, in D9's order),
+and made up around seeded issuers (the classic addresses of seeded AccountIDs, so that no fixture names one: the names' sources leave these files out, ruling C4) `noMetadata`, `rawMetadata` (metadata that is a URL as text: it
+does not decode, so there is no `metadata` and `metadata_conforms` is false), `nonConforming` (it decodes and conforms to nothing: a ticker in lower case, an asset class that is none, a 128-character name with no
+space, a 200-character description, a 100-character title, and links of every kind an issuer can write, `javascript:`, `http:` and a bare host and path among them; E14 ruling C17), `destroyed` (no holder left),
+`lockedAll` (the issuer locked every balance), `escrow` (HTF: holders with amounts in escrow and the three escrow kinds of transfer, its answers saying `complete: false`), `nodeOnly` (an issuance of the active account that
+only the node has) and `nowhere` (nothing anywhere). The seven answered but `htf` have at most 8 holders and 8 transfers, so that the card's first page is all of them and no link leads to a file that is not there.
+
+**What is invented, and not checked against anything real:** every holder, balance and transfer (hashes, ledgers, times: the ledger of a transfer goes back from the newest of the other sets, 107721455, at 4 seconds a ledger), the
+counts of holders of the four issuances the recorded transactions touch, the 14 fillers, the sums the tab shows, and the answers' `last_ledger` (107721455). The balances of each issuance add up to its outstanding amount, below its maximum,
+and the issuance's `escrowed_amount`, `locked_amount` and `locked_holders` are what its holders say (`test/unit/mpt-fixtures.test.ts`).
+
+**By hand, for the active account** (`rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh`, E14 ruling C6): both `node/account_objects/<A>.json` and `…@limit=400.json` (byte copies) gain three entries after E10's five: an `MPToken` of `htf` (2,500,000
+units and 500,000 in escrow, authorized) and one of the issuance of the recorded lock (`0663EACA…`: 45,000,000 units, `lsfMPTLocked` and authorized), and the `MPTokenIssuance` the account made, which is `nodeOnly`'s as the node
+writes it; their keys are rippled's (SHA-512Half of `0x0074`, the issuance's key and the holder's AccountID, checked against a recorded node). `account_info` is untouched (`OwnerCount` 4), so these three are not counted in it.
+The second page of its payments (`…&marker=WzEwNzYzNjY3Myw3OF0.json`) gains the `marker` of its last row (`WzEwMjE4NjI0Myw2M10`, `[102186243, 63]`) and a third page follows it with **one** MPT payment row, of the recorded
+`payment_transfer_fee` (a transaction of two other accounts: no recording makes the active account a party of one, so the row is a payment in its list that it was not part of; `test/unit/http-fixtures.test.ts` skips the party check for
+the nine hashes), its keys sorted as the other rows' are but `mpt_issuance_id`, last, as D9 has it, and its amounts the transaction's integer units. The plan asked for two rows; the other MPT payment of `MPT_RECORDED`, `payment_mint`
+(ledger 105827909), is newer than the page it would follow, and the lists of the hand-written accounts are newest first across their pages (`test/unit/http-fixtures.test.ts`), so it has none. The first page and the page behind its marker are as they
+were: `account.spec.ts` and the names' sources read them.
+
+**What keeps them true.** `test/unit/mpt-fixtures.test.ts` runs the client's checks (`mpt-shape.ts`) on every answer, checks D9's key orders, the markers, the sums, the cases each issuance stands for, the lookup table against the recorded
+transactions' IDs and the active account's page, and the hand-written files against the recordings; `test/unit/upstream-core.test.ts` checks the mock's composition of the lookup and its 400s and 404s; `scripts/http-fixtures.test.ts`
+fails when a file is not what the generator writes. `isMptGenerated` names the files, and they have a budget of their own in `test/unit/http-fixtures.test.ts` (0.4 MiB: 71 files, 228,936 bytes).

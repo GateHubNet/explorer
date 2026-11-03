@@ -10,6 +10,7 @@ import {
   isAmmGenerated,
   isAnalyticsGenerated,
   isMarketGenerated,
+  isMptGenerated,
   isNftGenerated,
   isObjectGenerated,
   isSupplyGenerated,
@@ -19,12 +20,14 @@ import {
   LEDGERS,
   isoTime,
   readLedgers,
+  readLedgerSet,
   txMarker,
   unixOf,
   type RawLedger,
   type RawTx,
 } from "../../scripts/http-fixtures";
 import { isNamesGenerated } from "../../scripts/names-fixtures";
+import { MPT_RECORDED } from "../support/mpt-case-rules";
 import { canonicalQuery, dataApiFile } from "../support/upstream-core";
 
 // What the fixtures of test/fixtures/http/ promise the tests that use them. The generated files are checked against
@@ -51,8 +54,11 @@ const exists = (path: string): boolean => {
 const allFiles = (): string[] => readdirSync(HTTP, { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).map((e) => `${e.parentPath.slice(HTTP.pathname.length)}/${e.name}`.replace(/^\//, ""));
 
 const recorded = Object.fromEntries(NETS.map((net) => [net, readLedgers(net)])) as Record<Net, RawLedger[]>;
+/** The nine MPT transactions (`ledgers/xrpl-mpt/`, not among the recorded sets of a network: mpt-fixtures.ts serves them). */
+const MPT_HASHES = new Set<string>(Object.values(MPT_RECORDED).map(({ hash }) => hash));
+const recordedMpt = readLedgerSet("xrpl-mpt");
 function recordedTx(net: Net, hash: string): { raw: RawLedger; tx: RawTx } {
-  for (const raw of recorded[net]) {
+  for (const raw of net === "xrpl" && MPT_HASHES.has(hash) ? recordedMpt : recorded[net]) {
     const tx = raw.ledger.transactions.find((t) => t.hash === hash);
     if (tx) return { raw, tx };
   }
@@ -126,7 +132,8 @@ describe("every fixture file", () => {
             !isNamesGenerated(file) &&
             !isObjectGenerated(file) &&
             !isTokenGenerated(file) &&
-            !isSupplyGenerated(file),
+            !isSupplyGenerated(file) &&
+            !isMptGenerated(file),
         ),
       ),
     ).toBeLessThan(3.5 * 1024 * 1024);
@@ -170,6 +177,11 @@ describe("every fixture file", () => {
     // pools files are the AMM generator's, in its budget above.
     expect(bytes(files.filter(isTokenGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isTokenGenerated))).toBeLessThan(0.3 * 1024 * 1024);
+    // The MPT pages' files (scripts/mpt-fixtures.ts, a row to a line, D9's key orders: 71 files of 228,936 bytes, about 0.22 MiB; the nine recorded transactions' 27 files (83,659) and the hashes of their nine
+    // ledgers (63,039) are most of it; the eight issuances' answers, holders and transfers (29 files, 60,676), the lookup table (7,041), the MPT tab's four lists (12,353) and the node's entry (2,168) are the rest) are
+    // reviewed as their generator too (C3), with a budget of their own, left out of the recorded files' above: at most 0.4 MiB, which a later file raises with its data, never above.
+    expect(bytes(files.filter(isMptGenerated))).toBeGreaterThan(0);
+    expect(bytes(files.filter(isMptGenerated))).toBeLessThan(0.4 * 1024 * 1024);
     // The display names' files (scripts/names-fixtures.ts: each network's account_names.json, an entry to a line, and its tomls; XRPL 224 entries of 41,991 bytes and
     // 140 tomls of 51,418, 93,409 bytes, about 91 KiB; Xahau 116 entries of 21,723 bytes and 65 tomls of 23,459, 45,182 bytes, about 44 KiB, after E11 added the token files to the
     // names' sources) are reviewed as their generator too (C5), with a budget of their own, left out of the recorded files' above: 128 KiB a network, which a later
@@ -290,7 +302,10 @@ describe("the accounts written by hand", () => {
             executed_time: isoTime(unixOf(raw.ledger.close_time)),
             transaction_cost: String(Number(tx.Fee) / 1_000_000),
           });
-          expect([row.source, row.destination]).toContain(account);
+          // An MPT payment of the list is a recorded transaction of two other accounts (no recording has the active account as a party of one): the third page of its payments is written by hand
+          // with the row of one of the nine, so that the Payments tab has an MPT amount to draw (E14 ruling C6). Every other row is the account's.
+          if (!MPT_HASHES.has(row.tx_hash)) expect([row.source, row.destination]).toContain(account);
+          else expect(row).toMatchObject({ currency: expect.stringMatching(/^[0-9A-F]{48}$/), mpt_issuance_id: row.currency });
           expect(exists(`${net}/data-api/transactions/${row.tx_hash}.json`)).toBe(true);
         }
         for (const row of rowsOf(net, account, "exchanges")) {
@@ -368,7 +383,8 @@ describe("the accounts written by hand", () => {
     const info = json(`xrpl/node/account_info/${ACTIVE.xrpl}.json`).result.account_data;
     const objects = json(`xrpl/node/account_objects/${ACTIVE.xrpl}.json`).result.account_objects;
     // What it owns: a trust line, and the escrow, the channel and the delegation of the ledger-object pages (C7); the check it was sent is in its list but its sender's to own.
-    const owned = objects.filter((object: any) => object.LedgerEntryType === "RippleState" || object.Account === ACTIVE.xrpl);
+    // Its MPT entries (two holdings and the issuance it made, which only the node's objects list, E14 ruling C6) are not part of the `OwnerCount` of its `account_info`, which stays what E10 wrote.
+    const owned = objects.filter((object: any) => (object.LedgerEntryType === "RippleState" || object.Account === ACTIVE.xrpl) && !/^MPToken/.test(object.LedgerEntryType));
     expect(owned.map((object: any) => object.LedgerEntryType)).toEqual(["RippleState", "Escrow", "PayChannel", "Delegate"]);
     expect(info.OwnerCount).toBe(owned.length);
     const roles = new Set(rowsOf("xrpl", ACTIVE.xrpl, "exchanges").map((row) => (row.taker === ACTIVE.xrpl ? "taker" : "provider")));

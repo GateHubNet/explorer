@@ -49,6 +49,7 @@ const LAYOUT_XRPL: PublicNetwork = {
   other: "xahau",
   hasAmm: true,
   hasDelegation: true,
+  hasMpt: true,
   software: "rippled",
   displays: ["native", "usd"],
 };
@@ -74,6 +75,7 @@ const LAYOUT_XAHAU: PublicNetwork = {
   other: "xrpl",
   hasAmm: false,
   hasDelegation: false,
+  hasMpt: false,
   software: "xahaud",
   displays: ["native"],
 };

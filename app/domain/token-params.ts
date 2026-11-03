@@ -21,7 +21,7 @@ import { parseTrail } from "./paging";
 import { poolLink } from "./pool-link";
 import { queryValue, trailPairs } from "./query-of";
 
-/** The kinds of token the list can show, in the order of the kind tabs; the first is the default. `mpt` is E14's (`mptAvailableOf`). */
+/** The kinds of token the list can show, in the order of the kind tabs; the first is the default. `mpt` is a view only where `mptAvailableOf` says so. */
 export const TOKEN_KINDS = ["issued", "mpt"] as const;
 export type TokenKind = (typeof TOKEN_KINDS)[number];
 
@@ -34,8 +34,8 @@ export const TOKEN_SEARCH_MAX = 64;
 export const LP_CURRENCY = /^03[0-9A-F]{38}$/;
 
 /**
- * The list's view. `q` is the search, trimmed (the loader checks its length); `all` adds the tokens with fewer than 10 holders. `marker` is how a page was reached and `back`
- * the markers of the pages before it, nearest first.
+ * The list's view. `q` is the search, trimmed (the loader checks its length); `all` adds the tokens with fewer than 10 holders (the issued list's alone: it is false for `mpt`).
+ * `marker` is how a page was reached and `back` the markers of the pages before it, nearest first.
  */
 export interface TokensParams {
   kind: TokenKind;
@@ -67,17 +67,19 @@ function searchOf(pairs: readonly string[]): string {
 }
 
 /**
- * The view of the list a query names. Only the first value of a parameter is read; `kind` is exact (case counts) and is `mpt` only while `mptAvailable` (E14 makes it a view),
- * else issued; `q` is trimmed, and an empty one is none (a longer one than `TOKEN_SEARCH_MAX` is kept: the loader checks it); `all` is true only for `1`; `back` is the trail
- * `parseTrail` accepts, and only behind a marker, which is returned as it was given. Unknown parameters are dropped.
+ * The view of the list a query names. Only the first value of a parameter is read; `kind` is exact (case counts) and is `mpt` only while `mptAvailable` (the MPT tab is a view: E14
+ * spec 4), else issued; `q` is trimmed, and an empty one is none (a longer one than `TOKEN_SEARCH_MAX` is kept: the loader checks it); `all` is true only for `1`, and only for the
+ * issued list (the MPT tab has no such filter, so it is dropped beside `kind=mpt`); `back` is the trail `parseTrail` accepts, and only behind a marker, which is returned as it was
+ * given. Unknown parameters are dropped.
  */
 export function parseTokensParams(search: URLSearchParams, o: { mptAvailable: boolean }): TokensParams {
-  const kind = search.get("kind");
+  const asked = search.get("kind");
+  const kind = isKind(asked) && (asked !== "mpt" || o.mptAvailable) ? asked : DEFAULT_KIND;
   const q = search.get("q")?.trim();
   return {
-    kind: isKind(kind) && (kind !== "mpt" || o.mptAvailable) ? kind : DEFAULT_KIND,
+    kind,
     ...(q === undefined || q === "" ? {} : { q }),
-    all: search.get("all") === "1",
+    all: kind === "issued" && search.get("all") === "1",
     ...trailOf(search),
   };
 }
@@ -183,9 +185,12 @@ export function tokenLink(net: string, asset: Asset, features: Features): string
   return tokenHref(net, path.asset);
 }
 
-/** E14's seam: false here; E14 makes it `features.mpt && net.hasMpt`. */
-export function mptAvailableOf(net: { id: string }, features: Features): boolean {
-  return false;
+/**
+ * Whether the MPT tab is a view and a link (E14 spec 4): `MPT` is on and the network has MPT (`hasMpt`: XRPL and XRPL Testnet). Off, `kind=mpt` is dropped by the parse and the tab is the
+ * disabled segment of `kindTabs`. The loader checks `TOKENS` first, which the pre-deploy guard makes the condition of `MPT`.
+ */
+export function mptAvailableOf(net: { id: string; hasMpt: boolean }, features: Features): boolean {
+  return features.mpt && net.hasMpt;
 }
 
 /**

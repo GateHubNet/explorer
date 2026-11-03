@@ -1,0 +1,30 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 99226369,
+    "complete": true
+  },
+  "issuance": {
+    "mpt_issuance_id": "063CE265100CDE164FCDC230295289E54EC83FB8069F8190",
+    "issuer": "rpT1N3rPrYBhMUEvdnC6ZS8tBUVsqMQE3t",
+    "sequence": 104653413,
+    "asset_scale": 0,
+    "outstanding_amount": "149998",
+    "escrowed_amount": "0",
+    "locked_amount": "0",
+    "locked_holders": 0,
+    "holders": 4,
+    "transfer_fee": 0,
+    "flags": {
+      "locked": false,
+      "can_lock": false,
+      "require_auth": false,
+      "can_escrow": false,
+      "can_trade": true,
+      "can_transfer": true,
+      "can_clawback": false
+    },
+    "last_ledger": 107721455,
+    "destroyed": false
+  }
+}

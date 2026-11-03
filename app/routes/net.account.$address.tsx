@@ -25,6 +25,7 @@ import {
   tradesList,
   transactionsList,
   type AccountAnalyticsPageData,
+  type AccountHeader,
   type AccountListPageData,
   type DelegationTab,
   type HistoryHeader,
@@ -48,7 +49,9 @@ import { logProblem } from "../server/logging";
 import { isMarker } from "../server/marker";
 import { metaContext } from "../server/meta";
 import { accountMeta } from "../server/meta-account";
-import { collectAddresses, loadNames } from "../server/names-load";
+import { loadMptLookup } from "../server/mpt-load";
+import { mptAmountsOf, resolveMpt } from "../server/mpt-view";
+import { collectAddresses, loadNames, NAMES_DEADLINE_MS } from "../server/names-load";
 import { requireNetwork } from "../server/network-route";
 import { networkOf, type Network } from "../server/networks";
 import type { NodeRpc } from "../server/node-rpc";
@@ -165,6 +168,10 @@ const withoutRoutesParam = (search: string) =>
  *   and no toml call, and the analytics view the header's (the address and its parent) and the toml's, its cards their own. A names call that
  *   fails or is late, and a toml call that fails, never fail the page: it shows what it has without them and is served, not stored; `toml not
  *   found` (a domain the data API never checked) is no failure. With `NAMES` off neither call is made, and the page is today's.
+ * - **MPT amounts** (E14 spec 2.4 and 5.4, ruling C12), behind `MPT`: the MPTs the page draws are scaled by lookups of the data API, class `slow`, each a no-op with no issuance ID to look up. On the first
+ *   page there are two, like the names calls: the header's, over the Tokens card's holdings and, on the Objects tab, its rows, made beside the header's names call; and the list's, in the list's promise
+ *   after its rows, beside the list's names call and with what is left of the list's deadline, so that the header never waits for it. A page behind a marker makes one, beside its names call. A lookup that
+ *   fails or is late marks the page degraded (served, not stored), is logged, and leaves its amounts in units; no page changes its class for it.
  */
 export async function loader({ request, params, context }: Route.LoaderArgs) {
   // The analytics view's deadline is counted from here, as the list's is.
@@ -314,6 +321,27 @@ function reportProblems(context: Route.LoaderArgs["context"], request: Request, 
 }
 
 /**
+ * A first page's list once its rows are in, with the names of the accounts it draws and its MPT amounts scaled (E14 spec 5.4): the names call (`nameList`) and one MPT lookup, side by side,
+ * each given what is left of the list's deadline counted from `startedAt` (a list whose rows came after it has none: both fail at once, and the list is drawn with addresses and units). A list
+ * with no MPT amount asks no lookup. Never rejects: a lookup that failed marks the page degraded and leaves units.
+ */
+async function nameAndScale(
+  api: DataApi,
+  list: TabList,
+  startedAt: number,
+  network: Network,
+  ctx: { context: Route.LoaderArgs["context"]; request: Request },
+): Promise<TabList> {
+  if (list.state !== "ok") return list;
+  const [named, lookup] = await Promise.all([
+    nameList(api, list, startedAt, { ...ctx, features: network.features }),
+    loadMptLookup(api, mptAmountsOf(list), { ...ctx, features: network.features, net: network, deadlineMs: LIST_DEADLINE_MS - (Date.now() - startedAt) }),
+  ]);
+  const scaled = resolveMpt(list, lookup).view;
+  return named.state === "ok" ? withNames(scaled, named.names) : scaled;
+}
+
+/**
  * A page of old history: awaited whole, class `MARKER_PAGE_CLASS`, and nothing but the list and its one names call. It does not ask for the creation record: that
  * is slow-class data that must not sit in a page stored for a long time, and the index has none for an account that was created before its
  * first ledger (it is filled by range), whose first page shows it as active all the same. The page does not exist when the API refuses
@@ -335,12 +363,16 @@ async function historyPage(context: Route.LoaderArgs["context"], request: Reques
     throw cached({ notFound: "that page of the account" }, "short", { status: 404 });
   }
 
-  // One names call, awaited (the page is stored whole): the address and the rows' accounts. Its header is the name and the labels alone (Ruling 8): no toml call.
+  // One names call, awaited (the page is stored whole): the address and the rows' accounts. Its header is the name and the labels alone (Ruling 8): no toml call. Beside it the one MPT
+  // lookup of the page (E14): the amounts of its rows, scaled (a failed one marks the page degraded and leaves units; the page keeps its class).
   const { address } = ctx;
-  const names = await loadNames(api, collectAddresses(address, listAddresses(list)), { context, request, features: network.features });
+  const [names, lookup] = await Promise.all([
+    loadNames(api, collectAddresses(address, listAddresses(list)), { context, request, features: network.features }),
+    loadMptLookup(api, mptAmountsOf(list), { context, request, features: network.features, net: network, deadlineMs: NAMES_DEADLINE_MS }),
+  ]);
   const name = names.part.state === "ok" ? accountNameHeader({ address, entry: names.entries.get(address), liveDomain: null, toml: null, network, brief: true }) : null;
   const header: HistoryHeader = { status: "history", name };
-  const page: AccountListPageData = { ...common, mode: "history", header, list: withNames(list, names.part), names: names.part };
+  const page: AccountListPageData = { ...common, mode: "history", header, list: withNames(resolveMpt(list, lookup).view, names.part), names: names.part };
   return cached(page, MARKER_PAGE_CLASS);
 }
 
@@ -375,7 +407,7 @@ async function firstPage(
             markDegraded(context, `${tab} took too long`);
             return failedList(tab, network.id);
           },
-        ).then((list) => nameList(api, list, listStarted, { context, request, features: network.features }));
+        ).then((list) => nameAndScale(api, list, listStarted, network, { context, request }));
 
   const infoCall = node.accountInfo(address);
   const lastLedger = lastLedgerTimeOf(api, infoCall, request);
@@ -421,8 +453,16 @@ async function firstPage(
 
   // The header's names call: the accounts the header draws and the Objects tab's rows' accounts (spec 5: no call of their own).
   const drawn = [...headerAccounts(address, unnamed.header, network.features), ...(objectsTab === null ? [] : listAddresses(objectsTab))];
-  const { header, names } = await namedHeader({ context, request, api, network }, address, unnamed.header, drawn, nodeToml);
-  const list: Promise<TabList> | TabList = objectsTab === null ? settled! : withNames(objectsTab, names.part);
+  // Beside it the header's MPT lookup (E14, ruling C12): the MPTs of the Tokens card and, on the Objects tab, of its rows. The list of any other tab asks its own, in its promise (`nameAndScale`),
+  // so that the header never waits for it.
+  const [lookup, named] = await Promise.all([
+    loadMptLookup(api, mptAmountsOf(unnamed.header.tokens, objectsTab), { context, request, features: network.features, net: network, deadlineMs: NAMES_DEADLINE_MS }),
+    namedHeader({ context, request, api, network }, address, unnamed.header, drawn, nodeToml),
+  ]);
+  const { names } = named;
+  const scaled = resolveMpt({ tokens: named.header.tokens, objects: objectsTab }, lookup).view;
+  const header: AccountHeader = { ...named.header, tokens: scaled.tokens };
+  const list: Promise<TabList> | TabList = scaled.objects === null ? settled! : withNames(scaled.objects, names.part);
 
   const page: AccountListPageData = { ...common, mode: "live", header, list, names: names.part };
   return cached(page, "live");

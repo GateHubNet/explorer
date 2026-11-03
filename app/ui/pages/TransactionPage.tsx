@@ -2,6 +2,7 @@ import { Link } from "react-router";
 
 import type { Segment } from "../../domain/describe";
 import { formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../domain/format";
+import { mptLink } from "../../domain/mpt-link";
 import { plainNameOf } from "../../domain/names";
 import { delegationHref, kindOfType, ledgerId, objectHref } from "../../domain/object-link";
 import type { ChangeRole, ChangeRow, Neighbour, TransactionPageData } from "../../server/transaction-view";
@@ -16,6 +17,8 @@ import { DetailList, type DetailRow } from "../components/DetailList";
 import { Flow } from "../components/Flow";
 import { LedgerLink } from "../components/HashLink";
 import { ChevronLeftIcon, ChevronRightIcon } from "../components/icons";
+import { MptAmount } from "../components/MptAmount";
+import { MptLink } from "../components/MptLink";
 import { Notice } from "../components/Notice";
 import { ResultPill } from "../components/Pill";
 import { RawTabs, type RawTab } from "../components/RawTabs";
@@ -33,7 +36,7 @@ export const OBJECTS_SHOWN = 10;
 
 const count = (n: number) => formatAmount(String(n));
 
-const ROLE_LABEL: Record<ChangeRole, string> = { sender: "sender", delegate: "delegate", destination: "destination", pool: "AMM pool" };
+const ROLE_LABEL: Record<ChangeRole, string> = { sender: "sender", delegate: "delegate", destination: "destination", pool: "AMM pool", issuer: "Issuer" };
 const CHANGE_LABEL = { created: "Created", modified: "Modified", deleted: "Deleted" } as const;
 
 // What a Binary tab without hex says must be true: a page without the hex is stored for 30 s (`short`) and asking again may find it;
@@ -66,10 +69,23 @@ function Delta({ value }: { value: string }) {
 }
 
 /**
- * Where a ledger object the transaction touched leads (ledger object pages spec 7): an escrow, a check or a payment channel to its page by its index (while `LEDGER_OBJECTS` is on), a
- * delegation to the Delegation tab of the account that gave it (while `DELEGATION` is on); any other, or an index that is no ID, nowhere.
+ * A change of an MPT's balance (or the balance after it): the scaled value and the ticker when the lookup gave them, else the units and the issuance's ID, as `MptAmount` draws them; a
+ * change keeps its sign and a gain is in the success colour. The link to the issuance is the row's currency's, not this cell's.
+ */
+function MptDelta({ change, balance }: { change: ChangeRow; balance?: "after" }) {
+  const units = (balance === "after" ? change.after : change.value) ?? "";
+  const value = balance === "after" ? change.scaledAfter : change.scaled;
+  const amount = <MptAmount id={change.currency} units={units} issuer={change.issuer} value={value} ticker={change.ticker} signed={balance === undefined} />;
+  return balance === "after" ? <span className="amt muted">{amount}</span> : amount;
+}
+
+/**
+ * Where a ledger object the transaction touched leads: an `MPToken` or an `MPTokenIssuance` to the page of its issuance (while `MPT` is on, E14), an escrow, a check or a payment channel to its
+ * page by its index (while `LEDGER_OBJECTS` is on; ledger object pages spec 7), a delegation to the Delegation tab of the account that gave it (while `DELEGATION` is on); any other, or an index
+ * that is no ID, nowhere.
  */
 function touchedHref(net: NetworkInfo["id"], object: TransactionPageData["objects"][number], features: Features): string | null {
+  if (object.mpt !== undefined) return mptLink(net, object.mpt, features);
   const kind = kindOfType(object.type);
   if (kind !== undefined) {
     const id = ledgerId(object.index);
@@ -206,6 +222,21 @@ export function TransactionPage({ network, data }: { network: NetworkInfo; data:
       header: "Currency",
       width: "minmax(130px, 0.8fr)",
       cell: (change) => {
+        // An MPT is named by its ticker, else "MPT 0000012A…", and links its page; its issuer is under it, in the open.
+        if (change.mpt === true) {
+          return (
+            <span className="cur cur--mpt">
+              <span className="mono">
+                <MptLink net={net} id={change.currency} ticker={change.ticker} />
+              </span>
+              {change.issuer && (
+                <span className="cur__line">
+                  issued by <AccountLink net={net} address={change.issuer} />
+                </span>
+              )}
+            </span>
+          );
+        }
         const shown = formatCurrency(change.currency);
         const code = shown !== change.currency ? change.currency : undefined;
         return (
@@ -224,13 +255,14 @@ export function TransactionPage({ network, data }: { network: NetworkInfo; data:
         );
       },
     },
-    { id: "change", header: "Change", width: "minmax(150px, 1fr)", align: "end", cell: (change) => <Delta value={change.value} /> },
+    { id: "change", header: "Change", width: "minmax(150px, 1fr)", align: "end", cell: (change) => (change.mpt === true ? <MptDelta change={change} /> : <Delta value={change.value} />) },
     {
       id: "after",
       header: "Balance after",
       width: "minmax(190px, 1.2fr)",
       align: "end",
-      cell: (change) => <span className="amt muted">{change.after === undefined ? "—" : formatAmount(change.after)}</span>,
+      cell: (change) =>
+        change.mpt === true && change.after !== undefined ? <MptDelta change={change} balance="after" /> : <span className="amt muted">{change.after === undefined ? "—" : formatAmount(change.after)}</span>,
     },
   ];
 
@@ -250,6 +282,7 @@ export function TransactionPage({ network, data }: { network: NetworkInfo; data:
             {object.type}
           </Link>
         )}
+        {object.ticker !== undefined && <span className="faint objects__ticker">{object.ticker}</span>}
         {object.account && <AccountLink net={net} address={object.account} />}
       </li>
     );

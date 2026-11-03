@@ -3,6 +3,7 @@ import { Link } from "react-router";
 
 import { DELEGATIONS_LIMIT, OBJECTS_LIMIT } from "../../domain/account-tabs";
 import { formatAmount, formatCurrency, shortAddress, shortHash } from "../../domain/format";
+import { mptLink } from "../../domain/mpt-link";
 import { plainNameOf } from "../../domain/names";
 import { collectionLink } from "../../domain/nft-link";
 import { nftWords, shortNftId } from "../../domain/nft-params";
@@ -15,6 +16,7 @@ import { CoverageNote } from "../components/CoverageNote";
 import { DataTable, type Column } from "../components/DataTable";
 import { HashLink } from "../components/HashLink";
 import { NftGlyph } from "../components/NftGlyph";
+import { MptAmount } from "../components/MptAmount";
 import { NftLink } from "../components/NftLink";
 import { Pager } from "../components/Pager";
 import { PermissionChip } from "../components/PermissionChip";
@@ -147,10 +149,15 @@ function Panel({
 // ---------------------------------------------------------------------------------------------------------------------------
 // The tables
 
-function Change({ change }: { change: ChangeView }) {
+/** An MPT's amount in a row of a table (a change, a payment's delivered amount): signed, scaled once the lookup answered, a link to the issuance's page while `MPT` is on. */
+function MptCell({ net, mpt, units, issuer, value, ticker }: { net: NetworkInfo["id"]; mpt: string; units: string; issuer?: string; value?: string; ticker?: string }) {
+  return <MptAmount id={mpt} units={units} issuer={issuer} value={value} ticker={ticker} href={mptLink(net, mpt, useFeatures())} signed />;
+}
+
+function Change({ net, change }: { net: NetworkInfo["id"]; change: ChangeView }) {
   return (
     <span className="change">
-      <Amount value={change.value} currency={change.currency} signed />
+      {"mpt" in change ? <MptCell net={net} mpt={change.mpt} units={change.units} value={change.value} ticker={change.ticker} /> : <Amount value={change.value} currency={change.currency} signed />}
       {change.more > 0 && <span className="faint">{`+${change.more} more`}</span>}
     </span>
   );
@@ -180,7 +187,7 @@ function TransactionsTable({ net, native, rows }: { net: NetworkInfo["id"]; nati
       header: `Change (${native})`,
       width: "minmax(150px, 1fr)",
       align: "end",
-      cell: (row) => (row.change ? <Change change={row.change} /> : <span className="faint">—</span>),
+      cell: (row) => (row.change ? <Change net={net} change={row.change} /> : <span className="faint">—</span>),
     },
     { id: "result", header: "Result", width: "128px", cell: (row) => <ResultPill ok={row.ok} code={row.code} /> },
   ];
@@ -193,7 +200,13 @@ function PaymentsTable({ net, rows }: { net: NetworkInfo["id"]; rows: PaymentRow
     { id: "when", header: "Date (UTC)", width: "120px", cell: (row) => <When net={net} hash={row.hash} time={row.time} /> },
     { id: "direction", header: "Direction", width: "100px", cell: (row) => <span className="type">{row.direction === "sent" ? "Sent" : "Received"}</span> },
     { id: "counterparty", header: "Counterparty", width: "minmax(150px, 1.4fr)", ellipsis: true, cell: (row) => <AccountLink net={net} address={row.counterparty} /> },
-    { id: "amount", header: "Delivered", width: "minmax(130px, 1fr)", align: "end", cell: (row) => <RowAmountView amount={row.amount} signed /> },
+    {
+      id: "amount",
+      header: "Delivered",
+      width: "minmax(130px, 1fr)",
+      align: "end",
+      cell: (row) => ("mpt" in row.amount ? <MptCell net={net} {...row.amount} /> : <RowAmountView amount={row.amount} signed />),
+    },
     { id: "tag", header: "Tag", width: "90px", align: "end", cell: (row) => <span className="mono num muted">{row.tag === null ? "" : row.tag}</span> },
   ];
   return <DataTable label="Payments" columns={columns} rows={rows} rowKey={(row) => `${row.hash}:${row.counterparty}`} minWidth={690} empty="No payments yet." />;

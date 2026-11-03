@@ -7,6 +7,7 @@
 import type { AnalyticsUnit } from "../domain/analytics-params";
 import { apiAssetText, type Asset } from "../domain/asset";
 import type { CandleApiInterval } from "../domain/market-params";
+import { isMptIssuanceId } from "../domain/mpt-id";
 import type { ValidatorScope } from "../domain/validators-params";
 import { checkDaysPage, checkGovernancePage, checkLiquidityPage, checkLiveVolume, checkPool, checkPoolsPage, checkSwapsPage } from "./amm-shape";
 import {
@@ -66,6 +67,11 @@ import type {
   LedgerWithHashes,
   MarketsResponse,
   MintedPage,
+  MptHoldersPage,
+  MptIssuanceAnswer,
+  MptLookup,
+  MptTokensPage,
+  MptTransfersPage,
   NetworkSupply,
   NftAnswer,
   NftCollectionAnswer,
@@ -114,6 +120,7 @@ import {
 import type { Env } from "./env";
 import { isMarker } from "./marker";
 import { checkAccountNames, checkToml } from "./names-shape";
+import { checkMptHoldersPage, checkMptIssuance, checkMptLookup, checkMptTokens, checkMptTransfersPage } from "./mpt-shape";
 import type { Network } from "./networks";
 import {
   checkCollection,
@@ -247,6 +254,15 @@ const PATHS = {
   networkSupply: "/v2/network/supply",
   /** Xahau's minting per UTC day. */
   networkMinted: "/v2/network/supply/minted",
+  // D9's four MPT routes (data-api `feat/explorer-data-2`, pinned at `c9a2fc0ffd41b3ad7e5b78fbb73b220f38700f30`), which the MPT pages (E14) ask for only while `MPT` is on. The issuance is
+  // `{issuanceId}`, 48 hex digits. A data API deployed without D9 answers `Cannot GET`, an outage. (Not `/v2/accounts/{address}/mpt`, which no page asks for: the account page reads
+  // the node's `account_objects`.) `GET /v2/tokens?kind=mpt` is `tokens` above.
+  /** One issuance, as of the last run of D9's `mpt_state` job. */
+  mpt: "/v2/mpt/{issuanceId}",
+  mptHolders: "/v2/mpt/{issuanceId}/holders",
+  mptTransfers: "/v2/mpt/{issuanceId}/transfers",
+  /** The summary of 1 to 100 issuances, `?ids=a,b,…`. Takes no path parameter. */
+  mptLookup: "/v2/mpt",
 } as const satisfies Record<string, keyof paths>;
 
 /** The two forms of each route of a collection: of an issuer alone (Xahau) and of an issuer and a taxon (XRPL). */
@@ -603,9 +619,16 @@ export interface DataApi {
   /**
    * The issued tokens, the most held first: `limit` of them after `marker`; with `minHolders` (D6 reads 0 to 1,000,000,000) only those with at least that many holders, with `q` (1 to 64 characters: an
    * issuer address, or text in the code, name or domain, a currency in hex, an issuer prefix) only those it matches. Sent as `kind`, `limit`, `marker`, `min_holders`, `q`. Class `minute`, whatever the
-   * page: D6 rebuilds the ranking each minute, so a marker is a cursor into this minute's. `kind` is `issued` for now.
+   * page: D6 rebuilds the ranking each minute, so a marker is a cursor into this minute's. This overload takes `kind: "issued"` (answered as `TokensResponse`, checked as issued tokens);
+   * `kind: "mpt"` is the next one's (E14's, answered as `MptTokensPage`), and the kind of the query decides which.
    */
-  tokens(q: { kind: "issued"; limit: number; minHolders?: number; q?: string; marker?: string }, opts?: FreshOptions): Promise<TokensResponse>;
+  tokens(q: IssuedTokensQuery, opts?: FreshOptions): Promise<TokensResponse>;
+  /**
+   * The MPT issuances, the most held first (E14's tab; D9's `kind=mpt`, "additive to D6"): `limit` of them after `marker`; with `q` (1 to 64 characters: an issuer address, an issuance ID, text in the
+   * ticker or name, an issuer prefix, an ID prefix of 8 hex digits or more) only those it matches. Sent as `kind`, `limit`, `marker`, `q`, and no `min_holders`. Class `minute`, as the issued list: the
+   * ranking is rebuilt each minute. The answer is checked as an MPT list (`checkMptTokens`), so a body of issued tokens is kind `server`.
+   */
+  tokens(q: MptTokensQuery, opts?: FreshOptions): Promise<MptTokensPage>;
   /** One token, with its toml, its issuer's settings and its markets: the whole answer, which must be of the token asked for. Class `minute`. `token not found` is `not_found`. */
   token(asset: { currency: string; issuer: string }, opts?: FreshOptions): Promise<TokenAnswer>;
   /** The holders of a token, the largest balance first. Class `minute`, whatever the page. `token not found` is `not_found`. */
@@ -630,7 +653,36 @@ export interface DataApi {
    * the supply page asks for `{ ttl: PERIOD_CALL_TTL_SECONDS }`.
    */
   networkMinted(q: MintedQuery, opts?: FreshOptions): Promise<MintedPage>;
+
+  // E14's MPT calls (data-api D9, `feat/explorer-data-2`, pinned at `c9a2fc0ffd41b3ad7e5b78fbb73b220f38700f30`). Only a data API that has D9 has the routes: without it each call fails with the missing-route
+  // outage (kind `server`, never stored), and a route's own `issuance not found` (every ID on a network without MPT too) stays `not_found`. The MPT pages ask only while `MPT` is on. Every answer is checked
+  // inside the load (mpt-shape.ts, and its `coverage` with it), and one that is not what the reference promises is kind `server` too. An issuance ID is 48 upper-case hex digits (the pages have checked and
+  // upper-cased it before any call); no call asks for the failure hold, as no MPT page polls.
+  /** One issuance, with its metadata as D9 decoded it. The answer must be the issuance asked for, by the text of `id` (a lower-case ID is refused as another's). Class `minute`. `issuance not found` is `not_found`. */
+  mpt(id: string): Promise<MptIssuanceAnswer>;
+  /**
+   * The holders of an issuance, the largest balance first (`amount` and `escrowed_amount` together). Class `minute`, `MARKER_PAGE_CLASS` behind a marker (a list that is not newest first is not stable, but is
+   * rarely asked for again: `nftListClass`). `issuance not found` is `not_found`.
+   */
+  mptHolders(id: string, q: { limit: number; marker?: string }): Promise<MptHoldersPage>;
+  /** The transfers of an issuance, newest first (sent as `descending=true`, `limit`, `marker`). Class `minute`, `MARKER_PAGE_CLASS` behind a marker. `issuance not found` is `not_found`. */
+  mptTransfers(id: string, q: { descending: true; limit: number; marker?: string }): Promise<MptTransfersPage>;
+  /**
+   * A summary of each of the issuances (D9: 1 to 100), `?ids=` the IDs sorted and without duplicates, so that the key of a page's lookup is the same whatever order its amounts came in; an ID the index
+   * has no state for is answered as the ID alone (`checkMptLookup`: one entry for each ID, in order). Each ID is upper-cased first (so `ids` and the answer are the upper-case IDs, whatever case the
+   * caller had), and the pages upper-case theirs before any call anyway. Class `slow`. A `RangeError`, with no request, for an ID that is not 48 hex digits (one stray ID would fail the whole lookup), for
+   * none and for more than 100 distinct IDs: the caller keeps to the first 100 (the page's rule) and to a page that has one.
+   */
+  mptLookup(ids: readonly string[]): Promise<MptLookup>;
 }
+
+/** What `tokens` takes for the issued list (D6). */
+type IssuedTokensQuery = { kind: "issued"; limit: number; minHolders?: number; q?: string; marker?: string };
+/** What `tokens` takes for the MPT list (D9). */
+type MptTokensQuery = { kind: "mpt"; limit: number; q?: string; marker?: string };
+
+/** How many issuances one lookup may ask for: D9's limit. */
+export const MPT_LOOKUP_MAX = 100;
 
 /** Query parameters; `undefined` and `false` are left out (every flag of the API is off unless it says `true`). */
 type Query = Record<string, string | number | boolean | undefined>;
@@ -854,6 +906,16 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
 
   /** What every account analytics call asks of the cache (spec 2.7): its failure held a few seconds, and its load shared with the same load in flight. */
   const analyticsOptions = { holdFailure: true, shareInFlight: true } as const;
+
+  /** The list of a kind, a minute whatever its page; the kind says what the answer must be (`kind=mpt` is E14's). Written in the order of the reference's table. */
+  function tokens(q: IssuedTokensQuery, opts?: FreshOptions): Promise<TokensResponse>;
+  function tokens(q: MptTokensQuery, opts?: FreshOptions): Promise<MptTokensPage>;
+  function tokens(q: IssuedTokensQuery | MptTokensQuery, opts?: FreshOptions): Promise<TokensResponse | MptTokensPage> {
+    const query = { kind: q.kind, limit: q.limit, marker: q.marker || undefined, min_holders: q.kind === "issued" ? q.minHolders : undefined, q: q.q || undefined };
+    return q.kind === "mpt"
+      ? get<MptTokensPage>(PATHS.tokens, {}, query, "minute", { ...fresh(opts), finish: checkMptTokens })
+      : get<TokensResponse>(PATHS.tokens, {}, query, "minute", { ...fresh(opts), finish: checkTokens });
+  }
 
   return {
     // The home page follows the chain and asks for these three at `HOME_CALL_TTL_SECONDS` (`opts.ttl`); the ledger page (its Next at the
@@ -1114,11 +1176,7 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
     ledgerObject: (id) => get<LedgerObjectRef>(PATHS.ledgerObject, { object_id: id }, {}, "live", { unwrap: "ledger_object", finish: checkLedgerObject }),
     // E11's token calls. The list, the detail and the holders are a minute, whatever the page (D6's ranking is rebuilt each minute); the transfers are the payments of the ledgers, newest first:
     // `live`, and `MARKER_PAGE_CLASS` behind a marker, with the TTL for a first page only (`listClass`). A query is written in the order of the reference's table.
-    tokens: (q, opts) =>
-      get<TokensResponse>(PATHS.tokens, {}, { kind: q.kind, limit: q.limit, marker: q.marker || undefined, min_holders: q.minHolders, q: q.q || undefined }, "minute", {
-        ...fresh(opts),
-        finish: checkTokens,
-      }),
+    tokens,
     token: (asset, opts) =>
       get<TokenAnswer>(PATHS.token, tokenOf(asset), {}, "minute", { ...fresh(opts), finish: (body, path) => checkToken(body, path, asset) }),
     tokenHolders: (asset, q, opts) =>
@@ -1136,5 +1194,19 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
       get<NetworkSupply>(PATHS.networkSupply, {}, {}, "slow", { ...fresh(opts), finish: (body, path) => checkSupply(body, path, net.native) }),
     networkMinted: (q, opts) =>
       get<MintedPage>(PATHS.networkMinted, {}, { interval: q.interval, start: q.start, end: q.end, limit: q.limit }, "slow", { ...fresh(opts), finish: checkMintedPage }),
+    // E14's MPT calls. An issuance, its holders and its transfers are a minute (D9's `mpt_state` job runs every tick of the syncer, and what a page says of an issuance may be a minute late); behind a marker a list is
+    // `MARKER_PAGE_CLASS`, whichever way it runs (`nftListClass`, not `listClass`, which gives `live` for a first page). The lookup is `slow`: what an issuance is called and how it is scaled rarely changes.
+    mpt: (id) => get<MptIssuanceAnswer>(PATHS.mpt, { issuanceId: id }, {}, "minute", { finish: (body, path) => checkMptIssuance(body, path, id) }),
+    mptHolders: (id, q) =>
+      get<MptHoldersPage>(PATHS.mptHolders, { issuanceId: id }, { limit: q.limit, marker: q.marker || undefined }, nftListClass(q, "minute"), { finish: checkMptHoldersPage }),
+    mptTransfers: (id, q) => get<MptTransfersPage>(PATHS.mptTransfers, { issuanceId: id }, listQuery(q), nftListClass(q, "minute"), { finish: checkMptTransfersPage }),
+    mptLookup: async (ids) => {
+      // An ID in either case: D9 upper-cases the IDs of a lookup and answers each as it has it, so the client does that first (and `checkMptLookup` compares the upper-case text).
+      const bad = ids.find((id) => !isMptIssuanceId(id));
+      if (bad !== undefined) throw new RangeError(`a lookup of MPT issuances takes IDs of 48 hex digits, not ${JSON.stringify(bad)}`);
+      const asked = [...new Set(ids.map((id) => id.toUpperCase()))].sort();
+      if (asked.length < 1 || asked.length > MPT_LOOKUP_MAX) throw new RangeError(`a lookup of MPT issuances takes 1 to ${MPT_LOOKUP_MAX} distinct IDs, not ${asked.length}`);
+      return get<MptLookup>(PATHS.mptLookup, {}, { ids: asked.join(",") }, "slow", { finish: (body, path) => checkMptLookup(body, asked, path) });
+    },
   };
 }

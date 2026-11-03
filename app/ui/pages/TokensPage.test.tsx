@@ -2,6 +2,7 @@ import { cleanup, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { serverThenHydrated } from "../../../test/support/hydrate";
+import { mptCoverageSample, mptTokenRowSample, mptTokensSample, MPT_SAMPLE_ID, MPT_SAMPLE_ISSUER } from "../../../test/support/mpt-samples";
 import {
   TOKEN_SAMPLE_CURRENCY,
   TOKEN_SAMPLE_ISSUER,
@@ -13,9 +14,10 @@ import {
 } from "../../../test/support/token-samples";
 import { LAYOUT_XAHAU, LAYOUT_XRPL, LAYOUT_XRPL_TESTNET, mountPage, routedPage } from "../../../test/support/under-network";
 import { shortAddress } from "../../domain/format";
+import { mptIdOf } from "../../domain/mpt-id";
 import { NO_NAMES, type NameMap } from "../../domain/names";
 import { parseTokensParams } from "../../domain/token-params";
-import type { TokensResponse } from "../../server/api-types";
+import type { MptTokensPage, TokensResponse } from "../../server/api-types";
 import { tokensPage, type TokensInput, type TokensNet, type TokensPageData } from "../../server/token-view";
 import { NO_FEATURES } from "../features";
 import { NamesProvider } from "../names";
@@ -357,3 +359,180 @@ describe("TokensPage: as a page", () => {
     expect(xahau.errors).toEqual([]);
   });
 });
+
+// ---- The MPT tab (E14 spec 4, Task 12) ---------------------------------------------------------------------------------------------------------------------------------------------------
+
+describe("TokensPage: the MPT tab", () => {
+  const MPT_FEATURES = { ...FEATURES, mpt: true };
+  const MPT_NET: TokensNet = { ...LAYOUT_XRPL, features: MPT_FEATURES };
+
+  /** The page data of the tab at `query` for `answer`, as the loader hands it to the page (MPT available). */
+  function buildMpt(query = "kind=mpt", answer: MptTokensPage | null = mptTokensSample(), over: Partial<TokensInput> = {}): TokensPageData {
+    return tokensPage({ net: MPT_NET, params: parseTokensParams(new URLSearchParams(query), { mptAvailable: true }), mptAvailable: true, answer, names: NO_NAMES, ...over });
+  }
+
+  function mountMpt(data: TokensPageData, { at = "/xrpl/tokens?kind=mpt", names = {} }: { at?: string; names?: NameMap } = {}) {
+    return mountPage(
+      <NamesProvider names={names}>
+        <TokensPage data={data} />
+      </NamesProvider>,
+      "routes/net.tokens",
+      { at, network: LAYOUT_XRPL, features: MPT_FEATURES },
+    );
+  }
+
+  const mptRows = () => within(screen.getByRole("table", { name: "MPTs" })).getAllByRole("row").slice(1);
+  const page = (first: number, count: number, over: Partial<MptTokensPage> = {}) =>
+    mptTokensSample({ total: 214, count, tokens: Array.from({ length: count }, (_, at) => mptTokenRowSample({ rank: first + at, mpt_issuance_id: mptIdOf(1000 + first + at, MPT_SAMPLE_ISSUER) })), ...over });
+
+  it("draws the kind tabs as two links, MPT current, with the MPT source line, and the MPT intro", () => {
+    mountMpt(buildMpt());
+    const group = screen.getByRole("group", { name: "Kind of token" });
+    expect(within(group).getAllByRole("link")).toHaveLength(2);
+    expect(within(group).getByRole("link", { name: "MPT" }).getAttribute("href")).toBe("/xrpl/tokens?kind=mpt");
+    expect(within(group).getByRole("link", { name: "MPT" }).getAttribute("aria-current")).toBe("true");
+    expect(within(group).getByRole("link", { name: "Issued tokens" }).getAttribute("href")).toBe("/xrpl/tokens");
+    expect(within(group).getByRole("link", { name: "Issued tokens" }).getAttribute("aria-current")).toBeNull();
+    expect(screen.getByText("/v2/tokens?kind=mpt")).toBeTruthy();
+    expect(screen.getByText("Tokens on XRPL, ranked by holders. Tickers and names come from each issuance's metadata.").tagName).toBe("P");
+  });
+
+  it("draws the MPT tab as a link to the first page of the kind from the issued list, when it is available", () => {
+    mount(build("", tokensSample(), { mptAvailable: true }));
+    const group = screen.getByRole("group", { name: "Kind of token" });
+    expect(within(group).getByRole("link", { name: "MPT" }).getAttribute("href")).toBe("/xrpl/tokens?kind=mpt");
+    expect(group.querySelector(".is-disabled")).toBeNull();
+  });
+
+  it("draws the three tiles of the totals", () => {
+    mountMpt(buildMpt());
+    const totals = screen.getByRole("region", { name: "Totals" });
+    expect([...totals.querySelectorAll(".stat")].map((tile) => texts(tile.children))).toEqual([
+      ["MPT issuances", "214", "on XRPL, with any number of holders"],
+      ["Holders", "9,862", "accounts holding at least one MPT"],
+      ["Transfers, 24 h", "2,415", "MPT payments between accounts"],
+    ]);
+  });
+
+  it("is a card named MPTs with a table of the board's columns, and not the issued tokens' card", () => {
+    mountMpt(buildMpt());
+    expect(screen.getByRole("region", { name: "MPTs" }).tagName).toBe("SECTION");
+    expect(screen.queryByRole("region", { name: "Issued tokens" })).toBeNull();
+    expect(screen.queryByRole("table", { name: "Issued tokens" })).toBeNull();
+    expect(texts(within(screen.getByRole("table", { name: "MPTs" })).getAllByRole("columnheader"))).toEqual(["#", "Token", "Issuer", "Holders", "Outstanding", "Max amount", "Flags", "Transfers 24 h"]);
+    const [first] = mptRows();
+    expect(within(first!).getByRole("link", { name: /HTF/ }).getAttribute("href")).toBe(`/xrpl/mpt/${MPT_SAMPLE_ID}`);
+    expect(within(first!).getByRole("link", { name: shortAddressOf(MPT_SAMPLE_ISSUER) }).getAttribute("href")).toBe(`/xrpl/account/${MPT_SAMPLE_ISSUER}`);
+  });
+
+  it("has the note, the flags' legend, and no coverage note when it is complete", () => {
+    const { container } = mountMpt(buildMpt("kind=mpt&marker=M2&back=M1", page(21, 20, { marker: "M3" })));
+    expect(screen.getByText("Showing 21–40 of 214 issuances")).toBeTruthy();
+    expect(screen.getByText(/^Flags: Transfer, holders can send it to each other/)).toBeTruthy();
+    expect(container.querySelector(".coverage-note")).toBeNull();
+  });
+
+  it("says the index starts at a ledger when the coverage is not complete, directly under the table, with the ledger as a link and the words 'issuances'", () => {
+    const { container } = mountMpt(buildMpt("kind=mpt", mptTokensSample({ coverage: mptCoverageSample({ complete: false, from_ledger_index: 99226369 }) })));
+    const note = screen.getByRole("note");
+    expect(note.textContent).toBe("Covers ledger #99,226,369 onwards: earlier issuances are not in the index yet.");
+    expect(within(note).getByRole("link").getAttribute("href")).toBe("/xrpl/ledger/99226369");
+    expect(container.querySelector(".card__foot .tokens__notes")!.firstElementChild).toBe(note);
+  });
+
+  it("has the pager: Previous and More tokens as links that keep the kind, Previous disabled on the first page", () => {
+    mountMpt(buildMpt("kind=mpt&marker=M2&back=M1", page(21, 20, { marker: "M3" })));
+    const pager = screen.getByRole("navigation", { name: "Pagination" });
+    expect(within(pager).getByRole("link", { name: "Previous" }).getAttribute("href")).toBe("/xrpl/tokens?kind=mpt&marker=M1");
+    expect(within(pager).getByRole("link", { name: "More tokens" }).getAttribute("href")).toBe("/xrpl/tokens?kind=mpt&marker=M3&back=M2.M1");
+    cleanup();
+    mountMpt(buildMpt("kind=mpt", page(1, 20, { marker: "M2" })));
+    const first = screen.getByRole("navigation", { name: "Pagination" });
+    expect(within(first).queryByRole("link", { name: "Previous" })).toBeNull();
+    expect(within(first).getByRole("link", { name: "More tokens" }).getAttribute("href")).toBe("/xrpl/tokens?kind=mpt&marker=M2");
+  });
+
+  it("is a GET form with the MPT label and placeholder, and kind=mpt as a hidden field BEFORE the field, so that Search writes the canonical query", () => {
+    mountMpt(buildMpt("kind=mpt&q=HTF", mptTokensSample({ total: 1 })));
+    const field = screen.getByLabelText("Ticker, name, issuer or issuance ID") as HTMLInputElement;
+    expect(field.getAttribute("name")).toBe("q");
+    expect(field.getAttribute("placeholder")).toBe("Ticker, name, issuer or issuance ID");
+    expect(field.value).toBe("HTF");
+    const form = field.closest("form")!;
+    expect(form.getAttribute("method")).toBe("get");
+    expect(form.getAttribute("action")).toBe("/xrpl/tokens");
+    const hidden = form.querySelector('input[type="hidden"]') as HTMLInputElement;
+    expect([hidden.name, hidden.value]).toEqual(["kind", "mpt"]);
+    // Before the field: a submit writes kind, then q (the canonical order), not q, then kind.
+    expect(hidden.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(Object.fromEntries(new FormData(form).entries())).toEqual({ kind: "mpt", q: "HTF" });
+    expect([...new FormData(form).keys()]).toEqual(["kind", "q"]);
+    expect(screen.queryByRole("link", { name: /Show all|Hide tokens/ })).toBeNull();
+  });
+
+  it("keeps the issued list's form as it was: all=1 after the field, nothing before it", () => {
+    mount(build("all=1"));
+    const form = (screen.getByLabelText("Code, name or issuer") as HTMLInputElement).closest("form")!;
+    expect([...new FormData(form).keys()]).toEqual(["q", "all"]);
+  });
+
+  it("says a search matched nothing with the board's words, and has no rows", () => {
+    mountMpt(buildMpt("kind=mpt&q=zzz", mptTokensSample({ total: 0, count: 0, marker: undefined, tokens: [] })));
+    expect(screen.getByText("No MPTs match “zzz”.")).toBeTruthy();
+    expect(mptRows()).toHaveLength(0);
+    expect(screen.getByText("0 matches")).toBeTruthy();
+  });
+
+  it("says how many issuances match a search: '1 match'", () => {
+    mountMpt(buildMpt("kind=mpt&q=HTF", mptTokensSample({ total: 1 })));
+    expect(screen.getByText("1 match")).toBeTruthy();
+  });
+
+  it("draws dashes under the same labels, an empty table and no note when D9 has no totals yet (C19)", () => {
+    mountMpt(buildMpt("kind=mpt", mptTokensSample({ totals: undefined, total: undefined, marker: undefined, count: 0, tokens: [] })));
+    const totals = screen.getByRole("region", { name: "Totals" });
+    expect([...totals.querySelectorAll(".stat")].map((tile) => [tile.children[0]!.textContent, tile.children[1]!.textContent])).toEqual([
+      ["MPT issuances", "—"],
+      ["Holders", "—"],
+      ["Transfers, 24 h", "—"],
+    ]);
+    expect(screen.getByText("No MPTs in the index yet.")).toBeTruthy();
+    expect(screen.queryByText(/Showing|matches/)).toBeNull();
+    expect(within(screen.getByRole("navigation", { name: "Pagination" })).queryAllByRole("link")).toHaveLength(0);
+  });
+
+  it("draws the message of a search that was too long, tied to the field, with no table, no note and no pager", () => {
+    const q = "x".repeat(65);
+    mountMpt(buildMpt(`kind=mpt&q=${q}`, null));
+    const field = screen.getByLabelText("Ticker, name, issuer or issuance ID") as HTMLInputElement;
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toBe("Search for at most 64 characters");
+    expect(field.getAttribute("aria-invalid")).toBe("true");
+    expect(field.getAttribute("aria-describedby")).toBe(alert.id);
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Pagination" })).toBeNull();
+    expect(screen.queryByText(/Showing|matches|Flags:/)).toBeNull();
+    expect(texts(screen.getByRole("region", { name: "Totals" }).querySelectorAll(".stat__value"))).toEqual(["—", "—", "—"]);
+  });
+
+  it("names the issuers by what the names say", () => {
+    const names: NameMap = { [MPT_SAMPLE_ISSUER]: { name: { text: "Harborline", kind: "verified" }, domain: "harborline.example", labels: [] } };
+    mountMpt(buildMpt(), { names });
+    expect(within(cells(mptRows()[0]!)[2]!).getByRole("link").textContent).toContain("Harborline");
+  });
+
+  it("never fetches, and is the same on the server as in the browser, for a page, the search that was too long and the empty tab", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch");
+    mountMpt(buildMpt());
+    expect(fetch).not.toHaveBeenCalled();
+    cleanup();
+    for (const data of [buildMpt("kind=mpt&marker=M2&back=M1", page(21, 20, { marker: "M3" })), buildMpt(`kind=mpt&q=${"x".repeat(65)}`, null), buildMpt("kind=mpt&q=zzz", mptTokensSample({ total: 0, count: 0, tokens: [] }))]) {
+      const { container, errors } = await serverThenHydrated(routedPage(<TokensPage data={data} />, { at: "/xrpl/tokens?kind=mpt", features: MPT_FEATURES }));
+      expect(errors).toEqual([]);
+      expect(container.querySelector(".tokens")).not.toBeNull();
+    }
+  });
+});
+
+/** An address as a link to its account is written when no name is known (`shortAddress`). */
+const shortAddressOf = (address: string) => shortAddress(address);

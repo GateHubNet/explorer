@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { assetText, sameAsset, type Asset } from "../../app/domain/asset";
 import type { AmmPool, IssuedTokenRow, TokenAnswer, TokenHolder, TokenHoldersResponse, TokensResponse, TokenTransfer, TokenTransfersResponse } from "../../app/server/api-types";
 import { checkToken, checkTokenHolders, checkTokens, checkTokenTransfers } from "../../app/server/token-shape";
-import { dataApiLastValidated, generate, inLedgerOrder, isTokenGenerated, readLedgers, type RawLedger } from "../../scripts/http-fixtures";
+import { dataApiLastValidated, generate, inLedgerOrder, isMptGenerated, isTokenGenerated, readLedgers, type RawLedger } from "../../scripts/http-fixtures";
 import { NAMES_SOURCES } from "../../scripts/names-fixtures";
 import { FEATURED_XRPL_TOKENS, tokenFixtures } from "../../scripts/token-fixtures";
 import { resolveHoldersMarker, resolveTokenCase, resolveTransfersMarker, TOKEN_CASE_NET, TOKEN_CASES, tokenPath, tokenSourcesOf, type TokenSources } from "../support/token-case-rules";
@@ -20,9 +20,9 @@ type Json = Record<string, any>;
 const NETS: NetworkName[] = ["xrpl", "xahau"];
 
 const generated = generate();
-/** A network's token files: the path below `<net>/data-api/` and the text. */
+/** A network's token files: the path below `<net>/data-api/` and the text. The MPT tab's lists (`tokens@kind=mpt&…`) are E14's (`isMptGenerated`), not D6's. */
 const tokenFiles = (net: NetworkName): Array<[path: string, text: string]> =>
-  [...generated].filter(([path]) => path.startsWith(`${net}/data-api/tokens`)).map(([path, text]) => [path.slice(`${net}/data-api/`.length), text]);
+  [...generated].filter(([path]) => path.startsWith(`${net}/data-api/tokens`) && !isMptGenerated(path)).map(([path, text]) => [path.slice(`${net}/data-api/`.length), text]);
 const read = (net: NetworkName, path: string): Json => {
   const text = generated.get(`${net}/data-api/${path}`);
   if (text === undefined) throw new Error(`no file ${net}/data-api/${path}`);
@@ -657,6 +657,9 @@ describe("the files", () => {
     const own = NETS.flatMap((net) => tokenFiles(net).map(([path]) => `${net}/data-api/${path}`));
     expect(named.sort()).toEqual(own.sort());
     expect(isTokenGenerated("xrpl/data-api/tokens@kind=issued&limit=20.json")).toBe(true);
+    // The MPT tab's lists are the MPT generator's, whose paths `isTokenGenerated` leaves out.
+    expect(isTokenGenerated("xrpl/data-api/tokens@kind=mpt&limit=20.json")).toBe(false);
+    expect(isTokenGenerated("xrpl/data-api/tokens@kind=mpt&limit=20&q=HTF.json")).toBe(false);
     expect(isTokenGenerated("xrpl/data-api/tokens/USD.rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B.json")).toBe(true);
     expect(isTokenGenerated("xrpl/data-api/amm/pools@asset=USD+rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B&limit=20.json")).toBe(false);
   });

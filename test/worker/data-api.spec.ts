@@ -35,6 +35,11 @@ import type {
   MarketsResponse,
   MintedPage,
   MintedPart,
+  MptHoldersPage,
+  MptIssuanceAnswer,
+  MptLookup,
+  MptTokensPage,
+  MptTransfersPage,
   NetworkSupply,
   NftAnswer,
   NftCollectionAnswer,
@@ -97,6 +102,22 @@ import {
 } from "../support/amm-samples";
 import { amendmentDetailSample, amendmentsSample, SAMPLE_KEYS, summarySample, validationsSample, validatorDetailSample, validatorRowSample } from "../support/d1-samples";
 import { mintedPageSample, supplySample } from "../support/d7-samples";
+import {
+  MPT_HOLDERS_MARKER,
+  MPT_SAMPLE_ID,
+  MPT_SAMPLE_SECOND_ID,
+  MPT_SAMPLE_THIRD_ID,
+  MPT_TRANSFERS_MARKER,
+  mptHolderSample,
+  mptHoldersSample,
+  mptIssuanceSample,
+  mptLookupSample,
+  mptSample,
+  mptSummarySample,
+  mptTokensSample,
+  mptTransferSample,
+  mptTransfersSample,
+} from "../support/mpt-samples";
 import {
   collectionSample,
   nftAnswerSample,
@@ -4790,6 +4811,432 @@ describe("D6's token calls", () => {
     expectTypeOf<TokensResponse["coverage"]["complete"]>().toEqualTypeOf<boolean>();
     expectTypeOf<TokensResponse["kind"]>().toEqualTypeOf<"issued">();
     expectTypeOf<TokenHoldersResponse["marker"]>().toEqualTypeOf<string | undefined>();
+  });
+});
+
+describe("D9's MPT calls", () => {
+  const ID = MPT_SAMPLE_ID;
+  const SECOND = MPT_SAMPLE_SECOND_ID;
+
+  interface MptCall {
+    name: string;
+    call: (api: DataApi) => Promise<unknown>;
+    /** Path and query of the request, in the order the client writes it, after the host. */
+    url: string;
+    cls: CacheClass;
+    /** The words of the route's own 404; the lookup and the list have none. */
+    missing?: string;
+    /** What D9 answers. */
+    good: () => unknown;
+    /** What makes `good` an answer the check refuses, and the field the message names. */
+    bad: () => unknown;
+    field: string;
+  }
+
+  const CALLS: MptCall[] = [
+    {
+      name: "mpt",
+      call: (api) => api.mpt(ID),
+      url: `/v2/mpt/${ID}`,
+      cls: "minute",
+      missing: "issuance not found",
+      good: () => mptSample(),
+      bad: () => mptSample({ issuance: mptIssuanceSample({ outstanding_amount: "1.5" }) }),
+      field: "outstanding_amount",
+    },
+    {
+      name: "mptHolders",
+      call: (api) => api.mptHolders(ID, { limit: 10 }),
+      url: `/v2/mpt/${ID}/holders?limit=10`,
+      cls: "minute",
+      missing: "issuance not found",
+      good: () => mptHoldersSample(),
+      bad: () => mptHoldersSample({ holders: [mptHolderSample({ amount: "-1" })] }),
+      field: "amount",
+    },
+    {
+      name: "mptTransfers",
+      call: (api) => api.mptTransfers(ID, { descending: true, limit: 8 }),
+      url: `/v2/mpt/${ID}/transfers?descending=true&limit=8`,
+      cls: "minute",
+      missing: "issuance not found",
+      good: () => mptTransfersSample(),
+      bad: () => mptTransfersSample({ transfers: [mptTransferSample({ kind: "mint" as never })] }),
+      field: "kind",
+    },
+    {
+      name: "mptLookup",
+      // Asked in any order, with a duplicate: the request has them sorted and once.
+      call: (api) => api.mptLookup([SECOND, ID, SECOND]),
+      url: `/v2/mpt?ids=${ID}%2C${SECOND}`,
+      cls: "slow",
+      good: () => mptLookupSample(),
+      bad: () => mptLookupSample({ issuances: [mptSummarySample(), { mpt_issuance_id: MPT_SAMPLE_THIRD_ID }] }),
+      field: "issuances[1]",
+    },
+    {
+      name: "tokens",
+      call: (api) => api.tokens({ kind: "mpt", limit: 20, q: "HTF" }),
+      url: "/v2/tokens?kind=mpt&limit=20&q=HTF",
+      cls: "minute",
+      good: () => mptTokensSample(),
+      bad: () => mptTokensSample({ kind: "issued" as never }),
+      field: "kind",
+    },
+  ];
+
+  /** What D9 answers for the path asked, in the body of the sample of that route. */
+  const answer = async (input: RequestInfo | URL) => {
+    const { pathname } = new URL(input instanceof Request ? input.url : String(input));
+    const found = CALLS.find((c) => c.url.split("?")[0] === pathname);
+    if (found === undefined) throw new Error(`unexpected request for ${pathname}`);
+    return json(found.good());
+  };
+
+  const recording = () => {
+    const cache = recordingCache();
+    return { cache, api: createDataApi(xrpl, env, cache) };
+  };
+
+  const notFound = (message: string) => json({ result: "error", message }, { status: 404 });
+
+  /** `count` distinct IDs of one issuer, in sorted order (the sequence is the first 4 bytes, upper-case hex). */
+  const manyIds = (count: number) => Array.from({ length: count }, (_, at) => `${(1000 + at).toString(16).toUpperCase().padStart(8, "0")}${ID.slice(8)}`);
+
+  // Failure tests first, each on a host of its own: the Cache API and the hold of this file outlive a test.
+  describe("a failure", () => {
+    it.each(CALLS.map((c) => [c.name, c] as const))("%s: a malformed 200 is a server error naming the field, and is not stored", async (name, c) => {
+      const { api, storedBy } = storing(`d9-malformed-${name}`);
+      fetchSpy.mockResolvedValueOnce(json(c.bad()));
+
+      const error = await failureOf(c.call(api));
+      expect(error.kind).toBe("server");
+      expect(error.status).toBe(200);
+      expect(error.message).toContain(`data API GET ${c.url}`);
+      // The field is looked for in the reason alone: the request every message holds says "mpt" for four of the calls.
+      expect(error.message.split("answered something unexpected: ")[1]).toContain(c.field);
+
+      // Nothing was stored: the next call, and the one after it, make new upstream requests; only the good answer is stored, and then no request is made.
+      fetchSpy.mockResolvedValueOnce(json(c.bad()));
+      expect(await storedBy(() => c.call(api).catch(() => undefined))).toEqual([]);
+      fetchSpy.mockResolvedValueOnce(json(c.good()));
+      expect((await storedBy(() => c.call(api))).length).toBeGreaterThan(0);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      await c.call(api);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    });
+
+    it.each(CALLS.map((c) => [c.name, c] as const))("%s: keeps its own 404 as not_found, and makes Cannot GET (a data API without D9) a server error that is not stored", async (name, c) => {
+      const { api, storedBy } = storing(`d9-failures-${name}`);
+      const path = c.url.split("?")[0]!;
+
+      if (c.missing !== undefined) {
+        fetchSpy.mockResolvedValueOnce(notFound(c.missing));
+        const missing = await failureOf(c.call(api));
+        expect([missing.kind, missing.status]).toEqual(["not_found", 404]);
+        expect(missing.message).toBe(`data API GET ${c.url} answered 404: ${c.missing}`);
+        expect(isNotFound(missing)).toBe(true);
+        expect(isMissingRoute(missing)).toBe(false);
+      }
+
+      // An API without D9 answers the framework's words: an outage, which is never stored and never a 404 page.
+      fetchSpy.mockImplementation(async () => notFound(`Cannot GET ${path}`));
+      const noRoute = await failureOf(c.call(api));
+      expect([noRoute.kind, noRoute.status]).toEqual(["server", 404]);
+      expect(noRoute.message).toBe(`data API GET ${c.url} answered 404: Cannot GET ${path} (the data API has no such route)`);
+      expect(isMissingRoute(noRoute)).toBe(true);
+      expect(isNotFound(noRoute)).toBe(false);
+      expect(await storedBy(() => c.call(api).catch(() => undefined))).toEqual([]);
+    });
+
+    it("mpt: an issuance of another ID than the one asked for is a server error naming mpt_issuance_id, and is not stored (the answer is well formed: only the ID is another's)", async () => {
+      const { api, storedBy } = storing("d9-mpt-other-issuance");
+      const other = () => json(mptSample({ issuance: mptIssuanceSample({ mpt_issuance_id: SECOND, sequence: 299 }) }));
+      fetchSpy.mockResolvedValueOnce(other());
+
+      const error = await failureOf(api.mpt(ID));
+      expect([error.kind, error.status]).toEqual(["server", 200]);
+      expect(error.message).toBe(`data API GET /v2/mpt/${ID} answered something unexpected: issuance.mpt_issuance_id is not the issuance asked for`);
+
+      fetchSpy.mockResolvedValueOnce(other());
+      expect(await storedBy(() => api.mpt(ID).catch(() => undefined))).toEqual([]);
+    });
+
+    it("reads D9's 400 for an ID it cannot read as bad_request", async () => {
+      const { api } = storing("d9-bad-request");
+      fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "invalid mpt issuance id" }, { status: 400 }));
+
+      const error = await failureOf(api.mpt(ID));
+      expect([error.kind, error.status]).toEqual(["bad_request", 400]);
+      expect(error.message).toBe(`data API GET /v2/mpt/${ID} answered 400: invalid mpt issuance id`);
+    });
+
+    it("refuses an issued list as the MPT list, and an MPT list as the issued one: the kind says what the answer must be, and neither is stored", async () => {
+      const { api, storedBy } = storing("d9-kinds");
+      fetchSpy.mockResolvedValueOnce(json(tokensSample()));
+      const issued = await failureOf(api.tokens({ kind: "mpt", limit: 20 }));
+      expect(issued.kind).toBe("server");
+      expect(issued.message.split("answered something unexpected: ")[1]).toContain("kind");
+
+      fetchSpy.mockResolvedValueOnce(json(mptTokensSample()));
+      const mpt = await failureOf(api.tokens({ kind: "issued", limit: 20 }));
+      expect(mpt.kind).toBe("server");
+      expect(mpt.message.split("answered something unexpected: ")[1]).toContain("kind");
+
+      fetchSpy.mockResolvedValueOnce(json(tokensSample()));
+      expect(await storedBy(() => api.tokens({ kind: "mpt", limit: 20 }).catch(() => undefined))).toEqual([]);
+    });
+
+    it("takes the list before the first generation exists, with no totals and no total (D9's `nothing to list`)", async () => {
+      const { api } = storing("d9-no-generation");
+      const none = { result: "success", coverage: { from_ledger_index: 99226369, complete: true }, kind: "mpt", count: 0, tokens: [] };
+      fetchSpy.mockResolvedValueOnce(json(none));
+
+      expect(await api.tokens({ kind: "mpt", limit: 20 })).toEqual(none);
+    });
+  });
+
+  it("asks D9's paths with their queries and classes", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    for (const c of CALLS) await c.call(api);
+
+    // The keys are `GET <host><path and query as sent>`; the commas of the lookup's IDs are `%2C`, as for the names.
+    expect(cache.calls.map((call) => [call.key, call.cls, call.ttlOverride])).toEqual(CALLS.map((c) => [`GET ${BASE}${c.url}`, c.cls, undefined]));
+    expect(cache.calls.map((call) => "holdFailure" in call)).toEqual(CALLS.map(() => false));
+    // What went out is the same path and query, with the key and nothing else of the visitor's.
+    expect(fetchSpy.mock.calls.map((_call, index) => sentRequest(index).url)).toEqual(CALLS.map((c) => `${BASE}${c.url}`));
+    expect(sentRequest(0).headers.get("X-API-Key")).toBe("test-key");
+    expect(new URL(sentRequest(3).url).searchParams.get("ids")).toBe(`${ID},${SECOND}`);
+  });
+
+  it("returns what each call asked for: the whole answer", async () => {
+    const { api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    expect(await api.mpt(ID)).toEqual(mptSample());
+    expect(await api.mptHolders(ID, { limit: 10 })).toEqual(mptHoldersSample());
+    expect(await api.mptTransfers(ID, { descending: true, limit: 8 })).toEqual(mptTransfersSample());
+    expect(await api.mptLookup([ID, SECOND])).toEqual(mptLookupSample());
+    expect(await api.tokens({ kind: "mpt", limit: 20, q: "HTF" })).toEqual(mptTokensSample());
+  });
+
+  it("is class minute for the first page of the holders and MARKER_PAGE_CLASS behind a marker, with the marker after the limit, and an empty marker is none", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    await api.mptHolders(ID, { limit: 10 });
+    await api.mptHolders(ID, { limit: 50, marker: MPT_HOLDERS_MARKER });
+    await api.mptHolders(ID, { limit: 50, marker: "" });
+
+    expect(cache.calls.map((c) => [c.key.slice(`GET ${BASE}/v2/mpt/${ID}/holders`.length), c.cls])).toEqual([
+      ["?limit=10", "minute"],
+      [`?limit=50&marker=${MPT_HOLDERS_MARKER}`, MARKER_PAGE_CLASS],
+      ["?limit=50", "minute"],
+    ]);
+    expect(MARKER_PAGE_CLASS).toBe("slow");
+  });
+
+  it("writes the transfers' query as descending, limit, marker, with the first page a minute and the page behind a marker MARKER_PAGE_CLASS", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    await api.mptTransfers(ID, { descending: true, limit: 8 });
+    await api.mptTransfers(ID, { descending: true, limit: 20, marker: MPT_TRANSFERS_MARKER });
+    await api.mptTransfers(ID, { descending: true, limit: 20, marker: "" });
+
+    expect(cache.calls.map((c) => [c.key.slice(`GET ${BASE}/v2/mpt/${ID}/transfers`.length), c.cls])).toEqual([
+      ["?descending=true&limit=8", "minute"],
+      [`?descending=true&limit=20&marker=${MPT_TRANSFERS_MARKER}`, MARKER_PAGE_CLASS],
+      ["?descending=true&limit=20", "minute"],
+    ]);
+  });
+
+  describe("the lookup", () => {
+    it("sorts the IDs and asks each once, so that the key of a page's lookup is the same whatever order its amounts came in", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.mptLookup([SECOND, ID, SECOND]);
+      await api.mptLookup([ID, SECOND]);
+
+      expect(cache.calls.map((c) => [c.key.slice(`GET ${BASE}/v2/mpt`.length), c.cls])).toEqual([
+        [`?ids=${ID}%2C${SECOND}`, "slow"],
+        [`?ids=${ID}%2C${SECOND}`, "slow"],
+      ]);
+    });
+
+    it("upper-cases each ID before it sorts and deduplicates, so that a lower-case ID is the same issuance, asked once, and the answer is checked against the upper-case IDs", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      // One ID in lower case, one in mixed case, one in upper case twice over (the same ID in two cases is one).
+      const mixed = `${SECOND.slice(0, 20).toLowerCase()}${SECOND.slice(20)}`;
+      const lookup = await api.mptLookup([mixed, ID.toLowerCase(), ID, SECOND.toLowerCase()]);
+      await api.mptLookup([ID, SECOND]);
+
+      expect(lookup).toEqual(mptLookupSample());
+      expect(cache.calls.map((c) => [c.key.slice(`GET ${BASE}/v2/mpt`.length), c.cls])).toEqual([
+        [`?ids=${ID}%2C${SECOND}`, "slow"],
+        [`?ids=${ID}%2C${SECOND}`, "slow"],
+      ]);
+    });
+
+    it("takes 100 distinct IDs, and counts a duplicate once", async () => {
+      const { api } = recording();
+      const hundred = manyIds(100);
+      fetchSpy.mockResolvedValueOnce(json(mptLookupSample({ count: 100, issuances: hundred.map((id) => ({ mpt_issuance_id: id })) })));
+
+      expect((await api.mptLookup([...hundred, hundred[0]!, hundred[99]!])).count).toBe(100);
+      expect(new URL(sentRequest().url).searchParams.get("ids")).toBe(hundred.join(","));
+    });
+
+    it("throws a RangeError for more than 100 distinct IDs and for none, before any request", async () => {
+      const { cache, api } = recording();
+
+      for (const ids of [manyIds(101), [], [...manyIds(101), ...manyIds(5)]]) {
+        const error = await api.mptLookup(ids).then(
+          () => undefined,
+          (reason: unknown) => reason,
+        );
+        expect(error, `${ids.length} IDs`).toBeInstanceOf(RangeError);
+      }
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(cache.calls).toEqual([]);
+    });
+
+    it("throws a RangeError for an ID that is not 48 hex digits, whatever else is asked, before any request: one stray ID would turn the whole lookup into a failure", async () => {
+      const { cache, api } = recording();
+      const notIds = [ID.slice(1), `${ID}0`, `0x${ID.slice(2)}`, "", "G".repeat(48), `${ID}\n`, ` ${ID.slice(1)}`, `${ID.slice(0, 47)}٣`, "0".repeat(64), "htf"];
+
+      for (const bad of notIds) {
+        const error = await api.mptLookup([ID, bad]).then(
+          () => undefined,
+          (reason: unknown) => reason,
+        );
+        expect(error, JSON.stringify(bad)).toBeInstanceOf(RangeError);
+        expect((error as RangeError).message, JSON.stringify(bad)).toContain("48 hex digits");
+      }
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(cache.calls).toEqual([]);
+    });
+
+    it("is a failed promise and not a throw, so that a caller's catch sees it", async () => {
+      const { api } = recording();
+      let promise: Promise<unknown> | undefined;
+
+      expect(() => (promise = api.mptLookup([]))).not.toThrow();
+      await expect(promise).rejects.toBeInstanceOf(RangeError);
+    });
+
+    it("refuses an answer with another entry than the one asked for in a place, as a server error that is not stored", async () => {
+      const { api, storedBy } = storing("d9-lookup-order");
+      fetchSpy.mockResolvedValueOnce(json(mptLookupSample({ issuances: [{ mpt_issuance_id: SECOND }, mptSummarySample()] })));
+
+      const error = await failureOf(api.mptLookup([ID, SECOND]));
+      expect(error.message.split("answered something unexpected: ")[1]).toContain("issuances[0]");
+      fetchSpy.mockResolvedValueOnce(json(mptLookupSample({ issuances: [{ mpt_issuance_id: SECOND }, mptSummarySample()] })));
+      expect(await storedBy(() => api.mptLookup([ID, SECOND]).catch(() => undefined))).toEqual([]);
+    });
+  });
+
+  describe("the MPT list of the token tab", () => {
+    it("writes kind, limit, marker, q, with no min_holders, and leaves out the ones that are none (an empty marker or search is none)", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.tokens({ kind: "mpt", limit: 20, marker: "M", q: "HTF" });
+      await api.tokens({ kind: "mpt", limit: 20, marker: "", q: "" });
+      await api.tokens({ kind: "mpt", limit: 20 });
+
+      expect(cache.calls.map((c) => [c.key.slice(`GET ${BASE}/v2/tokens`.length), c.cls])).toEqual([
+        ["?kind=mpt&limit=20&marker=M&q=HTF", "minute"],
+        ["?kind=mpt&limit=20", "minute"],
+        ["?kind=mpt&limit=20", "minute"],
+      ]);
+    });
+
+    it("does not change the issued list: its query and class stay, a min_holders of 0 included", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(async () => json(tokensSample()));
+
+      await api.tokens({ kind: "issued", limit: 20, marker: "M", minHolders: 10, q: "north" });
+      await api.tokens({ kind: "issued", limit: 20, minHolders: 0 });
+
+      expect(cache.calls.map((c) => [c.key.slice(`GET ${BASE}/v2/tokens`.length), c.cls])).toEqual([
+        ["?kind=issued&limit=20&marker=M&min_holders=10&q=north", "minute"],
+        ["?kind=issued&limit=20&min_holders=0", "minute"],
+      ]);
+    });
+
+    it("passes the TTL and the failure hold on, as the issued list does", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.tokens({ kind: "mpt", limit: 20 }, { ttl: 7, holdFailure: true });
+
+      expect(cache.calls.map((c) => [c.ttlOverride, c.holdFailure])).toEqual([[7, true]]);
+      expect(cache.calls[0]!.key.endsWith(" [kept 7 s]")).toBe(true);
+    });
+  });
+
+  it("asks for no failure hold and no TTL of its own on the four MPT routes: no MPT page polls", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    for (const c of CALLS.slice(0, 4)) await c.call(api);
+
+    expect(cache.calls.map((c) => [c.ttlOverride, "holdFailure" in c])).toEqual([
+      [undefined, false],
+      [undefined, false],
+      [undefined, false],
+      [undefined, false],
+    ]);
+  });
+
+  it("escapes what it puts in a path, and refuses an ID that would be resolved away, without sending anything", async () => {
+    const { api } = recording();
+    fetchSpy.mockImplementation(async () => json(mptSample()));
+
+    await api.mpt("../../v2/tokens").catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/mpt/..%2F..%2Fv2%2Ftokens`);
+
+    fetchSpy.mockClear();
+    for (const id of ["", ".", ".."]) {
+      const error = await failureOf(api.mpt(id));
+      expect(error.kind).toBe("bad_request");
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("keys the two networks apart", async () => {
+    const cache = recordingCache();
+    fetchSpy.mockImplementation(answer);
+
+    await createDataApi(xrpl, env, cache).mpt(ID);
+    await createDataApi(xahau, env, cache).mpt(ID);
+
+    expect(cache.calls.map((c) => c.key)).toEqual([`GET ${BASE}/v2/mpt/${ID}`, `GET https://xahau.data.example.invalid/v2/mpt/${ID}`]);
+  });
+
+  it("types each answer by what the reference gives it, and `tokens` by its kind", () => {
+    // A cache that answers nothing: only the types of the calls are looked at, and the promises are left alone.
+    const api = createDataApi(xrpl, env, { json: () => new Promise<never>(() => {}) });
+
+    expectTypeOf(api.mpt(ID)).toEqualTypeOf<Promise<MptIssuanceAnswer>>();
+    expectTypeOf(api.mptHolders(ID, { limit: 10 })).toEqualTypeOf<Promise<MptHoldersPage>>();
+    expectTypeOf(api.mptTransfers(ID, { descending: true, limit: 8 })).toEqualTypeOf<Promise<MptTransfersPage>>();
+    expectTypeOf(api.mptLookup([ID])).toEqualTypeOf<Promise<MptLookup>>();
+    expectTypeOf(api.tokens({ kind: "mpt", limit: 20 })).toEqualTypeOf<Promise<MptTokensPage>>();
+    expectTypeOf(api.tokens({ kind: "issued", limit: 20 })).toEqualTypeOf<Promise<TokensResponse>>();
+    // The keys the reference lets an answer go without: the list before its first generation has no totals and no total.
+    expectTypeOf<MptTokensPage["total"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<NonNullable<MptTokensPage["totals"]>["issuances"]>().toEqualTypeOf<number>();
+    expectTypeOf<MptTokensPage["kind"]>().toEqualTypeOf<"mpt">();
+    expectTypeOf<MptHoldersPage["marker"]>().toEqualTypeOf<string | undefined>();
+    // An issuance the index has no state for is the ID alone.
+    expectTypeOf<{ mpt_issuance_id: string }>().toMatchTypeOf<MptLookup["issuances"][number]>();
   });
 });
 

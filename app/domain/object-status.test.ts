@@ -90,10 +90,10 @@ describe("the rules over the recordings", () => {
   // - COMPARED: the entries that have an answer of the index, whose statuses are held to it;
   // - NODE_ONLY: XRPL's node fallback, an open escrow and an open check the generator leaves out of the index on purpose, so that a page reads them from the node alone (the "Ledger object
   //   answers" of test/fixtures/PROVENANCE.md): their entries have no answer of the index to agree with;
-  // - NOT_OBJECTS: the entries of a type that has no status, by type (the Delegate of the delegation, Xahau's URITokens).
+  // - NOT_OBJECTS: the entries of a type that has no status, by type (the Delegate of the delegation, the MPTokenIssuance of E14's `nodeOnly`, Xahau's URITokens).
   const COMPARED = { xrpl: 21, xahau: 4 } as const;
   const NODE_ONLY = { xrpl: 2, xahau: 0 } as const;
-  const NOT_OBJECTS = { xrpl: { Delegate: 1 }, xahau: { URIToken: 2 } } as const;
+  const NOT_OBJECTS = { xrpl: { Delegate: 1, MPTokenIssuance: 1 }, xahau: { URIToken: 2 } } as const;
 
   it("agrees with every derived answer of the recordings", () => {
     const seen = new Set<string>();

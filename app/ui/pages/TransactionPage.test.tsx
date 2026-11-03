@@ -525,6 +525,85 @@ describe("TransactionPage: the balance changes", () => {
   });
 });
 
+// MPT amounts in the balance changes (E14 spec 5.2 and 5.4): an MPT's row names the issuance by its ticker (a link while MPT is on), the issuer under it, the change and the balance after in
+// the words of `MptAmount` (scaled when the lookup filled them), and the issuer's own row is tagged "Issuer".
+describe("TransactionPage: the balance changes of an MPT", () => {
+  const ID = "0598F6E09E30A809E63A1F02DE789586D2F4FDA9EF5200E3";
+  const ISSUER = "rERShrtUSEXkrwtTpugPV4v8E787vpx1kb";
+  const table = () => screen.getByRole("table", { name: "Balance changes" });
+  const cells = (row: HTMLElement) => within(row).getAllByRole("cell");
+  const ON: Features = { ...NO_FEATURES, mpt: true };
+  const drawn = async (changes: TransactionPageData["changes"], features: Features = ON) => {
+    renderUnderNetwork(<TransactionPage network={XRPL} data={transaction({ changes })} />, features, { path: `/xrpl/tx/${HASH}` });
+    return within(await screen.findByRole("table", { name: "Balance changes" })).getAllByRole("row").slice(1);
+  };
+
+  const raw: TransactionPageData["changes"] = [
+    { account: ALICE, currency: ID, issuer: ISSUER, value: "-1005890", after: "199999997994097", mpt: true, role: "sender" },
+    { account: ISSUER, currency: ID, value: "5890", mpt: true, role: "issuer" },
+    { account: BOB, currency: ID, issuer: ISSUER, value: "1000000", after: "1000013", mpt: true, role: "destination" },
+  ];
+  // What the lookup made of them at scale 6, with the digits `scaleUnits` writes.
+  const SCALED = [
+    { scaled: "-1.005890", scaledAfter: "199999997.994097" },
+    { scaled: "0.005890" },
+    { scaled: "1.000000", scaledAfter: "1.000013" },
+  ];
+  const scaled: TransactionPageData["changes"] = raw.map((change, at) => ({ ...change, ...SCALED[at], ticker: "FEE" }));
+
+  it("draws the units and the start of the issuance's ID while the lookup has not scaled them, with the issuer under the currency", async () => {
+    const rows = await drawn(raw);
+    expect(rows.map((row) => cells(row)[1]!.textContent)).toEqual([`MPT 0598F6E0…issued by ${shortAddress(ISSUER)}`, "MPT 0598F6E0…", `MPT 0598F6E0…issued by ${shortAddress(ISSUER)}`]);
+    expect(rows.map((row) => cells(row)[2]!.textContent)).toEqual(["−1,005,890 units of MPT 0598F6E0…", "+5,890 units of MPT 0598F6E0…", "+1,000,000 units of MPT 0598F6E0…"]);
+    expect(rows.map((row) => cells(row)[3]!.textContent)).toEqual(["199,999,997,994,097 units of MPT 0598F6E0…", "—", "1,000,013 units of MPT 0598F6E0…"]);
+  });
+
+  it("draws the scaled change and balance with the ticker, a gain in the success colour and a loss with a minus sign", async () => {
+    const rows = await drawn(scaled);
+    expect(rows.map((row) => cells(row)[2]!.textContent)).toEqual(["−1.005890 FEE", "+0.005890 FEE", "+1.000000 FEE"]);
+    expect(rows.map((row) => cells(row)[3]!.textContent)).toEqual(["199,999,997.994097 FEE", "—", "1.000013 FEE"]);
+    expect(rows.map((row) => cells(row)[2]!.querySelector(".amt--pos") !== null)).toEqual([false, true, true]);
+    expect(cells(rows[0]!)[3]!.classList.contains("muted") || cells(rows[0]!)[3]!.querySelector(".muted") !== null).toBe(true);
+  });
+
+  it("names the issuance by its ticker in the currency column and links it to its page once, while MPT is on", async () => {
+    const rows = await drawn(scaled);
+    expect(cells(rows[0]!)[1]!.textContent).toBe(`FEEissued by ${shortAddress(ISSUER)}`);
+    const links = within(cells(rows[0]!)[1]!).getAllByRole("link");
+    expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+      ["FEE", `/xrpl/mpt/${ID}`],
+      [shortAddress(ISSUER), `/xrpl/account/${ISSUER}`],
+    ]);
+    expect(cells(rows[0]!)[1]!.querySelector(".cur--mpt")).not.toBeNull();
+    // The change and the balance after are words: the row's other cells hold no second link to the issuance.
+    expect(within(cells(rows[0]!)[2]!).queryByRole("link")).toBeNull();
+    expect(within(cells(rows[0]!)[3]!).queryByRole("link")).toBeNull();
+  });
+
+  it("tags the issuer's own row 'Issuer', draws no issuer line under its currency, and has no balance after", async () => {
+    const rows = await drawn(scaled);
+    expect(cells(rows[1]!)[0]!.textContent).toBe(`${shortAddress(ISSUER)}Issuer`);
+    expect(cells(rows[1]!)[1]!.textContent).toBe("FEE");
+    expect(cells(rows[1]!)[3]!.textContent).toBe("—");
+    expect(cells(rows[0]!)[0]!.textContent).toBe(`${shortAddress(ALICE)}sender`);
+    expect(cells(rows[2]!)[0]!.textContent).toBe(`${shortAddress(BOB)}destination`);
+  });
+
+  it("is the ticker as text, with no link to the issuance, while MPT is off", async () => {
+    const rows = await drawn(scaled, NO_FEATURES);
+    expect(cells(rows[0]!)[1]!.textContent).toBe(`FEEissued by ${shortAddress(ISSUER)}`);
+    expect(within(cells(rows[0]!)[1]!).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([`/xrpl/account/${ISSUER}`]);
+  });
+
+  it("keeps the issuer's ticker as text: markup in it is not markup", async () => {
+    const hostile = `<img src=x onerror=alert(1)>`;
+    const rows = await drawn(scaled.map((change) => ({ ...change, ticker: hostile })));
+    expect(cells(rows[0]!)[1]!.querySelector("img")).toBeNull();
+    expect(cells(rows[0]!)[1]!.textContent).toContain(hostile);
+    expect(table().querySelector("img")).toBeNull();
+  });
+});
+
 describe("TransactionPage: the context", () => {
   const context = () => screen.getByRole("complementary", { name: "Context" });
 
@@ -623,6 +702,26 @@ describe("TransactionPage: the context", () => {
       expect(within(items[0]!).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([`/xrpl/account/${ALICE}`]);
       expect(within(items[1]!).queryByRole("link")).toBeNull();
       expect(within(items[2]!).queryByRole("link")).toBeNull();
+    });
+
+    it("links an MPToken and an MPTokenIssuance to the page of their issuance while MPT is on, and shows the ticker beside the type", async () => {
+      const ID = "0598F6E09E30A809E63A1F02DE789586D2F4FDA9EF5200E3";
+      const objects: TransactionPageData["objects"] = [
+        { change: "modified", type: "MPToken", index: CHANNEL, account: ALICE, mpt: ID, ticker: "FEE" },
+        { change: "modified", type: "MPTokenIssuance", index: CHANNEL, account: BOB, mpt: ID },
+      ];
+      const [token, issuance] = await touched(objects, { ...NO_FEATURES, mpt: true });
+      const link = within(token!).getByRole("link", { name: "MPToken" });
+      expect(link.getAttribute("href")).toBe(`/xrpl/mpt/${ID}`);
+      expect(link.classList.contains("objects__type")).toBe(true);
+      expect(token!.textContent).toBe(`ModifiedMPTokenFEE${shortAddress(ALICE)}`);
+      expect(token!.querySelector(".objects__ticker")?.textContent).toBe("FEE");
+      expect(within(issuance!).getByRole("link", { name: "MPTokenIssuance" }).getAttribute("href")).toBe(`/xrpl/mpt/${ID}`);
+      expect(issuance!.querySelector(".objects__ticker")).toBeNull();
+      cleanup();
+      const [off] = await touched(objects, NO_FEATURES);
+      expect(within(off!).queryByRole("link", { name: "MPToken" })).toBeNull();
+      expect(within(off!).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([`/xrpl/account/${ALICE}`]);
     });
 
     it("links an index in lower case in capitals, and follows each switch: off, the type is text", async () => {

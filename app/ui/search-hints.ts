@@ -19,14 +19,19 @@ export interface Hint {
  * What the box says of an input. With `features.nfts` (the `NFTS` switch: `SearchBox` passes what `useFeatures()` gives) a 64-digit hash can be an NFT too: "Transaction, ledger or NFT" ("… or
  * URIToken" on Xahau), and with `features.ledgerObjects` (`LEDGER_OBJECTS`) an escrow, a check or a payment channel: "Transaction, ledger, NFT, escrow, check or payment channel", each part
  * only while its switch is on. The nouns are `hashWhat` (app/domain/hash-nouns.ts, the list every word of the search uses), whose token's word is `nftWords(net).token`
- * (app/domain/nft-params.ts), written there because the box is on every page and that file is the NFT pages' (a test holds the two together).
+ * (app/domain/nft-params.ts), written there because the box is on every page and that file is the NFT pages' (a test holds the two together). With `features.mpt` (`MPT`) 48 digits are an "MPT issuance ID",
+ * a hint of their own (the 48-digit shape is no noun of the hash list: its question is the page itself).
  */
-export function hintsFor(found: SearchKind, net: NetworkId, features: HashNounOptions = NO_HASH_NOUNS): Hint[] {
+export function hintsFor(found: SearchKind, net: NetworkId, features: HashNounOptions & { mpt?: boolean } = NO_HASH_NOUNS): Hint[] {
   switch (found.kind) {
     case "ledger-index":
       return [{ kind: "Ledger", detail: `#${formatAmount(String(found.index))}`, href: `/${net}/ledger/${found.index}` }];
     case "hash":
       return [{ kind: capitalized(hashWhat(net, features)), detail: found.hash, href: `/${net}/search?q=${found.hash}` }];
+    case "mpt":
+      // E14 spec 8: only while `MPT` is on (the box passes the layout's `Features`), as before there was no hint for 48 digits. The link is the page itself, which the path says on either network
+      // (Xahau's answers that MPT is not there); written here and not by `mptPath`, which would put `mpt.ts` and its bignumber.js in the shell the box is in.
+      return features.mpt === true ? [{ kind: "MPT issuance ID", detail: found.id, href: `/${net}/mpt/${found.id}` }] : [];
     case "ctid":
       return [{ kind: "Transaction", detail: `CTID ${found.ctid}`, href: `/${net}/search?q=${found.ctid}` }];
     case "account": {

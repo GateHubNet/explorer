@@ -308,8 +308,26 @@ describe("parseTokensParams and tokensHref: the canonical form of the list's que
     expect(tokens("kind=Mpt", true).kind).toBe("issued");
     expect(tokens("kind=mpt&kind=issued", true).kind).toBe("mpt");
     expect(tokens("kind=issued&kind=mpt", true).kind).toBe("issued");
-    expect(tokensCanonical("kind=mpt&q=a&all=1&marker=M1&back=M0", true)).toBe("/xrpl/tokens?kind=mpt&q=a&all=1&marker=M1&back=M0");
+    expect(tokensCanonical("kind=mpt&q=a&marker=M1&back=M0", true)).toBe("/xrpl/tokens?kind=mpt&q=a&marker=M1&back=M0");
     expect(tokensCanonical("kind=mpt", true)).toBe("/xrpl/tokens?kind=mpt");
+  });
+
+  // E14 spec 4: `all` is an issued-only parameter. Beside `kind=mpt` it is dropped (the 302 that tidies the query removes it), so one URL names the MPT view; without `mptAvailable` it is the issued
+  // list's, and `kind=mpt` is what is dropped.
+  it("keeps kind=mpt, q, marker and back with mptAvailable, and drops all=1 beside it", () => {
+    expect(tokens("kind=mpt&all=1", true)).toEqual({ kind: "mpt", all: false, back: [] });
+    expect(tokens("all=1&kind=mpt&q=HTF&marker=M3&back=M2.M1", true)).toEqual({ kind: "mpt", q: "HTF", all: false, marker: "M3", back: ["M2", "M1"] });
+    expect(tokensCanonical("kind=mpt&all=1", true)).toBe("/xrpl/tokens?kind=mpt");
+    expect(tokensCanonical("all=1&kind=mpt&q=HTF", true)).toBe("/xrpl/tokens?kind=mpt&q=HTF");
+    expect(tokensCanonical("kind=mpt&q=%20HTF%20&x=1&marker=M1&back=M0.bad!", true)).toBe("/xrpl/tokens?kind=mpt&q=HTF&marker=M1");
+  });
+
+  it("drops kind=mpt without mptAvailable, and then reads all as the issued list's", () => {
+    expect(tokens("kind=mpt&all=1")).toEqual({ kind: "issued", all: true, back: [] });
+    expect(tokensCanonical("kind=mpt&q=HTF&all=1")).toBe("/xrpl/tokens?q=HTF&all=1");
+    expect(tokensCanonical("kind=mpt&q=HTF&all=1", false)).toBe("/xrpl/tokens?q=HTF&all=1");
+    // And all=1 beside kind=issued stays the issued list's, with mptAvailable too.
+    expect(tokens("kind=issued&all=1", true)).toEqual({ kind: "issued", all: true, back: [] });
   });
 
   it("keeps a q of any length: the loader checks it against TOKEN_SEARCH_MAX", () => {
@@ -537,10 +555,14 @@ describe("tokenLink: where a token's code leads", () => {
 });
 
 describe("mptAvailableOf: E14's seam", () => {
-  it("is false for both networks and every set of switches, until E14 makes it features.mpt && net.hasMpt", () => {
-    for (const net of [{ id: "xrpl" }, { id: "xahau" }]) {
-      for (const features of [NO_FEATURES, TOKENS_ON, TOKENS_OFF]) expect(mptAvailableOf(net, features)).toBe(false);
-    }
+  const MPT_OFF: Features = { ...TOKENS_ON, mpt: false };
+
+  it("is features.mpt && net.hasMpt: on XRPL while MPT is on, and never on Xahau or while it is off", () => {
+    expect(mptAvailableOf({ id: "xrpl", hasMpt: true }, TOKENS_ON)).toBe(true);
+    expect(mptAvailableOf({ id: "xrpl", hasMpt: true }, MPT_OFF)).toBe(false);
+    expect(mptAvailableOf({ id: "xahau", hasMpt: false }, TOKENS_ON)).toBe(false);
+    expect(mptAvailableOf({ id: "xahau", hasMpt: false }, MPT_OFF)).toBe(false);
+    expect(mptAvailableOf({ id: "xrpl", hasMpt: true }, NO_FEATURES)).toBe(false);
   });
 });
 

@@ -71,6 +71,7 @@ describe("publicNetwork", () => {
       other: "xahau",
       hasAmm: true,
       hasDelegation: true,
+      hasMpt: true,
       software: "rippled",
       displays: ["native", "usd"],
       features: featuresOf(allSwitches("off")),
@@ -82,7 +83,7 @@ describe("publicNetwork", () => {
     const sandbox = { ...env, ENVIRONMENT: "sandbox" as const };
     const requested = requireNetwork(createLoadContext(sandbox, ctx), { net: "xahau" });
     expect(requested.kind).toBe("testnet");
-    expect(publicNetwork(requested)).toMatchObject({ id: "xahau", kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", ctidNetworkId: 21338, displays: ["native"] });
+    expect(publicNetwork(requested)).toMatchObject({ id: "xahau", kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", ctidNetworkId: 21338, hasMpt: false, displays: ["native"] });
     expect(JSON.stringify(publicNetwork(networkOf("xrpl", sandbox)))).not.toContain("invalid");
   });
 });

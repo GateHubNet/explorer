@@ -1,0 +1,15 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 99226369,
+    "complete": true
+  },
+  "count": 5,
+  "holders": [
+    {"holder":"rfFgB2jMbjnbc1RgVvHrkfpxjJUPgCzQNY","amount":"60403958","escrowed_amount":"0","locked":true,"authorized":true},
+    {"holder":"rDqmW7XTQF5gvxwmvvTGajfZSGmN4uQx9E","amount":"59530577","escrowed_amount":"0","locked":true,"authorized":true},
+    {"holder":"rLJxAWw4GzX37W6p4bvnzwJ87HuqUGGbLX","amount":"57139951","escrowed_amount":"0","locked":true,"authorized":true},
+    {"holder":"rfMN31xwp9QVvXqa3Dc19oGUdi5hoL16BB","amount":"37359879","escrowed_amount":"0","locked":true,"authorized":true},
+    {"holder":"r3ieaApM7HrLr9cf7DFbn9GEorifRpSauD","amount":"25565633","escrowed_amount":"0","locked":true,"authorized":true}
+  ]
+}

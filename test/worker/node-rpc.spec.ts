@@ -2,6 +2,7 @@ import { encodeAccountID } from "ripple-address-codec";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import type { Asset } from "../../app/domain/asset";
+import { mptIdOf } from "../../app/domain/mpt-id";
 import type { CacheClass, SubrequestCache } from "../../app/server/cache-class";
 import { createSubrequestCache } from "../../app/server/edge-cache";
 import type { Env } from "../../app/server/env";
@@ -2229,5 +2230,157 @@ describe("ledgerEntry", () => {
 
     expect(await node.ledgerEntry(URI_TOKEN_ID)).toEqual({ node: uriTokenNode({ Owner: "rNope" }), index: URI_TOKEN_ID, ledger_index: 26829859 });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---- MPT issuances: ledger_entry by mpt_issuance (E14) ----------------------------------------------------------------------
+
+// `ledger_entry` with `mpt_issuance` (the ID) answers `{ index (the entry's key), ledger_hash, ledger_index, node: { LedgerEntryType: "MPTokenIssuance", Flags, Issuer, Sequence, and the fields
+// that are not at their default: AssetScale, MaximumAmount, OutstandingAmount, LockedAmount, TransferFee, MPTokenMetadata (hex), OwnerNode, PreviousTxnID, PreviousTxnLgrSeq, index }, validated: true }`;
+// an ID with no issuance is `entryNotFound`, with no `error_code`, as for any other entry (rippled's `LedgerEntry.cpp`; the recordings of D9 hold the nodes of the issuances).
+
+describe("mptIssuance", () => {
+  const ISSUER = "rLFUzo23kPsxeMfJ8FPixizEREUhNVf66g";
+  const OTHER_ISSUER = "rBEERdzDHqDyYmfw2jqzyMNBZu31yzfg6q";
+  const ID = mptIdOf(106_427_568, ISSUER);
+  const ENTRY_KEY = "7E9B2D5A8C3F4B6A1D0E9F8C7B6A5D4C3B2A19080706050403020100FFEEDDCC";
+  const issuanceNode = (extra: Record<string, unknown> = {}) => ({
+    AssetScale: 1,
+    Flags: 56,
+    Issuer: ISSUER,
+    LedgerEntryType: "MPTokenIssuance",
+    MPTokenMetadata: "7B2274223A22485446227D",
+    MaximumAmount: "5000000000",
+    OutstandingAmount: "1820451120",
+    OwnerNode: "0",
+    PreviousTxnID: TX_HASH,
+    PreviousTxnLgrSeq: 107541378,
+    Sequence: 106_427_568,
+    TransferFee: 5000,
+    index: ENTRY_KEY,
+    ...extra,
+  });
+  const issuanceResult = (node: Record<string, unknown> = issuanceNode(), extra: Record<string, unknown> = {}) => ({
+    index: ENTRY_KEY,
+    ledger_hash: LEDGER_HASH,
+    ledger_index: 108_026_259,
+    node,
+    validated: true,
+    ...extra,
+  });
+  const mptIssuance = (id = ID) => createNodeRpc(xrpl, passThroughCache).mptIssuance(id);
+
+  it("asks the node for the issuance by its ID, on the newest validated ledger", async () => {
+    fetchSpy.mockResolvedValueOnce(success(issuanceResult()));
+
+    await mptIssuance();
+
+    expect(sentRequest().url).toBe("https://s1.ripple.com:51234/");
+    expect(await sentBody()).toEqual({ method: "ledger_entry", params: [{ mpt_issuance: ID, ledger_index: "validated" }] });
+  });
+
+  it("returns the entry as the node wrote it and the ledger it was read at, and nothing else", async () => {
+    fetchSpy.mockResolvedValueOnce(success(issuanceResult()));
+
+    const found = await mptIssuance();
+
+    expect(found).toEqual({ node: issuanceNode(), ledger_index: 108_026_259 });
+    expect(Object.keys(found)).toEqual(["node", "ledger_index"]);
+    expect(found.node.OutstandingAmount).toBe("1820451120");
+  });
+
+  it("takes the ID in any case and asks for it in upper case", async () => {
+    fetchSpy.mockResolvedValueOnce(success(issuanceResult()));
+
+    await mptIssuance(ID.toLowerCase());
+
+    expect(await sentBody()).toEqual({ method: "ledger_entry", params: [{ mpt_issuance: ID, ledger_index: "validated" }] });
+  });
+
+  it("takes an issuance with every field at its default left out, as a node writes a new one: no scale, fee, amounts, maximum or metadata", async () => {
+    const node = { Flags: 0, Issuer: ISSUER, LedgerEntryType: "MPTokenIssuance", Sequence: 106_427_568 };
+    fetchSpy.mockResolvedValueOnce(success(issuanceResult(node)));
+
+    expect(await mptIssuance()).toEqual({ node, ledger_index: 108_026_259 });
+  });
+
+  it("takes the ends of the ranges: a scale of 255, a fee of 50000, an amount of 19 digits, a sequence of 4294967295", async () => {
+    const sequence = 4_294_967_295;
+    const node = issuanceNode({ AssetScale: 255, TransferFee: 50_000, MaximumAmount: "9223372036854775807", Sequence: sequence });
+    fetchSpy.mockResolvedValueOnce(success(issuanceResult(node)));
+
+    expect((await mptIssuance(mptIdOf(sequence, ISSUER))).node).toEqual(node);
+  });
+
+  it("is not_found for entryNotFound, which the node says with no error_code", async () => {
+    fetchSpy.mockResolvedValueOnce(answer({ error: "entryNotFound", ledger_hash: LEDGER_HASH, ledger_index: 108_026_259, validated: true, request: {}, status: "error" }));
+
+    const error = await failureOf(mptIssuance());
+
+    expect(error.kind).toBe("not_found");
+    expect(error.message).toContain("entryNotFound");
+  });
+
+  it("is bad_request for invalidParams (an ID the node cannot read), and the node's own kind for any other failure", async () => {
+    for (const [code, kind] of [
+      ["invalidParams", "bad_request"],
+      ["malformedRequest", "bad_request"],
+      ["slowDown", "rate_limited"],
+      ["noNetwork", "server"],
+      ["lgrNotFound", "server"],
+      ["objectNotFound", "server"],
+      ["unknownCmd", "server"],
+    ] as const) {
+      fetchSpy.mockResolvedValueOnce(failure(code));
+      expect((await failureOf(mptIssuance())).kind, code).toBe(kind);
+    }
+  });
+
+  it.each([
+    ["another issuance's sequence", "Sequence", issuanceResult(issuanceNode({ Sequence: 106_427_569 }))],
+    ["another issuance's issuer", "Issuer", issuanceResult(issuanceNode({ Issuer: OTHER_ISSUER }))],
+    ["an Issuer that is no address", "Issuer", issuanceResult(issuanceNode({ Issuer: "rNope" }))],
+    ["no Issuer", "Issuer", issuanceResult(issuanceNode({ Issuer: undefined }))],
+    ["no Sequence", "Sequence", issuanceResult(issuanceNode({ Sequence: undefined }))],
+    ["a Sequence that is text", "Sequence", issuanceResult(issuanceNode({ Sequence: "106427568" }))],
+    ["a Sequence of 32 bits and one", "Sequence", issuanceResult(issuanceNode({ Sequence: 4_294_967_296 }))],
+    ["no validated", "validated", issuanceResult(undefined, { validated: undefined })],
+    ["a validated that is false", "validated", issuanceResult(undefined, { validated: false })],
+    ["no node", "node", issuanceResult(undefined, { node: undefined })],
+    ["a node that is text", "node", issuanceResult(undefined, { node: "entry" })],
+    ["an entry that is no MPTokenIssuance", "MPTokenIssuance", issuanceResult(issuanceNode({ LedgerEntryType: "MPToken" }))],
+    ["no LedgerEntryType", "MPTokenIssuance", issuanceResult(issuanceNode({ LedgerEntryType: undefined }))],
+    ["no Flags", "Flags", issuanceResult(issuanceNode({ Flags: undefined }))],
+    ["a Flags that is text", "Flags", issuanceResult(issuanceNode({ Flags: "56" }))],
+    ["an AssetScale of 256", "AssetScale", issuanceResult(issuanceNode({ AssetScale: 256 }))],
+    ["an AssetScale of 1.5", "AssetScale", issuanceResult(issuanceNode({ AssetScale: 1.5 }))],
+    ["a TransferFee of 50001", "TransferFee", issuanceResult(issuanceNode({ TransferFee: 50_001 }))],
+    ["an OutstandingAmount that is a decimal", "OutstandingAmount", issuanceResult(issuanceNode({ OutstandingAmount: "1.5" }))],
+    ["an OutstandingAmount that is a number", "OutstandingAmount", issuanceResult(issuanceNode({ OutstandingAmount: 1820451120 }))],
+    ["a LockedAmount of 20 digits", "LockedAmount", issuanceResult(issuanceNode({ LockedAmount: "12345678901234567890" }))],
+    ["a MaximumAmount that is negative", "MaximumAmount", issuanceResult(issuanceNode({ MaximumAmount: "-5" }))],
+    ["an MPTokenMetadata that is not hex", "MPTokenMetadata", issuanceResult(issuanceNode({ MPTokenMetadata: "not hex" }))],
+    ["no ledger_index", "ledger_index", issuanceResult(undefined, { ledger_index: undefined })],
+    ["a ledger_index that is text", "ledger_index", issuanceResult(undefined, { ledger_index: "108026259" })],
+  ])("is a server error: %s", async (_what, field, result) => {
+    fetchSpy.mockResolvedValueOnce(success(result));
+
+    const error = await failureOf(mptIssuance());
+
+    expect(error.kind).toBe("server");
+    expect(error.status).toBe(200);
+    expect(error.message).toContain("node ledger_entry answered something unexpected: ");
+    // The field is looked for in the reason alone: the request is "node ledger_entry", which holds "node".
+    expect(error.message.split("answered something unexpected: ")[1]).toContain(field);
+  });
+
+  it("is class live, under a key of its own: the entry by `mpt_issuance` is not the entry by `index`", async () => {
+    const cache = recordingCache();
+    fetchSpy.mockImplementation(async () => success(issuanceResult()));
+
+    await createNodeRpc(xrpl, cache).mptIssuance(ID);
+
+    expect(cache.calls.map((c) => [c.cls, c.ttlOverride])).toEqual([["live", undefined]]);
+    expect(cache.calls[0]!.key).toBe(`POST https://s1.ripple.com:51234/ {"method":"ledger_entry","params":[{"mpt_issuance":"${ID}","ledger_index":"validated"}]}`);
   });
 });
