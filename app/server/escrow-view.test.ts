@@ -15,7 +15,7 @@ import {
   DELEGATE,
 } from "../../test/support/object-samples";
 import { said, stateOf, walk, XAHAU, XRPL } from "../../test/support/object-view-world";
-import type { Segment } from "../domain/describe";
+import { accountsIn, type Segment } from "../domain/describe";
 import { shortAddress } from "../domain/format";
 import { NO_NAMES, type NamesPart } from "../domain/names";
 import type { EscrowAnswer, ObjectEvent, ObjectHistoryPage } from "./api-types";
@@ -848,14 +848,20 @@ describe("drawnAccounts", () => {
 
   it("lists exactly the accounts that the page holds, on every recorded escrow: collectAddresses over the page finds no other", async () => {
     const seen = new Set<string>();
+    const mptSegments: Segment[] = [];
     for (const [net, which] of RECORDED) {
       const data = page(indexed(await answerOf(net, which)), {}, net === "xrpl" ? XRPL : XAHAU);
       const drawn = drawnAccounts(data);
       expect(new Set(drawn).size, `${net} ${which}`).toBe(drawn.length);
-      // An `mpt` segment holds its issuer for the amount's title; like a token amount's issuer in a sentence, it is no account the page draws.
-      const held = JSON.parse(JSON.stringify({ ...data, names: undefined, meta: undefined }), (_key, value: unknown) =>
-        typeof value === "object" && value !== null && (value as { t?: unknown }).t === "mpt" ? { ...value, issuer: undefined } : value,
-      );
+      // An `mpt` segment holds its issuer for the amount's title; like a token amount's issuer in a sentence, it is no account the page draws. Taking it out of `held` makes this test blind to the page ever
+      // drawing it as a link, so two others stand guard: the assertion below (`accountsIn` finds no account in an `mpt` segment, so `drawnAccounts` never lists its issuer and the loader never asks for
+      // its name), and test/worker/ledger-objects-names.spec.ts, "does not ask for an MPT's issuer, which the page does not draw" (every account the escrow-mpt page links is asked for, and no other),
+      // which fails when the page links an issuer that `drawnAccounts` did not list.
+      const held = JSON.parse(JSON.stringify({ ...data, names: undefined, meta: undefined }), (_key, value: unknown) => {
+        if (typeof value !== "object" || value === null || (value as { t?: unknown }).t !== "mpt") return value;
+        mptSegments.push(value as Segment);
+        return { ...value, issuer: undefined };
+      });
       expect([...collectAddresses(held)].sort(), `${net} ${which}`).toEqual([...drawn].sort());
       // the owner and the destination come first (they are one account where an escrow is to its own owner)
       const parties = [...new Set([data.details[1]!.value, data.details[2]!.value].map((value) => (value as { address: string }).address))];
@@ -863,6 +869,10 @@ describe("drawnAccounts", () => {
       drawn.forEach((address) => seen.add(address));
     }
     expect(seen.size).toBeGreaterThan(8);
+    // The recorded MPT escrow's sentences name the issuance, with its issuer, and not one of them is an account to draw.
+    expect(mptSegments.length).toBeGreaterThan(0);
+    expect(mptSegments.every((segment) => segment.t === "mpt" && typeof segment.issuer === "string")).toBe(true);
+    expect(accountsIn(mptSegments)).toEqual([]);
   });
 
   it("lists the accounts of each place a sentence stands: the summary, the status lines, the banner and what a timeline item did", () => {
