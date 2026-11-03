@@ -1,9 +1,12 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { MPT_FIXTURE_IDS } from "../../test/support/mpt-case-rules";
+import { loadTx } from "../../test/support/ledgers";
+import { MPT_FIXTURE_IDS, MPT_RECORDED } from "../../test/support/mpt-case-rules";
 import { mptIdOf } from "../domain/mpt-id";
 import type { MptSummary } from "./api-types";
 import { MPT_LOOKUP_MAX, mptAmountsOf, resolveMpt, type MptLookupMap, type MptLookupResult } from "./mpt-view";
+import { transactionPage } from "./transaction-view";
 
 const ISSUER = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
 const HTF = MPT_FIXTURE_IDS.htf;
@@ -167,5 +170,32 @@ describe("resolveMpt", () => {
   it("does not scale units that are no integer", () => {
     const { view } = resolveMpt({ mpt: HTF, units: "1.5" }, ok(HTF_SUMMARY));
     expect(view).toEqual({ mpt: HTF, units: "1.5", ticker: "HTF" });
+  });
+});
+
+// The lookup table the mock answers from (test/fixtures/http/xrpl/data-api/mpt_lookup.json) against the real collection: the IDs `mptAmountsOf` finds in the page of each recorded transaction. (T2's
+// test of the table made its own list of them; the function exists now, and this is it, M7 of the review of Tasks 1 and 2.)
+describe("the lookup table and the pages of the recorded transactions", () => {
+  const table = JSON.parse(readFileSync(new URL("../../test/fixtures/http/xrpl/data-api/mpt_lookup.json", import.meta.url), "utf8")) as Record<string, MptSummary>;
+  const idsOf = (name: keyof typeof MPT_RECORDED): string[] => {
+    const { hash } = MPT_RECORDED[name];
+    const { tx, meta, ledgerIndex, closeTime } = loadTx("xrpl-mpt", hash);
+    return mptAmountsOf(transactionPage({ origin: "index", hash, ledgerIndex, closeTime, tx, meta }, { network: { native: "XRP", ctidNetworkId: 0 }, neighbours: null, binary: { state: "pending" } }));
+  };
+
+  it("answers every issuance of each recorded transaction's page with a summary, and the recorded clawback of an issued token asks for none", () => {
+    for (const name of Object.keys(MPT_RECORDED) as Array<keyof typeof MPT_RECORDED>) {
+      const ids = idsOf(name);
+      expect(ids.length > 0, name).toBe(name !== "clawback_issued");
+      for (const id of ids) expect(table[id], `${name} ${id}`).toBeDefined();
+    }
+  });
+
+  it("finds one issuance in a create's page, the created node's, and the same one in the mint's, the opt-in's and the clawback's (D9's FINDINGS: three transactions share it)", () => {
+    expect(idsOf("issuance_create")).toEqual([MPT_FIXTURE_IDS.htf]);
+    expect(idsOf("issuance_create_short_keys")).toEqual([MPT_FIXTURE_IDS.shortKeys]);
+    const shared = [idsOf("payment_mint"), idsOf("authorize_holder"), idsOf("clawback_full")];
+    expect(shared.every((ids) => ids.length === 1)).toBe(true);
+    expect(new Set(shared.flat()).size).toBe(1);
   });
 });

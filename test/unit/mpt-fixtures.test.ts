@@ -421,31 +421,6 @@ describe("the issuances", () => {
 
 describe("the lookup table", () => {
   const table = apiFile("/v2/mpt_lookup") as Record<string, MptSummary>;
-  const recorded = readLedgerSet(MPT_SET);
-  const txOf = (name: keyof typeof MPT_RECORDED) => recorded.flatMap((raw) => raw.ledger.transactions).find((tx) => tx.hash === MPT_RECORDED[name].hash)!;
-
-  /** The issuance IDs of a transaction's page, as the loader collects them: the MPT amounts, the issuance ID field, and the MPToken and MPTokenIssuance nodes (a created issuance's ID is its node's). */
-  function idsOfTransaction(name: keyof typeof MPT_RECORDED): string[] {
-    const tx = txOf(name) as unknown as Json;
-    const ids = new Set<string>();
-    const mpt = (amount: unknown) => {
-      const id = (amount as Json | undefined)?.mpt_issuance_id;
-      if (typeof id === "string") ids.add(id);
-    };
-    for (const field of ["Amount", "SendMax", "DeliverMax", "DeliveredAmount"]) mpt(tx[field]);
-    mpt(tx.metaData.DeliveredAmount);
-    mpt(tx.metaData.delivered_amount);
-    if (typeof tx.MPTokenIssuanceID === "string") ids.add(tx.MPTokenIssuanceID);
-    for (const node of tx.metaData.AffectedNodes as Json[]) {
-      const [kind, wrapped] = Object.entries(node)[0] as [string, Json];
-      const fields = (wrapped.NewFields ?? wrapped.FinalFields) as Json;
-      if (wrapped.LedgerEntryType === "MPToken") ids.add(fields.MPTokenIssuanceID);
-      if (wrapped.LedgerEntryType === "MPTokenIssuance") ids.add(mptIdOf(fields.Sequence, fields.Issuer));
-      void kind;
-    }
-    return [...ids].sort();
-  }
-
   /** What the mock would answer for these IDs: the table's entry or the ID alone. */
   const lookup = (ids: readonly string[]): MptLookup => ({ count: ids.length, issuances: ids.map((id) => table[id] ?? { mpt_issuance_id: id }) });
 
@@ -471,18 +446,6 @@ describe("the lookup table", () => {
       const { destroyed, flags, holders, issuer, ticker, name, asset_scale, maximum_amount, outstanding_amount, transfer_fee } = issuance;
       expect(table[ID[key]], key).toEqual({ mpt_issuance_id: ID[key], issuer, ...(ticker !== undefined && { ticker }), ...(name !== undefined && { name }), asset_scale, ...(maximum_amount !== undefined && { maximum_amount }), outstanding_amount, holders, transfer_fee, flags, destroyed });
     }
-  });
-
-  it("answers every issuance of each recorded transaction's page with a summary, and the recorded clawback of an issued token asks for none", () => {
-    for (const name of Object.keys(MPT_RECORDED) as Array<keyof typeof MPT_RECORDED>) {
-      const ids = idsOfTransaction(name);
-      expect(ids.length > 0, name).toBe(name !== "clawback_issued");
-      for (const id of ids) expect(table[id], `${name} ${id}`).toBeDefined();
-    }
-    expect(idsOfTransaction("issuance_create")).toEqual([ID.htf]);
-    expect(idsOfTransaction("issuance_create_short_keys")).toEqual([ID.shortKeys]);
-    // Three recorded transactions share one issuance (D9's FINDINGS): the mint, the opt-in and the clawback.
-    expect(new Set([idsOfTransaction("payment_mint")[0], idsOfTransaction("authorize_holder")[0], idsOfTransaction("clawback_full")[0]]).size).toBe(1);
   });
 
   it("answers the active account's page: its holdings and payment rows with a summary, and the issuance it made (nodeOnly) bare", () => {
