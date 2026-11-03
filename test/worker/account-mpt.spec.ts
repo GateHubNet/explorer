@@ -67,6 +67,60 @@ describe("when the lookup fails", () => {
   });
 });
 
+// Review of Tasks 7 and 8, M1: the lookup of a page is held to the names call's deadline (`NAMES_DEADLINE_MS`, 1.5 s), not to the client's 5 s, so a slow `/v2/mpt` cannot hold the first byte up longer than names
+// would (the list's own lookup has what is left of the list's deadline). Late is units and degraded, as for names; the log says the deadline did it (`TooLate`: "took too long"), which the client's timeout would
+// word otherwise.
+describe("when the lookup is late", () => {
+  const HANG = () => new Promise<Response>(() => {});
+  /** The one line the lookup logged: it names the deadline. */
+  const tookTooLong = (logged: { mock: { calls: unknown[][] } }) => {
+    const lines = logged.mock.calls.map(([line]) => String(line)).filter((line) => line.includes("MPT amounts could not be loaded"));
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0]!)).toMatchObject({ error: "took too long" });
+  };
+
+  it("serves a live first page's Tokens card in units, unstored, when the header's lookup does not answer in time", async () => {
+    const path = `/xrpl/account/${ACTIVE}?mpt=late-header`;
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const mock = upstream("xrpl", { [LOOKUP_OVERRIDE(XAU, MPT_LOCKED_HOLDING)]: HANG });
+    const response = await get(path);
+    const html = await response.text();
+
+    await expectDegraded(path, response);
+    expect(lookupsOf(mock)).toEqual([LOOKUP(XAU, MPT_LOCKED_HOLDING)]);
+    expect(mptRowsOf(html).map((row) => row.mpt)).toEqual([XAU, MPT_LOCKED_HOLDING]);
+    expect(mptRowsOf(html)[0]!.text).toContain("MPT 03F907F2… rBEERd…fg6q 3,000,000 units");
+    tookTooLong(logged);
+  });
+
+  it("serves a page behind a marker in units, unstored, when its lookup does not answer in time", async () => {
+    const path = `/xrpl/account/${ACTIVE}?tab=payments&marker=WzEwMjE4NjI0Myw2M10`;
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const mock = upstream("xrpl", { [LOOKUP_OVERRIDE(MPT_FEE_PAYMENT_ISSUANCE)]: HANG });
+    const response = await get(path);
+    const html = await response.text();
+
+    await expectDegraded(path, response);
+    expect(lookupsOf(mock)).toEqual([LOOKUP(MPT_FEE_PAYMENT_ISSUANCE)]);
+    expect(tableRows(html, "Payments")[1]![3]).toBe("+1,000,000 units of MPT 0598F6E0…");
+    tookTooLong(logged);
+  });
+
+  it("serves an escrow page in units, unstored, when its lookup does not answer in time", async () => {
+    const id = "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8";
+    const path = `/xrpl/escrows/${ESCROW.id}`;
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const mock = upstream("xrpl", { [LOOKUP_OVERRIDE(id)]: HANG });
+    const response = await get(path);
+    const html = await response.text();
+
+    await expectDegraded(path, response);
+    expect(lookupsOf(mock)).toEqual([LOOKUP(id)]);
+    expect(textOf(/<dt[^>]*>Amount<\/dt><dd[^>]*>([\s\S]*?)<\/dd>/.exec(html)![1]!)).toBe("250 units of MPT 0000012A…");
+    tookTooLong(logged);
+  });
+});
+
 describe("the escrow page of an MPT", () => {
   const PATH = `/xrpl/escrows/${ESCROW.id}`;
   /** The issuance of the escrow's amount: E10's made-up ID, which the lookup's table does not hold. */

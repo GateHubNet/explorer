@@ -23,7 +23,7 @@ import { logProblem } from "./logging";
 import { isMarker } from "./marker";
 import { loadMptLookup } from "./mpt-load";
 import { mptAmountsOf, resolveMpt, type MptLookupResult } from "./mpt-view";
-import { collectAddresses, loadNames } from "./names-load";
+import { collectAddresses, loadNames, NAMES_DEADLINE_MS } from "./names-load";
 import { requireNetwork } from "./network-route";
 import { networkOf, type Network } from "./networks";
 import type { NodeRpc, ServerState } from "./node-rpc";
@@ -154,7 +154,7 @@ export async function loadObjectPage<K extends ObjectKind>(
   // (served, not stored); none of the page's classes changes for an amount in units.
   const [{ part: names }, lookup] = await Promise.all([
     loadNames(api, collectAddresses(calls.drawn(draft)), { context, request, features: net.features }),
-    kind === "escrow" ? loadMptLookup(api, mptAmountsOf(draft), { context, request, features: net.features, net }) : Promise.resolve<MptLookupResult>({ state: "off" }),
+    kind === "escrow" ? loadMptLookup(api, mptAmountsOf(draft), { context, request, features: net.features, net, deadlineMs: NAMES_DEADLINE_MS }) : Promise.resolve<MptLookupResult>({ state: "off" }),
   ]);
   const cls = marker !== undefined ? MARKER_PAGE_CLASS : draft.removed ? "slow" : "live";
   return cached({ ...resolveMpt(draft, lookup).view, names } as ObjectPages[K], cls);

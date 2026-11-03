@@ -15,7 +15,7 @@ import { metaContext } from "../server/meta";
 import { transactionMeta } from "../server/meta-transaction";
 import { loadMptLookup } from "../server/mpt-load";
 import { mptAmountsOf } from "../server/mpt-view";
-import { collectAddresses, loadNames } from "../server/names-load";
+import { collectAddresses, loadNames, NAMES_DEADLINE_MS } from "../server/names-load";
 import { requireNetwork } from "../server/network-route";
 import { networkIdOfCtid, networkOf, type Network, type NetworkId } from "../server/networks";
 import { resolveCtid } from "../server/resolve";
@@ -212,7 +212,7 @@ async function finished(
 ): Promise<{ page: TransactionPageData; unresolved: boolean }> {
   const addresses = collectAddresses(drawnAccounts(page));
   const [lookup, { part }] = await Promise.all([
-    loadMptLookup(api, mptAmountsOf(page), { context, request, features: network.features, net: network }),
+    loadMptLookup(api, mptAmountsOf(page), { context, request, features: network.features, net: network, deadlineMs: NAMES_DEADLINE_MS }),
     loadNames(api, addresses, { context, request, features: network.features }),
   ]);
   const filled = withMpt(page, lookup);

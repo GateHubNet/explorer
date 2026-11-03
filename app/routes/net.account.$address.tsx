@@ -51,7 +51,7 @@ import { metaContext } from "../server/meta";
 import { accountMeta } from "../server/meta-account";
 import { loadMptLookup } from "../server/mpt-load";
 import { mptAmountsOf, resolveMpt } from "../server/mpt-view";
-import { collectAddresses, loadNames } from "../server/names-load";
+import { collectAddresses, loadNames, NAMES_DEADLINE_MS } from "../server/names-load";
 import { requireNetwork } from "../server/network-route";
 import { networkOf, type Network } from "../server/networks";
 import type { NodeRpc } from "../server/node-rpc";
@@ -368,7 +368,7 @@ async function historyPage(context: Route.LoaderArgs["context"], request: Reques
   const { address } = ctx;
   const [names, lookup] = await Promise.all([
     loadNames(api, collectAddresses(address, listAddresses(list)), { context, request, features: network.features }),
-    loadMptLookup(api, mptAmountsOf(list), { context, request, features: network.features, net: network }),
+    loadMptLookup(api, mptAmountsOf(list), { context, request, features: network.features, net: network, deadlineMs: NAMES_DEADLINE_MS }),
   ]);
   const name = names.part.state === "ok" ? accountNameHeader({ address, entry: names.entries.get(address), liveDomain: null, toml: null, network, brief: true }) : null;
   const header: HistoryHeader = { status: "history", name };
@@ -456,7 +456,7 @@ async function firstPage(
   // Beside it the header's MPT lookup (E14, ruling C12): the MPTs of the Tokens card and, on the Objects tab, of its rows. The list of any other tab asks its own, in its promise (`nameAndScale`),
   // so that the header never waits for it.
   const [lookup, named] = await Promise.all([
-    loadMptLookup(api, mptAmountsOf(unnamed.header.tokens, objectsTab), { context, request, features: network.features, net: network }),
+    loadMptLookup(api, mptAmountsOf(unnamed.header.tokens, objectsTab), { context, request, features: network.features, net: network, deadlineMs: NAMES_DEADLINE_MS }),
     namedHeader({ context, request, api, network }, address, unnamed.header, drawn, nodeToml),
   ]);
   const { names } = named;

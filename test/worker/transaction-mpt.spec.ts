@@ -64,6 +64,23 @@ describe("when the lookup fails", () => {
     expect(lookupsOf(mock)).toEqual([LOOKUP(MPT_FEE_PAYMENT_ISSUANCE), LOOKUP(MPT_FEE_PAYMENT_ISSUANCE)]);
   });
 
+  // Review of Tasks 7 and 8, M1: the lookup is held to the names call's deadline (`NAMES_DEADLINE_MS`, 1.5 s), not to the client's 5 s, so a slow `/v2/mpt` cannot hold the first byte up longer than
+  // names would. Late is units and degraded, as for names; the log says the deadline did it (`TooLate`), which the client's own timeout would word otherwise.
+  it("does not wait on a lookup for longer than the names call may take: it is units, unstored, and the log says it took too long", async () => {
+    const path = `/xrpl/tx/${FEE_PAYMENT}`;
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const mock = upstream("xrpl", { [LOOKUP(MPT_FEE_PAYMENT_ISSUANCE)]: () => new Promise<Response>(() => {}) });
+    const response = await get(path);
+    const html = await response.text();
+
+    await expectDegraded(path, response);
+    expect(elementText(html, "summary__sentence")).toMatch(/ sent 1,000,000 units of MPT 0598F6E0… to /);
+    expect(lookupsOf(mock)).toEqual([LOOKUP(MPT_FEE_PAYMENT_ISSUANCE)]);
+    const lines = logged.mock.calls.map(([line]) => String(line)).filter((line) => line.includes("MPT amounts could not be loaded"));
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0]!)).toMatchObject({ what: "MPT amounts could not be loaded", error: "took too long" });
+  });
+
   it("takes a lookup that answers another issuance than the one asked for as a failed one: units, and not stored", async () => {
     const path = `/xrpl/tx/${MINT}`;
     vi.spyOn(console, "error").mockImplementation(() => {});
