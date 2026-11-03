@@ -4,7 +4,6 @@ import { Await, Link } from "react-router";
 import { accountHref, ACCOUNT_TABS, DELEGATIONS_WORD, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../../domain/account-tabs";
 import { analyticsHref, DEFAULT_ANALYTICS_PERIOD } from "../../domain/analytics-params";
 import { formatAmount, formatCurrency, formatUtc, shortAddress } from "../../domain/format";
-import { mptLink } from "../../domain/mpt-link";
 import { nftWords } from "../../domain/nft-words";
 import { poolLink } from "../../domain/pool-link";
 import type { DomainLine } from "../../server/account-name-view";
@@ -20,7 +19,6 @@ import { Card } from "../components/Card";
 import "../components/DataTable";
 import { CheckIcon } from "../components/icons";
 import { LiveStateNotice } from "../components/LiveStateNotice";
-import { MptLink } from "../components/MptLink";
 import { Notice } from "../components/Notice";
 import { RelativeTime } from "../components/RelativeTime";
 import { SectionError } from "../components/SectionError";
@@ -357,21 +355,30 @@ function TokenRow({ net, token, features }: { net: NetworkInfo["id"]; token: Tok
 }
 
 /**
- * An MPT the account holds, a row of the Tokens card after the trust lines (E14 spec 5.4), in the markup of a trust line's: the ticker (else "MPT 0000012A…") as a link to the issuance's page while
- * `MPT` is on (`MptLink`), the issuer under it as an `AccountLink` (the row is `token--linked`: two links, each a 24 px target), "Locked" in words when the issuer locked the balance, and the
- * amount, `MPTAmount` and `LockedAmount` together: scaled once the lookup answered, else the units. The ticker is the issuer's text and is React text only.
+ * An MPT the account holds, a row of the Tokens card after the trust lines (E14 spec 5.4), in the markup of a trust line's: the ticker (else "MPT 0000012A…") as a link to the issuance's page when
+ * the row has one (`holding.href`, decided in the Worker with the switches, as a trust line's `Token.href` is; a plain link like the code's, which is why the card loads neither `MptLink` nor
+ * `mpt-link`), the whole ID in its title, the issuer under it as an `AccountLink` (the row is `token--linked`: two links, each a 24 px target), "Locked" in words when the issuer locked the
+ * balance, and the amount, `MPTAmount` and `LockedAmount` together: scaled once the lookup answered, else the units. The ticker is the issuer's text and is React text only.
  */
-function MptRow({ net, holding, features }: { net: NetworkInfo["id"]; holding: MptHolding; features: Features }) {
+function MptRow({ net, holding }: { net: NetworkInfo["id"]; holding: MptHolding }) {
   const badge = holding.ticker === undefined ? "MPT" : Array.from(holding.ticker).slice(0, 3).join("");
+  const name = holding.ticker ?? `MPT ${holding.mpt.slice(0, 8)}…`;
+  const title = `MPT ${holding.mpt}`;
   return (
-    <div className={cx("token", mptLink(net, holding.mpt, features) !== null && "token--linked")}>
+    <div className={cx("token", holding.href !== null && "token--linked")}>
       <span className="token__badge mono" aria-hidden="true">
         {badge}
       </span>
       <div className="token__name">
-        <span>
-          <MptLink net={net} id={holding.mpt} ticker={holding.ticker} />
-        </span>
+        {holding.href === null ? (
+          <span title={title}>{name}</span>
+        ) : (
+          <span>
+            <Link to={holding.href} title={title}>
+              {name}
+            </Link>
+          </span>
+        )}
         <span className="token__issuer">
           <AccountLink net={net} address={holding.issuer} />
           {holding.locked && " · Locked"}
@@ -424,7 +431,7 @@ function TokensCard({ network, header }: { network: NetworkInfo; header: Account
             </details>
           )}
           {tokens.mpt.map((holding) => (
-            <MptRow key={holding.mpt} net={network.id} holding={holding} features={features} />
+            <MptRow key={holding.mpt} net={network.id} holding={holding} />
           ))}
         </>
       )}

@@ -1418,23 +1418,33 @@ describe("the MPTs an account holds and issued", () => {
 
   describe("mptHoldingsOf and tokensOf", () => {
     const balances: BalancesResponse = { result: "success", balances: [{ currency: "XRP", value: "5" }] };
+    /** Where a row's ticker leads is `mptLink`'s, as a trust line's code is `tokenLink`'s: the issuance's page with MPT on, nothing with every switch off. */
+    const ON = objectsCtx({ features: { ...NO_FEATURES, mpt: true } });
 
     it("lists the MPToken entries in the order of their issuance IDs, with MPTAmount and LockedAmount together as the units and the issuer decoded from the ID", () => {
-      const holdings = mptHoldingsOf(ALL);
+      const holdings = mptHoldingsOf(ALL, ON);
       expect(holdings).toEqual([
-        { mpt: MPT_FIXTURE_IDS.htf, issuer: mptIssuerOf(MPT_FIXTURE_IDS.htf), units: "3000000", locked: false },
-        { mpt: MPT_LOCKED_HOLDING, issuer: mptIssuerOf(MPT_LOCKED_HOLDING), units: "45000000", locked: true },
+        { mpt: MPT_FIXTURE_IDS.htf, issuer: mptIssuerOf(MPT_FIXTURE_IDS.htf), units: "3000000", locked: false, href: `/xrpl/mpt/${MPT_FIXTURE_IDS.htf}` },
+        { mpt: MPT_LOCKED_HOLDING, issuer: mptIssuerOf(MPT_LOCKED_HOLDING), units: "45000000", locked: true, href: `/xrpl/mpt/${MPT_LOCKED_HOLDING}` },
       ]);
       // Whatever order the node lists them in.
-      expect(mptHoldingsOf([...ALL].reverse()).map((holding) => holding.mpt)).toEqual([MPT_FIXTURE_IDS.htf, MPT_LOCKED_HOLDING]);
-      expect(tokensOf(balances, objectsCtx(), ALL).mpt).toEqual(holdings);
+      expect(mptHoldingsOf([...ALL].reverse(), ON).map((holding) => holding.mpt)).toEqual([MPT_FIXTURE_IDS.htf, MPT_LOCKED_HOLDING]);
+      expect(tokensOf(balances, ON, ALL).mpt).toEqual(holdings);
+    });
+
+    // Review of Tasks 7 and 8, M3 and M4: the Worker decides the link, as it does for a trust line's code (`Token.href`), so that the row is a plain `Link` and the Tokens card, which the
+    // analytics view loads too, imports neither `MptLink` nor `mpt-link` (test/unit/account-bundle.test.ts).
+    it("decides where each row's ticker leads: the issuance's page while MPT is on, in capitals whatever the case of the entry, and nowhere while it is off", () => {
+      expect(tokensOf(balances, ON, ALL).mpt.map((holding) => holding.href)).toEqual([`/xrpl/mpt/${MPT_FIXTURE_IDS.htf}`, `/xrpl/mpt/${MPT_LOCKED_HOLDING}`]);
+      expect(mptHoldingsOf([token({ MPTokenIssuanceID: MPT_LOCKED_HOLDING.toLowerCase() })], ON)[0]!.href).toBe(`/xrpl/mpt/${MPT_LOCKED_HOLDING}`);
+      expect(tokensOf(balances, objectsCtx(), ALL).mpt.map((holding) => holding.href)).toEqual([null, null]);
     });
 
     it("sets 'locked' from the entry's lsfMPTLocked alone, not from its authorization", () => {
-      const lockedWith = (Flags: number) => mptHoldingsOf([token({ Flags })])[0]!.locked;
+      const lockedWith = (Flags: number) => mptHoldingsOf([token({ Flags })], ON)[0]!.locked;
       // 0: nothing, 1: lsfMPTLocked, 2: lsfMPTAuthorized, 3: both.
       expect([0, 1, 2, 3].map(lockedWith)).toEqual([false, true, false, true]);
-      expect(mptHoldingsOf([token({ Flags: undefined })])[0]!.locked).toBe(false);
+      expect(mptHoldingsOf([token({ Flags: undefined })], ON)[0]!.locked).toBe(false);
     });
 
     it("reads a field the ledger left out as 0, an ID in any case as capitals, and leaves out an entry whose ID or amounts are not well formed", () => {
@@ -1447,7 +1457,7 @@ describe("the MPTs an account holds and issued", () => {
         token({ MPTokenIssuanceID: MPT_FIXTURE_IDS.destroyed, LockedAmount: 5 }),
         { LedgerEntryType: "MPToken" },
         { LedgerEntryType: "RippleState", MPTokenIssuanceID: MPT_FIXTURE_IDS.htf },
-      ]);
+      ], ON);
       expect(holdings.map((holding) => [holding.mpt, holding.units])).toEqual([
         [MPT_FIXTURE_IDS.htf, "7"],
         [MPT_LOCKED_HOLDING, "0"],
@@ -1455,7 +1465,7 @@ describe("the MPTs an account holds and issued", () => {
     });
 
     it("is none for an account that holds no MPT, and with no objects given", () => {
-      expect(mptHoldingsOf(objectsOf("xrpl", XRPL).account_objects)).toEqual([]);
+      expect(mptHoldingsOf(objectsOf("xrpl", XRPL).account_objects, ON)).toEqual([]);
       expect(tokensOf(balances, objectsCtx()).mpt).toEqual([]);
     });
 

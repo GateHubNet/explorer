@@ -1972,7 +1972,11 @@ describe("the Tokens card's MPT rows", () => {
   const LOCKED = "0663EACAC1E295FCE4BA9E9ECD5EC0E84C5089AEE6B00E65";
   const MPT_ISSUER = "rBEERdzDHqDyYmfw2jqzyMNBZu31yzfg6q";
   const OTHER_ISSUER = "rJgwiVNzEEgtXngyi4bhSVkVLhWWu7UqfS";
-  const holding = (over: Partial<MptHolding> = {}): MptHolding => ({ mpt: XAU, issuer: MPT_ISSUER, units: "3000000", locked: false, ...over });
+  // The Worker decides where the row's ticker leads, as it does for a trust line's code (`tokensOf`): the issuance's page with MPT on, `null` with it off.
+  const holding = (over: Partial<MptHolding> = {}): MptHolding => {
+    const mpt = over.mpt ?? XAU;
+    return { mpt, issuer: MPT_ISSUER, units: "3000000", locked: false, href: `/xrpl/mpt/${mpt}`, ...over };
+  };
   const withMpt = (mpt: MptHolding[], items: Extract<AccountHeader["tokens"], { state: "ok" }>["items"] = []) =>
     data({ header: header({ tokens: { state: "ok", items, mpt, truncated: false } }) });
   const ON: Features = { ...NO_FEATURES, mpt: true };
@@ -2010,12 +2014,24 @@ describe("the Tokens card's MPT rows", () => {
     expect(locked.querySelector(".amt")!.textContent).toBe("45,000,000 units");
   });
 
-  it("draws the words without a link while MPT is off, the issuer's link still there: the page as before E14", async () => {
-    renderUnderLayout(<AccountPage network={XRPL} data={withMpt([holding({ value: "30000.00", ticker: "XAU" })])} />, NO_FEATURES);
+  it("draws the words without a link while MPT is off (the row has no href), the issuer's link still there: the page as before E14", async () => {
+    renderUnderLayout(<AccountPage network={XRPL} data={withMpt([holding({ value: "30000.00", ticker: "XAU", href: null })])} />, NO_FEATURES);
     const [row] = (await card()).querySelectorAll<HTMLElement>(".token");
     expect(row!.classList.contains("token--linked")).toBe(false);
     expect(within(row!).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([`/xrpl/account/${MPT_ISSUER}`]);
     expect(row!.textContent).toContain("XAU");
+    expect(row!.querySelector(".token__name > span:first-child")!.getAttribute("title")).toBe(`MPT ${XAU}`);
+  });
+
+  // Review of Tasks 7 and 8, M3 and M4: the link is the row's own `href`, not the page's switches, and it is the plain link of a trust line's code, not the underlined link of running words.
+  it("links the ticker with the row's own href, not the underlined link of running words, and the whole ID in its title", async () => {
+    renderUnderLayout(<AccountPage network={XRPL} data={withMpt([holding({ value: "30000.00", ticker: "XAU", href: "/xrpl/mpt/ELSEWHERE" })])} />, NO_FEATURES);
+    const [row] = (await card()).querySelectorAll<HTMLElement>(".token");
+    const name = within(row!).getByRole("link", { name: "XAU" });
+    expect(name.getAttribute("href")).toBe("/xrpl/mpt/ELSEWHERE");
+    expect(name.getAttribute("title")).toBe(`MPT ${XAU}`);
+    expect(name.classList.contains("mptlink")).toBe(false);
+    expect(row!.classList.contains("token--linked")).toBe(true);
   });
 
   it("is a card with only MPT rows when the account has no trust line: not 'No tokens.', and the action still counts trust lines", async () => {

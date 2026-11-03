@@ -17,6 +17,7 @@ import { collectionLabel, nftWords, type CollectionKey } from "../domain/nft-par
 import { delegationHref, ledgerId, OBJECT_KINDS, objectHref } from "../domain/object-link";
 import { transferFeeText } from "../domain/mpt";
 import { isMptIssuanceId, mptIssuerOf } from "../domain/mpt-id";
+import { mptLink } from "../domain/mpt-link";
 import { MAX_TRAIL, parseTrail, trailPaging, type Paging } from "../domain/paging";
 import { balanceChanges } from "../domain/parse";
 import { mptIdOfNode } from "../domain/parse/objects";
@@ -274,6 +275,8 @@ export interface MptHolding {
   issuer: string;
   units: string;
   locked: boolean;
+  /** Where the ticker leads: the issuance's page (`mptLink`) while `MPT` is on, else `null`, when it is text. Decided here as a trust line's `Token.href` is, so that the card draws a plain link. */
+  href: string | null;
   value?: string;
   ticker?: string;
 }
@@ -293,9 +296,10 @@ function unitsOf(value: unknown): string | undefined {
 
 /**
  * The MPTs an account holds, from its `MPToken` entries (the node's `account_objects`), in the order of the issuance IDs: what it has is `MPTAmount` and `LockedAmount` together, and it is
- * locked when the issuer set `lsfMPTLocked`. An entry whose ID or amounts are not well formed (a node's text is not trusted) is left out.
+ * locked when the issuer set `lsfMPTLocked`. An entry whose ID or amounts are not well formed (a node's text is not trusted) is left out. `link` carries the network and the switches that
+ * decide where each ticker leads.
  */
-export function mptHoldingsOf(objects: readonly LedgerObject[]): MptHolding[] {
+export function mptHoldingsOf(objects: readonly LedgerObject[], link: Pick<ObjectRowsContext, "net" | "features">): MptHolding[] {
   const holdings: MptHolding[] = [];
   for (const entry of objects) {
     if (entry.LedgerEntryType !== "MPToken" || !isMptIssuanceId(entry.MPTokenIssuanceID)) continue;
@@ -303,7 +307,13 @@ export function mptHoldingsOf(objects: readonly LedgerObject[]): MptHolding[] {
     const escrowed = unitsOf(entry.LockedAmount);
     if (held === undefined || escrowed === undefined) continue;
     const mpt = entry.MPTokenIssuanceID.toUpperCase();
-    holdings.push({ mpt, issuer: mptIssuerOf(mpt), units: new BigNumber(held).plus(escrowed).toFixed(), locked: flagOf(entry.Flags, LSF_MPT_LOCKED) === true });
+    holdings.push({
+      mpt,
+      issuer: mptIssuerOf(mpt),
+      units: new BigNumber(held).plus(escrowed).toFixed(),
+      locked: flagOf(entry.Flags, LSF_MPT_LOCKED) === true,
+      href: mptLink(link.net, mpt, link.features),
+    });
   }
   return holdings.sort((a, b) => (a.mpt < b.mpt ? -1 : a.mpt > b.mpt ? 1 : 0));
 }
@@ -312,7 +322,7 @@ export function mptHoldingsOf(objects: readonly LedgerObject[]): MptHolding[] {
  * The trust lines of an account's balances, the native balance left out, and the MPTs it holds (`mptHoldingsOf` of its `objects`: none when the node's objects could not be read). A line's code
  * leads to its token's page (`tokenLink`, spec 5.2): the token of the line's counterparty when the balance is zero or above, and the token of this account when it is below zero (the account is
  * then that line's issuer). An LP token keeps its pool line (`href` is `null`), and `link` carries the network, the account and the switches that decide the rest. An MPT's row leads to its
- * own page by `mptLink`, which the page reads from the switches.
+ * own page by `mptLink`, decided here with the code's, so that the card draws a plain link and loads neither `MptLink` nor `mpt-link` (the analytics view loads the card).
  */
 export function tokensOf(
   balances: BalancesResponse,
@@ -332,7 +342,7 @@ export function tokensOf(
         href: lp ? null : tokenLink(link.net, { currency: balance.currency, issuer }, link.features),
       };
     });
-  return { items, mpt: mptHoldingsOf(objects), truncated: balances.balances.length >= (balances.limit ?? BALANCES_DEFAULT_LIMIT) };
+  return { items, mpt: mptHoldingsOf(objects, link), truncated: balances.balances.length >= (balances.limit ?? BALANCES_DEFAULT_LIMIT) };
 }
 
 export interface LastActive {

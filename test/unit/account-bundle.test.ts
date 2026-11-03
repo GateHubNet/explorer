@@ -65,6 +65,18 @@ describe("the account page's list panels", () => {
   });
 });
 
+// The Tokens card is in the route's chunk, which the analytics view loads, and the analytics view has the least room of any page (160,000 B). A holding's link is decided in the Worker, as a trust line's
+// code is (`tokensOf`: `href`), so the card draws a plain `Link` and loads neither `MptLink` (the underlined link of running words) nor `mpt-link`. The list panels (a chunk of their own) and the
+// sentences do, through `Sentence`: not the account route's first load (review of Tasks 7 and 8, M3 and M4).
+describe("the account page's Tokens card", () => {
+  it("loads neither MptLink nor mpt-link: the Worker gives each MPT row its href", () => {
+    const closure = staticClosure(appDir, "ui/pages/AccountPage.tsx");
+    expect(closure).not.toContain("ui/components/MptLink.tsx");
+    expect(closure).not.toContain("domain/mpt-link.ts");
+    expect(staticClosure(appDir, "ui/pages/AccountAnalytics.tsx")).not.toContain("ui/components/MptLink.tsx");
+  });
+});
+
 describe("the QR encoder", () => {
   it("is imported by the account route and by nothing that is drawn in the browser", () => {
     const importers: string[] = [];
