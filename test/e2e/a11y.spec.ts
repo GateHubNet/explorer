@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
 
 import { featuresOff } from "../../scripts/e2e-env";
+import { MPT_FIXTURE_IDS, MPT_RECORDED } from "../support/mpt-case-rules";
 import { XAHAU_COLLECTION, XAHAU_NFT, XRPL_COLLECTION, XRPL_NFT } from "../support/nft-names";
 import { fixtures, RLUSD_ISSUER, unavailable, xahauSaltmarshPage } from "./fixture-control";
 import {
@@ -23,6 +24,7 @@ import {
   XRPL_LEDGER,
   XRPL_PAYMENT,
 } from "./fixtures";
+import { holdersOf, mptListOf, transfersOf } from "./mpt-pages";
 import { drawnBy, type NamedPage, namedPagesOn, objectNamedPages, tokenNamedPages } from "./names-pages";
 import { type ObjectCase, objectCase, recordedDelegateSet, removedBy } from "./object-pages";
 import { expect, hashWords, hydrated, seriousViolations, test, WCAG_TAGS } from "./support";
@@ -1335,4 +1337,85 @@ test.describe("the token pages", () => {
   test.skip(LIVE, "the pages are drawn from the generated token fixtures, which a real stack does not hold");
   matrixOf(TOKEN_MAIN, { toggles: true });
   matrixOf(TOKEN_MORE);
+});
+
+// ---- The MPT pages ------------------------------------------------------------------------------------------------------------------------------------------
+// The MPT page, its holders' and its transfers' pages, the MPT tab of the token list and the page for an issuance ID on Xahau (E14 spec 10): at both widths in the four settings of the theme, no sideways scroll at 375 px; then, in the two
+// system themes at both widths, the page in each of its states (the longest texts an issuer can write, read from the network, every balance locked, destroyed, no metadata, metadata that is not JSON, with escrow and an incomplete coverage),
+// the lists behind a marker, the tab searched and searched for nothing, an issuance nobody has, the transactions and the account page that link MPT amounts (an amount link over or under an account link: `.flow__node > .flow__amount:has(a)`,
+// `.cur--mpt a`, a Tokens card row's `.token--linked`), the page's pills in their title spans, its disclosure and the pre blocks that scroll. The issuances are the fixtures' (test/support/mpt-case-rules.ts). Where E2E_FEATURES_OFF lists
+// MPT the pages are not found, and against a real stack, which has none of the generated issuances, the block skips itself.
+
+const MPT_ON = !FEATURES_OFF.has("MPT");
+const mptPath = (id: string) => `/xrpl/mpt/${id}`;
+/** An issuance's page is whole when its `<h1>` and its transfers are drawn (every card is the server's: nothing streams in). */
+const mptReady = async (page: Page) => {
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await visible("Recent transfers")(page);
+};
+/** The same for a page whose lists are the index's "Not in the index yet." (an issuance read from the network): the cards, not the tables. */
+const mptFromNetworkReady = async (page: Page) => {
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByText("Not in the index yet.")).toHaveCount(2);
+};
+/** A page whose `<h1>` is the first thing a visitor reads is whole when it is drawn. */
+const headed = (name: string | RegExp) => async (page: Page) => void (await expect(page.getByRole("heading", { level: 1, name })).toBeVisible());
+
+/** The marker of the first page of an issuance's 50 holders, or of its 20 transfers: the page behind it is in the fixtures (test/e2e/mpt-pages.ts). */
+function holdersMarkerOf(id: string): string {
+  return holdersOf(id, { limit: 50 }).marker!;
+}
+function transfersMarkerOf(id: string): string {
+  return transfersOf(id, { limit: 20 }).marker!;
+}
+
+const MPT_MAIN: PageUnderTest[] = [
+  { name: "MPT", path: mptPath(MPT_FIXTURE_IDS.htf), ready: mptReady },
+  { name: "MPT holders", path: `${mptPath(MPT_FIXTURE_IDS.htf)}/holders`, ready: visible("Holders") },
+  { name: "MPT transfers", path: `${mptPath(MPT_FIXTURE_IDS.htf)}/transfers`, ready: visible("Transfers") },
+  { name: "MPT tab of the token list", path: "/xrpl/tokens?kind=mpt", ready: visible("MPTs") },
+  { name: "MPT page on Xahau (MPT is not there)", path: `/xahau/mpt/${MPT_FIXTURE_IDS.htf}`, ready: headed("MPT isn't enabled on Xahau") },
+];
+
+const MPT_MORE: PageUnderTest[] = [
+  // The longest texts an issuer can write: a name of 128 letters with no space, a description of 200, a title of 100, a link that is not a link; and the tab's row of it, at the 375 px phone too.
+  { name: "MPT, the longest texts (mixd)", path: mptPath(MPT_FIXTURE_IDS.nonConforming), ready: mptReady },
+  { name: "MPT, read from the network", path: mptPath(MPT_FIXTURE_IDS.nodeOnly), ready: mptFromNetworkReady },
+  { name: "MPT, every balance locked", path: mptPath(MPT_FIXTURE_IDS.lockedAll), ready: mptReady },
+  { name: "MPT, destroyed", path: mptPath(MPT_FIXTURE_IDS.destroyed), ready: mptReady },
+  { name: "MPT, no metadata", path: mptPath(MPT_FIXTURE_IDS.noMetadata), ready: mptReady },
+  { name: "MPT, metadata that is not JSON", path: mptPath(MPT_FIXTURE_IDS.rawMetadata), ready: mptReady },
+  { name: "MPT, with escrow and an incomplete coverage", path: mptPath(MPT_FIXTURE_IDS.escrow), ready: mptReady },
+  { name: "MPT, one nobody has", path: mptPath(MPT_FIXTURE_IDS.nowhere), ready: headed("Not found") },
+  // The lists behind a marker: no rank column.
+  {
+    name: "MPT holders, behind a marker",
+    path: `${mptPath(MPT_FIXTURE_IDS.htf)}/holders?marker=${holdersMarkerOf(MPT_FIXTURE_IDS.htf)}`,
+    ready: visible("Holders"),
+  },
+  {
+    name: "MPT transfers, behind a marker",
+    path: `${mptPath(MPT_FIXTURE_IDS.htf)}/transfers?marker=${transfersMarkerOf(MPT_FIXTURE_IDS.htf)}`,
+    ready: visible("Transfers"),
+  },
+  { name: "MPT tab, a search", path: "/xrpl/tokens?kind=mpt&q=HTF", ready: visible("MPTs") },
+  { name: "MPT tab, behind a marker", path: `/xrpl/tokens?kind=mpt&marker=${mptListOf().marker!}`, ready: visible("MPTs") },
+  { name: "MPT tab, a search that finds nothing", path: "/xrpl/tokens?kind=mpt&q=zzz", ready: async (page) => void (await expect(page.getByText("No MPTs match “zzz”.")).toBeVisible()) },
+  // The transactions that link MPT amounts and references: the amount over or under an account link in the flow, the issuance in a balance change's Currency cell, a lock's sentence.
+  { name: "MPT payment with a ticker (mint)", path: `/xrpl/tx/${MPT_RECORDED.payment_mint.hash}`, ready: rawReady },
+  { name: "MPT payment in units, with a transfer fee", path: `/xrpl/tx/${MPT_RECORDED.payment_transfer_fee.hash}`, ready: rawReady },
+  { name: "MPT lock of one holder", path: `/xrpl/tx/${MPT_RECORDED.issuance_set_lock_holder.hash}`, ready: rawReady },
+  // The Tokens card with MPT rows (`.token--linked` over an issuer link).
+  {
+    name: "account, the Tokens card with MPT rows",
+    path: `/xrpl/account/${XRPL_ACCOUNT}`,
+    ready: async (page) => void (await expect(page.locator('.token--linked a[href^="/xrpl/mpt/"]')).toHaveCount(2)),
+  },
+];
+
+test.describe("the MPT pages", () => {
+  test.skip(!MPT_ON, "MPT is off in the Worker under test: its pages are not found (mpt.spec.ts checks that)");
+  test.skip(LIVE, "the pages are drawn from the generated MPT fixtures, which a real stack does not hold");
+  matrixOf(MPT_MAIN, { toggles: true });
+  matrixOf(MPT_MORE);
 });

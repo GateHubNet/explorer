@@ -1,4 +1,5 @@
 import { featuresOff } from "../../scripts/e2e-env";
+import { MPT_FIXTURE_IDS } from "../support/mpt-case-rules";
 import { XAHAU_NFT, XRPL_NFT } from "../support/nft-names";
 import { count, LIVE, NO_SUCH_TRANSACTION, XAHAU_LEDGER, XRP_RLUSD_POOL, XRPL_ACCOUNT, XRPL_PAYMENT } from "./fixtures";
 import { expect, test } from "./support";
@@ -25,6 +26,13 @@ const RLUSD = tokenCase("xrpl", "rlusd");
 const EVR = tokenCase("xahau", "evr");
 const LP = tokenCase("xrpl", "lp");
 
+/**
+ * An MPT issuance's image (kind `mpt`) is there while MPT is on; off, it is a 404 (below). The issuances are the generated fixtures' (test/support/mpt-case-rules.ts), which a real stack does not hold: against one,
+ * the images of those issuances are not looked for.
+ */
+const MPT_OFF = featuresOff(process.env).has("MPT");
+const { htf: MPT_HTF, nodeOnly: MPT_NODE_ONLY, nowhere: MPT_NOWHERE } = MPT_FIXTURE_IDS;
+
 const IMAGES = [
   { kind: "transaction", path: `/og/xrpl/tx/${XRPL_PAYMENT}.png`, page: `/xrpl/tx/${XRPL_PAYMENT}`, cache: /immutable/ },
   { kind: "ledger", path: `/og/xahau/ledger/${XAHAU_LEDGER}.png`, page: `/xahau/ledger/${XAHAU_LEDGER}`, cache: /immutable/ },
@@ -45,6 +53,8 @@ const IMAGES = [
         { kind: "token", path: `/og/xrpl/token/${RLUSD.path}.png`, page: `/xrpl/token/${RLUSD.path}`, cache: /max-age=300/ },
         { kind: "Xahau token", path: `/og/xahau/token/${EVR.path}.png`, page: `/xahau/token/${EVR.path}`, cache: /max-age=300/ },
       ]),
+  // An MPT issuance (kind `mpt`): class `slow`, as an account's, since its holders change. The page's og:image is the image; the holders' and transfers' pages and the tab share none.
+  ...(MPT_OFF || LIVE ? [] : [{ kind: "MPT", path: `/og/xrpl/mpt/${MPT_HTF}.png`, page: `/xrpl/mpt/${MPT_HTF}`, cache: /max-age=300/ }]),
 ];
 
 test.describe("the Open Graph image", () => {
@@ -93,7 +103,14 @@ test.describe("the Open Graph image", () => {
       ...(LIVE ? [] : [`/og/xrpl/token/${LP.path}.png`, `/og/xrpl/token/QQQ.${RLUSD.issuer}.png`, `/og/xrpl/token/${EVR.path}.png`]),
       ...(TOKENS_OFF ? [`/og/xrpl/token/${RLUSD.path}.png`] : []),
     ];
-    for (const path of [`/og/xrpl/tx/${NO_SUCH_TRANSACTION}.png`, "/og/xrpl/tx/nothing.png", "/og/nonet/tx/x.png", ...pools, ...nfts, ...tokens]) {
+    // An MPT by something that is no issuance ID, an ID of 48 digits on Xahau (which has no MPT: a plain 404, no page to send it to), an issuance neither the index nor the node has, and with MPT off every issuance's.
+    const mpts = [
+      "/og/xrpl/mpt/nothing.png",
+      `/og/xahau/mpt/${MPT_HTF}.png`,
+      ...(LIVE ? [] : [`/og/xrpl/mpt/${MPT_NOWHERE}.png`]),
+      ...(MPT_OFF ? [`/og/xrpl/mpt/${MPT_HTF}.png`] : []),
+    ];
+    for (const path of [`/og/xrpl/tx/${NO_SUCH_TRANSACTION}.png`, "/og/xrpl/tx/nothing.png", "/og/nonet/tx/x.png", ...pools, ...nfts, ...tokens, ...mpts]) {
       const response = await request.get(path);
       expect(response.status(), path).toBe(404);
       expect(response.headers()["content-type"], path).not.toContain("image/png");
@@ -120,6 +137,26 @@ test.describe("the Open Graph image", () => {
     const response = await request.get(`/og/xrpl/token/${RLUSD.currency}.${RLUSD.issuer}.png`, { maxRedirects: 0 });
     expect(response.status()).toBe(302);
     expect(response.headers().location).toBe(`/og/xrpl/token/${RLUSD.path}.png`);
+  });
+
+  test("of an MPT only the network has is drawn too, kept for a minute at most, and its page names none", async ({ page, request }) => {
+    test.skip(MPT_OFF, "MPT is off in the Worker under test: no MPT image is drawn (checked above)");
+    test.skip(LIVE, "the issuances are the generated fixtures' (test/support/mpt-case-rules.ts), which a real stack does not hold");
+    const response = await request.get(`/og/xrpl/mpt/${MPT_NODE_ONLY}.png`);
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-type"]).toBe("image/png");
+    expect(response.headers()["cache-control"]).toMatch(/max-age=0/);
+    // Its page is not indexed and has no picture to share: the card shows what the index would, a minute from now.
+    await page.goto(`/xrpl/mpt/${MPT_NODE_ONLY}`);
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
+    await expect(page.locator('meta[property="og:image"]')).toHaveCount(0);
+  });
+
+  test("of an MPT spelt in lower case is a redirect to the one URL", async ({ request }) => {
+    test.skip(MPT_OFF, "MPT is off in the Worker under test: no MPT image is drawn (checked above)");
+    const response = await request.get(`/og/xrpl/mpt/${MPT_HTF.toLowerCase()}.png`, { maxRedirects: 0 });
+    expect(response.status()).toBe(302);
+    expect(response.headers().location).toBe(`/og/xrpl/mpt/${MPT_HTF}.png`);
   });
 
   test("states the ledger it was drawn for in the page's alt text", async ({ page }) => {

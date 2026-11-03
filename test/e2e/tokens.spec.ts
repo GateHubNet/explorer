@@ -2,9 +2,10 @@ import type { Page } from "@playwright/test";
 
 import { featuresOff } from "../../scripts/e2e-env";
 import { count, LIVE, XRPL_ACCOUNT } from "./fixtures";
+import { mptListOf } from "./mpt-pages";
 import { expectAccountsDrawn, namedPagesOn, tokenNamedPages } from "./names-pages";
 import { expect, hydrated, test } from "./support";
-import { detailOf, holdersOf, listOf, mptListOf, tokenCase, transfersMarker, transfersOf } from "./token-pages";
+import { detailOf, holdersOf, listOf, tokenCase, transfersMarker, transfersOf } from "./token-pages";
 
 // The token pages (`/{net}/tokens`, `/{net}/token/{token}`, `/{net}/token/{token}/holders`, README "Tokens") in a browser, on both networks and with and without JavaScript: the header's item,
 // the list (its pages, a search through the form, the tokens of fewer than 10 holders, Show all and Hide), a token's page (the toml in each of its states, the issuer's settings, the markets
@@ -321,7 +322,7 @@ test.describe("the MPT tab", () => {
   test.skip(TOKENS_OFF || MPT_OFF, "TOKENS or MPT is off in the Worker under test: the tab is the 'soon' control (checked above)");
 
   test("is a link from the issued list to the kind's first page in the same document: its totals, 20 issuances, the flags and the way to the next page", async ({ page, baseURL }) => {
-    const first = mptListOf("xrpl");
+    const first = mptListOf();
     expect(first.tokens, "the fixtures' first page of MPTs").toHaveLength(20);
     expect(first.marker, "and a second page").toBeDefined();
 
@@ -348,7 +349,7 @@ test.describe("the MPT tab", () => {
     // More tokens leads to the next page, which is kept from a search engine; Previous comes back.
     await pagination(page).getByRole("link", { name: "More tokens" }).click();
     await page.waitForURL((url) => url.searchParams.has("marker"));
-    await expect(rowsOf(page, "MPTs")).toHaveCount(mptListOf("xrpl", { marker: first.marker }).tokens.length);
+    await expect(rowsOf(page, "MPTs")).toHaveCount(mptListOf({ marker: first.marker }).tokens.length);
     await expect.poll(async () => (await head(page)).robots).toBe("noindex, follow");
     await pagination(page).getByRole("link", { name: "Previous" }).click();
     await page.waitForURL((url) => url.search === "?kind=mpt");
@@ -357,7 +358,7 @@ test.describe("the MPT tab", () => {
   });
 
   test("a search through the form keeps the kind: the canonical URL, one row for HTF, its match and the coverage the answer has", async ({ page }) => {
-    const found = mptListOf("xrpl", { q: "HTF" });
+    const found = mptListOf({ q: "HTF" });
     expect(found.tokens, "the fixtures' search for HTF").toHaveLength(1);
 
     await page.goto("/xrpl/tokens?kind=mpt");
@@ -383,7 +384,7 @@ test.describe("the MPT tab", () => {
   });
 
   test("an issuance's row leads to its page, and Xahau's address for the kind goes back to its issued list", async ({ page }) => {
-    const first = mptListOf("xrpl").tokens[0]!;
+    const first = mptListOf().tokens[0]!;
     await page.goto("/xrpl/tokens?kind=mpt");
     await hydrated(page);
     await tableOf(page, "MPTs").locator(`a[href="/xrpl/mpt/${first.mpt_issuance_id}"]`).click();
@@ -760,7 +761,7 @@ test.describe("without JavaScript", () => {
     await page.goto("/xrpl/tokens?kind=mpt");
     await pagination(page).getByRole("link", { name: "More tokens" }).click();
     await page.waitForURL((url) => url.searchParams.get("kind") === "mpt" && url.searchParams.has("marker"));
-    await expect(rowsOf(page, "MPTs")).toHaveCount(mptListOf("xrpl", { marker: mptListOf("xrpl").marker }).tokens.length);
+    await expect(rowsOf(page, "MPTs")).toHaveCount(mptListOf({ marker: mptListOf().marker }).tokens.length);
     await pagination(page).getByRole("link", { name: "Previous" }).click();
     await page.waitForURL((url) => url.search === "?kind=mpt");
   });

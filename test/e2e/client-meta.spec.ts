@@ -1,8 +1,10 @@
 import type { Page } from "@playwright/test";
 
 import { featuresOff } from "../../scripts/e2e-env";
+import { MPT_FIXTURE_IDS } from "../support/mpt-case-rules";
 import { XRPL_COLLECTION, XRPL_NFT } from "../support/nft-names";
 import { accountTitle, count, LIVE, XAHAU_LEDGER, XAHAU_LEDGER_NEXT, XRP_RLUSD_POOL, XRPL_ACCOUNT } from "./fixtures";
+import { issuanceOf } from "./mpt-pages";
 import { expect, hydrated, reactOwns, test } from "./support";
 import { tokenCase } from "./token-pages";
 
@@ -183,6 +185,45 @@ test.describe("the tags of a page reached by a link in the page", () => {
     await page.getByRole("link", { name: /^All \d+ holders →$/ }).click();
     await page.waitForURL(`**/xrpl/token/${path}/holders`);
     await expect(page).toHaveTitle("Holders of RLUSD · XRPL · explorer");
+
+    expect(await sameDocument(page)).toBe(true);
+    expect(manifests).toEqual([]);
+  });
+
+  // The MPT routes are in the first page's route table too: moving from the MPT tab to an issuance, its holders and the page behind its "Older →" (the transfers' route) asks for no manifest.
+  test("ask for no route manifest while moving between the MPT routes", async ({ page }) => {
+    test.skip(featuresOff(process.env).has("MPT"), "MPT is off in the Worker under test: the MPT pages are not found");
+    test.skip(LIVE, "the pages are drawn from the generated MPT fixtures (test/e2e/mpt-pages.ts), which a real stack does not hold");
+    const path = `/xrpl/mpt/${MPT_FIXTURE_IDS.htf}`;
+    const manifests: string[] = [];
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/__manifest") manifests.push(request.url());
+    });
+    await page.goto("/xrpl");
+    await hydrated(page);
+    await page.evaluate(() => Object.assign(window, { sameDocument: true }));
+
+    const nav = page.getByRole("navigation", { name: "Main" });
+    await nav.getByRole("link", { name: "Tokens", exact: true }).hover();
+    await nav.getByRole("link", { name: "Tokens", exact: true }).click();
+    await page.waitForURL("**/xrpl/tokens");
+    await page.getByRole("group", { name: "Kind of token" }).getByRole("link", { name: "MPT" }).click();
+    await page.waitForURL("**/xrpl/tokens?kind=mpt");
+    await expect(page).toHaveTitle("MPTs · XRPL · explorer");
+
+    await page.getByRole("table", { name: "MPTs", exact: true }).locator(`a[href="${path}"]`).click();
+    await page.waitForURL(`**${path}`);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(issuanceOf(MPT_FIXTURE_IDS.htf).metadata!.name!);
+
+    await page.getByRole("link", { name: /^All \d+ holders →$/ }).click();
+    await page.waitForURL(`**${path}/holders`);
+    await page.getByRole("link", { name: /^Back to / }).first().click();
+    await page.waitForURL(`**${path}`);
+
+    // The transfers' route: the page behind "Older →" (the fixtures hold no page of twenty behind the marker of the eight, so the page is the not-found one; the route is what is asked for).
+    await page.getByRole("link", { name: "Older →" }).click();
+    await page.waitForURL((url) => url.pathname === `${path}/transfers` && url.searchParams.has("marker"));
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Not found");
 
     expect(await sameDocument(page)).toBe(true);
     expect(manifests).toEqual([]);
@@ -455,6 +496,74 @@ test.describe("the tags of a page reached by a link in the page", () => {
     await page.waitForURL((url) => url.pathname === `${token}/holders` && url.search === "");
     await expect.poll(async () => (await head(page)).canonical).toBe(holders.canonical);
     expect(await head(page)).toEqual(holders);
+    expect(await sameDocument(page)).toBe(true);
+  });
+
+  test("follow the MPT tab to an issuance and its holders, with each page's own tags, and `noindex` behind a marker, and get them back", async ({ page, baseURL }) => {
+    test.skip(featuresOff(process.env).has("MPT"), "MPT is off in the Worker under test: the MPT pages are not found");
+    test.skip(LIVE, "the pages are drawn from the generated MPT fixtures (test/e2e/mpt-pages.ts), which a real stack does not hold");
+    const origin = new URL(baseURL!).origin;
+    const issuance = issuanceOf(MPT_FIXTURE_IDS.htf);
+    const path = `/xrpl/mpt/${MPT_FIXTURE_IDS.htf}`;
+    const title = `${issuance.ticker!} · ${issuance.metadata!.name!} · MPT · XRPL · explorer`;
+    await page.goto("/xrpl/tokens?kind=mpt");
+    await hydrated(page);
+    await page.evaluate(() => Object.assign(window, { sameDocument: true }));
+    expect(await head(page)).toEqual({
+      title: "MPTs · XRPL · explorer",
+      canonical: `${origin}/xrpl/tokens?kind=mpt`,
+      robots: null,
+      ogTitle: "MPTs · XRPL · explorer",
+      ogUrl: `${origin}/xrpl/tokens?kind=mpt`,
+      // The tab has no image of its own to share: the plain summary card.
+      ogImage: null,
+      twitterCard: "summary",
+    });
+
+    // A row of the tab: a link in the page, to the issuance's page, which has its own tags and its own image.
+    await page.getByRole("table", { name: "MPTs", exact: true }).locator(`a[href="${path}"]`).click();
+    await page.waitForURL(`**${path}`);
+    await expect(page).toHaveTitle(title);
+    const first = await head(page);
+    expect(first).toEqual({
+      title,
+      canonical: `${origin}${path}`,
+      robots: null,
+      ogTitle: title,
+      ogUrl: `${origin}${path}`,
+      ogImage: `${origin}/og/xrpl/mpt/${MPT_FIXTURE_IDS.htf}.png`,
+      twitterCard: "summary_large_image",
+    });
+
+    // Its holders: indexable, with a summary card and no image (a ranking rebuilt every minute would have its picture out of date at once).
+    await page.getByRole("link", { name: /^All \d+ holders →$/ }).click();
+    await page.waitForURL(`**${path}/holders`);
+    await expect(page).toHaveTitle(`Holders of ${issuance.ticker!} · XRPL · explorer`);
+    const holders = await head(page);
+    expect(holders).toEqual({
+      title: `Holders of ${issuance.ticker!} · XRPL · explorer`,
+      canonical: `${origin}${path}/holders`,
+      robots: null,
+      ogTitle: `Holders of ${issuance.ticker!} · XRPL · explorer`,
+      ogUrl: `${origin}${path}/holders`,
+      ogImage: null,
+      twitterCard: "summary",
+    });
+    // The page behind its marker: kept out of the index, with nothing to share and no canonical URL.
+    await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" }).click();
+    await page.waitForURL(/\?marker=/);
+    await expect.poll(async () => (await head(page)).robots).toBe("noindex, follow");
+    expect(await head(page)).toMatchObject({ title: `Holders of ${issuance.ticker!} · XRPL · explorer`, canonical: null, ogImage: null, twitterCard: null });
+    await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Newer" }).click();
+    await page.waitForURL((url) => url.pathname === `${path}/holders` && url.search === "");
+    await expect.poll(async () => (await head(page)).canonical).toBe(holders.canonical);
+    expect(await head(page)).toEqual(holders);
+
+    // And back to the issuance: its tags are what they were.
+    await page.getByRole("link", { name: /^Back to / }).first().click();
+    await page.waitForURL(`**${path}`);
+    await expect.poll(async () => (await head(page)).canonical).toBe(first.canonical);
+    expect(await head(page)).toEqual(first);
     expect(await sameDocument(page)).toBe(true);
   });
 
