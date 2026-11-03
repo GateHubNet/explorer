@@ -30,6 +30,8 @@ export default [
     route("tokens", "routes/net.tokens.tsx"),
     route("token/:token", "routes/net.token.$token.tsx"),
     route("token/:token/holders", "routes/net.token.$token.holders.tsx"),
+    // One MPT issuance by its issuance ID (E14); its holders and transfers get their routes beside it.
+    route("mpt/:id", "routes/net.mpt.$id.tsx"),
     route("ledger/:id", "routes/net.ledger.$id.tsx"),
     route("tx/:id", "routes/net.tx.$id.tsx"),
     route("account/:address", "routes/net.account.$address.tsx"),

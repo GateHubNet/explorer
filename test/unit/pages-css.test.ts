@@ -1111,3 +1111,40 @@ describe("the supply page", () => {
     expect(pagesCss).not.toMatch(/\.share--compact|\.share__caption|\.stat__formula|\.stat__aside|\.stat-grid--wide|\.chart__head/);
   });
 });
+
+// ---- E14: the MPT pages (spec 3, 10; ruling C17) ---------------------------------------------------------------------------------------------------------------------------------
+
+describe("the MPT pages", () => {
+  // The issuer writes the name, the ticker, the description, a link's words, its category and a JSON of any size, and nothing here caps them. A word with no space in it has nowhere to break but at the
+  // edge of its cell, or it paints over the next tile or column (E11's I1, and the fixtures' `nonConforming` issuance, whose name is 128 characters of one letter).
+  it.each([".mpt__text", ".mpt__idtext", ".mpt__json", ".mpt__hex pre", ".mptflags__line"])("breaks the issuer's text in %s at the edge of its cell", (selector) => {
+    expect(rule(pagesCss, selector)["overflow-wrap"]).toBe("anywhere");
+  });
+
+  it("breaks the page's own heading and every card it holds, through the token page's rule that this page's root carries", () => {
+    expect(rule(pagesCss, ".token-page")["overflow-wrap"]).toBe("anywhere");
+  });
+
+  it("underlines a link the issuer wrote in a row of the metadata: its colour alone would not tell it from the row's words (WCAG 1.4.1)", () => {
+    expect(rule(pagesCss, ".mpt__metadata dd a")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px" });
+  });
+
+  it("makes the raw hex's summary a 44 px target, and keeps the page's buttons at 44 px through the token page's rule", () => {
+    expect(rule(pagesCss, ".mpt__hex summary")).toMatchObject({ display: "flex", "align-items": "center", "min-height": "44px" });
+    expect(rule(pagesCss, ".token-page .btn")["min-height"]).toBe("44px");
+  });
+
+  it("lets the metadata's JSON and text scroll inside a block of 320 px at most", () => {
+    expect(rule(pagesCss, ".mpt__json")["max-height"]).toBe("320px");
+  });
+
+  it("puts a flag's label over its pill and line on a phone, and the three side by side above it", () => {
+    expect(rule(pagesCss, ".mptflags__row")["grid-template-columns"]).toBe("110px auto minmax(0, 1fr)");
+    const phone = /@media \(max-width: 640px\) \{\s*\.mptflags__row \{\s*grid-template-columns: auto minmax\(0, 1fr\);\s*\}\s*\.mptflags__label \{\s*grid-column: 1 \/ -1;\s*\}/;
+    expect(phone.test(pagesCss)).toBe(true);
+  });
+
+  it("is defined in pages.css alone: the components sheet has none of the page's classes", () => {
+    expect(componentsCss).not.toMatch(/\.mpt__|\.mptflags/);
+  });
+});

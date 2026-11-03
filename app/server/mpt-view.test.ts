@@ -15,6 +15,7 @@ import {
   mptHolderRows,
   mptPage,
   mptTransferRows,
+  noMptPage,
   nodeFlags,
   resolveMpt,
   topLineOf,
@@ -442,16 +443,16 @@ describe("mptPage: the notices", () => {
   });
 
   it("says a destroyed issuance was destroyed in its last ledger, and names it", () => {
-    expect(page({ source: indexed({ destroyed: true, last_ledger: 107721455 }) }).notices).toEqual([{ text: "This issuance was destroyed in ledger #107,721,455.", ledger: 107721455 }]);
+    expect(page({ source: indexed({ destroyed: true, last_ledger: 107721455 }) }).notices).toEqual([{ text: "This issuance was destroyed in ledger #107,721,455.", ledger: 107721455, tone: "warning" }]);
   });
 
   it("says the issuer has locked every balance, with the ticker", () => {
-    expect(page({ source: indexed({ flags: { ...FLAGS, locked: true } }) }).notices).toEqual([{ text: "The issuer has locked every HTF balance." }]);
-    expect(page({ source: indexed({ flags: { ...FLAGS, locked: true }, ticker: undefined, metadata: undefined }) }).notices).toEqual([{ text: "The issuer has locked every units balance." }]);
+    expect(page({ source: indexed({ flags: { ...FLAGS, locked: true } }) }).notices).toEqual([{ text: "The issuer has locked every HTF balance.", tone: "warning" }]);
+    expect(page({ source: indexed({ flags: { ...FLAGS, locked: true }, ticker: undefined, metadata: undefined }) }).notices).toEqual([{ text: "The issuer has locked every units balance.", tone: "warning" }]);
   });
 
   it("says an issuance read from the network is not in the index yet, and keeps the others after it", () => {
-    expect(page({ source: fromNode() }).notices).toEqual([{ text: "Not in the index yet, shown from the network" }]);
+    expect(page({ source: fromNode() }).notices).toEqual([{ text: "Not in the index yet, shown from the network", tone: "info" }]);
     expect(page({ source: fromNode({ Flags: 0x01 }) }).notices.map((notice) => notice.text)).toEqual(["Not in the index yet, shown from the network", "The issuer has locked every units balance."]);
   });
 });
@@ -780,6 +781,11 @@ describe("mptPage: the Recent transfers card", () => {
 });
 
 describe("mptPage: the tags' and the card's facts", () => {
+  it("names the canonical path of the page, in capitals, for the tags' module that may not import the words", () => {
+    expect(mptFacts(XRPL, indexed(), NO_NAMES).href).toBe(`/xrpl/mpt/${PAGE_ID}`);
+    expect(mptFacts({ id: "xahau", name: "Xahau" }, fromNode(), NO_NAMES).href).toBe(`/xahau/mpt/${PAGE_ID}`);
+  });
+
   it("writes the title of an issuance with a ticker and a name, with a ticker alone, a name alone, and neither", () => {
     expect(mptFacts(XRPL, indexed(), NO_NAMES).title).toBe("HTF · Harborline Treasury Fund · MPT");
     expect(mptFacts(XRPL, indexed({ name: undefined, metadata: undefined }), NO_NAMES).title).toBe("HTF · MPT");
@@ -838,5 +844,22 @@ describe("mptPage", () => {
     const view = data.metadata;
     if (view.state !== "decoded") throw new Error("not decoded");
     expect(view.rows.filter((row) => row.href !== undefined || row.title !== undefined)).toEqual([]);
+  });
+});
+
+describe("noMptPage", () => {
+  it("names the network, the other one and the ID, for the page that says MPT is not on Xahau", () => {
+    expect(noMptPage({ id: "xahau", kind: "mainnet", other: "xrpl" }, PAGE_ID)).toEqual({
+      kind: "no-mpt",
+      network: { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX" },
+      other: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX" },
+      id: PAGE_ID,
+    });
+  });
+
+  it("uses the names of the sandbox in the sandbox: XRPL Testnet is the other one", () => {
+    const data = noMptPage({ id: "xahau", kind: "testnet", other: "xrpl" }, PAGE_ID);
+    expect(data.network.name).toBe("Xahau Testnet");
+    expect(data.other).toMatchObject({ id: "xrpl", name: "XRPL Testnet" });
   });
 });

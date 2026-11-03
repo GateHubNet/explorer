@@ -8,17 +8,18 @@ import BigNumber from "bignumber.js";
 
 import { decodeHex } from "../domain/describe/helpers";
 import { compactNumber, formatAmount } from "../domain/format";
-import { ASSET_CLASS_WORDS, MAX_SCALE, MPT_FLAG_WORDS, MPT_KIND_WORDS, percentText, safeLink, scaleUnits, shortMptId, superscript, transferFeeText } from "../domain/mpt";
+import { ASSET_CLASS_WORDS, MAX_SCALE, MPT_FLAG_WORDS, MPT_KIND_WORDS, mptPath, percentText, safeLink, scaleUnits, shortMptId, superscript, transferFeeText } from "../domain/mpt";
 import { isMptIssuanceId } from "../domain/mpt-id";
 import { mptHoldersHref, mptTransfersHref } from "../domain/mpt-params";
 import { shownIssuer, type NamesPart } from "../domain/names";
 import type { MeterData } from "../ui/charts/types";
-import type { NetworkInfo } from "../ui/networks";
+import { findNetwork, type NetworkBrief, type NetworkInfo } from "../ui/networks";
 import type { Loaded } from "./account-view";
 import type { MptFlags, MptHoldersPage, MptIssuanceAnswer, MptSummary, MptTransfersPage, NodeMptIssuance } from "./api-types";
 import { coverageNote, type CoverageNoteText } from "./coverage";
 import { MPT_LOOKUP_MAX } from "./data-api";
 import { networkInfoOf } from "./network-route";
+import type { NetworkId } from "./networks";
 import { unixOf } from "./validator-facts";
 
 export { MPT_LOOKUP_MAX };
@@ -356,20 +357,21 @@ function flagsOf(flags: MptFlags, T: string): { intro: string; rows: { label: st
   };
 }
 
-/** A notice above the figures: its sentence, and the ledger it names (the page links its `#N`). */
+/** A notice above the figures: its sentence, the ledger it names (the page links its `#N`), and its tone: `info` for an issuance read from the network, `warning` for the issuance's own state. */
 export interface MptNotice {
   text: string;
   ledger?: number;
+  tone: "info" | "warning";
 }
 
 function noticesOf(source: MptSource, f: Figures, T: string): MptNotice[] {
   const notices: MptNotice[] = [];
-  if (source.origin === "node") notices.push({ text: "Not in the index yet, shown from the network" });
+  if (source.origin === "node") notices.push({ text: "Not in the index yet, shown from the network", tone: "info" });
   if (source.origin === "index" && source.answer.issuance.destroyed) {
     const ledger = source.answer.issuance.last_ledger;
-    notices.push({ text: `This issuance was destroyed in ledger #${formatAmount(String(ledger))}.`, ledger });
+    notices.push({ text: `This issuance was destroyed in ledger #${formatAmount(String(ledger))}.`, ledger, tone: "warning" });
   }
-  if (f.flags.locked) notices.push({ text: `The issuer has locked every ${T} balance.` });
+  if (f.flags.locked) notices.push({ text: `The issuer has locked every ${T} balance.`, tone: "warning" });
   return notices;
 }
 
@@ -607,6 +609,8 @@ function transfersCard(net: MptNet, loaded: Loaded<MptTransfersPage>, head: MptH
 
 /** What the tags (`meta-mpt.ts`) and the link-preview card (`mptCard`, Task 14) read of the page. */
 export interface MptFacts {
+  /** The canonical path of the page, written here because the tags' module is a browser file and may not import `domain/mpt.ts` (bignumber.js): `/xrpl/mpt/0000012A…`. */
+  href: string;
   /** The title before its end ("· XRPL · explorer"): "XAU · Tokenized Gold (XAU) · MPT", and without a ticker or a name "MPT 0000012A…3F09". */
   title: string;
   /** "MPT issued by Harborline: 18,204,511.20 HTF outstanding, 3,412 holders · XRPL". */
@@ -628,7 +632,7 @@ export interface MptFacts {
 }
 
 /** The facts of an issuance's tags and card. */
-export function mptFacts(net: Pick<NetworkInfo, "name">, source: MptSource, names: NamesPart): MptFacts {
+export function mptFacts(net: Pick<NetworkInfo, "id" | "name">, source: MptSource, names: NamesPart): MptFacts {
   const head = mptHead(source);
   const f = figuresOf(source);
   const T = head.tickerOrUnits;
@@ -640,6 +644,7 @@ export function mptFacts(net: Pick<NetworkInfo, "name">, source: MptSource, name
   const scaled = head.scale === null ? null : scaleUnits(f.outstanding, head.scale);
   const created = source.origin === "index" && source.answer.issuance.created_time !== undefined ? unixOf(source.answer.issuance.created_time) : undefined;
   return {
+    href: mptPath(net.id, head.id),
     title: parts.length === 0 ? `MPT ${shortMptId(head.id)}` : `${parts.join(" · ")} · MPT`,
     description: `MPT issued by ${issuer}: ${outstanding} ${T} outstanding${holders} · ${net.name}`,
     noindex: source.origin === "node",
@@ -701,4 +706,21 @@ export function mptPage({ net, source, holders, transfers, names }: MptPageInput
     facts: mptFacts(net, source, names),
     names,
   };
+}
+
+// ---- Xahau ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+/** What `NoMptPage` draws (spec 3.6): the page that says MPT is not on the network, with the ID asked for and the other network, where it may be. */
+export interface NoMptPageData {
+  kind: "no-mpt";
+  network: NetworkBrief;
+  /** The other network of the environment's kind: XRPL (XRPL Testnet in the sandbox). */
+  other: NetworkBrief;
+  /** The issuance ID asked for, in capitals. */
+  id: string;
+}
+
+/** The data of `NoMptPage` for a request on a network without MPT. */
+export function noMptPage(net: { id: NetworkId; kind: NetworkInfo["kind"]; other: NetworkId }, id: string): NoMptPageData {
+  return { kind: "no-mpt", network: findNetwork(net.id, net.kind), other: findNetwork(net.other, net.kind), id };
 }

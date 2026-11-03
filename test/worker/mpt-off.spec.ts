@@ -15,7 +15,7 @@ import { mockUpstream, type UpstreamMock } from "../support/upstream";
 // before E14 — an MPT amount in units and the start of its issuance's ID, with no link to a page that is not there — and make no lookup (spec 2.4). The `worker` project's cases, with the switch on,
 // are transaction-mpt.spec.ts, account-mpt.spec.ts and their likes. Later tasks add the MPT and tab pages here.
 
-const { page, storedAs } = pageClient("198.18.116");
+const { get, page, storedAs } = pageClient("198.18.116");
 
 const IMMUTABLE = { cls: "immutable", ttl: 31_536_000 };
 
@@ -136,5 +136,36 @@ describe("the account's Transactions and Payments tabs with MPT off", () => {
     expect(mptCalls(mock)).toEqual([]);
     expect(tableRows(html, "Payments")[1]!.slice(1, 4)).toEqual(["Received", "rMPTej…6MCR", "+1,000,000 units of MPT 0598F6E0…"]);
     expect(noLinkToAnMpt(html.slice(html.indexOf('aria-label="Payments"')))).toEqual([]);
+  });
+});
+
+// E14 spec 1.3 and 7: while `MPT` is off every route of the MPT pages is the 404 of "the MPT pages", of class `short`, before any call and whatever the ID is (the switch is the first check): the page,
+// on either network, in any case, and for text that is no ID at all.
+describe("the MPT page with MPT off", () => {
+  it.each([
+    ["an ID in capitals", "xrpl", MPT_FIXTURE_IDS.htf],
+    ["an ID in lower case", "xrpl", MPT_FIXTURE_IDS.htf.toLowerCase()],
+    ["text that is no ID", "xrpl", "xyz"],
+    ["an ID on Xahau", "xahau", MPT_FIXTURE_IDS.htf],
+    ["an ID on Xahau in lower case", "xahau", MPT_FIXTURE_IDS.htf.toLowerCase()],
+  ] as const)("answers %s with the 404 of the MPT pages, class short, and makes no request", async (_what, net, id) => {
+    mock = mockUpstream(net);
+    const path = `/${net}/mpt/${id}`;
+    const response = await get(path);
+    const html = await response.text();
+
+    expect(response.status).toBe(404);
+    expect(textOf(html)).toContain(`We couldn’t find the MPT pages on ${net === "xrpl" ? "XRPL" : "Xahau"}.`);
+    expect(textOf(html)).not.toContain("MPT isn't enabled");
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs(path)).toEqual({ cls: "short", ttl: 30 });
+  });
+
+  it("does not redirect a made-up query or a lower case ID: the switch is checked first", async () => {
+    mock = mockUpstream("xrpl");
+    const response = await get(`/xrpl/mpt/${MPT_FIXTURE_IDS.htf.toLowerCase()}?x=1`);
+    await response.text();
+    expect(response.status).toBe(404);
+    expect(mock.requests).toEqual([]);
   });
 });

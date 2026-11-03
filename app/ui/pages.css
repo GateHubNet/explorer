@@ -5705,6 +5705,145 @@ a.markets__pair:hover .markets__name {
 }
 
 /* ---------------------------------------------------------------------------------------------------------------
+   MPT: /{net}/mpt/{ID} and its holders' and transfers' pages (E14 spec 3). The page is the token page's: its classes (`.token-page*`, `.tokens*`) are drawn again, and this block holds what an MPT
+   has besides them. Everything the issuer wrote (the name, the ticker, the metadata, a link's words) is free text with no spaces to break at, so each place that shows it breaks it at the
+   edge of its cell (`overflow-wrap: anywhere`, pinned in test/unit/pages-css.test.ts). */
+
+/* The issuance ID in full, in mono, with the button that copies it. */
+.mpt__id {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.mpt__idtext {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--fg);
+  font-size: 12.5px;
+}
+
+/* A line of the metadata: the issuer's text, or the words of its link. */
+.mpt__text {
+  overflow-wrap: anywhere;
+}
+
+/* A link the issuer wrote is in the words of its row: told from them by more than its colour (WCAG 1.4.1). */
+.mpt__metadata dd a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Indented JSON, and the metadata's text: a block of its own, scrolling when it is long, wrapping where it has no space. */
+.mpt__json {
+  max-height: 320px;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+/* The raw hex: a disclosure whose summary is a 44 px target on touch, and whose body is mono with nowhere to break. */
+.mpt__hex {
+  margin-top: 12px;
+}
+
+.mpt__hex summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.mpt__hex pre {
+  overflow-wrap: anywhere;
+}
+
+/* The Flags card: a row for each ability, its name, Yes or No in a pill, and what it means for this token. */
+.mptflags__intro {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.mptflags__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mptflags__row {
+  display: grid;
+  grid-template-columns: 110px auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.mptflags__row:first-child {
+  border-top: 0;
+}
+
+.mptflags__label {
+  font-weight: 600;
+}
+
+.mptflags__line {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .mptflags__row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .mptflags__label {
+    grid-column: 1 / -1;
+  }
+}
+
+/* A holder's balance with what of it is in escrow under it, both at the end of the cell. */
+.mpt__balance {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.mpt__escrow {
+  font-size: 12px;
+}
+
+/* A card the index has no rows for. */
+.mpt__missing {
+  margin: 0;
+  padding: 18px 20px;
+}
+
+/* The page that says MPT is not on Xahau: the heading, a sentence, the ID, the two ways out. */
+.mpt__none {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px 22px;
+}
+
+.mpt__none-text {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
    Supply: /{net}/supply (spec 5): the heading with the snapshot it is a picture of, the bar of where the currency is with its figures under it,
    and the cards of days. The classes of the chart kit and of the tile (the card, the compact share bar, `.stat__formula`) are the kit's and are
    not defined here; this sheet places them. The page is a column of cards that folds to the width of a phone with nothing to scroll sideways. */

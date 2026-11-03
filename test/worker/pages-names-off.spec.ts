@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
 import { FEATURE_VARS } from "../../app/ui/features";
+import { MPT_FIXTURE_IDS } from "../support/mpt-case-rules";
 import { dataUrlOf, expectDrawn, expectNoNames, namesOffSpec, namesPartOf } from "../support/names";
 import { collectionCase, nftCase } from "../support/nft-cases";
 import { objectCase } from "../support/object-cases";
@@ -33,6 +34,8 @@ const ESCROW = await objectCase("xrpl", "escrow-finished");
 /** A check whose destination the fixtures name, and a payment channel whose source they name. */
 const CHECK = await objectCase("xrpl", "check-expired");
 const CHANNEL = await objectCase("xrpl", "channel-closing");
+/** An MPT issuance the fixtures give holders and transfers: no address of it is named, so the page draws short addresses. */
+const MPT = MPT_FIXTURE_IDS.htf;
 
 /** What a page that names nothing says for itself when it links no account the fixtures name: a short address it draws. */
 const SHORT_ADDRESS = /\br[1-9A-HJ-NP-Za-km-z]{5}…[1-9A-HJ-NP-Za-km-z]{4}\b/;
@@ -73,6 +76,7 @@ describe("the pages the other switches gate", () => {
     ["a Xahau token", "xahau", `/xahau/token/EVR.${EVR_ISSUER}`, "linked"],
     ["the holders of a token", "xrpl", `/xrpl/token/RLUSD.${RLUSD_ISSUER}/holders`, "linked"],
     ["the holders of a Xahau token", "xahau", `/xahau/token/EVR.${EVR_ISSUER}/holders`, "linked"],
+    ["an MPT", "xrpl", `/xrpl/mpt/${MPT}`, "short"],
   ] as const)("draws %s by addresses, with the page there, and asks for no name and no toml", async (_, net, path, says) => {
     const mock = upstream(net);
     const { response, html } = await serve(path);
