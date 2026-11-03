@@ -724,7 +724,7 @@ test.describe("without JavaScript", () => {
     await page.getByRole("link", { name: `Back to ${issuance.ticker}` }).click();
     await page.waitForURL(`**${HTF_PATH}`);
 
-    // "Older →" is a link to the transfers' page behind the marker of the eight (the fixtures hold no page of twenty behind it: see the transfers' pages above), whose own pager is links too.
+    // "Older →" is a link to the transfers' page behind the marker of the eight (followed above), whose own pager is links too.
     await expect(page.getByRole("link", { name: "Older →" })).toHaveAttribute("href", /^\/xrpl\/mpt\/[0-9A-F]{48}\/transfers\?marker=/);
     await page.goto(`${HTF_PATH}/transfers`);
     await expect(rowsOf(page, "Transfers")).toHaveCount(20);

@@ -220,10 +220,10 @@ test.describe("the tags of a page reached by a link in the page", () => {
     await page.getByRole("link", { name: /^Back to / }).first().click();
     await page.waitForURL(`**${path}`);
 
-    // The transfers' route: the page behind "Older →" (the fixtures hold no page of twenty behind the marker of the eight, so the page is the not-found one; the route is what is asked for).
+    // The transfers' route: the page behind "Older →", the transfers' page behind the marker of the eight (the fixtures hold it: rows 9 to 28).
     await page.getByRole("link", { name: "Older →" }).click();
     await page.waitForURL((url) => url.pathname === `${path}/transfers` && url.searchParams.has("marker"));
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Not found");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(`Transfers of ${issuanceOf(MPT_FIXTURE_IDS.htf).ticker}`);
 
     expect(await sameDocument(page)).toBe(true);
     expect(manifests).toEqual([]);
