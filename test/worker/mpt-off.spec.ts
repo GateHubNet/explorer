@@ -1,9 +1,13 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
 
+import accountTransactions from "../fixtures/http/xrpl/data-api/accounts/rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh/transactions@descending=true&limit=20.json";
+import accountPayments3 from "../fixtures/http/xrpl/data-api/accounts/rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh/payments@descending=true&limit=20&marker=WzEwMjE4NjI0Myw2M10.json";
 import xrplTransactions from "../fixtures/http/xrpl/data-api/transactions@descending=true&limit=8.json";
+import feePayment from "../fixtures/http/xrpl/data-api/transactions/80C74925827B059CA14F2C7C4E01F8DE37C5502648CE20DE90B35827E73D503E.json";
 import mintTransaction from "../fixtures/http/xrpl/data-api/transactions/4D9BB2A0B0289D36A995B10AB17D5BE9B19E961B777AFDE29D84CC59384E74F6.json";
-import { MPT_FIXTURE_IDS, MPT_LOCKED_HOLDING, MPT_MINT_ISSUANCE, MPT_RECORDED } from "../support/mpt-case-rules";
+import { healthy } from "../support/account-loader";
+import { MPT_FEE_PAYMENT_ISSUANCE, MPT_FIXTURE_IDS, MPT_LOCKED_HOLDING, MPT_MINT_ISSUANCE, MPT_RECORDED } from "../support/mpt-case-rules";
 import { anchors, elementText, pageClient, tableRows, textOf } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
 
@@ -99,5 +103,38 @@ describe("the account page with MPT off", () => {
     expect(list).toContain(`MPT ${MPT_FIXTURE_IDS.htf.slice(0, 8)}… Balance 2,500,000 units of MPT ${MPT_FIXTURE_IDS.htf.slice(0, 8)}… In escrow 500,000 units of MPT ${MPT_FIXTURE_IDS.htf.slice(0, 8)}… Locked No Authorized Yes`);
     expect(list).toContain(`MPT ${MPT_LOCKED_HOLDING.slice(0, 8)}…`);
     expect(anchors(objects.html).filter((a) => /href="[^"]*\/mpt\//.test(a.attrs))).toEqual([]);
+  });
+});
+
+// Review of Tasks 7 and 8, M7: the account's lists draw an MPT row through `MptCell` (AccountListPanels.tsx), whose link is `mptLink`'s, and `MptAmount` has no link for a null `href` (a component test): the
+// glue between them is these two, with a recorded MPT payment in each tab.
+describe("the account's Transactions and Payments tabs with MPT off", () => {
+  const active = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+  const noLinkToAnMpt = (html: string) => anchors(html).filter((a) => /href="[^"]*\/mpt\//.test(a.attrs));
+
+  it("draws a transaction's sentence and change in units with no link, and makes no lookup", async () => {
+    // The recorded payment's receiver, which holds nothing of the recordings but this payment.
+    const receiver = "rKSg2VZbw9gRRuSwBjBFAfBoGC5Vs1FmFn";
+    mock = mockUpstream("xrpl", {
+      ...healthy(receiver),
+      [`GET /v2/accounts/${receiver}/transactions?descending=true&limit=20`]: { ...accountTransactions, transactions: [feePayment.transaction], marker: undefined },
+    });
+    const { html } = await page(`/xrpl/account/${receiver}`);
+
+    expect(mptCalls(mock)).toEqual([]);
+    const row = tableRows(html, "Transactions")[1]!;
+    expect(row[2]).toContain("sent 1,000,000 units of MPT 0598F6E0… to");
+    expect(row[3]).toBe("+1,000,000 units of MPT 0598F6E0…");
+    expect(noLinkToAnMpt(html)).toEqual([]);
+  });
+
+  it("draws a payment's amount signed from the account's side, in units with no link, and makes no lookup", async () => {
+    mock = mockUpstream("xrpl", { [`GET /v2/accounts/${active}/payments?descending=true&limit=20`]: accountPayments3 });
+    const { html } = await page(`/xrpl/account/${active}?tab=payments`);
+
+    expect(accountPayments3.payments[0]!.mpt_issuance_id).toBe(MPT_FEE_PAYMENT_ISSUANCE);
+    expect(mptCalls(mock)).toEqual([]);
+    expect(tableRows(html, "Payments")[1]!.slice(1, 4)).toEqual(["Received", "rMPTej…6MCR", "+1,000,000 units of MPT 0598F6E0…"]);
+    expect(noLinkToAnMpt(html.slice(html.indexOf('aria-label="Payments"')))).toEqual([]);
   });
 });
